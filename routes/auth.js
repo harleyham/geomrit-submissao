@@ -75,12 +75,16 @@ router.get('/logout', (req, res) => {
   req.session.destroy(() => {
     req.session = null;
     res.clearCookie('connect.sid');
+    res.clearCookie('connect.sid', { path: '/admin' });
     res.set({
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       'Pragma': 'no-cache',
-      'Expires': '0'
+      'Expires': '0',
+      'Surrogate-Control': 'no-store',
+      'X-Accel-Expires': '0',
+      'X-Content-Type-Options': 'nosniff',
     });
-    res.redirect('/');
+    res.redirect('/admin/login');
   });
 });
 
@@ -88,12 +92,16 @@ router.post('/logout', (req, res) => {
   req.session.destroy(() => {
     req.session = null;
     res.clearCookie('connect.sid');
+    res.clearCookie('connect.sid', { path: '/admin' });
     res.set({
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       'Pragma': 'no-cache',
-      'Expires': '0'
+      'Expires': '0',
+      'Surrogate-Control': 'no-store',
+      'X-Accel-Expires': '0',
+      'X-Content-Type-Options': 'nosniff',
     });
-    res.redirect('/');
+    res.redirect('/admin/login');
   });
 });
 

@@ -37,6 +37,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'edigemia-ligem-secret-2027',
   resave: false,
   saveUninitialized: false,
+  cookie: {
+    secure: false,
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 horas
+    sameSite: 'lax',
+  },
 }));
 
 // Multer para uploads
