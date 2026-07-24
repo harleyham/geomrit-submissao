@@ -75,6 +75,11 @@ router.get('/logout', (req, res) => {
   req.session.destroy(() => {
     req.session = null;
     res.clearCookie('connect.sid');
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.redirect('/');
   });
 });
@@ -83,6 +88,11 @@ router.post('/logout', (req, res) => {
   req.session.destroy(() => {
     req.session = null;
     res.clearCookie('connect.sid');
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.redirect('/');
   });
 });
