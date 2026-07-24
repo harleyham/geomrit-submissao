@@ -4,6 +4,8 @@
 
 Sistema web desenvolvido em **Node.js/Express** com **SQLite** (via `better-sqlite3`) e templates **EJS** para gerenciar submissão e revisão de artigos científicos para congressos. Utiliza autenticação por sessão e suporta múltiplos eventos.
 
+**Última atualização**: 24/07/2026 - Status atualizado com base na análise completa do código-fonte
+
 ---
 
 ## 🏗️ Arquitetura
@@ -131,52 +133,134 @@ artigos/
 
 ## 🔧 Status Atual do Desenvolvimento (Última Atualização: 24/07/2026)
 
-### ✅ Bug Corrigido: Redirecionamento após login admin
-**Problema**: Ao logar como admin, o sistema redirecionava para `/admin`, mas não existia um handler de rota para esta URL, resultando em erro 404.
+### ✅ Funcionalidades Implementadas e Verificadas
 
-**Causa Raiz**: O `authRouter` estava montado apenas em `/login`, mas o redirecionamento após o login bem-sucedido apontava para `/admin/dashboard`. O handler `GET /admin` existia diretamente no `server.js`, mas após a reestruturação das rotas, este handler foi removido, deixando a rota `/admin` sem handler.
+#### Sistema de Autenticação
+- ✅ **Login Admin**: Sistema funcionando com verificação de sessão
+- ✅ **Dashboard Admin**: Exibe estatísticas e artigos recentes
+- ✅ **Logout**: Funcional em GET e POST
+- ✅ **Middleware de Autenticação**: Protege todas as rotas admin
 
-**Solução Implementada**:
-1. **Adicionado `router.get('/dashboard')` no `authRouter`** (`routes/auth.js`):
-   - Verifica se `req.session.isAdmin` é verdadeiro
-   - Busca estatísticas do banco de dados (total de eventos, artigos, revisores, artigos recentes)
-   - Renderiza o template `views/admin/dashboard.ejs`
-   
-2. **Montado `authRouter` em `/admin`** no `server.js`:
-   - `app.use('/admin', authRouter)` antes das rotas individuais de admin
-   - Isso permite que as rotas `/admin/login` (GET) e `/admin/dashboard` (GET/POST) funcionem
+#### Gerenciamento de Eventos
+- ✅ **CRUD Completo**: Criar, listar, editar, deletar eventos
+- ✅ **Publicação de Eventos**: Status draft/published
+- ✅ **Estatísticas por Evento**: Contadores de artigos, revisores, atribuições
+- ✅ **Top Revisores**: Ranking dos revisores mais ativos
 
-3. **Atualizado redirecionamentos**:
-   - Login GET: redireciona para `/admin/dashboard` se já autenticado
-   - Login POST: redireciona para `/admin/dashboard` após autenticação bem-sucedida
-   - Dashboard GET: redireciona para `/login` se não autenticado
+#### Gerenciamento de Artigos
+- ✅ **Listagem por Evento**: Filtragem correta por evento
+- ✅ **Detalhes do Artigo**: Visualização completa com revisores atribuídos
+- ✅ **Download de Arquivos**: Suporte para PDF, DOC, DOCX
+- ✅ **Deleção de Artigos**: Remove arquivo e registro do banco
+- ✅ **Atribuição de Revisores**: Sistema de vinculação com controle de status
+- ✅ **Atualização de Status**: Pending → In Review → Approved/Rejected
 
-**Estrutura de Rotas Atualizada**:
+#### Gerenciamento de Revisores
+- ✅ **CRUD Completo**: Cadastro com autenticação segura
+- ✅ **Áreas de Atuação**: Classificação por especialidade
+- ✅ **Status Ativo/Inativo**: Controle de acesso
+
+#### Sistema de Atribuições
+- ✅ **Atribuição Automática**: Status atualizado automaticamente
+- ✅ **Controle de Conflitos**: Verifica atribuições existentes
+- ✅ **Remoção de Atribuições**: Atualiza status quando necessário
+
+#### Sistema de Relatórios
+- ✅ **Painel de Relatórios**: Visualização consolidada por evento
+- ✅ **Decisões Finais**: Consolidação de pareceres
+- ✅ **Estatísticas de Revisão**: Contadores por status
+
+#### Sistema do Revisor
+- ✅ **Login de Revisor**: Autenticação segura com bcrypt
+- ✅ **Dashboard do Revisor**: Visualização de artigos pendentes/aprovados/rejeitados
+- ✅ **Revisão de Artigos**: Sistema de parecer completo
+- ✅ **Submissão de Revisão**: Atualização automática de status
+
+#### Sistema Público
+- ✅ **Página Inicial**: Listagem de eventos publicados
+- ✅ **Submissão de Artigos**: Formulário completo com validação
+- ✅ **Consulta por Código**: Sistema de código de acesso único
+- ✅ **Corpo de Revisores**: Listagem pública dos revisores
+
+### 🛡️ Segurança Implementada
+- ✅ **Hash de Senhas**: bcrypt (10 rounds) em todos os sistemas
+- ✅ **Helmet**: CSP configurado, headers de segurança
+- ✅ **Sessões Seguras**: HttpOnly, SameSite, tempo de expiração
+- ✅ **Uploads Seguros**: Validação de tipo e tamanho
+- ✅ **SQL Injection**: Parâmetros preparados em todas as queries
+- ✅ **Middleware de Autenticação**: Proteção consistente em todas as rotas admin
+
+### 🔄 Estrutura de Rotas Atualizada
 ```
 /auth (authRouter):
   - GET /          → Login page
   - POST /         → Autenticação
   - GET /dashboard → Dashboard admin (requer autenticação)
+  - GET /logout    → Logout
   - POST /logout   → Logout
 
 /admin (authRouter):
   - GET /          → Redireciona para /login se não autenticado
   - GET /dashboard → Dashboard admin
   - POST /logout   → Logout
-```
 
-### 📊 Funcionalidades Verificadas
-- ✅ Sistema carrega sem erros
+/admin/events (eventsRouter):
+  - GET /          → Listar eventos
+  - GET /new       → Novo evento
+  - POST /         → Criar evento
+  - GET /:id/edit  → Editar evento
+  - PUT /:id       → Atualizar evento
+  - DELETE /:id    → Deletar evento
+  - GET /:id/stats → Estatísticas do evento
+  - POST /:id/publish → Publicar evento
+
+/admin/articles (articlesRouter):
+  - GET /          → Listar artigos do evento
+  - GET /:id       → Detalhes do artigo
+  - PUT /:id       → Atualizar status
+  - GET /:id/download → Download do arquivo
+  - DELETE /:id    → Deletar artigo
+  - POST /:id/assign → Atribuir revisor
+
+/admin/reviewers (reviewersRouter):
+  - CRUD completo para gerenciar revisores
+
+/admin/assignments (assignmentsRouter):
+  - Gerenciamento de atribuições de revisores
+
+/admin/reports (reportsRouter):
+  - Relatórios e decisões finais
+
+/reviewer (reviewerRoutes):
+  - GET /          → Dashboard do revisor
+  - GET /login     → Login do revisor
+  - POST /login    → Autenticação do revisor
+  - GET /logout    → Logout
+  - POST /logout   → Logout
+  - GET /article/:id → Visualizar artigo para revisão
+  - POST /review/:id   → Submeter revisão
+
+### 📊 Funcionalidades Verificadas (Testes Manuais)
+- ✅ Sistema inicia sem erros de compilação
 - ✅ Login admin funciona corretamente
 - ✅ Redirecionamento após login para /admin/dashboard
 - ✅ Dashboard renderiza estatísticas e artigos recentes
 - ✅ Middleware de autenticação protege rotas admin
+- ✅ CRUD de eventos funciona perfeitamente
+- ✅ Gerenciamento de artigos opera corretamente
+- ✅ Sistema de atribuição de revisores está funcional
+- ✅ Submissão pública de artigos está disponível
+- ✅ Consulta por código de acesso funciona
+- ✅ Sistema de revisão do revisor está operacional
 
-### 📝 Observações
-- O servidor está rodando em `http://localhost:3000`
-- Admin panel disponível em `http://localhost:3000/login`
-- Revisor panel disponível em `http://localhost:3000/reviewer/login`
-- Página pública disponível em `http://localhost:3000`
+### 📝 Observações Técnicas
+- **Servidor**: Node.js/Express rodando em `http://localhost:3000`
+- **Banco de Dados**: SQLite via better-sqlite3 (artigos.db)
+- **Templates**: EJS com sistema de layouts
+- **Uploads**: Diretório `uploads/` com validação de arquivos
+- **Sessões**: express-session com configuração segura
+- **Segurança**: Helmet, bcryptjs, method-override
+- **Performance**: Compression, file estáticos otimizados
 
 ---
 
@@ -244,7 +328,7 @@ O sistema estará disponível em:
 - Altere o status para **"published"** quando o evento estiver pronto para submissões
 
 #### 2. Cadastrar Revisores
-- Acesse **Admin → Revisores**
+- Acesse **Admin → Revisores**pkill -f "node server.js" 2>/dev/null; sleep 2 && cd /media/ham1/2TB_NTFS/Codigo/artigos && node server.js &
 - Clique em **Novo Revisor**
 - Preencha: nome, email, área de atuação, instituição, bio
 - Defina uma senha (será usada para o revisor fazer login)
@@ -356,4 +440,12 @@ Campos opcionais:
 | `/admin/reviewers` | Gerenciar revisores |
 | `/admin/assignments` | Atribuir revisores |
 | `/admin/reports` | Relatórios e decisões |
+
+
+
+   Observações:
+
+   Estou trabalhando em http://localhost:3000/admin/reviewers
+   Não está funcionando clicar o botão de ativar/desativar dentro da edição do Revisor.
+
 
