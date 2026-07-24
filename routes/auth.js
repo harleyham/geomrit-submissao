@@ -70,10 +70,21 @@ router.post('/', (req, res) => {
   });
 });
 
-// Logout
+// Logout (GET e POST)
+router.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    req.session = null;
+    res.clearCookie('connect.sid');
+    res.redirect('/');
+  });
+});
+
 router.post('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/');
+  req.session.destroy(() => {
+    req.session = null;
+    res.clearCookie('connect.sid');
+    res.redirect('/');
+  });
 });
 
 module.exports = { router, requireAuth };
