@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title : 'Consultar Artigo' %> - LIGEM.Redes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .main-content { max-width: 700px; margin: 0 auto; padding: 3rem 2rem; }
+    .card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; }
+    .card h1 { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center; }
+    .form-group { margin-bottom: 1.5rem; }
+    .form-group label { display: block; font-size: 0.875rem; font-weight: 500; color: #cbd5e1; margin-bottom: 0.375rem; }
+    .form-group input {
+      width: 100%; padding: 0.625rem 0.75rem; background: rgba(15,23,42,0.6);
+      border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; color: #e2e8f0;
+      font-family: 'Inter', sans-serif; font-size: 0.875rem;
+    }
+    .form-group input:focus {
+      outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25);
+    }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; }
+    .btn-primary { background: #3b82f6; color: white; width: 100%; justify-content: center; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-secondary { background: rgba(148,163,184,0.1); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
+    .actions { display: flex; gap: 1rem; margin-top: 1rem; }
+    .error { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); border-radius: 8px; padding: 1rem; color: #fca5a5; text-align: center; margin-bottom: 1rem; }
+    .article-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-top: 1.5rem; }
+    .article-card h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .article-card .meta { color: #94a3b8; font-size: 0.875rem; margin-bottom: 1rem; }
+    .article-card .info { font-size: 0.875rem; color: #cbd5e1; line-height: 1.8; }
+    .article-card .info strong { color: #e2e8f0; }
+    .status-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+    .status-pending { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .status-in_review { background: rgba(96,165,250,0.15); color: #60a5fa; }
+    .status-approved { background: rgba(52,211,153,0.15); color: #34d399; }
+    .status-rejected { background: rgba(248,113,113,0.15); color: #f87171; }
+    .status-revision_requested { background: rgba(251,146,60,0.15); color: #fb923c; }
+    .empty-state { text-align: center; padding: 2rem; color: #64748b; }
+    footer { text-align: center; padding: 3rem 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav style="display:flex;gap:0.25rem;align-items:center">
+        <a href="/" class="btn btn-secondary">← Início</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="card">
+      <h1>Consultar Artigo</h1>
+      <p style="color: #94a3b8; text-align: center; margin-bottom: 1.5rem; font-size: 0.875rem;">Digite o código de acesso recebido após a submissão para consultar o status do seu artigo.</p>
+
+      <form action="/consultar" method="POST">
+        <div class="form-group">
+          <label>Código de Acesso</label>
+          <input type="text" name="access_code" placeholder="Ex: ACC-A1B2C3D4" style="text-transform: uppercase; letter-spacing: 0.1em; font-family: monospace; text-align: center; font-size: 1rem;">
+        </div>
+        <button type="submit" class="btn btn-primary">Consultar</button>
+      </form>
+    </div>
+
+    <% if (error) { %>
+      <div class="error" style="margin-top: 1.5rem;">
+        <%= error %>
+      </div>
+    <% } %>
+
+    <% if (article) { %>
+      <div class="article-card">
+        <h2><%= article.title %></h2>
+        <% if (article.title_en) { %>
+          <p style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.75rem;"><em><%= article.title_en %></em></p>
+        <% } %>
+        <div style="margin-bottom: 1rem;">
+          <% if (article.status === 'pending') { %><span class="status-badge status-pending">Pendente</span><% } %>
+          <% if (article.status === 'in_review') { %><span class="status-badge status-in_review">Em Revisão</span><% } %>
+          <% if (article.status === 'approved') { %><span class="status-badge status-approved">Aprovado</span><% } %>
+          <% if (article.status === 'rejected') { %><span class="status-badge status-rejected">Rejeitado</span><% } %>
+          <% if (article.status === 'revision_requested') { %><span class="status-badge status-revision_requested">Revisão Solicitada</span><% } %>
+        </div>
+        <div class="meta">
+          <strong>Evento:</strong> <%= article.event_name %><br>
+          <strong>Autores:</strong> <%= article.authors %><br>
+          <strong>Área:</strong> <%= article.area %><br>
+          <strong>Tipo:</strong> <%= article.type === 'poster' ? 'Pôster' : 'Oral' %>
+        </div>
+        <% if (article.abstract) { %>
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(148,163,184,0.1);">
+            <strong style="color: #e2e8f0; font-size: 0.875rem;">Resumo</strong>
+            <p style="color: #94a3b8; font-size: 0.875rem; line-height: 1.6; margin-top: 0.25rem;"><%= article.abstract %></p>
+          </div>
+        <% } %>
+        <% if (article.reviewer_name) { %>
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(148,163,184,0.1);">
+            <strong style="color: #e2e8f0; font-size: 0.875rem;">Revisor Responsável</strong>
+            <p style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem;"><%= article.reviewer_name %> (<%= article.reviewer_area %>)</p>
+          </div>
+        <% } %>
+        <div class="actions" style="margin-top: 1.5rem;">
+          <a href="/" class="btn btn-secondary">Voltar ao Início</a>
+        </div>
+      </div>
+    <% } %>
+  </main>
+
+  <footer>&copy; <%= typeof year !== 'undefined' ? year : 2026 %> LIGEM.Redes</footer>
+</body>
+</html>

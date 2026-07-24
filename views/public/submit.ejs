@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title : 'Submeter Artigo' %> - LIGEM.Redes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .main-content { max-width: 700px; margin: 0 auto; padding: 3rem 2rem; }
+    .back-link { display: inline-block; color: #60a5fa; text-decoration: none; font-size: 0.875rem; margin-bottom: 2rem; }
+    .back-link:hover { text-decoration: underline; }
+    .card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; }
+    .card h1 { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .card .event-info { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; }
+    .form-group { margin-bottom: 1.5rem; }
+    .form-group label { display: block; font-size: 0.875rem; font-weight: 500; color: #cbd5e1; margin-bottom: 0.375rem; }
+    .form-group label .required { color: #f87171; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; padding: 0.625rem 0.75rem; background: rgba(15,23,42,0.6);
+      border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; color: #e2e8f0;
+      font-family: 'Inter', sans-serif; font-size: 0.875rem;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25);
+    }
+    .form-group textarea { resize: vertical; min-height: 120px; }
+    .form-group .help { font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .radio-group { display: flex; gap: 1.5rem; margin-top: 0.375rem; }
+    .radio-group label { display: flex; align-items: center; gap: 0.375rem; font-weight: 400; color: #cbd5e1; cursor: pointer; }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-secondary { background: rgba(148,163,184,0.1); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
+    .success-card { text-align: center; padding: 3rem 2rem; }
+    .success-card .icon { font-size: 3rem; margin-bottom: 1rem; }
+    .success-card h1 { color: #34d399; margin-bottom: 0.5rem; }
+    .access-code { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+    .access-code .code { font-size: 1.5rem; font-weight: 700; color: #34d399; letter-spacing: 0.1em; font-family: monospace; }
+    .access-code p { color: #94a3b8; font-size: 0.875rem; margin-top: 0.5rem; }
+    .actions { display: flex; gap: 1rem; margin-top: 2rem; }
+    footer { text-align: center; padding: 3rem 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav style="display:flex;gap:0.25rem;align-items:center">
+        <% if (!submitted) { %>
+        <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar</a>
+        <% } %>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <% if (submitted) { %>
+      <div class="card">
+        <div class="success-card">
+          <div class="icon">✅</div>
+          <h1>Submissão Concluída!</h1>
+          <p>Seu artigo foi submetido com sucesso ao evento <strong><%= event.name %></strong>.</p>
+          <div class="access-code">
+            <p>Seu código de acesso:</p>
+            <div class="code"><%= access_code %></div>
+            <p>Guarde este código para consultar o status do seu artigo futuramente.</p>
+          </div>
+          <div class="actions" style="justify-content:center">
+            <a href="/consultar" class="btn btn-primary">Consultar Artigo</a>
+            <a href="/" class="btn btn-secondary">Voltar ao Início</a>
+          </div>
+        </div>
+      </div>
+    <% } else { %>
+      <a href="/evento/<%= event.id %>" class="back-link">← Voltar ao evento</a>
+      <div class="card">
+        <h1>Submeter Artigo</h1>
+        <p class="event-info">Evento: <strong><%= event.name %></strong><br>
+        Área: <%= event.area %> | Período: <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> - <%= new Date(event.date_end).toLocaleDateString('pt-BR') %></p>
+
+        <form action="/submeter/<%= event.id %>" method="POST">
+          <div class="form-group">
+            <label>Título (Português) <span class="required">*</span></label>
+            <input type="text" name="title" required placeholder="Título completo do artigo em português">
+          </div>
+
+          <div class="form-group">
+            <label>Título (English) <span class="required">*</span></label>
+            <input type="text" name="title_en" required placeholder="Full article title in English">
+          </div>
+
+          <div class="form-group">
+            <label>Área <span class="required">*</span></label>
+            <input type="text" name="area" value="<%= event.area %>" readonly>
+            <div class="help">A área é definida pelo evento e não pode ser alterada.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Autores <span class="required">*</span></label>
+            <textarea name="authors" required placeholder="Liste todos os autores, separados por ponto e vírgula&#10;Ex: Autor 1; Autor 2; Autor 3"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Resumo / Abstract</label>
+            <textarea name="abstract" rows="5" placeholder="Resumo ou abstract do artigo"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Palavras-chave</label>
+            <input type="text" name="keywords" placeholder="Ex: processamento de linguagem natural; deep learning; análise de sentimentos">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Contribuidor</label>
+              <input type="text" name="contributor" placeholder="Primeiro autor / autor correspondente">
+            </div>
+            <div class="form-group">
+              <label>Afiliação</label>
+              <input type="text" name="affiliation" placeholder="Instituição">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Cidade</label>
+              <input type="text" name="city" placeholder="Cidade da afiliação">
+            </div>
+            <div class="form-group">
+              <label>Email para submissão</label>
+              <input type="email" name="email_submission" placeholder="email@instituicao.edu.br">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Tipo de Apresentação <span class="required">*</span></label>
+            <div class="radio-group">
+              <label><input type="radio" name="type" value="oral" checked> Oral</label>
+              <label><input type="radio" name="type" value="poster"> Pôster</label>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Submeter Artigo</button>
+            <a href="/evento/<%= event.id %>" class="btn btn-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    <% } %>
+  </main>
+
+  <footer>&copy; <%= typeof year !== 'undefined' ? year : 2026 %> LIGEM.Redes</footer>
+</body>
+</html>

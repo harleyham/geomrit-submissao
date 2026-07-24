@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title : 'Revisores' %> - LIGEM.Redes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .main-content { max-width: 1100px; margin: 0 auto; padding: 3rem 2rem; }
+    .filter-group { margin-bottom: 2rem; display: flex; align-items: center; gap: 0.75rem; }
+    .filter-group label { color: #94a3b8; font-size: 0.875rem; font-weight: 500; white-space: nowrap; }
+    .filter-group select {
+      padding: 0.5rem 0.75rem; background: rgba(15,23,42,0.6);
+      border: 1px solid rgba(148,163,184,0.2); border-radius: 8px;
+      color: #e2e8f0; font-family: 'Inter', sans-serif; font-size: 0.875rem;
+      min-width: 200px;
+    }
+    .filter-group select:focus { outline: none; border-color: #3b82f6; }
+    .reviewers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
+    .reviewer-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 1.5rem; transition: all 0.2s; }
+    .reviewer-card:hover { border-color: rgba(96,165,250,0.3); transform: translateY(-2px); }
+    .reviewer-card h3 { font-size: 1rem; font-weight: 600; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .reviewer-card .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; margin-bottom: 0.75rem; }
+    .reviewer-card .info { color: #94a3b8; font-size: 0.8125rem; line-height: 1.6; }
+    .reviewer-card .info strong { color: #cbd5e1; }
+    .reviewer-card .article-count { color: #60a5fa; font-size: 0.75rem; font-weight: 500; margin-top: 0.75rem; }
+    .empty-state { text-align: center; padding: 4rem 2rem; }
+    .empty-state h2 { font-size: 1.5rem; font-weight: 600; color: #475569; margin-bottom: 0.5rem; }
+    .empty-state p { color: #334155; font-size: 0.9375rem; }
+    .actions { display: flex; gap: 1rem; margin-top: 1rem; }
+    .btn-secondary { background: rgba(148,163,184,0.1); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.2); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8125rem; text-decoration: none; }
+    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
+    footer { text-align: center; padding: 3rem 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav style="display:flex;gap:0.25rem;align-items:center">
+        <a href="/" class="btn-secondary">← Início</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <h1 style="font-size: 1.75rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; text-align: center;">Corpo de Revisores</h1>
+    <p style="color: #94a3b8; text-align: center; margin-bottom: 2rem; font-size: 0.9375rem;">Profissionais especializados que avaliam os artigos submetidos aos eventos.</p>
+
+    <div class="filter-group">
+      <label>Filtrar por área:</label>
+      <select id="areaFilter" onchange="filterReviewers()">
+        <option value="">Todas as áreas</option>
+        <% areas.forEach(area => { %>
+          <option value="<%= area %>"><%= area %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <% if (reviewers.length > 0) { %>
+      <div class="reviewers-grid" id="reviewersGrid">
+        <% reviewers.forEach(review => { %>
+          <div class="reviewer-card" data-area="<%= review.area %>">
+            <span class="area"><%= review.area %></span>
+            <h3><%= review.name %></h3>
+            <% if (review.email) { %>
+              <p class="info"><strong>Email:</strong> <%= review.email %></p>
+            <% } %>
+            <% if (review.institution) { %>
+              <p class="info"><strong>Instituição:</strong> <%= review.institution %></p>
+            <% } %>
+            <% if (review.lattes) { %>
+              <p class="info"><strong>Lattes:</strong> <a href="http://lattes.cnpq.br/<%= review.lattes %>" target="_blank" style="color: #60a5fa; text-decoration: none;"><%= review.lattes %></a></p>
+            <% } %>
+            <p class="article-count">📄 <%= review.article_count %> artigo(s) atribuído(s)</p>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <div class="empty-state">
+        <h2>Nenhum revisor cadastrado</h2>
+        <p>Em breve novos profissionais serão adicionados ao corpo de revisores.</p>
+      </div>
+    <% } %>
+
+    <div class="actions">
+      <a href="/" class="btn-secondary">Voltar ao Início</a>
+    </div>
+  </main>
+
+  <script>
+    function filterReviewers() {
+      const filter = document.getElementById('areaFilter').value;
+      const cards = document.querySelectorAll('.reviewer-card');
+      cards.forEach(card => {
+        if (filter === '' || card.dataset.area === filter) {
+          card.style.display = '';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  </script>
+
+  <footer>&copy; <%= typeof year !== 'undefined' ? year : 2026 %> LIGEM.Redes</footer>
+</body>
+</html>

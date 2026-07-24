@@ -7,7 +7,12 @@
     "start": "node server.js",
     "dev": "node server.js"
   },
-  "keywords": ["artigos", "revisao", "events", "ligem"],
+  "keywords": [
+    "artigos",
+    "revisao",
+    "events",
+    "ligem"
+  ],
   "author": "LIGEM.Redes",
   "license": "MIT",
   "dependencies": {
@@ -22,5 +27,8 @@
     "compression": "^1.7.4",
     "helmet": "^8.0.0",
     "express-rate-limit": "^7.4.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.10.0": true
   }
 }

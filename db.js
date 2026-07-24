@@ -9,7 +9,7 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Criar tabelas
+// Criar tabelas com schema unificado
 db.exec(`
   CREATE TABLE IF NOT EXISTS admins (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,26 +33,11 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
-  CREATE TABLE IF NOT EXISTS articles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    authors TEXT NOT NULL,
-    abstract TEXT,
-    type TEXT NOT NULL CHECK(type IN ('oral', 'poster')),
-    status TEXT NOT NULL DEFAULT 'submitted' CHECK(status IN ('submitted', 'assigned', 'in_review', 'reviewed', 'approved', 'rejected')),
-    file_path TEXT,
-    file_original_name TEXT,
-    submitted_email TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
-  );
-
   CREATE TABLE IF NOT EXISTS reviewers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    password TEXT,
     area TEXT NOT NULL,
     institution TEXT,
     bio TEXT,
@@ -61,11 +46,40 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    title_en TEXT DEFAULT '',
+    area TEXT DEFAULT 'Outra',
+    authors TEXT NOT NULL,
+    abstract TEXT,
+    keywords TEXT DEFAULT '',
+    pdf_path TEXT,
+    contributor TEXT DEFAULT '',
+    affiliation TEXT DEFAULT '',
+    city TEXT DEFAULT '',
+    email_submission TEXT DEFAULT '',
+    access_code TEXT,
+    type TEXT DEFAULT 'oral',
+    status TEXT NOT NULL DEFAULT 'pending',
+    reviewer_id INTEGER,
+    reviewer_name TEXT,
+    reviewer_area TEXT,
+    review_notes TEXT,
+    rejection_reason TEXT,
+    date_submitted DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     article_id INTEGER NOT NULL,
     reviewer_id INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined')),
+    status TEXT NOT NULL DEFAULT 'pending',
+    reviewed_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE,
@@ -84,10 +98,11 @@ db.exec(`
   );
 `);
 
-// Inserir admin padrão (senha: admin2027) se não existir
+// Inserir admin padrão se não existir (senha vem de variável de ambiente ou padrão)
 const adminExists = db.prepare('SELECT id FROM admins WHERE username = ?').get('admin');
 if (!adminExists) {
-  const hash = bcrypt.hashSync('admin2027', 10);
+  const defaultPassword = process.env.ADMIN_PASSWORD || 'admin2027';
+  const hash = bcrypt.hashSync(defaultPassword, 10);
   db.prepare('INSERT INTO admins (username, password) VALUES (?, ?)').run('admin', hash);
 }
 
@@ -110,13 +125,11 @@ module.exports = {
   },
   getStatsByEvent: (eventId) => {
     const total = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ?').get(eventId).count;
-    const oral = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND type = "oral"').get(eventId).count;
-    const poster = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND type = "poster"').get(eventId).count;
-    const submitted = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "submitted"').get(eventId).count;
+    const pending = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "pending"').get(eventId).count;
     const in_review = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "in_review"').get(eventId).count;
     const approved = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "approved"').get(eventId).count;
     const rejected = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "rejected"').get(eventId).count;
-    return { total, oral, poster, submitted, in_review, approved, rejected };
+    return { total, pending, in_review, approved, rejected };
   },
   getUnassignedArticles: (eventId) => {
     return db.prepare(`
@@ -157,6 +170,7 @@ module.exports = {
       JOIN events e ON e.id = a.event_id
       LEFT JOIN reports rp ON rp.assignment_id = ass.id
       WHERE ass.reviewer_id = ? AND rp.id IS NULL AND ass.status = 'accepted'
+      ORDER BY a.date_submitted DESC
     `).all(reviewerId);
   },
   getReviewedArticles: (reviewerId) => {
@@ -169,6 +183,7 @@ module.exports = {
       JOIN events e ON e.id = a.event_id
       JOIN reports rp ON rp.assignment_id = ass.id
       WHERE ass.reviewer_id = ?
+      ORDER BY a.date_submitted DESC
     `).all(reviewerId);
   }
 };

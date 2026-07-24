@@ -1,52 +1,72 @@
 const express = require('express');
 const router = express.Router();
-const { db, getUnassignedArticles, getAssignmentsByEvent } = require('../db');
+const { db, getUnassignedArticles, getAssignmentsByEvent, getStatsByEvent } = require('../db');
 
-router.get('/', (req, res) => {
-  const eventId = parseInt(req.query.eventId);
-  if (!eventId) return res.redirect('/admin');
-  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const unassigned = getUnassignedArticles(eventId);
-  const assignments = getAssignmentsByEvent(eventId);
-  const reviewers = db.prepare('SELECT * FROM reviewers WHERE is_active = 1 ORDER BY area, name').all();
-  res.render('admin/assignments/list', { event, unassigned, assignments, reviewers, title: 'Distribuição - ' + event.name });
-});
-
-router.post('/bulk', (req, res) => {
-  const { event_id, article_ids, reviewer_ids } = req.body;
-  if (!article_ids || !reviewer_ids) {
-    return res.status(400).json({ error: 'Selecione artigos e revisores' });
+// Middleware de autenticação admin para atribuições
+function requireAuth(req, res, next) {
+  if (!req.session.isAdmin) {
+    return res.redirect('/login');
   }
-  const articles = Array.isArray(article_ids) ? article_ids : [article_ids];
-  const reviewers = Array.isArray(reviewer_ids) ? reviewer_ids : [reviewer_ids];
+  next();
+}
+
+// Atribuir revisor a artigo
+router.post('/:articleId', requireAuth, (req, res) => {
+  const { eventId, reviewerId } = req.body;
+  if (!reviewerId) {
+    return res.status(400).json({ error: 'Revisor não selecionado' });
+  }
   
-  articles.forEach(articleId => {
-    reviewers.forEach(reviewerId => {
-      db.prepare('INSERT OR IGNORE INTO assignments (article_id, reviewer_id, status) VALUES (?, ?, "accepted")').run(articleId, reviewerId);
-      db.prepare('UPDATE articles SET status = "in_review" WHERE id = ?').run(articleId);
-    });
-  });
-  res.redirect(`/admin/assignments?eventId=${event_id}`);
+  // Verificar se o revisor já foi atribuído a este artigo
+  const existing = db.prepare('SELECT id FROM assignments WHERE article_id = ? AND reviewer_id = ?').get(req.params.articleId, reviewerId);
+  if (existing) {
+    return res.status(400).json({ error: 'Revisor já atribuído' });
+  }
+  
+  // Verificar se o artigo não tem nenhum revisor
+  const existingReviewer = db.prepare('SELECT id FROM assignments WHERE article_id = ?').get(req.params.articleId);
+  if (existingReviewer) {
+    return res.status(400).json({ error: 'Artigo já tem revisor' });
+  }
+  
+  db.prepare(`
+    INSERT INTO assignments (article_id, reviewer_id, status, created_at, updated_at)
+    VALUES (?, ?, 'pending', datetime('now'), datetime('now'))
+  `).run(req.params.articleId, reviewerId);
+  
+  db.prepare(`
+    UPDATE articles SET status = 'in_review', updated_at = datetime('now') WHERE id = ?
+  `).run(req.params.articleId);
+  
+  const redirectUrl = eventId ? `/admin/assignments?eventId=${eventId}` : '/admin/assignments';
+  res.redirect(redirectUrl);
 });
 
-router.post('/:id/assign', (req, res) => {
-  const { reviewer_id } = req.body;
-  if (reviewer_id) {
-    db.prepare('INSERT OR IGNORE INTO assignments (article_id, reviewer_id, status) VALUES (?, ?, "accepted")').run(req.params.id, reviewer_id);
-    db.prepare('UPDATE articles SET status = "in_review" WHERE id = ?').run(req.params.id);
-  }
-  res.redirect(`/admin/assignments?eventId=${req.query.eventId}`);
+// Aceitar atribuição
+router.post('/accept/:id', requireAuth, (req, res) => {
+  db.prepare(`
+    UPDATE assignments 
+    SET status = 'accepted', updated_at = datetime('now') 
+    WHERE id = ?
+  `).run(req.params.id);
+  
+  db.prepare(`
+    UPDATE articles SET status = 'in_review', updated_at = datetime('now') 
+    WHERE id = (SELECT article_id FROM assignments WHERE id = ?)
+  `).run(req.params.id);
+  
+  res.redirect(`/admin/assignments?eventId=${req.body.eventId}`);
 });
 
-router.post('/:id/unassign', (req, res) => {
-  const { reviewer_id, eventId } = req.body;
-  db.prepare('DELETE FROM assignments WHERE article_id = ? AND reviewer_id = ?').run(req.params.id, reviewer_id);
-  const count = db.prepare('SELECT COUNT(*) as count FROM assignments WHERE article_id = ?').get(req.params.id).count;
-  if (count === 0) {
-    db.prepare('UPDATE articles SET status = "submitted" WHERE id = ?').run(req.params.id);
-  }
-  res.redirect(`/admin/assignments?eventId=${eventId || req.query.eventId}`);
+// Recusar atribuição
+router.post('/decline/:id', requireAuth, (req, res) => {
+  db.prepare(`
+    UPDATE assignments 
+    SET status = 'declined', updated_at = datetime('now') 
+    WHERE id = ?
+  `).run(req.params.id);
+  
+  res.redirect(`/admin/assignments?eventId=${req.body.eventId}`);
 });
 
 module.exports = router;
