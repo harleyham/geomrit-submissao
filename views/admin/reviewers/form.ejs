@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 700px; margin: 0 auto; padding: 2rem; }
+    .page-header { margin-bottom: 2rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .form-group input, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/reviewers" class="active">Revisores</a>
+        <form method="POST" action="/logout" style="display:inline"><button type="submit" class="btn btn-ghost btn-sm">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1><%= reviewer ? 'Editar Revisor' : 'Novo Revisor' %></h1>
+    </div>
+
+    <form method="POST" action="<%= reviewer ? '/admin/reviewers/' + reviewer.id : '/admin/reviewers' %>">
+      <div class="section">
+        <div class="form-group">
+          <label for="name">Nome *</label>
+          <input type="text" id="name" name="name" required value="<%= reviewer ? reviewer.name : '' %>">
+        </div>
+        <div class="form-group">
+          <label for="email">Email *</label>
+          <input type="email" id="email" name="email" required value="<%= reviewer ? reviewer.email : '' %>">
+        </div>
+        <div class="form-group">
+          <label for="lattes">Lattes</label>
+          <input type="text" id="lattes" name="lattes" value="<%= reviewer ? reviewer.lattes : '' %>">
+        </div>
+        <div class="form-group">
+          <label for="area">Áreas de Atuação *</label>
+          <input type="text" id="area" name="area" required value="<%= reviewer ? reviewer.area : '' %>" placeholder="Processamento de Linguagens, Computação Cognitiva">
+          <small style="color:#64748b;font-size:0.75rem">Separe múltiplas áreas por vírgula</small>
+        </div>
+        <div class="form-group">
+          <label for="institution">Instituição</label>
+          <input type="text" id="institution" name="institution" value="<%= reviewer ? reviewer.institution : '' %>">
+        </div>
+      </div>
+      <div class="form-actions">
+        <a href="/admin/reviewers" class="btn btn-ghost">Cancelar</a>
+        <button type="submit" class="btn btn-primary"><%= reviewer ? 'Salvar' : 'Criar Revisor' %></button>
+      </div>
+    </form>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>

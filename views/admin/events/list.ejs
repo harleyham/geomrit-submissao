@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .btn-logout { color: #f87171 !important; }
+    .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; }
+    .section-body { padding: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
+    td { padding: 0.75rem 1.5rem; font-size: 0.875rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.05); }
+    tr:hover td { background: rgba(148,163,184,0.03); }
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .badge-published { background: rgba(52,211,153,0.15); color: #34d399; }
+    .badge-draft { background: rgba(100,116,139,0.2); color: #94a3b8; }
+    .badge-oral { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .actions { display: flex; gap: 0.375rem; }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.4rem 0.75rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    a { color: #60a5fa; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events" class="active">Eventos</a>
+        <a href="/admin/reviewers">Revisores</a>
+        <form method="POST" action="/logout" style="display:inline"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1>Eventos</h1>
+      <a href="/admin/events/new" class="btn btn-primary">+ Novo Evento</a>
+    </div>
+
+    <div class="section">
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr><th>Nome</th><th>Área</th><th>Data</th><th>Status</th><th>Ações</th></tr>
+          </thead>
+          <tbody>
+            <% events.forEach(e => { %>
+            <tr>
+              <td><strong><%= e.name %></strong><br><small style="color:#64748b"><%= e.short_name || '' %></small></td>
+              <td><span class="badge badge-oral"><%= e.area %></span></td>
+              <td><%= new Date(e.date_start).toLocaleDateString('pt-BR') %><% if (e.date_end) { %> – <%= new Date(e.date_end).toLocaleDateString('pt-BR') %><% } %></td>
+              <td><span class="badge badge-<%= e.status %>"><%= e.status === 'published' ? 'Publicado' : 'Rascunho' %></span></td>
+              <td class="actions">
+                <a href="/admin/events/<%= e.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
+                <a href="/admin/events/<%= e.id %>/stats" class="btn btn-ghost btn-sm">Stats</a>
+                <a href="/admin/assignments?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Distribuir</a>
+                <a href="/admin/reports?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Relatórios</a>
+                <a href="/admin/articles?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Artigos</a>
+                <% if (e.status === 'published') { %>
+                  <a href="/evento/<%= e.id %>" target="_blank" class="btn btn-ghost btn-sm">Ver</a>
+                <% } %>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>

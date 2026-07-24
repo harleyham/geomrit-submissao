@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= event.name %> - Submissão de Artigos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: #e2e8f0; }
+    .main-content { max-width: 800px; margin: 0 auto; padding: 2rem; }
+    .event-header { margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
+    .event-header .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.75rem; }
+    .event-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .event-meta { display: flex; gap: 1.5rem; color: #94a3b8; font-size: 0.875rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .event-meta span { display: flex; align-items: center; gap: 0.375rem; }
+    .event-description { color: #cbd5e1; line-height: 1.7; font-size: 0.9375rem; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+    .section h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 1.25rem; }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .form-group textarea { min-height: 200px; resize: vertical; }
+    .form-group small { color: #64748b; font-size: 0.75rem; margin-top: 0.25rem; display: block; }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
+    .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem; }
+    .alert-success { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
+    .alert-error { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .closed { text-align: center; padding: 4rem 2rem; }
+    .closed h2 { font-size: 1.5rem; font-weight: 600; color: #475569; margin-bottom: 0.5rem; }
+    .closed p { color: #334155; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav"><a href="/">← Eventos</a></nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="event-header">
+      <span class="area"><%= event.area %></span>
+      <h1><%= event.name %></h1>
+      <div class="event-meta">
+        <span>📅 <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> - <%= new Date(event.date_end).toLocaleDateString('pt-BR') %></span>
+        <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
+        <% if (event.submission_deadline) { %><span>⏰ Submissão até: <%= new Date(event.submission_deadline).toLocaleDateString('pt-BR') %></span><% } %>
+      </div>
+      <% if (event.description) { %>
+        <p class="event-description"><%= event.description %></p>
+      <% } %>
+    </div>
+
+    <% if (submissionSuccess) { %>
+      <div class="alert alert-success">Artigo submetido com sucesso! Seu código de acesso é: <%= submissionCode %></div>
+    <% } %>
+    <% if (submissionError) { %>
+      <div class="alert alert-error"><%= submissionError %></div>
+    <% } %>
+
+    <% if (event.status === 'open') { %>
+      <div class="section">
+        <h2>Submeter Artigo</h2>
+        <form method="POST" action="/events/<%= event.id %>/submit" enctype="multipart/form-data">
+          <div class="form-group">
+            <label for="title">Título do Artigo *</label>
+            <input type="text" id="title" name="title" required placeholder="Título do seu artigo em português ou inglês">
+          </div>
+
+          <div class="form-group">
+            <label for="title-en">Título em Inglês (Title) *</label>
+            <input type="text" id="title-en" name="title_en" required placeholder="English title of your paper">
+          </div>
+
+          <div class="form-group">
+            <label for="area">Área *</label>
+            <select id="area" name="area" required>
+              <option value="">Selecione a área</option>
+              <% areas.forEach(a => { %>
+                <option value="<%= a %>" <%= (a === event.area) ? 'selected' : '' %>><%= a %></option>
+              <% }) %>
+              <option value="Outra">Outra</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="authors">Autores *</label>
+            <textarea id="authors" name="authors" required placeholder="Nome completo, afiliação e email de cada autor. Ex:
+João Silva - UFC - joao@ufc.br
+Maria Santos - UFMG - maria@ufmg.br" style="min-height:120px"></textarea>
+            <small>Um autor por linha, com nome, afiliação e email separados por hífen.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="abstract">Resumo *</label>
+            <textarea id="abstract" name="abstract" required placeholder="Resumo do artigo (mínimo 100 palavras)" style="min-height:150px"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="keywords">Palavras-chave *</label>
+            <input type="text" id="keywords" name="keywords" required placeholder="Processamento de Linguagem Natural, Redes Neurais, Aprendizado Profundo">
+          </div>
+
+          <div class="form-group">
+            <label for="pdf">Arquivo PDF *</label>
+            <input type="file" id="pdf" name="pdf" required accept=".pdf">
+            <small>Aceito apenas arquivos PDF. Tamanho máximo: 10MB.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="email-submission">Email para acesso *</label>
+            <input type="email" id="email-submission" name="email_submission" required placeholder="Seu email institucional">
+            <small>Este email será usado junto com o código de acesso para consultar seu artigo.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="contributor">Nome do Contribuidor *</label>
+            <input type="text" id="contributor" name="contributor" required placeholder="Seu nome completo">
+          </div>
+
+          <div class="form-group">
+            <label for="affiliation">Afiliação *</label>
+            <input type="text" id="affiliation" name="affiliation" required placeholder="Sua instituição de origem">
+          </div>
+
+          <div class="form-group">
+            <label for="city">Cidade/UF *</label>
+            <input type="text" id="city" name="city" required placeholder="Ex: Fortaleza/CE">
+          </div>
+
+          <div class="form-actions">
+            <a href="/events/<%= event.id %>" class="btn btn-ghost">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Submeter Artigo</button>
+          </div>
+        </form>
+      </div>
+    <% } else { %>
+      <div class="closed">
+        <h2>Submissão Encerrada</h2>
+        <p>O período de submissão para este evento já encerrou.</p>
+      </div>
+    <% } %>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>

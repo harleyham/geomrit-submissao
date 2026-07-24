@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .main-content { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem; }
+    .hero { text-align: center; margin-bottom: 4rem; }
+    .hero h1 { font-size: 2.5rem; font-weight: 800; color: #f1f5f9; margin-bottom: 0.75rem; }
+    .hero h1 span { color: #60a5fa; }
+    .hero p { font-size: 1.125rem; color: #94a3b8; max-width: 600px; margin: 0 auto; line-height: 1.7; }
+    .section-title { font-size: 1.25rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center; }
+    .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
+    .event-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 1.5rem; transition: all 0.2s; }
+    .event-card:hover { border-color: rgba(96,165,250,0.3); transform: translateY(-2px); }
+    .event-card h3 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .event-card .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; margin-bottom: 0.75rem; }
+    .event-card p { color: #94a3b8; font-size: 0.875rem; line-height: 1.6; margin-bottom: 1rem; }
+    .event-meta { display: flex; gap: 1rem; color: #64748b; font-size: 0.75rem; margin-bottom: 1rem; }
+    .event-meta span { display: flex; align-items: center; gap: 0.25rem; }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; text-decoration: none; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .empty-state { text-align: center; padding: 4rem 2rem; }
+    .empty-state h2 { font-size: 1.5rem; font-weight: 600; color: #475569; margin-bottom: 0.5rem; }
+    .empty-state p { color: #334155; font-size: 0.9375rem; }
+    footer { text-align: center; padding: 3rem 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav style="display:flex;gap:0.25rem;align-items:center">
+        <a href="/login" class="btn" style="padding:0.4rem 0.8rem;font-size:0.8125rem;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:6px;text-decoration:none">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="hero">
+      <h1>Artigos <span>LIGEM</span>.Redes</h1>
+      <p>Sistema de submissão, revisão e distribuição de artigos para congressos e eventos acadêmicos da área de Processamento de Linguagens e Computação Cognitiva.</p>
+    </div>
+
+    <h2 class="section-title">Eventos com Submissão Aberta</h2>
+
+    <% if (events.length > 0) { %>
+      <div class="events-grid">
+        <% events.forEach(event => { %>
+          <div class="event-card">
+            <span class="area"><%= event.area %></span>
+            <h3><%= event.name %></h3>
+            <div class="event-meta">
+              <span>📅 <%= new Date(event.date_start).toLocaleDateString('pt-BR') %></span>
+              <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
+            </div>
+            <% if (event.description) { %>
+              <p><%= event.description.length > 150 ? event.description.substring(0, 150) + '...' : event.description %></p>
+            <% } %>
+            <a href="/events/<%= event.id %>" class="btn btn-primary">Ver Detalhes</a>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <div class="empty-state">
+        <h2>Nenhum evento com submissão aberta</h2>
+        <p>Em breve novos eventos serão disponibilizados.</p>
+      </div>
+    <% } %>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>

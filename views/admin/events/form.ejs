@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 800px; margin: 0 auto; padding: 2rem; }
+    .page-header { margin-bottom: 2rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .form-group textarea { min-height: 100px; resize: vertical; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
+    .help-text { color: #64748b; font-size: 0.75rem; margin-top: 0.375rem; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/reviewers">Revisores</a>
+        <form method="POST" action="/logout" style="display:inline"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1><%= event ? 'Editar Evento' : 'Novo Evento' %></h1>
+    </div>
+
+    <form method="POST" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>">
+      <% if (event) { %>
+        <input type="hidden" name="_method" value="PUT">
+      <% } %>
+
+      <div class="section">
+        <div class="form-group">
+          <label for="name">Nome do Evento *</label>
+          <input type="text" id="name" name="name" required value="<%= event ? event.name : '' %>">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="short_name">Sigla</label>
+            <input type="text" id="short_name" name="short_name" value="<%= event ? event.short_name : '' %>">
+          </div>
+          <div class="form-group">
+            <label for="area">Área *</label>
+            <input type="text" id="area" name="area" required value="<%= event ? event.area : '' %>">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="url">URL do Evento</label>
+          <input type="url" id="url" name="url" value="<%= event ? event.url : '' %>">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="date_start">Data Início *</label>
+            <input type="date" id="date_start" name="date_start" required value="<%= event ? event.date_start : '' %>">
+          </div>
+          <div class="form-group">
+            <label for="date_end">Data Fim</label>
+            <input type="date" id="date_end" name="date_end" value="<%= event ? event.date_end : '' %>">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="location">Local</label>
+          <input type="text" id="location" name="location" value="<%= event ? event.location : '' %>">
+        </div>
+        <div class="form-group">
+          <label for="description">Descrição</label>
+          <textarea id="description" name="description" rows="4"><%= event ? event.description : '' %></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="institution">Instituição</label>
+            <input type="text" id="institution" name="institution" value="<%= event ? event.institution : '' %>">
+          </div>
+          <div class="form-group">
+            <label for="language">Idioma</label>
+            <select id="language" name="language">
+              <option value="pt" <%= event && event.language === 'pt' ? 'selected' : '' %>>Português</option>
+              <option value="es" <%= event && event.language === 'es' ? 'selected' : '' %>>Español</option>
+              <option value="en" <%= event && event.language === 'en' ? 'selected' : '' %>>English</option>
+              <option value="other" <%= event && event.language === 'other' ? 'selected' : '' %>>Outro</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <a href="/admin/events" class="btn btn-ghost">Cancelar</a>
+        <button type="submit" class="btn btn-primary"><%= event ? 'Salvar' : 'Criar Evento' %></button>
+      </div>
+    </form>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revisão - LIGEM.Redes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 1000px; margin: 0 auto; padding: 2rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.375rem; color: #94a3b8; text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    .back-link:hover { color: #e2e8f0; }
+    .article-info { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
+    .article-info h1 { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .article-info h2 { font-size: 1.125rem; font-weight: 500; color: #94a3b8; margin-bottom: 0.75rem; }
+    .article-meta { display: flex; flex-wrap: wrap; gap: 1rem; color: #94a3b8; font-size: 0.8125rem; }
+    .article-meta span { display: flex; align-items: center; gap: 0.25rem; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+    .section h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 1rem; }
+    .section h3 { font-size: 0.875rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; margin-top: 1.5rem; }
+    .section p { color: #cbd5e1; line-height: 1.8; font-size: 0.9375rem; }
+    .author-list { background: rgba(15,23,42,0.4); border: 1px solid rgba(148,163,184,0.1); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+    .author-list p { color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.25rem; }
+    .keywords { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+    .keyword { background: rgba(96,165,250,0.1); color: #60a5fa; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; }
+    .review-section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+    .review-section h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 1.25rem; }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .form-group textarea { min-height: 150px; resize: vertical; }
+    .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
+    .btn-approved { background: #059669; color: white; }
+    .btn-approved:hover { background: #047857; }
+    .btn-rejected { background: #dc2626; color: white; }
+    .btn-rejected:hover { background: #b91c1c; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/reviewer" class="logo"><span class="logo-icon">◆</span> Painel do Revisor</a>
+      <nav><a href="/reviewer">← Voltar</a></nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <a href="/reviewer" class="back-link">← Voltar para meus artigos</a>
+
+    <div class="article-info">
+      <h1><%= article.title %></h1>
+      <h2><%= article.title_en %></h2>
+      <div class="article-meta">
+        <span>📅 <%= new Date(article.date_submitted).toLocaleDateString('pt-BR') %></span>
+        <span>🏛️ <%= article.event_name %></span>
+        <span>👤 <%= article.contributor %></span>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Autores</h2>
+      <div class="author-list">
+        <% article.authors.split('\n').forEach(author => { %>
+          <p><%= author.trim() %></p>
+        <% }) %>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Resumo</h3>
+      <p><%= article.abstract %></p>
+
+      <h3>Palavras-chave</h3>
+      <div class="keywords">
+        <% article.keywords.split(',').forEach(kw => { %>
+          <span class="keyword"><%= kw.trim() %></span>
+        <% }) %>
+      </div>
+    </div>
+
+    <div class="review-section">
+      <h2>Revisão</h2>
+      <form method="POST" action="/reviewer/articles/<%= article.id %>/review">
+        <div class="form-group">
+          <label for="status">Decisão *</label>
+          <select id="status" name="status" required>
+            <option value="approved">Aprovar</option>
+            <option value="rejected">Rejeitar</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="review-notes">Notas da Revisão *</label>
+          <textarea id="review-notes" name="review_notes" required placeholder="Forneça suas observações sobre o artigo..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="rejection-reason">Motivo da Rejeição</label>
+          <textarea id="rejection-reason" name="rejection_reason" placeholder="Se selecionou 'Rejeitar', explique o motivo..."></textarea>
+        </div>
+
+        <div class="form-actions">
+          <a href="/reviewer" class="btn btn-ghost">Cancelar</a>
+          <button type="submit" class="btn btn-approved">Aprovar Artigo</button>
+          <button type="submit" name="status" value="rejected" class="btn btn-rejected">Rejeitar Artigo</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>
