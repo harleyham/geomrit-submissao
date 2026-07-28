@@ -41,6 +41,32 @@ function getNextApprovalStatus(currentStatus, nextIsPublic) {
   return currentStatus || 'approved';
 }
 
+function normalizeCPF(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isValidCPF(value) {
+  const cpf = normalizeCPF(value);
+
+  if (!cpf) return true;
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+  const calcDigit = (base, factor) => {
+    let total = 0;
+    for (let index = 0; index < base.length; index += 1) {
+      total += Number(base[index]) * (factor - index);
+    }
+    const remainder = (total * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  const digit1 = calcDigit(cpf.slice(0, 9), 10);
+  const digit2 = calcDigit(cpf.slice(0, 10), 11);
+
+  return digit1 === Number(cpf[9]) && digit2 === Number(cpf[10]);
+}
+
 router.get('/', requireAuth, (req, res) => {
   const users = db.prepare(`
     SELECT id, name, email, cpf, passport, country, institution,
@@ -91,6 +117,15 @@ router.post('/', requireAuth, (req, res) => {
     });
   }
 
+  if (!isValidCPF(cpf)) {
+    return res.render('admin/users/form', {
+      user: { name, email, cpf, passport, country, institution, is_admin, is_reviewer },
+      title: 'Novo Usuário',
+      year: new Date().getFullYear(),
+      error: 'O CPF informado é inválido.'
+    });
+  }
+
   const hash = bcrypt.hashSync(password, 10);
   db.prepare(`
     INSERT INTO users (name, email, password, cpf, passport, country, institution,
@@ -100,7 +135,7 @@ router.post('/', requireAuth, (req, res) => {
     name || email,
     email,
     hash,
-    cpf || null,
+    normalizeCPF(cpf) || null,
     passport || null,
     country || null,
     institution || null,
@@ -135,6 +170,15 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
   }
 
+  if (!isValidCPF(cpf)) {
+    return res.render('admin/users/form', {
+      user: { id, name, email, cpf, passport, country, institution, is_admin, is_reviewer },
+      title: 'Editar Usuário',
+      year: new Date().getFullYear(),
+      error: 'O CPF informado é inválido.'
+    });
+  }
+
   if (password) {
     const hash = bcrypt.hashSync(password, 10);
     db.prepare(`
@@ -143,7 +187,7 @@ router.put('/:id', requireAuth, (req, res) => {
       WHERE id=?
     `).bind(
       name, email, hash,
-      cpf || null, passport || null, country || null, institution || null,
+      normalizeCPF(cpf) || null, passport || null, country || null, institution || null,
       nextIsAdmin, is_reviewer ? 1 : 0, id
     ).run();
   } else {
@@ -153,7 +197,7 @@ router.put('/:id', requireAuth, (req, res) => {
       WHERE id=?
     `).bind(
       name, email,
-      cpf || null, passport || null, country || null, institution || null,
+      normalizeCPF(cpf) || null, passport || null, country || null, institution || null,
       nextIsAdmin, is_reviewer ? 1 : 0, id
     ).run();
   }

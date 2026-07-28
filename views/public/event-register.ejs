@@ -21,16 +21,26 @@
     .event-meta { color: #94a3b8; font-size: 0.9rem; line-height: 1.7; margin-bottom: 1.5rem; }
     .form-group { margin-bottom: 1rem; }
     .form-group label { display: block; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
-    .form-group input { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font-size: 0.95rem; font-family: 'Inter', sans-serif; }
-    .form-group input:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    .form-group input, .form-group select { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font-size: 0.95rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
     .alert { padding: 0.95rem 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.9rem; }
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
     .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
     .status-box { margin-bottom: 1rem; padding: 1rem; border-radius: 12px; background: rgba(59,130,246,0.08); border: 1px solid rgba(96,165,250,0.18); color: #cbd5e1; line-height: 1.6; }
+    .subsidy-box { margin-top: 1.5rem; padding: 1.2rem; border-radius: 14px; background: rgba(14,116,144,0.08); border: 1px solid rgba(34,211,238,0.18); }
+    .subsidy-box h2 { font-size: 1.05rem; margin-bottom: 0.4rem; color: #f8fafc; }
+    .subsidy-box p { color: #94a3b8; line-height: 1.6; margin-bottom: 1rem; }
+    .checkbox-inline { display: flex; align-items: center; gap: 0.7rem; padding: 0.9rem 1rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 12px; background: rgba(15,23,42,0.3); margin-bottom: 1rem; }
+    .checkbox-inline input { width: 18px; height: 18px; accent-color: #22d3ee; }
+    .checkbox-inline label { margin-bottom: 0; color: #e2e8f0; font-weight: 600; cursor: pointer; }
+    .subsidy-fields { display: none; }
+    .subsidy-fields.visible { display: block; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
     .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2); }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
     footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
   </style>
 </head>
@@ -71,7 +81,7 @@
         </div>
       <% } %>
 
-      <form method="POST" action="/evento/<%= event.id %>/inscricao">
+      <form method="POST" action="/evento/<%= event.id %>/inscricao" enctype="multipart/form-data">
         <div class="form-group">
           <label for="name">Nome completo *</label>
           <input type="text" id="name" name="name" required value="<%= formData.name || '' %>">
@@ -87,6 +97,107 @@
           <input type="text" id="institution" name="institution" value="<%= formData.institution || '' %>">
         </div>
 
+        <% if (event.offers_subsidy) { %>
+          <div class="subsidy-box">
+            <h2>Subsídio ao Participante</h2>
+            <p>Este evento oferece subsídio. Se você quiser se habilitar, marque a opção abaixo e preencha os dados acadêmicos solicitados.</p>
+
+            <div class="checkbox-inline">
+              <input
+                type="checkbox"
+                id="subsidy_requested"
+                name="subsidy_requested"
+                value="1"
+                <%= formData.subsidy_requested ? 'checked' : '' %>
+              >
+              <label for="subsidy_requested">Quero me habilitar para receber subsídio neste evento</label>
+            </div>
+
+            <div id="subsidy-fields" class="subsidy-fields <%= formData.subsidy_requested ? 'visible' : '' %>">
+              <div class="form-group">
+                <label for="student_level">Nível</label>
+                <select id="student_level" name="student_level">
+                  <option value="">Selecione o nível</option>
+                  <option value="Aluno de graduação" <%= formData.student_level === 'Aluno de graduação' ? 'selected' : '' %>>Aluno de graduação regularmente matriculado em instituição de ensino superior brasileira</option>
+                  <option value="Aluno de mestrado" <%= formData.student_level === 'Aluno de mestrado' ? 'selected' : '' %>>Aluno de mestrado regularmente matriculado em instituição de ensino superior brasileira</option>
+                  <option value="Aluno de doutorado" <%= formData.student_level === 'Aluno de doutorado' ? 'selected' : '' %>>Aluno de doutorado regularmente matriculado em instituição de ensino superior brasileira</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="student_course">Curso</label>
+                <input type="text" id="student_course" name="student_course" value="<%= formData.student_course || '' %>">
+              </div>
+
+              <div class="form-group">
+                <label for="student_lattes_id">ID do Currículo Lattes</label>
+                <input
+                  type="text"
+                  id="student_lattes_id"
+                  name="student_lattes_id"
+                  inputmode="numeric"
+                  maxlength="16"
+                  placeholder="16 dígitos numéricos"
+                  value="<%= formData.student_lattes_id || '' %>"
+                >
+                <small style="display:block;color:#94a3b8;margin-top:0.35rem;line-height:1.5;">
+                  Informe os 16 dígitos numéricos do ID exibido no Currículo Lattes. Mantenha o seu currículo atualizado.
+                </small>
+              </div>
+
+              <div class="grid">
+                <div class="form-group">
+                  <label for="student_institution_name">Nome da instituição</label>
+                  <input type="text" id="student_institution_name" name="student_institution_name" value="<%= formData.student_institution_name || '' %>">
+                </div>
+                <div class="form-group">
+                  <label for="student_institution_state">UF da instituição</label>
+                  <select id="student_institution_state" name="student_institution_state">
+                    <option value="">Selecione a UF</option>
+                    <% ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].forEach(function(uf) { %>
+                      <option value="<%= uf %>" <%= formData.student_institution_state === uf ? 'selected' : '' %>><%= uf %></option>
+                    <% }) %>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="academic_history_pdf">Histórico escolar atualizado (PDF, até 10 MB)</label>
+                <input type="file" id="academic_history_pdf" name="academic_history_pdf" accept=".pdf,application/pdf">
+                <% if (formData.academic_history_original_name) { %>
+                  <small style="display:block;color:#93c5fd;margin-top:0.35rem;">Arquivo atual: <%= formData.academic_history_original_name %></small>
+                <% } %>
+              </div>
+
+              <div class="form-group">
+                <label for="motivation_letter_pdf">Carta de motivação (PDF, até 10 MB)</label>
+                <input type="file" id="motivation_letter_pdf" name="motivation_letter_pdf" accept=".pdf,application/pdf">
+                <small style="display:block;color:#94a3b8;margin-top:0.35rem;line-height:1.5;">
+                  Faça o upload da
+                  <a href="https://censipam365-my.sharepoint.com/:b:/g/personal/luis_abreu_sipam_gov_br/IQDQXyyMoT5OTLBxpsBcTDI6AfPDUixFuewRDwiHRwCgg9Q?e=DM5l4V" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;">carta de motivação</a>
+                  preenchida.
+                </small>
+                <% if (formData.motivation_letter_original_name) { %>
+                  <small style="display:block;color:#93c5fd;margin-top:0.35rem;">Arquivo atual: <%= formData.motivation_letter_original_name %></small>
+                <% } %>
+              </div>
+
+              <div class="form-group">
+                <label for="recommendation_letter_pdf">Carta de recomendação (PDF, até 10 MB)</label>
+                <input type="file" id="recommendation_letter_pdf" name="recommendation_letter_pdf" accept=".pdf,application/pdf">
+                <small style="display:block;color:#94a3b8;margin-top:0.35rem;line-height:1.5;">
+                  Faça o upload da
+                  <a href="https://censipam365-my.sharepoint.com/:b:/g/personal/luis_abreu_sipam_gov_br/IQCEmSDvAm89S5t0C2XvCcxQASR4LbSGqvqWGyLgcSMYUx4?e=7mD54H" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;">carta de recomendação</a>
+                  preenchida e assinada digitalmente por um docente da instituição de ensino superior.
+                </small>
+                <% if (formData.recommendation_letter_original_name) { %>
+                  <small style="display:block;color:#93c5fd;margin-top:0.35rem;">Arquivo atual: <%= formData.recommendation_letter_original_name %></small>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        <% } %>
+
         <div class="actions">
           <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar ao evento</a>
           <button type="submit" class="btn btn-primary"><%= alreadyRegistered ? 'Atualizar Inscrição' : 'Confirmar Inscrição' %></button>
@@ -96,5 +207,19 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes</footer>
+  <script>
+    (function() {
+      var checkbox = document.getElementById('subsidy_requested');
+      var fields = document.getElementById('subsidy-fields');
+      if (!checkbox || !fields) return;
+
+      function syncSubsidyFields() {
+        fields.classList.toggle('visible', checkbox.checked);
+      }
+
+      checkbox.addEventListener('change', syncSubsidyFields);
+      syncSubsidyFields();
+    })();
+  </script>
 </body>
 </html>

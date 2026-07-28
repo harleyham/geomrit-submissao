@@ -118,6 +118,18 @@ db.exec(`
     email TEXT NOT NULL,
     institution TEXT DEFAULT '',
     registration_type TEXT NOT NULL DEFAULT 'listener',
+    subsidy_requested INTEGER DEFAULT 0,
+    student_level TEXT DEFAULT '',
+    student_course TEXT DEFAULT '',
+    student_institution_name TEXT DEFAULT '',
+    student_institution_state TEXT DEFAULT '',
+    student_lattes_id TEXT DEFAULT '',
+    academic_history_pdf_path TEXT DEFAULT '',
+    academic_history_original_name TEXT DEFAULT '',
+    motivation_letter_pdf_path TEXT DEFAULT '',
+    motivation_letter_original_name TEXT DEFAULT '',
+    recommendation_letter_pdf_path TEXT DEFAULT '',
+    recommendation_letter_original_name TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
@@ -211,6 +223,24 @@ try {
   if (!eventColumns.includes('language')) db.exec('ALTER TABLE events ADD COLUMN language TEXT');
 } catch(e) {
   console.warn('Migration events columns:', e.message);
+}
+
+try {
+  const registrationColumns = db.prepare("PRAGMA table_info(event_registrations)").all().map(c => c.name);
+  if (!registrationColumns.includes('subsidy_requested')) db.exec('ALTER TABLE event_registrations ADD COLUMN subsidy_requested INTEGER DEFAULT 0');
+  if (!registrationColumns.includes('student_level')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_level TEXT DEFAULT ''");
+  if (!registrationColumns.includes('student_course')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_course TEXT DEFAULT ''");
+  if (!registrationColumns.includes('student_institution_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_institution_name TEXT DEFAULT ''");
+  if (!registrationColumns.includes('student_institution_state')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_institution_state TEXT DEFAULT ''");
+  if (!registrationColumns.includes('student_lattes_id')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_lattes_id TEXT DEFAULT ''");
+  if (!registrationColumns.includes('academic_history_pdf_path')) db.exec("ALTER TABLE event_registrations ADD COLUMN academic_history_pdf_path TEXT DEFAULT ''");
+  if (!registrationColumns.includes('academic_history_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN academic_history_original_name TEXT DEFAULT ''");
+  if (!registrationColumns.includes('motivation_letter_pdf_path')) db.exec("ALTER TABLE event_registrations ADD COLUMN motivation_letter_pdf_path TEXT DEFAULT ''");
+  if (!registrationColumns.includes('motivation_letter_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN motivation_letter_original_name TEXT DEFAULT ''");
+  if (!registrationColumns.includes('recommendation_letter_pdf_path')) db.exec("ALTER TABLE event_registrations ADD COLUMN recommendation_letter_pdf_path TEXT DEFAULT ''");
+  if (!registrationColumns.includes('recommendation_letter_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN recommendation_letter_original_name TEXT DEFAULT ''");
+} catch(e) {
+  console.warn('Migration event registrations columns:', e.message);
 }
 
 try {

@@ -28,8 +28,12 @@ Registro cronológico das alterações relevantes do sistema de submissão de ar
 - Relatório do evento ampliado com estatísticas de ouvintes, inscritos com artigo e listagem de participantes.
 - Relatório do evento passou a listar nome, e-mail, órgão e situação da participação.
 - Página do participante consolidada para usuários sem perfil admin/revisor, com listagem de eventos publicados, participações, rascunhos e submissões.
+- Página `/author/profile` criada para edição dos dados cadastrais do participante.
 - Bloqueio explícito de contas administrativas no fluxo `/author` e `/submeter/:eventId`.
 - Botão de impressão do relatório implementado com layout otimizado para exportação em PDF via navegador.
+- Lista padronizada de países adicionada aos formulários com campo de país.
+- Fluxo de cancelamento de inscrição de ouvinte implementado na área do participante até o dia anterior ao início do evento.
+- Fluxo de subsídio na inscrição do evento implementado com dados acadêmicos, ID Lattes e upload de histórico escolar, carta de motivação e carta de recomendação.
 
 ### Correções
 
@@ -50,6 +54,7 @@ Registro cronológico das alterações relevantes do sistema de submissão de ar
 - Correção do botão de impressão do relatório, substituindo `onclick` inline por listener explícito.
 - Correção do erro ao salvar edição de evento, com migração das colunas `institution` e `language` na tabela `events`.
 - Validação adicionada para impedir `date_end < date_start` e `submission_end < submission_start` no cadastro e na edição de eventos.
+- Validação de CPF aplicada também no perfil do participante em `/author/profile`.
 
 ### Observações Técnicas
 
@@ -58,6 +63,7 @@ Registro cronológico das alterações relevantes do sistema de submissão de ar
 - O sistema continua exigindo reinício do servidor para refletir alterações em rotas e templates.
 - A métrica de inscritos por evento agora diferencia ouvintes de participantes com submissão.
 - A tabela `event_registrations` passou a ser a fonte de verdade para participação explícita em evento.
+- A tabela `event_registrations` passou a armazenar também os dados da candidatura a subsídio quando aplicável.
 
 ### Pendências Conhecidas
 

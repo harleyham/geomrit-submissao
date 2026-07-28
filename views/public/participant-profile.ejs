@@ -11,12 +11,16 @@
     .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; }
     .topbar-inner { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
     .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .topbar-nav { display: flex; align-items: center; gap: 0.65rem; }
+    .pill { padding: 0.45rem 0.8rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
+    .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
+    .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2); }
     .main-content { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem; }
-    .hero { margin-bottom: 1.75rem; text-align: center; }
+    .hero { margin-bottom: 1.75rem; }
     .hero h1 { font-size: 2rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.75rem; }
-    .hero p { color: #94a3b8; line-height: 1.7; max-width: 640px; margin: 0 auto; }
+    .hero p { color: #94a3b8; line-height: 1.7; max-width: 640px; }
     .card { background: rgba(15,23,42,0.78); border: 1px solid rgba(148,163,184,0.14); border-radius: 18px; padding: 2rem; box-shadow: 0 24px 80px rgba(2,6,23,0.35); }
-    .note { margin-bottom: 1.5rem; padding: 1rem 1.1rem; border-radius: 12px; background: rgba(59,130,246,0.1); border: 1px solid rgba(96,165,250,0.2); color: #cbd5e1; font-size: 0.9rem; line-height: 1.65; }
     .alert { padding: 0.9rem 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.9rem; }
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
     .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
@@ -25,17 +29,14 @@
     .form-group label { display: block; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
     .form-group input, .form-group select { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font-size: 0.95rem; font-family: 'Inter', sans-serif; }
     .form-group input:focus, .form-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
-    .password-field { position: relative; }
-    .password-field input { padding-right: 3.25rem; }
-    .toggle-password { position: absolute; right: 0.8rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; }
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
-    .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
-    .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2); }
+    .note { margin-bottom: 1.5rem; padding: 1rem 1.1rem; border-radius: 12px; background: rgba(59,130,246,0.1); border: 1px solid rgba(96,165,250,0.2); color: #cbd5e1; font-size: 0.9rem; line-height: 1.65; }
     footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
     @media (max-width: 720px) {
       .grid { grid-template-columns: 1fr; }
       .actions { flex-direction: column-reverse; align-items: stretch; }
+      .topbar-inner { gap: 1rem; flex-wrap: wrap; }
+      .topbar { height: auto; padding: 1rem 1.25rem; }
     }
   </style>
 </head>
@@ -43,19 +44,22 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a href="/" class="logo">Artigos LIGEM</a>
-      <a href="/login" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Entrar</a>
+      <div class="topbar-nav">
+        <a href="/author" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Área do Participante</a>
+        <span class="pill"><%= userEmail %></span>
+      </div>
     </div>
   </header>
 
   <main class="main-content">
     <div class="hero">
-      <h1>Solicitar Cadastro</h1>
-      <p>Preencha seus dados para solicitar acesso ao sistema. O cadastro ficará pendente até a validação por um administrador.</p>
+      <h1>Meus Dados</h1>
+      <p>Atualize aqui suas informações cadastrais para manter suas inscrições e submissões vinculadas corretamente à sua conta.</p>
     </div>
 
     <div class="card">
       <div class="note">
-        Após o envio, sua conta ficará em análise. O acesso ao sistema só será liberado depois da aprovação administrativa.
+        Alterações de nome, e-mail e instituição passam a valer imediatamente para o seu cadastro de acesso. Se necessário, você ainda poderá complementar dados de inscrição específicos em cada evento.
       </div>
 
       <% if (error) { %>
@@ -65,7 +69,7 @@
         <div class="alert alert-success"><%= success %></div>
       <% } %>
 
-      <form method="POST" action="/cadastro">
+      <form method="POST" action="/author/profile">
         <div class="form-group">
           <label for="name">Nome completo *</label>
           <input type="text" id="name" name="name" required value="<%= formData.name || '' %>">
@@ -74,7 +78,7 @@
         <div class="grid">
           <div class="form-group">
             <label for="email">E-mail *</label>
-            <input type="email" id="email" name="email" required value="<%= formData.email || '' %>" autocomplete="username">
+            <input type="email" id="email" name="email" required value="<%= formData.email || '' %>">
           </div>
           <div class="form-group">
             <label for="institution">Instituição</label>
@@ -98,42 +102,14 @@
           <%- include('../partials/country-select', { selectedCountry: formData.country || '', selectId: 'country', selectName: 'country' }) %>
         </div>
 
-        <div class="grid">
-          <div class="form-group">
-            <label for="password">Senha *</label>
-            <div class="password-field">
-              <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password">
-              <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="password">👁</button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="confirm_password">Confirmar senha *</label>
-            <div class="password-field">
-              <input type="password" id="confirm_password" name="confirm_password" required minlength="6" autocomplete="new-password">
-              <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="confirm_password">👁</button>
-            </div>
-          </div>
-        </div>
-
         <div class="actions">
-          <a href="/" class="btn btn-secondary">Voltar ao início</a>
-          <button type="submit" class="btn btn-primary">Enviar Solicitação</button>
+          <a href="/author" class="btn btn-secondary">Voltar</a>
+          <button type="submit" class="btn btn-primary">Salvar Alterações</button>
         </div>
       </form>
     </div>
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes</footer>
-  <script>
-    document.querySelectorAll('.toggle-password').forEach(function(button) {
-      button.addEventListener('click', function() {
-        var input = document.getElementById(button.getAttribute('data-target'));
-        var showing = input.type === 'text';
-        input.type = showing ? 'password' : 'text';
-        button.textContent = showing ? '👁' : '🙈';
-        button.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
-      });
-    });
-  </script>
 </body>
 </html>

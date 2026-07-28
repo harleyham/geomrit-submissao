@@ -31,12 +31,35 @@ const upload = multer({
   }
 });
 
+const registrationUpload = multer({
+  storage,
+  limits: { fileSize: MAX_UPLOAD_SIZE },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    cb(null, ext === '.pdf');
+  }
+});
+
 function runUpload(req, res, next) {
   upload.single('article_pdf')(req, res, (err) => {
     if (!err) return next();
     req.uploadError = err.code === 'LIMIT_FILE_SIZE'
       ? 'O arquivo PDF excede o limite de 10 MB.'
       : 'Falha no upload do arquivo. Envie um PDF válido.';
+    return next();
+  });
+}
+
+function runRegistrationUpload(req, res, next) {
+  registrationUpload.fields([
+    { name: 'academic_history_pdf', maxCount: 1 },
+    { name: 'motivation_letter_pdf', maxCount: 1 },
+    { name: 'recommendation_letter_pdf', maxCount: 1 }
+  ])(req, res, (err) => {
+    if (!err) return next();
+    req.registrationUploadError = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Um dos arquivos de subsídio excede o limite de 10 MB.'
+      : 'Falha no upload dos documentos de subsídio. Envie apenas arquivos PDF válidos.';
     return next();
   });
 }
@@ -346,11 +369,78 @@ function syncAuthorEventRegistration(eventId, session, formData) {
 }
 
 function normalizeListenerRegistrationForm(body = {}, session = null) {
+  const subsidyRequested = body.subsidy_requested === '1' || body.subsidy_requested === 'on';
+
   return {
     name: String(body.name || (session && session.userName) || '').trim(),
     email: String(body.email || (session && session.userEmail) || '').trim().toLowerCase(),
-    institution: String(body.institution || '').trim()
+    institution: String(body.institution || '').trim(),
+    subsidy_requested: subsidyRequested,
+    student_level: String(body.student_level || '').trim(),
+    student_course: String(body.student_course || '').trim(),
+    student_institution_name: String(body.student_institution_name || '').trim(),
+    student_institution_state: String(body.student_institution_state || '').trim(),
+    student_lattes_id: String(body.student_lattes_id || '').replace(/\D/g, '')
   };
+}
+
+function validateListenerRegistrationForm(formData, event, existingRegistration, uploadedFiles) {
+  const errors = [];
+  const hasAcademicHistory = !!(uploadedFiles.academic_history_pdf || (existingRegistration && existingRegistration.academic_history_pdf_path));
+  const hasMotivationLetter = !!(uploadedFiles.motivation_letter_pdf || (existingRegistration && existingRegistration.motivation_letter_pdf_path));
+  const hasRecommendationLetter = !!(uploadedFiles.recommendation_letter_pdf || (existingRegistration && existingRegistration.recommendation_letter_pdf_path));
+
+  if (!formData.name || !formData.email) {
+    errors.push('Nome e e-mail são obrigatórios para a inscrição no evento.');
+  }
+
+  if (event.offers_subsidy && formData.subsidy_requested) {
+    if (!formData.student_level) errors.push('Selecione o nível do estudante para solicitar o subsídio.');
+    if (!formData.student_course) errors.push('Informe o curso para solicitar o subsídio.');
+    if (!formData.student_institution_name) errors.push('Informe o nome da instituição de ensino superior vinculada ao subsídio.');
+    if (!formData.student_institution_state) errors.push('Informe a UF da instituição vinculada ao subsídio.');
+    if (!/^\d{16}$/.test(formData.student_lattes_id)) errors.push('Informe o ID do Currículo Lattes com 16 dígitos numéricos.');
+    if (!hasAcademicHistory) errors.push('Faça o upload do histórico escolar atualizado em PDF.');
+    if (!hasMotivationLetter) errors.push('Faça o upload da carta de motivação em PDF.');
+    if (!hasRecommendationLetter) errors.push('Faça o upload da carta de recomendação em PDF.');
+  }
+
+  return errors;
+}
+
+function getUploadedRegistrationFiles(req) {
+  const files = req.files || {};
+  const getFile = (field) => Array.isArray(files[field]) && files[field][0] ? files[field][0] : null;
+
+  return {
+    academic_history_pdf: getFile('academic_history_pdf'),
+    motivation_letter_pdf: getFile('motivation_letter_pdf'),
+    recommendation_letter_pdf: getFile('recommendation_letter_pdf')
+  };
+}
+
+function removeUploadedRegistrationFiles(uploadedFiles) {
+  Object.values(uploadedFiles || {}).forEach((file) => {
+    if (file && file.filename) removeUploadedFile(file.filename);
+  });
+}
+
+function buildRegistrationDocumentMeta(existingRegistration, uploadedFiles) {
+  return {
+    academic_history_pdf_path: uploadedFiles.academic_history_pdf ? uploadedFiles.academic_history_pdf.filename : (existingRegistration ? existingRegistration.academic_history_pdf_path || '' : ''),
+    academic_history_original_name: uploadedFiles.academic_history_pdf ? uploadedFiles.academic_history_pdf.originalname : (existingRegistration ? existingRegistration.academic_history_original_name || '' : ''),
+    motivation_letter_pdf_path: uploadedFiles.motivation_letter_pdf ? uploadedFiles.motivation_letter_pdf.filename : (existingRegistration ? existingRegistration.motivation_letter_pdf_path || '' : ''),
+    motivation_letter_original_name: uploadedFiles.motivation_letter_pdf ? uploadedFiles.motivation_letter_pdf.originalname : (existingRegistration ? existingRegistration.motivation_letter_original_name || '' : ''),
+    recommendation_letter_pdf_path: uploadedFiles.recommendation_letter_pdf ? uploadedFiles.recommendation_letter_pdf.filename : (existingRegistration ? existingRegistration.recommendation_letter_pdf_path || '' : ''),
+    recommendation_letter_original_name: uploadedFiles.recommendation_letter_pdf ? uploadedFiles.recommendation_letter_pdf.originalname : (existingRegistration ? existingRegistration.recommendation_letter_original_name || '' : '')
+  };
+}
+
+function removeReplacedRegistrationFiles(existingRegistration, uploadedFiles) {
+  if (!existingRegistration) return;
+  if (uploadedFiles.academic_history_pdf && existingRegistration.academic_history_pdf_path) removeUploadedFile(existingRegistration.academic_history_pdf_path);
+  if (uploadedFiles.motivation_letter_pdf && existingRegistration.motivation_letter_pdf_path) removeUploadedFile(existingRegistration.motivation_letter_pdf_path);
+  if (uploadedFiles.recommendation_letter_pdf && existingRegistration.recommendation_letter_pdf_path) removeUploadedFile(existingRegistration.recommendation_letter_pdf_path);
 }
 
 function renderListenerRegistrationForm(res, event, options = {}) {
@@ -382,6 +472,55 @@ function renderSubmissionForm(res, event, options = {}) {
   });
 }
 
+function normalizeParticipantProfileForm(body = {}) {
+  return {
+    name: String(body.name || '').trim(),
+    email: String(body.email || '').trim().toLowerCase(),
+    institution: String(body.institution || '').trim(),
+    cpf: String(body.cpf || '').trim(),
+    passport: String(body.passport || '').trim(),
+    country: String(body.country || '').trim()
+  };
+}
+
+function normalizeCPF(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isValidCPF(value) {
+  const cpf = normalizeCPF(value);
+
+  if (!cpf) return true;
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+  const calcDigit = (base, factor) => {
+    let total = 0;
+    for (let index = 0; index < base.length; index += 1) {
+      total += Number(base[index]) * (factor - index);
+    }
+    const remainder = (total * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  const digit1 = calcDigit(cpf.slice(0, 9), 10);
+  const digit2 = calcDigit(cpf.slice(0, 10), 11);
+
+  return digit1 === Number(cpf[9]) && digit2 === Number(cpf[10]);
+}
+
+function canCancelEventRegistration(dateStart) {
+  if (!dateStart) return false;
+
+  const eventStart = new Date(`${dateStart}T00:00:00`);
+  if (Number.isNaN(eventStart.getTime())) return false;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  return today < eventStart;
+}
+
 // Página inicial - lista eventos
 router.get('/', (req, res) => {
   const events = db.prepare(`
@@ -394,7 +533,27 @@ router.get('/', (req, res) => {
 router.get('/evento/:id', (req, res) => {
   const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  res.render('public/event', { event: withSubmissionMeta(event), title: event.name });
+
+  let registration = null;
+  if (req.session && req.session.userId) {
+    registration = db.prepare(`
+      SELECT id, registration_type
+      FROM event_registrations
+      WHERE event_id = ?
+        AND (
+          user_id = ?
+          OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+        )
+      ORDER BY id
+      LIMIT 1
+    `).get(req.params.id, req.session.userId, req.session.userEmail || '');
+  }
+
+  res.render('public/event', {
+    event: withSubmissionMeta(event),
+    title: event.name,
+    registration
+  });
 });
 
 router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
@@ -402,7 +561,9 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
   const existingRegistration = db.prepare(`
-    SELECT id, registration_type
+    SELECT id, registration_type, subsidy_requested, student_level, student_course, student_institution_name, student_institution_state,
+           student_lattes_id, academic_history_original_name, motivation_letter_original_name, recommendation_letter_original_name,
+           academic_history_pdf_path, motivation_letter_pdf_path, recommendation_letter_pdf_path, name, email, institution
     FROM event_registrations
     WHERE event_id = ?
       AND (
@@ -414,7 +575,22 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
   `).get(req.params.id, req.session.userId, req.session.userEmail || '');
 
   return renderListenerRegistrationForm(res, event, {
-    formData: normalizeListenerRegistrationForm({}, req.session),
+    formData: existingRegistration
+      ? {
+          name: existingRegistration.name || req.session.userName || '',
+          email: existingRegistration.email || req.session.userEmail || '',
+          institution: existingRegistration.institution || '',
+          subsidy_requested: !!existingRegistration.subsidy_requested,
+          student_level: existingRegistration.student_level || '',
+          student_course: existingRegistration.student_course || '',
+          student_institution_name: existingRegistration.student_institution_name || '',
+          student_institution_state: existingRegistration.student_institution_state || '',
+          student_lattes_id: existingRegistration.student_lattes_id || '',
+          academic_history_original_name: existingRegistration.academic_history_original_name || '',
+          motivation_letter_original_name: existingRegistration.motivation_letter_original_name || '',
+          recommendation_letter_original_name: existingRegistration.recommendation_letter_original_name || ''
+        }
+      : normalizeListenerRegistrationForm({}, req.session),
     alreadyRegistered: !!existingRegistration,
     registrationType: existingRegistration ? existingRegistration.registration_type : null,
     success: existingRegistration
@@ -425,21 +601,17 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
   });
 });
 
-router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
+router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistrationUpload, (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
   const formData = normalizeListenerRegistrationForm(req.body, req.session);
-
-  if (!formData.name || !formData.email) {
-    return renderListenerRegistrationForm(res, event, {
-      error: 'Nome e e-mail são obrigatórios para a inscrição no evento.',
-      formData
-    });
-  }
+  const uploadedFiles = getUploadedRegistrationFiles(req);
 
   const existingRegistration = db.prepare(`
-    SELECT id, registration_type
+    SELECT id, registration_type, academic_history_pdf_path, academic_history_original_name,
+           motivation_letter_pdf_path, motivation_letter_original_name,
+           recommendation_letter_pdf_path, recommendation_letter_original_name
     FROM event_registrations
     WHERE event_id = ?
       AND (
@@ -450,19 +622,81 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => 
     LIMIT 1
   `).get(req.params.id, req.session.userId, req.session.userEmail || '');
 
+  if (req.registrationUploadError) {
+    removeUploadedRegistrationFiles(uploadedFiles);
+    return renderListenerRegistrationForm(res, event, {
+      error: req.registrationUploadError,
+      formData: {
+        ...formData,
+        academic_history_original_name: existingRegistration ? existingRegistration.academic_history_original_name || '' : '',
+        motivation_letter_original_name: existingRegistration ? existingRegistration.motivation_letter_original_name || '' : '',
+        recommendation_letter_original_name: existingRegistration ? existingRegistration.recommendation_letter_original_name || '' : ''
+      },
+      alreadyRegistered: !!existingRegistration,
+      registrationType: existingRegistration ? existingRegistration.registration_type : null
+    });
+  }
+
+  const errors = validateListenerRegistrationForm(formData, event, existingRegistration, uploadedFiles);
+
+  if (errors.length > 0) {
+    removeUploadedRegistrationFiles(uploadedFiles);
+    return renderListenerRegistrationForm(res, event, {
+      error: errors.join(' '),
+      formData: {
+        ...formData,
+        academic_history_original_name: existingRegistration ? existingRegistration.academic_history_original_name || '' : '',
+        motivation_letter_original_name: existingRegistration ? existingRegistration.motivation_letter_original_name || '' : '',
+        recommendation_letter_original_name: existingRegistration ? existingRegistration.recommendation_letter_original_name || '' : ''
+      },
+      alreadyRegistered: !!existingRegistration,
+      registrationType: existingRegistration ? existingRegistration.registration_type : null
+    });
+  }
+
+  const documentMeta = buildRegistrationDocumentMeta(existingRegistration, uploadedFiles);
+
   if (existingRegistration) {
     const nextType = existingRegistration.registration_type === 'author' ? 'author' : 'listener';
+    removeReplacedRegistrationFiles(existingRegistration, uploadedFiles);
     db.prepare(`
       UPDATE event_registrations
-      SET name = ?, email = ?, institution = ?, updated_at = datetime('now')
+      SET name = ?, email = ?, institution = ?, subsidy_requested = ?, student_level = ?, student_course = ?,
+          student_institution_name = ?, student_institution_state = ?, student_lattes_id = ?,
+          academic_history_pdf_path = ?, academic_history_original_name = ?,
+          motivation_letter_pdf_path = ?, motivation_letter_original_name = ?,
+          recommendation_letter_pdf_path = ?, recommendation_letter_original_name = ?,
+          updated_at = datetime('now')
       WHERE id = ?
-    `).run(formData.name, formData.email, formData.institution, existingRegistration.id);
+    `).run(
+      formData.name,
+      formData.email,
+      formData.institution,
+      event.offers_subsidy && formData.subsidy_requested ? 1 : 0,
+      event.offers_subsidy && formData.subsidy_requested ? formData.student_level : '',
+      event.offers_subsidy && formData.subsidy_requested ? formData.student_course : '',
+      event.offers_subsidy && formData.subsidy_requested ? formData.student_institution_name : '',
+      event.offers_subsidy && formData.subsidy_requested ? formData.student_institution_state : '',
+      event.offers_subsidy && formData.subsidy_requested ? formData.student_lattes_id : '',
+      event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_pdf_path : '',
+      event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
+      event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_pdf_path : '',
+      event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_original_name : '',
+      event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_pdf_path : '',
+      event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : '',
+      existingRegistration.id
+    );
 
     return renderListenerRegistrationForm(res, event, {
       success: nextType === 'author'
         ? 'Sua participação já estava registrada como apresentador neste evento.'
         : 'Sua inscrição como ouvinte já estava registrada neste evento.',
-      formData,
+      formData: {
+        ...formData,
+        academic_history_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
+        motivation_letter_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_original_name : '',
+        recommendation_letter_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
+      },
       alreadyRegistered: true,
       registrationType: nextType
     });
@@ -470,14 +704,42 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => 
 
   db.prepare(`
     INSERT INTO event_registrations (
-      event_id, user_id, name, email, institution, registration_type, created_at, updated_at
+      event_id, user_id, name, email, institution, registration_type, subsidy_requested, student_level,
+      student_course, student_institution_name, student_institution_state, student_lattes_id,
+      academic_history_pdf_path, academic_history_original_name,
+      motivation_letter_pdf_path, motivation_letter_original_name,
+      recommendation_letter_pdf_path, recommendation_letter_original_name,
+      created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, 'listener', datetime('now'), datetime('now'))
-  `).run(event.id, req.session.userId, formData.name, formData.email, formData.institution);
+    VALUES (?, ?, ?, ?, ?, 'listener', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+  `).run(
+    event.id,
+    req.session.userId,
+    formData.name,
+    formData.email,
+    formData.institution,
+    event.offers_subsidy && formData.subsidy_requested ? 1 : 0,
+    event.offers_subsidy && formData.subsidy_requested ? formData.student_level : '',
+    event.offers_subsidy && formData.subsidy_requested ? formData.student_course : '',
+    event.offers_subsidy && formData.subsidy_requested ? formData.student_institution_name : '',
+    event.offers_subsidy && formData.subsidy_requested ? formData.student_institution_state : '',
+    event.offers_subsidy && formData.subsidy_requested ? formData.student_lattes_id : '',
+    event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_pdf_path : '',
+    event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
+    event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_pdf_path : '',
+    event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_original_name : '',
+    event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_pdf_path : '',
+    event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
+  );
 
   return renderListenerRegistrationForm(res, event, {
     success: 'Inscrição como ouvinte realizada com sucesso.',
-    formData,
+    formData: {
+      ...formData,
+      academic_history_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
+      motivation_letter_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_original_name : '',
+      recommendation_letter_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
+    },
     alreadyRegistered: true,
     registrationType: 'listener'
   });
@@ -670,12 +932,23 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
 });
 
 router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
+  const participationKeys = db.prepare(`
+    SELECT DISTINCT event_id
+    FROM event_registrations
+    WHERE user_id = ?
+       OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+  `).bind(req.session.userId, req.session.userEmail).all();
+
+  const registeredEventIds = new Set(participationKeys.map((row) => Number(row.event_id)));
+
   const participantEvents = db.prepare(`
     SELECT *
     FROM events
     WHERE status = 'published'
     ORDER BY date_start DESC
-  `).all().map((event) => withSubmissionMeta(withAreaMeta(event)));
+  `).all()
+    .filter((event) => !registeredEventIds.has(Number(event.id)))
+    .map((event) => withSubmissionMeta(withAreaMeta(event)));
 
   const submissions = db.prepare(`
     SELECT a.*, e.name as event_name, e.date_start, e.date_end
@@ -729,6 +1002,11 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
     ORDER BY e.date_start DESC, er.created_at DESC
   `).bind(req.session.userId, req.session.userEmail).all();
 
+  const participationsWithMeta = participations.map((participation) => ({
+    ...participation,
+    can_cancel: participation.registration_type === 'listener' && canCancelEventRegistration(participation.date_start)
+  }));
+
   const stats = {
     total: submissions.length,
     drafts: submissions.filter((item) => item.status === 'draft').length,
@@ -740,9 +1018,137 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
   res.render('public/author-dashboard', {
     title: 'Área do Participante',
     participantEvents,
-    participations,
+    participations: participationsWithMeta,
     submissions,
-    stats
+    stats,
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+});
+
+router.post('/evento/:id/inscricao/cancelar', requireNonAdminAuthorAccess, (req, res) => {
+  const event = db.prepare(`
+    SELECT id, name, date_start
+    FROM events
+    WHERE id = ?
+    LIMIT 1
+  `).get(req.params.id);
+
+  if (!event) {
+    return res.redirect('/author?error=Evento não encontrado');
+  }
+
+  const registration = db.prepare(`
+    SELECT id, registration_type
+    FROM event_registrations
+    WHERE event_id = ?
+      AND (
+        user_id = ?
+        OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+      )
+    ORDER BY id
+    LIMIT 1
+  `).get(req.params.id, req.session.userId, req.session.userEmail || '');
+
+  if (!registration) {
+    return res.redirect('/author?error=Inscrição não encontrada para este evento');
+  }
+
+  if (registration.registration_type !== 'listener') {
+    return res.redirect('/author?error=Apenas inscrições de ouvintes podem ser canceladas por esta área');
+  }
+
+  if (!canCancelEventRegistration(event.date_start)) {
+    return res.redirect('/author?error=O prazo para cancelamento desta inscrição já foi encerrado');
+  }
+
+  db.prepare('DELETE FROM event_registrations WHERE id = ?').run(registration.id);
+
+  return res.redirect('/author?success=Inscrição cancelada com sucesso');
+});
+
+router.get('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
+  const user = db.prepare(`
+    SELECT id, name, email, institution, cpf, passport, country
+    FROM users
+    WHERE id = ?
+  `).get(req.session.userId);
+
+  if (!user) {
+    return res.status(404).render('error', {
+      title: 'Usuário não encontrado',
+      message: 'Não foi possível localizar os dados do usuário autenticado.'
+    });
+  }
+
+  res.render('public/participant-profile', {
+    title: 'Meus Dados',
+    error: null,
+    success: null,
+    formData: user
+  });
+});
+
+router.post('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
+  const formData = normalizeParticipantProfileForm(req.body);
+
+  if (!formData.name || !formData.email) {
+    return res.render('public/participant-profile', {
+      title: 'Meus Dados',
+      error: 'Nome e e-mail são obrigatórios.',
+      success: null,
+      formData
+    });
+  }
+
+  if (!isValidCPF(formData.cpf)) {
+    return res.render('public/participant-profile', {
+      title: 'Meus Dados',
+      error: 'O CPF informado é inválido.',
+      success: null,
+      formData
+    });
+  }
+
+  const emailOwner = db.prepare(`
+    SELECT id
+    FROM users
+    WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
+      AND id != ?
+    LIMIT 1
+  `).get(formData.email, req.session.userId);
+
+  if (emailOwner) {
+    return res.render('public/participant-profile', {
+      title: 'Meus Dados',
+      error: 'Já existe outro usuário cadastrado com este e-mail.',
+      success: null,
+      formData
+    });
+  }
+
+  db.prepare(`
+    UPDATE users
+    SET name = ?, email = ?, institution = ?, cpf = ?, passport = ?, country = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `).run(
+    formData.name,
+    formData.email,
+    formData.institution || null,
+    normalizeCPF(formData.cpf) || null,
+    formData.passport || null,
+    formData.country || null,
+    req.session.userId
+  );
+
+  req.session.userName = formData.name;
+  req.session.userEmail = formData.email;
+
+  res.render('public/participant-profile', {
+    title: 'Meus Dados',
+    error: null,
+    success: 'Seus dados foram atualizados com sucesso.',
+    formData
   });
 });
 

@@ -179,6 +179,18 @@ A sessão persiste:
 - `email`
 - `institution`
 - `registration_type`
+- `subsidy_requested`
+- `student_level`
+- `student_course`
+- `student_institution_name`
+- `student_institution_state`
+- `student_lattes_id`
+- `academic_history_pdf_path`
+- `academic_history_original_name`
+- `motivation_letter_pdf_path`
+- `motivation_letter_original_name`
+- `recommendation_letter_pdf_path`
+- `recommendation_letter_original_name`
 - `created_at`
 - `updated_at`
 
@@ -215,6 +227,9 @@ A sessão persiste:
 - O campo `area` do evento suporta múltiplas áreas/trilhas, persistidas em `TEXT` normalizado e reutilizadas no formulário de submissão.
 - O formulário de submissão só apresenta áreas definidas no evento selecionado.
 - O evento pode registrar se oferece subsídio a participantes por meio de `offers_subsidy`.
+- Quando `offers_subsidy = 1`, a inscrição do participante pode incluir candidatura a subsídio financeiro.
+- Ao solicitar subsídio, o participante deve informar nível acadêmico, curso, instituição de vínculo, UF da instituição e ID Lattes com 16 dígitos.
+- Ao solicitar subsídio, o participante deve anexar histórico escolar, carta de motivação e carta de recomendação em PDF, com limite de 10 MB por arquivo.
 - Na criação e edição do evento, `date_end` não pode ser anterior a `date_start`.
 - Na criação e edição do evento, `submission_end` não pode ser anterior a `submission_start`.
 
@@ -260,6 +275,9 @@ A sessão persiste:
 - Participantes que submetem artigo são registrados em `event_registrations` com `registration_type = 'author'`.
 - Se um ouvinte posteriormente submete artigo no mesmo evento, sua inscrição é promovida automaticamente para `author`.
 - Um participante com múltiplos artigos conta uma única vez nas métricas de inscritos com artigo.
+- O participante pode cancelar a inscrição de ouvinte até o dia anterior ao início do evento.
+- Inscrições já promovidas para `author` não podem ser canceladas pela área do participante.
+- Quando o evento oferece subsídio, os dados e anexos da candidatura ficam vinculados à própria inscrição do evento.
 
 ### Autenticação e senha
 
@@ -363,6 +381,7 @@ Observações estruturais:
 - `routes/config.js` continua presente como área legada em `/admin/config`.
 - `routes/reviewers.js` permanece como herança da estrutura anterior.
 - A área do participante continua servida pela rota `/author`, embora o fluxo hoje cubra inscrições e submissões.
+- O participante possui tela própria de atualização cadastral em `/author/profile`.
 
 ## Segurança e Operação
 
@@ -396,10 +415,15 @@ Observações operacionais:
 - Atualização em lote de perfis e status em `/admin/users`.
 - Distinção visual entre papel de revisor e conta ativa.
 - Exibição do e-mail do usuário autenticado nas áreas principais do sistema.
+- Autoatendimento de dados cadastrais do participante em `/author/profile`.
+- Validação de CPF nos formulários administrativos e no perfil do participante.
+- Combobox padronizado de países nos formulários públicos e administrativos.
 - Fluxo de atribuição de revisores.
 - Dashboard do revisor baseado em atribuições e pareceres.
 - Restrição de submissão por janela real de datas.
 - Eventos sem período de submissão configurado não exibem status de submissão na home nem na página pública do evento.
+- Cancelamento de inscrição de ouvinte antes do início do evento.
+- Inscrição em evento com fluxo condicional de subsídio, incluindo dados acadêmicos e upload de documentos obrigatórios.
 - Relatórios por evento com recomendações consolidadas.
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 
