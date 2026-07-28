@@ -1,8 +1,8 @@
-# Sistema de Submissão e Revisão de Artigos
+# Sistema de Participação e Submissão em Eventos
 
 ## Visão Geral
 
-Aplicação web para gestão de eventos científicos com publicação de eventos, submissão pública de artigos, atribuição de revisores, emissão de pareceres e acompanhamento administrativo.
+Aplicação web para gestão de eventos científicos com publicação de eventos, inscrição de participantes, submissão pública de artigos, atribuição de revisores, emissão de pareceres e acompanhamento administrativo.
 
 Data de referência desta especificação: **28/07/2026**.
 
@@ -57,7 +57,7 @@ O sistema deve permitir:
 ### Público
 
 - Listagem de eventos publicados.
-- Página pública do evento.
+- Página pública do evento com URL destacada e fallback `TBD` quando não informada.
 - Inscrição pública de participante como ouvinte, vinculada a conta autenticada.
 - Submissão de artigo com geração de código de acesso.
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões.
@@ -209,6 +209,7 @@ A sessão persiste:
 - Apenas eventos com `status = 'published'` aparecem no site público.
 - A submissão pública depende da janela configurada em `submission_start` e `submission_end`.
 - Um evento sem `submission_start` e `submission_end` não é tratado como evento com submissão fechada; ele é tratado como evento sem submissão de artigos configurada.
+- Quando não existe janela de submissão configurada, a interface pública não mostra badge ou mensagem de status de submissão.
 - Antes de `submission_start`, a submissão fica bloqueada.
 - Depois de `submission_end`, a submissão fica bloqueada.
 - O campo `area` do evento suporta múltiplas áreas/trilhas, persistidas em `TEXT` normalizado e reutilizadas no formulário de submissão.
@@ -361,6 +362,7 @@ Observações estruturais:
 
 - `routes/config.js` continua presente como área legada em `/admin/config`.
 - `routes/reviewers.js` permanece como herança da estrutura anterior.
+- A área do participante continua servida pela rota `/author`, embora o fluxo hoje cubra inscrições e submissões.
 
 ## Segurança e Operação
 
@@ -397,6 +399,7 @@ Observações operacionais:
 - Fluxo de atribuição de revisores.
 - Dashboard do revisor baseado em atribuições e pareceres.
 - Restrição de submissão por janela real de datas.
+- Eventos sem período de submissão configurado não exibem status de submissão na home nem na página pública do evento.
 - Relatórios por evento com recomendações consolidadas.
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 

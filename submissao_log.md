@@ -35,6 +35,7 @@ Registro cronológico das alterações relevantes do sistema de submissão de ar
 
 - Correção da separação entre artigos pendentes e artigos revisados no dashboard do revisor.
 - Correção da lógica pública de abertura e fechamento da janela de submissão.
+- Correção da interface pública para não exibir status de submissão quando o evento não possui janela de submissão configurada.
 - Correção do parsing de flags de usuários para persistir corretamente valores ativados e desativados.
 - Correção da contagem de `Revisores Ativos` no dashboard administrativo.
 - Correção da contagem de `Revisores Inativos` no dashboard administrativo.
