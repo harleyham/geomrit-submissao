@@ -1,451 +1,378 @@
-# Análise Completa do Sistema de Gerenciamento de Submissão de Artigos Científicos
+# Sistema de Submissão e Revisão de Artigos
 
-## 📋 Visão Geral
+## Visão Geral
 
-Sistema web desenvolvido em **Node.js/Express** com **SQLite** (via `better-sqlite3`) e templates **EJS** para gerenciar submissão e revisão de artigos científicos para congressos. Utiliza autenticação por sessão e suporta múltiplos eventos.
+Aplicação web para gestão de eventos científicos com publicação de eventos, submissão pública de artigos, atribuição de revisores, emissão de pareceres e acompanhamento administrativo.
 
-**Última atualização**: 24/07/2026 - Status atualizado com base na análise completa do código-fonte
+Data de referência desta especificação: **28/07/2026**.
 
----
+## Objetivo do Produto
 
-## 🏗️ Arquitetura
+O sistema deve permitir:
 
-### Stack Tecnológico
+1. Publicar eventos com janela de submissão configurável.
+2. Receber submissões públicas de artigos e gerar código de consulta.
+3. Gerenciar usuários com múltiplos perfis no mesmo cadastro.
+4. Atribuir artigos a revisores.
+5. Registrar pareceres com recomendação.
+6. Consolidar apoio à decisão administrativa por evento.
+
+## Stack Atual
+
 | Camada | Tecnologia |
 |--------|-----------|
 | Backend | Node.js + Express |
-| Banco de Dados | SQLite (better-sqlite3) |
-| Templates | EJS |
-| Uploads | Multer |
-| Sessões | express-session |
-| Segurança | Helmet, bcryptjs |
-| Performance | Compression, rate-limiter |
+| Banco de dados | SQLite (`better-sqlite3`) |
+| Renderização | EJS |
+| Sessão | `express-session` |
+| Segurança | `helmet`, `bcryptjs` |
+| Upload | `multer` |
+| Infra complementar | `compression`, `method-override` |
 
-### Estrutura de Diretórios
-```
-artigos/
-├── server.js              # Ponto de entrada
-├── db.js                  # Schema + queries helper
-├── uploads/               # Arquivos de artigos
-├── routes/
-│   ├── auth.js            # Login admin
-│   ├── events.js          # CRUD eventos (admin)
-│   ├── articles.js        # Gestão artigos (admin)
-│   ├── reviewers.js       # Gestão revisores (admin)
-│   ├── assignments.js     # Atribuição revisores
-│   ├── reports.js         # Relatórios/admin
-│   ├── reviewer.js        # Dashboard revisor
-│   └── public.js          # Página pública
-└── views/                 # Templates EJS
-```
+## Escopo Funcional Implementado
 
----
+### Administração
 
-## 🗄️ Schema do Banco de Dados
+- Login unificado por e-mail e senha.
+- Dashboard com estatísticas gerais.
+- CRUD de eventos.
+- Gestão de usuários em `/admin/users`.
+- Atualização em lote de perfis e status de usuários.
+- Visualização de artigos por evento.
+- Atribuição de revisores.
+- Relatórios por evento com consolidação de pareceres.
 
-### Tabela `admins`
-- `id`, `username`, `password` (hashed), `created_at`
+### Revisão
 
-### Tabela `events`
-- `id`, `name`, `short_name`, `description`, `date_start`, `date_end`, `location`, `url`, `area`, `status` (draft/published), `created_at`, `updated_at`
-
-### Tabela `reviewers`
-- `id`, `name`, `email` (único), `password` (bcrypt), `area`, `institution`, `bio`, `is_active`, `created_at`, `updated_at`
-
-### Tabela `articles`
-- `id`, `event_id` (FK), `title`, `title_en`, `area`, `authors`, `abstract`, `keywords`, `pdf_path`, `contributor`, `affiliation`, `city`, `email_submission`, `access_code`, `type` (oral/poster), `status` (pending/in_review/approved/rejected), `reviewer_id`, `reviewer_name`, `reviewer_area`, `review_notes`, `rejection_reason`, `date_submitted`, `created_at`, `updated_at`
-
-### Tabela `assignments`
-- `id`, `article_id` (FK), `reviewer_id` (FK), `status` (pending/accepted/declined), `reviewed_at`, `created_at`, `updated_at`
-
-### Tabela `reports`
-- `id`, `assignment_id` (FK), `score` (1-5), `report`, `recommendation` (approved/rejected/revision_requested), `created_at`, `updated_at`
-
----
-
-## 👥 Perfis de Usuário
-
-### Admin
-- Dashboard com estatísticas
-- Gerenciamento de eventos (CRUD)
-- Gerenciamento de artigos (listar, detalhar, deletar, download)
-- Gerenciamento de revisores (CRUD)
-- Atribuição de revisores a artigos
-- Visualização de relatórios e decisões finais
-
-### Revisor
-- Login com email/senha
-- Dashboard pessoal (pendentes/aprovados/rejeitados)
-- Visualização de artigos atribuídos
-- Submissão de revisão (aprovado/rejeitado/revisão solicitada)
-- Preenchimento de relatório
+- Login pelo fluxo unificado.
+- Dashboard do revisor.
+- Lista de artigos pendentes baseada em `assignments` sem `reports`.
+- Lista de artigos revisados baseada em `reports`.
+- Envio de parecer com recomendação.
 
 ### Público
-- Listagem de eventos publicados
-- Submissão de artigos (com código de acesso)
-- Consulta de artigo por código de acesso
-- Listagem do corpo de revisores
-
----
-
-## 🔒 Segurança
-
-- **Hash de senhas**: bcrypt (10 rounds)
-- **Helmet**: CSP configurado, headers de segurança
-- **Rate Limiting**: 100 requisições/15min
-- **Compressão**: Gzip automático
-- **Sessões**: Secret configurável via ENV
-- **Uploads**: Validação de tipo (.pdf, .doc, .docx), limite 20MB
-- **Autenticação**: Middleware `requireAuth` em rotas admin
-
----
-
-## 🔄 Fluxo do Sistema
-
-```
-1. Submissão (público) → Artigo criado com status "pending"
-2. Triagem (admin) → Atribuição de revisor
-   ↓
-3. Revisão → Status "in_review", revisor recebe atribuição
-   ↓
-4. Decisão Revisor → "approved"/"rejected"/"revision_requested"
-   ↓
-5. Decisão Final (admin) → Consolidação dos pareceres
-   ↓
-6. Resultado → Status final "approved"/"rejected"
-```
-
----
-
-## 🛠️ Correções Aplicadas
-
-1. **Schema unificado**: Senha em reviewers, campos de submissão em articles, status normalizados
-2. **Autenticação segura**: Senhas hashed em `reviewer.js` e `reviewers.js`
-3. **SQL bugs**: Removido COALESCE incorreto, SQLs corrigidos
-4. **Consistência de status**: `pending` para submissão, `in_review` durante revisão
-5. **Reports table sincronizada**: Criação/leitura correta via tabela `reports`
-6. **Middleware de autenticação**: Todos os rotas admin exigem `isAdmin`
-7. **Remoção de rotas legadas**: `/submit` antigo e `/events/:id/submit` removidos de server.js
-8. **Código de acesso**: Geração automática para consulta de artigos
-9. **Uploads**: Diretório `uploads/` criado
-
----
-
-## 🔧 Status Atual do Desenvolvimento (Última Atualização: 24/07/2026)
-
-### ✅ Funcionalidades Implementadas e Verificadas
-
-#### Sistema de Autenticação
-- ✅ **Login Admin**: Sistema funcionando com verificação de sessão
-- ✅ **Dashboard Admin**: Exibe estatísticas e artigos recentes
-- ✅ **Logout**: Funcional em GET e POST
-- ✅ **Middleware de Autenticação**: Protege todas as rotas admin
-
-#### Gerenciamento de Eventos
-- ✅ **CRUD Completo**: Criar, listar, editar, deletar eventos
-- ✅ **Publicação de Eventos**: Status draft/published
-- ✅ **Estatísticas por Evento**: Contadores de artigos, revisores, atribuições
-- ✅ **Top Revisores**: Ranking dos revisores mais ativos
-
-#### Gerenciamento de Artigos
-- ✅ **Listagem por Evento**: Filtragem correta por evento
-- ✅ **Detalhes do Artigo**: Visualização completa com revisores atribuídos
-- ✅ **Download de Arquivos**: Suporte para PDF, DOC, DOCX
-- ✅ **Deleção de Artigos**: Remove arquivo e registro do banco
-- ✅ **Atribuição de Revisores**: Sistema de vinculação com controle de status
-- ✅ **Atualização de Status**: Pending → In Review → Approved/Rejected
-
-#### Gerenciamento de Revisores
-- ✅ **CRUD Completo**: Cadastro com autenticação segura
-- ✅ **Áreas de Atuação**: Classificação por especialidade
-- ✅ **Status Ativo/Inativo**: Controle de acesso
-
-#### Sistema de Atribuições
-- ✅ **Atribuição Automática**: Status atualizado automaticamente
-- ✅ **Controle de Conflitos**: Verifica atribuições existentes
-- ✅ **Remoção de Atribuições**: Atualiza status quando necessário
-
-#### Sistema de Relatórios
-- ✅ **Painel de Relatórios**: Visualização consolidada por evento
-- ✅ **Decisões Finais**: Consolidação de pareceres
-- ✅ **Estatísticas de Revisão**: Contadores por status
-
-#### Sistema do Revisor
-- ✅ **Login de Revisor**: Autenticação segura com bcrypt
-- ✅ **Dashboard do Revisor**: Visualização de artigos pendentes/aprovados/rejeitados
-- ✅ **Revisão de Artigos**: Sistema de parecer completo
-- ✅ **Submissão de Revisão**: Atualização automática de status
-
-#### Sistema Público
-- ✅ **Página Inicial**: Listagem de eventos publicados
-- ✅ **Submissão de Artigos**: Formulário completo com validação
-- ✅ **Consulta por Código**: Sistema de código de acesso único
-- ✅ **Corpo de Revisores**: Listagem pública dos revisores
-
-### 🛡️ Segurança Implementada
-- ✅ **Hash de Senhas**: bcrypt (10 rounds) em todos os sistemas
-- ✅ **Helmet**: CSP configurado, headers de segurança
-- ✅ **Sessões Seguras**: HttpOnly, SameSite, tempo de expiração
-- ✅ **Uploads Seguros**: Validação de tipo e tamanho
-- ✅ **SQL Injection**: Parâmetros preparados em todas as queries
-- ✅ **Middleware de Autenticação**: Proteção consistente em todas as rotas admin
-
-### 🔄 Estrutura de Rotas Atualizada
-```
-/auth (authRouter):
-  - GET /          → Login page
-  - POST /         → Autenticação
-  - GET /dashboard → Dashboard admin (requer autenticação)
-  - GET /logout    → Logout
-  - POST /logout   → Logout
-
-/admin (authRouter):
-  - GET /          → Redireciona para /login se não autenticado
-  - GET /dashboard → Dashboard admin
-  - POST /logout   → Logout
-
-/admin/events (eventsRouter):
-  - GET /          → Listar eventos
-  - GET /new       → Novo evento
-  - POST /         → Criar evento
-  - GET /:id/edit  → Editar evento
-  - PUT /:id       → Atualizar evento
-  - DELETE /:id    → Deletar evento
-  - GET /:id/stats → Estatísticas do evento
-  - POST /:id/publish → Publicar evento
-
-/admin/articles (articlesRouter):
-  - GET /          → Listar artigos do evento
-  - GET /:id       → Detalhes do artigo
-  - PUT /:id       → Atualizar status
-  - GET /:id/download → Download do arquivo
-  - DELETE /:id    → Deletar artigo
-  - POST /:id/assign → Atribuir revisor
-
-/admin/reviewers (reviewersRouter):
-  - CRUD completo para gerenciar revisores
-
-/admin/assignments (assignmentsRouter):
-  - Gerenciamento de atribuições de revisores
-
-/admin/reports (reportsRouter):
-  - Relatórios e decisões finais
-
-/reviewer (reviewerRoutes):
-  - GET /          → Dashboard do revisor
-  - GET /login     → Login do revisor
-  - POST /login    → Autenticação do revisor
-  - GET /logout    → Logout
-  - POST /logout   → Logout
-  - GET /article/:id → Visualizar artigo para revisão
-  - POST /review/:id   → Submeter revisão
-
-### 📊 Funcionalidades Verificadas (Testes Manuais)
-- ✅ Sistema inicia sem erros de compilação
-- ✅ Login admin funciona corretamente
-- ✅ Redirecionamento após login para /admin/dashboard
-- ✅ Dashboard renderiza estatísticas e artigos recentes
-- ✅ Middleware de autenticação protege rotas admin
-- ✅ CRUD de eventos funciona perfeitamente
-- ✅ Gerenciamento de artigos opera corretamente
-- ✅ Sistema de atribuição de revisores está funcional
-- ✅ Submissão pública de artigos está disponível
-- ✅ Consulta por código de acesso funciona
-- ✅ Sistema de revisão do revisor está operacional
-
-### 📝 Observações Técnicas
-- **Servidor**: Node.js/Express rodando em `http://localhost:3000`
-- **Banco de Dados**: SQLite via better-sqlite3 (artigos.db)
-- **Templates**: EJS com sistema de layouts
-- **Uploads**: Diretório `uploads/` com validação de arquivos
-- **Sessões**: express-session com configuração segura
-- **Segurança**: Helmet, bcryptjs, method-override
-- **Performance**: Compression, file estáticos otimizados
-
----
-
-## 🔄 Próximos Passos Sugeridos
-
-### Prioridade Alta
-1. **Teste completo do fluxo**: Submeter artigo → atribuir revisor → revisão → decisão
-2. **Teste de segurança**: Verificar proteção contra XSS, SQL injection, CSRF
-3. **Validação de formulários**: Adicionar validação no client e server-side
-4. **Notificações**: Implementar sistema de notificação para revisores e submissões
-
-### Prioridade Média
-5. **Export de relatórios**: Gerar PDF dos relatórios de revisão
-6. **Upload de arquivos**: Suporte a múltiplos arquivos por artigo
-7. **Busca e filtros**: Adicionar busca por título, autor, área nos artigos
-8. **Histórico de revisões**: Manter log de decisões anteriores
-
-### Prioridade Baixa
-9. **API REST**: Expor endpoints para integração com sistemas externos
-10. **Internacionalização**: Suporte a múltiplos idiomas (português/inglês)
-11. **Tema escuro/claro**: Alternância de temas no frontend
-12. **Mobile responsiveness**: Melhorar layout para dispositivos móveis
-
-
-# Guia de Uso do Sistema de Submissão de Artigos
-
-## 🚀 Instalação e Execução
-
-### 1. Instalar dependências
-```bash
-cd /media/ham1/2TB_NTFS/Codigo/artigos
-npm install
-```
-
-### 2. Iniciar o servidor
-```bash
-node server.js
-```
-Ou, em produção:
-```bash
-NODE_ENV=production ADMIN_PASSWORD=sua_senha node server.js
-```
-
-O sistema estará disponível em:
-- **Página pública**: http://localhost:3000
-- **Admin**: http://localhost:3000/login
-- **Revisor**: http://localhost:3000/reviewer/login
-
----
-
-## 👤 Como usar como ADMIN
-
-### Login
-1. Acesse `http://localhost:3000/login`
-2. Usuário padrão: `admin`
-3. Senha padrão: `admin2027` (alterável via variável de ambiente `ADMIN_PASSWORD`)
-
-### Fluxo de trabalho
-
-#### 1. Cadastrar um Evento
-- Acesse **Admin → Eventos**
-- Clique em **Novo Evento**
-- Preencha: nome, descrição, datas, localização, URL, área(s)
-- Clique em **Salvar**
-- Altere o status para **"published"** quando o evento estiver pronto para submissões
-
-#### 2. Cadastrar Revisores
-- Acesse **Admin → Revisores**pkill -f "node server.js" 2>/dev/null; sleep 2 && cd /media/ham1/2TB_NTFS/Codigo/artigos && node server.js &
-- Clique em **Novo Revisor**
-- Preencha: nome, email, área de atuação, instituição, bio
-- Defina uma senha (será usada para o revisor fazer login)
-- Marque/desmarque "Ativo"
-
-#### 3. Receber e Gerenciar Artigos
-- Após publicar o evento, submissões aparecerão em **Admin → Artigos**
-- Cada artigo mostra: título, autores, status, tipo
-- Clique no artigo para ver detalhes
-- Para baixar o PDF: clique em **Download**
-- Para rejeitar: altere o status e informe o motivo
-
-#### 4. Atribuir Revisores
-- Em **Admin → Atribuições**, veja artigos pendentes
-- Clique em **Atribuir Revisor** para vincular um revisor ao artigo
-- O status do artigo muda automaticamente para **"Em Revisão"**
-
-#### 5. Acompanhar Relatórios
-- Em **Admin → Relatórios**, selecione o evento
-- Veja a decisão final consolidada por artigo (baseada nos pareceres dos revisores)
-- Aprovação: maioria de revisores aprova → status "approved"
-- Rejeição: maioria rejeita → status "rejected"
-- Caso de empate ou dúvida → status "revision_requested"
-
----
-
-## 🔍 Como usar como REVISOR
-
-### Login
-1. Acesse `http://localhost:3000/reviewer/login`
-2. Use o email e senha cadastrados pelo admin
-
-### Fluxo de trabalho
-
-#### 1. Dashboard
-- Veja a quantidade de artigos pendentes, aprovados e rejeitados
-- Artigos pendentes são exibidos em ordem de submissão
-
-#### 2. Revisar Artigo
-- Clique no artigo na lista de pendentes
-- Leia o resumo/abstract e os metadados
-- Baixe o PDF do artigo (se disponível)
-- Preencha o parecer:
-  - **Aprovar**: o artigo é relevante e está bem escrito
-  - **Rejeitar**: informe o motivo da rejeição
-  - **Revisão solicitada**: indique o que precisa ser alterado
-
-#### 3. Submeter Revisão
-- Clique em **Submeter Revisão**
-- O status do artigo é atualizado automaticamente
-- O admin verá a decisão consolidada
-
----
-
-## 🌐 Como usar como SUBMITENTE (público)
-
-### 1. Acessar o Evento
-- Vá para `http://localhost:3000`
-- Clique no evento desejado
-- Clique em **Submeter Artigo**
-
-### 2. Preencher Formulário
-Campos obrigatórios:
-- **Título** (português e inglês)
-- **Autores** (lista completa)
-- **Resumo/Abstract**
-- **Palavras-chave**
-- **Área** (preenchida automaticamente pelo evento, mas pode ser alterada)
-- **Tipo de apresentação**: Oral ou Pôster
-
-Campos opcionais:
-- Contribuidor, afiliação, cidade, email
-
-### 3. Enviar
-- Após enviar, um **código de acesso** é gerado
-- Guarde-o para consultar o status do artigo futuramente
-
-### 4. Consultar Artigo
-- Acesse `http://localhost:3000/consultar`
-- Digite o código de acesso
-- Veja o status e informações do artigo
-
----
-
-## ⚙️ Variáveis de Ambiente
-
-| Variável | Descrição | Padrão |
-|----------|-----------|--------|
-| `PORT` | Porta do servidor | `3000` |
-| `ADMIN_PASSWORD` | Senha do admin | `admin2027` |
-| `SESSION_SECRET` | Segredo das sessões | `edigemia-ligem-secret-2027` |
-
----
-
-## 📱 Estrutura de URLs
-
-| Rota | Descrição |
-|------|-----------|
-| `/` | Página inicial (eventos publicados) |
-| `/login` | Login admin |
-| `/reviewer/login` | Login revisor |
-| `/reviewer` | Dashboard revisor (após login) |
+
+- Listagem de eventos publicados.
+- Página pública do evento.
+- Submissão de artigo com geração de código de acesso.
+- Consulta de submissão por código.
+- Exibição pública de revisores ativos.
+
+## Perfis, Acesso e Sessão
+
+### Usuário unificado
+
+Todos os usuários estão na tabela `users`. Um mesmo registro pode acumular mais de um perfil.
+
+Flags de permissão:
+
+- `is_admin`
+- `is_reviewer`
+- `is_public`
+
+### Regras de acesso
+
+- `is_admin = 1`: acesso ao painel administrativo.
+- `is_reviewer = 1`: acesso ao painel do revisor.
+- `is_public = 1`: conta habilitada para autenticação.
+- `is_admin = 1` e `is_reviewer = 1`: após login, o redirecionamento prioriza `/admin/dashboard`.
+- `is_reviewer = 1` e `is_public = 0`: usuário continua marcado como revisor, mas fica inativo para login.
+
+### Sessão
+
+A sessão persiste:
+
+- `userId`
+- `userName`
+- `userEmail`
+- `userRoles`
+- `isAdmin`
+- `isReviewer`
+
+## Modelo de Dados Principal
+
+### `users`
+
+- `id`
+- `name`
+- `email`
+- `password`
+- `cpf`
+- `passport`
+- `country`
+- `institution`
+- `is_admin`
+- `is_reviewer`
+- `is_public`
+- `password_changed`
+- `created_at`
+- `updated_at`
+
+### `events`
+
+- `id`
+- `name`
+- `short_name`
+- `description`
+- `date_start`
+- `date_end`
+- `location`
+- `url`
+- `area`
+- `status`
+- `submission_start`
+- `submission_end`
+- `created_at`
+- `updated_at`
+
+### `articles`
+
+- `id`
+- `event_id`
+- `title`
+- `title_en`
+- `area`
+- `authors`
+- `abstract`
+- `keywords`
+- `pdf_path`
+- `contributor`
+- `affiliation`
+- `city`
+- `email_submission`
+- `access_code`
+- `type`
+- `status`
+- `reviewer_id`
+- `reviewer_name`
+- `reviewer_area`
+- `review_notes`
+- `rejection_reason`
+- `date_submitted`
+- `created_at`
+- `updated_at`
+
+### `assignments`
+
+- `id`
+- `article_id`
+- `reviewer_id`
+- `status`
+- `reviewed_at`
+- `created_at`
+- `updated_at`
+
+### `reports`
+
+- `id`
+- `assignment_id`
+- `score`
+- `report`
+- `recommendation`
+- `created_at`
+- `updated_at`
+
+## Regras de Negócio
+
+### Eventos e submissão
+
+- Apenas eventos com `status = 'published'` aparecem no site público.
+- A submissão pública depende da janela configurada em `submission_start` e `submission_end`.
+- Antes de `submission_start`, a submissão fica bloqueada.
+- Depois de `submission_end`, a submissão fica bloqueada.
+- Se as datas de submissão não estiverem preenchidas, a submissão permanece liberada.
+
+### Usuários
+
+- O cadastro administrativo permite criar usuários com perfil de admin e/ou revisor.
+- A troca de senha é obrigatória no primeiro acesso quando `password_changed = 0`.
+- Administrador pode resetar a senha de outro usuário.
+- A tela `/admin/users` separa papel no sistema e status de conta.
+- O conceito de `Revisor` é independente do conceito de `Conta ativa`.
+
+### Dashboard administrativo
+
+- `Revisores Ativos` conta usuários com `is_reviewer = 1` e `is_public = 1`.
+- `Revisores Inativos` conta usuários com `is_reviewer = 1` e `is_public = 0`.
+
+### Revisão
+
+- O dashboard do revisor usa `assignments` e `reports` como fonte de verdade.
+- Uma atribuição sem relatório associado é considerada pendente.
+- Um artigo revisado é identificado pela existência de `report`, não apenas pelo `status` de `articles`.
+- Ao registrar parecer, o sistema atualiza artigo, atribuição e relatório.
+
+### Autenticação e senha
+
+- Usuários inativos (`is_public = 0`) não conseguem autenticar.
+- Os formulários com senha possuem controle visual para mostrar ou ocultar caracteres.
+
+## Fluxos Principais
+
+### Fluxo operacional
+
+1. Admin cria evento.
+2. Admin publica evento.
+3. Público submete artigo dentro da janela permitida.
+4. Sistema cria artigo com `status = 'pending'`.
+5. Admin atribui revisor.
+6. Sistema cria `assignment` e move o artigo para `in_review`.
+7. Revisor envia parecer.
+8. Sistema grava ou atualiza `report`.
+9. Admin acompanha os relatórios e define o status final do artigo.
+
+### Fluxo de autenticação
+
+1. Usuário acessa `/login`.
+2. Sistema valida e-mail e senha na tabela `users`.
+3. Sistema bloqueia login para `is_public = 0`.
+4. Sistema monta a sessão conforme as flags do usuário.
+5. Se `password_changed = 0`, redireciona para `/login/change-password`.
+6. Se `is_admin = 1`, redireciona para `/admin/dashboard`.
+7. Caso contrário, se `is_reviewer = 1`, redireciona para `/reviewer`.
+
+## Rotas Principais
+
+### Públicas
+
+| Rota | Finalidade |
+|------|------------|
+| `/` | Página inicial com eventos publicados |
 | `/evento/:id` | Detalhes do evento |
 | `/submeter/:eventId` | Formulário de submissão |
-| `/consultar` | Consulta de artigo por código |
+| `/consultar` | Consulta por código |
 | `/revisores` | Corpo de revisores |
-| `/admin/events` | Gerenciar eventos |
-| `/admin/articles` | Gerenciar artigos |
-| `/admin/reviewers` | Gerenciar revisores |
-| `/admin/assignments` | Atribuir revisores |
-| `/admin/reports` | Relatórios e decisões |
 
+### Autenticação
 
+| Rota | Finalidade |
+|------|------------|
+| `/login` | Login unificado |
+| `/login/change-password` | Troca obrigatória de senha |
+| `/admin/logout` | Logout admin |
+| `/reviewer/logout` | Logout revisor |
 
-   Observações:
+### Administração
 
-   Estou trabalhando em http://localhost:3000/admin/reviewers
-   Não está funcionando clicar o botão de ativar/desativar dentro da edição do Revisor.
+| Rota | Finalidade |
+|------|------------|
+| `/admin/dashboard` | Dashboard administrativo |
+| `/admin/events` | Gestão de eventos |
+| `/admin/articles` | Gestão de artigos |
+| `/admin/users` | Gestão de usuários |
+| `/admin/assignments` | Atribuição de revisores |
+| `/admin/reports` | Relatórios e decisão final |
 
+### Revisão
 
+| Rota | Finalidade |
+|------|------------|
+| `/reviewer` | Dashboard do revisor |
+| `/reviewer/articles/:id` | Visualização do artigo |
+| `/reviewer/articles/:id/review` | Submissão de parecer |
+
+## Estrutura Técnica
+
+```text
+artigos/
+├── server.js
+├── db.js
+├── uploads/
+├── routes/
+│   ├── auth.js
+│   ├── events.js
+│   ├── articles.js
+│   ├── reviewers.js
+│   ├── users.js
+│   ├── assignments.js
+│   ├── reports.js
+│   ├── reviewer.js
+│   ├── public.js
+│   └── config.js
+└── views/
+```
+
+Observações estruturais:
+
+- `routes/config.js` continua presente como área legada em `/admin/config`.
+- `routes/reviewers.js` permanece como herança da estrutura anterior.
+
+## Segurança e Operação
+
+- Senhas armazenadas com hash `bcrypt`.
+- Sessão com cookie `httpOnly` e `sameSite=lax`.
+- `helmet` com CSP configurada.
+- `compression` habilitado.
+- `method-override` habilitado para formulários com `_method`.
+
+Variáveis de ambiente em uso:
+
+| Variável | Finalidade | Padrão atual |
+|----------|------------|--------------|
+| `PORT` | Porta HTTP | `3000` |
+| `SESSION_SECRET` | Chave de sessão | `edigemia-ligem-secret-2027` |
+
+Observações operacionais:
+
+- O sistema não possui hot reload nativo.
+- Mudanças em rotas e templates exigem reinício do servidor.
+- A seed padrão de administrador continua documentada no código atual com e-mail `admin@admin.com` e senha inicial `123456`.
+
+## Status Atual
+
+### Implementado
+
+- Modelo unificado de usuários.
+- Login unificado.
+- Troca obrigatória de senha no primeiro acesso.
+- Gestão administrativa de usuários.
+- Atualização em lote de perfis e status em `/admin/users`.
+- Distinção visual entre papel de revisor e conta ativa.
+- Exibição do e-mail do usuário autenticado nas áreas principais do sistema.
+- Fluxo de atribuição de revisores.
+- Dashboard do revisor baseado em atribuições e pareceres.
+- Restrição de submissão por janela real de datas.
+- Relatórios por evento com recomendações consolidadas.
+- Controle visual de mostrar ou ocultar senha nos formulários principais.
+
+### Parcial ou pendente de validação
+
+- Decisão final administrativa precisa de validação funcional ponta a ponta.
+- Upload público de arquivo ainda não está completo no fluxo efetivo.
+
+### Fora do escopo atual
+
+- Notificações por e-mail.
+- Exportação de relatórios.
+- API externa.
+- Internacionalização.
+
+## Riscos e Gaps Conhecidos
+
+1. O campo `pdf_path` existe, mas o upload público real ainda não está operacional de ponta a ponta.
+2. Existem rotas legadas ainda montadas no projeto, especialmente `/admin/config`.
+3. Ainda há endpoints legados de toggle individual de perfis no backend, embora a interface principal já utilize salvamento em lote.
+4. O fluxo completo de decisão final administrativa ainda requer validação integrada.
+
+## Próximos Passos Recomendados
+
+### Alta prioridade
+
+1. Concluir o upload real de artigo na submissão pública.
+2. Validar o fluxo completo de evento, submissão, atribuição, parecer e decisão final.
+3. Reforçar validações server-side e client-side nos formulários principais.
+4. Revisar proteção contra CSRF e endurecimento geral de segurança.
+
+### Média prioridade
+
+1. Remover ou aposentar rotas legadas.
+2. Melhorar busca e filtros de artigos.
+3. Implementar notificações para atribuição e mudança de status.
+4. Adicionar histórico de revisão e trilha de auditoria.
+
+### Baixa prioridade
+
+1. Exportação CSV, Excel ou PDF.
+2. API REST.
+3. Internacionalização.
+4. Melhorias adicionais de responsividade.

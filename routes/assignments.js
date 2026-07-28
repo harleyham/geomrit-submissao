@@ -18,13 +18,13 @@ router.post('/:articleId', requireAuth, (req, res) => {
   }
   
   // Verificar se o revisor já foi atribuído a este artigo
-  const existing = db.prepare('SELECT id FROM assignments WHERE article_id = ? AND reviewer_id = ?').get(req.params.articleId, reviewerId);
+  const existing = db.prepare('SELECT id FROM assignments WHERE article_id = ? AND reviewer_id = ?').bind(req.params.articleId, reviewerId).get();
   if (existing) {
     return res.status(400).json({ error: 'Revisor já atribuído' });
   }
   
   // Verificar se o artigo não tem nenhum revisor
-  const existingReviewer = db.prepare('SELECT id FROM assignments WHERE article_id = ?').get(req.params.articleId);
+  const existingReviewer = db.prepare('SELECT id FROM assignments WHERE article_id = ?').bind(req.params.articleId).get();
   if (existingReviewer) {
     return res.status(400).json({ error: 'Artigo já tem revisor' });
   }
@@ -32,11 +32,11 @@ router.post('/:articleId', requireAuth, (req, res) => {
   db.prepare(`
     INSERT INTO assignments (article_id, reviewer_id, status, created_at, updated_at)
     VALUES (?, ?, 'pending', datetime('now'), datetime('now'))
-  `).run(req.params.articleId, reviewerId);
+  `).bind(req.params.articleId, reviewerId).run();
   
   db.prepare(`
     UPDATE articles SET status = 'in_review', updated_at = datetime('now') WHERE id = ?
-  `).run(req.params.articleId);
+  `).bind(req.params.articleId).run();
   
   const redirectUrl = eventId ? `/admin/assignments?eventId=${eventId}` : '/admin/assignments';
   res.redirect(redirectUrl);
@@ -48,12 +48,12 @@ router.post('/accept/:id', requireAuth, (req, res) => {
     UPDATE assignments 
     SET status = 'accepted', updated_at = datetime('now') 
     WHERE id = ?
-  `).run(req.params.id);
+  `).bind(req.params.id).run();
   
   db.prepare(`
     UPDATE articles SET status = 'in_review', updated_at = datetime('now') 
     WHERE id = (SELECT article_id FROM assignments WHERE id = ?)
-  `).run(req.params.id);
+  `).bind(req.params.id).run();
   
   res.redirect(`/admin/assignments?eventId=${req.body.eventId}`);
 });
@@ -64,7 +64,7 @@ router.post('/decline/:id', requireAuth, (req, res) => {
     UPDATE assignments 
     SET status = 'declined', updated_at = datetime('now') 
     WHERE id = ?
-  `).run(req.params.id);
+  `).bind(req.params.id).run();
   
   res.redirect(`/admin/assignments?eventId=${req.body.eventId}`);
 });

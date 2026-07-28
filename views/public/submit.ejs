@@ -42,6 +42,9 @@
     .success-card { text-align: center; padding: 3rem 2rem; }
     .success-card .icon { font-size: 3rem; margin-bottom: 1rem; }
     .success-card h1 { color: #34d399; margin-bottom: 0.5rem; }
+    .alert { border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 1.5rem; font-size: 0.875rem; }
+    .alert-error { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.2); color: #fca5a5; }
+    .submission-window { margin-top: 0.75rem; color: #94a3b8; font-size: 0.875rem; line-height: 1.6; }
     .access-code { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
     .access-code .code { font-size: 1.5rem; font-weight: 700; color: #34d399; letter-spacing: 0.1em; font-family: monospace; }
     .access-code p { color: #94a3b8; font-size: 0.875rem; margin-top: 0.5rem; }
@@ -85,7 +88,16 @@
         <h1>Submeter Artigo</h1>
         <p class="event-info">Evento: <strong><%= event.name %></strong><br>
         Área: <%= event.area %> | Período: <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> - <%= new Date(event.date_end).toLocaleDateString('pt-BR') %></p>
+        <div class="submission-window">
+          <% if (event.submission.start) { %>Início das submissões: <strong><%= event.submission.start.toLocaleDateString('pt-BR') %></strong><br><% } %>
+          <% if (event.submission.end) { %>Fim das submissões: <strong><%= event.submission.end.toLocaleDateString('pt-BR') %></strong><% } %>
+        </div>
 
+        <% if (submissionError) { %>
+          <div class="alert alert-error"><%= submissionError %></div>
+        <% } %>
+
+        <% if (event.submission.isOpen) { %>
         <form action="/submeter/<%= event.id %>" method="POST">
           <div class="form-group">
             <label>Título (Português) <span class="required">*</span></label>
@@ -153,6 +165,11 @@
             <a href="/evento/<%= event.id %>" class="btn btn-secondary">Cancelar</a>
           </div>
         </form>
+        <% } else { %>
+          <div class="actions">
+            <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar ao evento</a>
+          </div>
+        <% } %>
       </div>
     <% } %>
   </main>

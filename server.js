@@ -15,6 +15,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "blob:"],
@@ -67,7 +68,11 @@ const upload = multer({
 // Dados globais para templates
 app.use((req, res, next) => {
   res.locals.isAdmin = req.session && req.session.isAdmin;
-  res.locals.adminUsername = req.session && req.session.adminUsername;
+  res.locals.isReviewer = req.session && req.session.isReviewer;
+  res.locals.userId = req.session && req.session.userId;
+  res.locals.userName = req.session && req.session.userName;
+  res.locals.userEmail = req.session && req.session.userEmail;
+  res.locals.userRoles = req.session && req.session.userRoles;
   res.locals.url = req.originalUrl;
   res.locals.year = new Date().getFullYear();
   next();
@@ -78,8 +83,10 @@ const { router: authRouter, requireAuth } = require('./routes/auth');
 const eventsRouter = require('./routes/events');
 const articlesRouter = require('./routes/articles');
 const reviewersRouter = require('./routes/reviewers');
+const usersRouter = require('./routes/users');
 const assignmentsRouter = require('./routes/assignments');
 const reportsRouter = require('./routes/reports');
+const configRouter = require('./routes/config');
 const publicRouter = require('./routes/public');
 const reviewerRoutes = require('./routes/reviewer');
 
@@ -94,8 +101,10 @@ app.use('/admin', authRouter);
 app.use('/admin/events', requireAuth, eventsRouter);
 app.use('/admin/articles', requireAuth, articlesRouter);
 app.use('/admin/reviewers', requireAuth, reviewersRouter);
+app.use('/admin/users', requireAuth, usersRouter);
 app.use('/admin/assignments', requireAuth, assignmentsRouter);
 app.use('/admin/reports', requireAuth, reportsRouter);
+app.use('/admin/config', requireAuth, configRouter);
 
 // Rotas do revisor
 app.use('/reviewer', reviewerRoutes);

@@ -1,123 +1,120 @@
 const express = require('express');
 const { db } = require('../db');
-const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 
-// Middleware de autenticação
-function requireReviewer(req, res, next) {
-  if (!req.session.isReviewer) {
-    return res.redirect('/reviewer/login');
-  }
-  next();
-}
-
-// Login do revisor
-router.get('/login', (req, res) => {
-  res.render('reviewer/login', {
-    error: null,
-    year: new Date().getFullYear()
-  });
-});
-
-router.post('/login', (req, res) => {
-  const { email, password } = req.body;
-  const reviewer = db.prepare('SELECT * FROM reviewers WHERE email = ? AND is_active = 1').get(email);
-  
-  if (reviewer && reviewer.password) {
-    const valid = bcrypt.compareSync(password, reviewer.password);
-    if (valid) {
-      req.session.isReviewer = true;
-      req.session.reviewerId = reviewer.id;
-      req.session.reviewerName = reviewer.name;
-      req.session.reviewerArea = reviewer.area;
-      return res.redirect('/reviewer');
-    }
-  }
-  
-  res.render('reviewer/login', {
-    error: 'Credenciais inválidas.',
-    year: new Date().getFullYear()
-  });
-});
-
-// Logout
-router.post('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/');
-});
-
-// Dashboard do revisor
-router.get('/', requireReviewer, (req, res) => {
-  const reviewerId = req.session.reviewerId;
-  
-  // Contar artigos atribuídos
+function getReviewerDashboardData(reviewerId, reviewerName) {
   const stats = db.prepare(`
-    SELECT 
-      COUNT(*) as total,
-      COALESCE(SUM(CASE WHEN a.status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
-      COALESCE(SUM(CASE WHEN a.status = 'approved' THEN 1 ELSE 0 END), 0) as approved,
-      COALESCE(SUM(CASE WHEN a.status = 'rejected' THEN 1 ELSE 0 END), 0) as rejected
-    FROM articles a
-    INNER JOIN assignments ar ON a.id = ar.article_id
-    WHERE ar.reviewer_id = ?
-  `).get(reviewerId);
-  
-  // Artigos pendentes
+    SELECT
+      COUNT(DISTINCT ass.id) as total,
+      COALESCE(SUM(CASE WHEN rp.id IS NULL AND ass.status != 'declined' THEN 1 ELSE 0 END), 0) as pending,
+      COALESCE(SUM(CASE WHEN rp.recommendation = 'approved' THEN 1 ELSE 0 END), 0) as approved,
+      COALESCE(SUM(CASE WHEN rp.recommendation = 'rejected' THEN 1 ELSE 0 END), 0) as rejected
+    FROM assignments ass
+    JOIN articles a ON a.id = ass.article_id
+    LEFT JOIN reports rp ON rp.assignment_id = ass.id
+    WHERE ass.reviewer_id = ?
+  `).bind(reviewerId).get();
+
   const pendingArticles = db.prepare(`
-    SELECT a.*
-    FROM articles a
-    INNER JOIN assignments ar ON a.id = ar.article_id
-    WHERE ar.reviewer_id = ? AND a.status = 'pending'
-    ORDER BY a.date_submitted DESC
+    SELECT
+      a.id, a.title, a.contributor, a.date_submitted,
+      e.name as event_name,
+      ass.id as assignment_id,
+      ass.status as assignment_status
+    FROM assignments ass
+    JOIN articles a ON a.id = ass.article_id
+    JOIN events e ON e.id = a.event_id
+    LEFT JOIN reports rp ON rp.assignment_id = ass.id
+    WHERE ass.reviewer_id = ?
+      AND ass.status != 'declined'
+      AND rp.id IS NULL
+    ORDER BY a.date_submitted DESC, ass.created_at DESC
     LIMIT 50
-  `).all(reviewerId);
-  
-  // Artigos já revisados
+  `).bind(reviewerId).all();
+
   const reviewedArticles = db.prepare(`
-    SELECT a.*
-    FROM articles a
-    INNER JOIN assignments ar ON a.id = ar.article_id
-    WHERE ar.reviewer_id = ? AND a.status IN ('approved', 'rejected')
-    ORDER BY a.date_submitted DESC
+    SELECT
+      a.id, a.title, a.date_submitted,
+      e.name as event_name,
+      rp.recommendation,
+      rp.updated_at as reviewed_at
+    FROM assignments ass
+    JOIN articles a ON a.id = ass.article_id
+    JOIN events e ON e.id = a.event_id
+    JOIN reports rp ON rp.assignment_id = ass.id
+    WHERE ass.reviewer_id = ?
+    ORDER BY COALESCE(rp.updated_at, rp.created_at) DESC, a.date_submitted DESC
     LIMIT 50
-  `).all(reviewerId);
-  
-  res.render('reviewer/dashboard', {
-    reviewer: {
-      name: req.session.reviewerName,
-      area: req.session.reviewerArea
-    },
+  `).bind(reviewerId).all();
+
+  return {
+    reviewer: { name: reviewerName, area: '' },
     stats: {
-      total: stats.total,
-      pending: stats.pending,
-      approved: stats.approved,
-      rejected: stats.rejected
+      total: stats.total || 0,
+      pending: stats.pending || 0,
+      approved: stats.approved || 0,
+      rejected: stats.rejected || 0
     },
     pendingArticles,
     reviewedArticles,
     year: new Date().getFullYear()
+  };
+}
+
+// Middleware de autenticação revisor
+function requireReviewer(req, res, next) {
+  if (!req.session.isReviewer) {
+    return res.redirect('/login');
+  }
+  next();
+}
+
+// Login redirect para página unificada
+router.get('/login', (req, res) => {
+  return res.redirect('/login');
+});
+
+router.post('/login', (req, res) => {
+  return res.redirect('/login');
+});
+
+// Logout
+router.post('/logout', (req, res) => {
+  req.session.destroy(() => {
+    req.session = null;
+    res.clearCookie('connect.sid');
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store',
+      'X-Accel-Expires': '0',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.redirect('/');
   });
+});
+
+// Dashboard do revisor
+router.get('/', requireReviewer, (req, res) => {
+  const reviewerId = req.session.userId;
+  res.render('reviewer/dashboard', getReviewerDashboardData(reviewerId, req.session.userName));
 });
 
 // Ver artigo para revisão
 router.get('/articles/:id', requireReviewer, (req, res) => {
   const articleId = req.params.id;
-  const reviewerId = req.session.reviewerId;
+  const reviewerId = req.session.userId;
   
-  // Verificar se o artigo é do revisor
   const assignment = db.prepare(`
     SELECT * FROM assignments 
     WHERE article_id = ? AND reviewer_id = ?
-  `).get(articleId, reviewerId);
+  `).bind(articleId, reviewerId).get();
   
   if (!assignment) {
     return res.render('reviewer/dashboard', {
-      reviewer: { name: req.session.reviewerName, area: req.session.reviewerArea },
-      stats: { total: 0, pending: 0, approved: 0, rejected: 0 },
-      pendingArticles: [],
-      reviewedArticles: [],
-      year: new Date().getFullYear(),
+      ...getReviewerDashboardData(reviewerId, req.session.userName),
       error: 'Artigo não pertence à sua lista de revisão.'
     });
   }
@@ -127,22 +124,18 @@ router.get('/articles/:id', requireReviewer, (req, res) => {
     FROM articles a
     LEFT JOIN events e ON a.event_id = e.id
     WHERE a.id = ?
-  `).get(articleId);
+  `).bind(articleId).get();
   
   if (!article) {
     return res.render('reviewer/dashboard', {
-      reviewer: { name: req.session.reviewerName, area: req.session.reviewerArea },
-      stats: { total: 0, pending: 0, approved: 0, rejected: 0 },
-      pendingArticles: [],
-      reviewedArticles: [],
-      year: new Date().getFullYear(),
+      ...getReviewerDashboardData(reviewerId, req.session.userName),
       error: 'Artigo não encontrado.'
     });
   }
   
   res.render('reviewer/article', {
     article,
-    reviewer: { name: req.session.reviewerName, area: req.session.reviewerArea },
+    reviewer: { name: req.session.userName, area: '' },
     year: new Date().getFullYear()
   });
 });
@@ -151,52 +144,48 @@ router.get('/articles/:id', requireReviewer, (req, res) => {
 router.post('/articles/:id/review', requireReviewer, (req, res) => {
   const articleId = req.params.id;
   const { status, review_notes, rejection_reason } = req.body;
-  const reviewerId = req.session.reviewerId;
+  const reviewerId = req.session.userId;
   
-  // Verificar permissão
   const assignment = db.prepare(`
     SELECT * FROM assignments 
     WHERE article_id = ? AND reviewer_id = ?
-  `).get(articleId, reviewerId);
+  `).bind(articleId, reviewerId).get();
   
   if (!assignment) {
     return res.redirect('/reviewer');
   }
   
-  // Atualizar artigo com dados da revisão
   db.prepare(`
     UPDATE articles 
     SET status = ?, reviewer_id = ?, reviewer_name = ?, reviewer_area = ?, 
         review_notes = ?, rejection_reason = ?, updated_at = datetime('now')
     WHERE id = ?
-  `).run(
+  `).bind(
     status,
     reviewerId,
-    req.session.reviewerName,
-    req.session.reviewerArea,
+    req.session.userName,
+    '',
     review_notes,
     status === 'rejected' ? rejection_reason : null,
     articleId
-  );
+  ).run();
   
-  // Atualizar data de revisão na atribuição
   db.prepare(`
     UPDATE assignments SET reviewed_at = datetime('now'), status = 'accepted', updated_at = datetime('now')
     WHERE article_id = ? AND reviewer_id = ?
-  `).run(articleId, reviewerId);
+  `).bind(articleId, reviewerId).run();
   
-  // Criar ou atualizar relatório na tabela de reports
-  const existingReport = db.prepare('SELECT id FROM reports WHERE assignment_id = ?').get(assignment.id);
+  const existingReport = db.prepare('SELECT id FROM reports WHERE assignment_id = ?').bind(assignment.id).get();
   if (existingReport) {
     db.prepare(`
       UPDATE reports SET score=?, report=?, recommendation=?, updated_at=datetime('now')
       WHERE assignment_id = ?
-    `).run(null, review_notes, status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'revision_requested', assignment.id);
+    `).bind(null, review_notes, status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'revision_requested', assignment.id).run();
   } else {
     db.prepare(`
       INSERT INTO reports (assignment_id, score, report, recommendation, created_at, updated_at)
       VALUES (?, NULL, ?, ?, datetime('now'), datetime('now'))
-    `).run(assignment.id, review_notes, status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'revision_requested');
+    `).bind(assignment.id, review_notes, status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'revision_requested').run();
   }
   
   res.redirect('/reviewer');

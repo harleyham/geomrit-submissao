@@ -38,9 +38,12 @@
     .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem; }
     .alert-success { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
     .alert-error { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .submission-status { display: inline-block; margin-top: 1rem; padding: 0.35rem 0.8rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .submission-status.open { background: rgba(52,211,153,0.15); color: #34d399; }
+    .submission-status.closed { background: rgba(248,113,113,0.12); color: #f87171; }
     .closed { text-align: center; padding: 4rem 2rem; }
-    .closed h2 { font-size: 1.5rem; font-weight: 600; color: #475569; margin-bottom: 0.5rem; }
-    .closed p { color: #334155; }
+    .closed h2 { font-size: 1.5rem; font-weight: 600; color: #94a3b8; margin-bottom: 0.5rem; }
+    .closed p { color: #64748b; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
   </style>
 </head>
@@ -59,100 +62,29 @@
       <div class="event-meta">
         <span>📅 <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> - <%= new Date(event.date_end).toLocaleDateString('pt-BR') %></span>
         <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
-        <% if (event.submission_deadline) { %><span>⏰ Submissão até: <%= new Date(event.submission_deadline).toLocaleDateString('pt-BR') %></span><% } %>
+        <% if (event.submission.start) { %><span>🟢 Submissões: <%= event.submission.start.toLocaleDateString('pt-BR') %></span><% } %>
+        <% if (event.submission.end) { %><span>⏰ Até: <%= event.submission.end.toLocaleDateString('pt-BR') %></span><% } %>
       </div>
+      <span class="submission-status <%= event.submission.isOpen ? 'open' : 'closed' %>">
+        <%= event.submission.isOpen ? 'Submissão aberta' : 'Submissão indisponível' %>
+      </span>
       <% if (event.description) { %>
         <p class="event-description"><%= event.description %></p>
       <% } %>
     </div>
 
-    <% if (submissionSuccess) { %>
-      <div class="alert alert-success">Artigo submetido com sucesso! Seu código de acesso é: <%= submissionCode %></div>
-    <% } %>
-    <% if (submissionError) { %>
-      <div class="alert alert-error"><%= submissionError %></div>
-    <% } %>
-
-    <% if (event.status === 'open') { %>
+    <% if (event.submission.isOpen) { %>
       <div class="section">
-        <h2>Submeter Artigo</h2>
-        <form method="POST" action="/events/<%= event.id %>/submit" enctype="multipart/form-data">
-          <div class="form-group">
-            <label for="title">Título do Artigo *</label>
-            <input type="text" id="title" name="title" required placeholder="Título do seu artigo em português ou inglês">
-          </div>
-
-          <div class="form-group">
-            <label for="title-en">Título em Inglês (Title) *</label>
-            <input type="text" id="title-en" name="title_en" required placeholder="English title of your paper">
-          </div>
-
-          <div class="form-group">
-            <label for="area">Área *</label>
-            <select id="area" name="area" required>
-              <option value="">Selecione a área</option>
-              <% areas.forEach(a => { %>
-                <option value="<%= a %>" <%= (a === event.area) ? 'selected' : '' %>><%= a %></option>
-              <% }) %>
-              <option value="Outra">Outra</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="authors">Autores *</label>
-            <textarea id="authors" name="authors" required placeholder="Nome completo, afiliação e email de cada autor. Ex:
-João Silva - UFC - joao@ufc.br
-Maria Santos - UFMG - maria@ufmg.br" style="min-height:120px"></textarea>
-            <small>Um autor por linha, com nome, afiliação e email separados por hífen.</small>
-          </div>
-
-          <div class="form-group">
-            <label for="abstract">Resumo *</label>
-            <textarea id="abstract" name="abstract" required placeholder="Resumo do artigo (mínimo 100 palavras)" style="min-height:150px"></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="keywords">Palavras-chave *</label>
-            <input type="text" id="keywords" name="keywords" required placeholder="Processamento de Linguagem Natural, Redes Neurais, Aprendizado Profundo">
-          </div>
-
-          <div class="form-group">
-            <label for="pdf">Arquivo PDF *</label>
-            <input type="file" id="pdf" name="pdf" required accept=".pdf">
-            <small>Aceito apenas arquivos PDF. Tamanho máximo: 10MB.</small>
-          </div>
-
-          <div class="form-group">
-            <label for="email-submission">Email para acesso *</label>
-            <input type="email" id="email-submission" name="email_submission" required placeholder="Seu email institucional">
-            <small>Este email será usado junto com o código de acesso para consultar seu artigo.</small>
-          </div>
-
-          <div class="form-group">
-            <label for="contributor">Nome do Contribuidor *</label>
-            <input type="text" id="contributor" name="contributor" required placeholder="Seu nome completo">
-          </div>
-
-          <div class="form-group">
-            <label for="affiliation">Afiliação *</label>
-            <input type="text" id="affiliation" name="affiliation" required placeholder="Sua instituição de origem">
-          </div>
-
-          <div class="form-group">
-            <label for="city">Cidade/UF *</label>
-            <input type="text" id="city" name="city" required placeholder="Ex: Fortaleza/CE">
-          </div>
-
-          <div class="form-actions">
-            <a href="/events/<%= event.id %>" class="btn btn-ghost">Cancelar</a>
-            <button type="submit" class="btn btn-primary">Submeter Artigo</button>
-          </div>
-        </form>
+        <h2>Submissões abertas</h2>
+        <p class="event-description">O evento está aceitando artigos neste momento. Use o formulário de submissão para enviar seu trabalho.</p>
+        <div class="form-actions">
+          <a href="/submeter/<%= event.id %>" class="btn btn-primary">Submeter Artigo</a>
+        </div>
       </div>
     <% } else { %>
       <div class="closed">
         <h2>Submissão Encerrada</h2>
-        <p>O período de submissão para este evento já encerrou.</p>
+        <p><%= event.submission.message || 'O período de submissão para este evento não está aberto no momento.' %></p>
       </div>
     <% } %>
   </main>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usuários | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+    .section-title { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .section-desc { color: #64748b; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    .section-note { margin-bottom: 1rem; padding: 0.875rem 1rem; border-radius: 10px; border: 1px solid rgba(96,165,250,0.18); background: rgba(15,23,42,0.35); color: #cbd5e1; font-size: 0.8125rem; line-height: 1.6; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.375rem; }
+    .form-group input { width: 100%; padding: 0.625rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .password-field { position: relative; }
+    .password-field input { padding-right: 3.25rem; }
+    .toggle-password { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; }
+    .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem; }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+    .alert { padding: 0.875rem 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem; }
+    .alert-success { background: rgba(52,211,153,0.1); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
+    .alert-error { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.75rem 1rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
+    td { padding: 0.75rem 1rem; font-size: 0.8125rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.05); }
+    tr:hover td { background: rgba(148,163,184,0.03); }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.65rem; font-weight: 600; }
+    .badge-admin { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .badge-reviewer { background: rgba(52,211,153,0.15); color: #34d399; }
+    .badge-public { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .badge-active { background: rgba(52,211,153,0.15); color: #34d399; }
+    .badge-inactive { background: rgba(100,116,139,0.2); color: #94a3b8; }
+    .badge-warning { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: rgba(100,116,139,0.4); border-radius: 24px; transition: 0.2s; }
+    .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+    input:checked + .toggle-slider { background: #3b82f6; }
+    input:checked + .toggle-slider:before { transform: translateX(18px); }
+    .actions-cell { display: flex; gap: 0.375rem; align-items: center; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .user-detail { color: #64748b; font-size: 0.7rem; display: block; margin-top: 0.1rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/users" class="active">Usuários</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline">
+          <button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem; color:#f87171;">Sair</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1>Usuários</h1>
+      <a href="/admin/users/new" class="btn btn-primary">+ Novo Usuário</a>
+    </div>
+
+    <% if (typeof success !== 'undefined' && success) { %>
+    <div class="alert alert-success"><%= success %></div>
+    <% } %>
+    <% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-error"><%= error %></div>
+    <% } %>
+
+    <!-- Trocar senha do admin -->
+    <div class="section">
+      <div class="section-title">Minha Senha</div>
+      <div class="section-desc">Altere a senha de acesso ao painel administrativo</div>
+      <form method="POST" action="/admin/users/change-password" style="max-width: 400px;">
+        <div class="form-group">
+          <label for="current_password">Senha Atual *</label>
+          <div class="password-field">
+            <input type="password" id="current_password" name="current_password" required autocomplete="current-password">
+            <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="current_password">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="new_password">Nova Senha *</label>
+          <div class="password-field">
+            <input type="password" id="new_password" name="new_password" required minlength="6" autocomplete="new-password">
+            <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="new_password">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="confirm_password">Confirmar Nova Senha *</label>
+          <div class="password-field">
+            <input type="password" id="confirm_password" name="confirm_password" required minlength="6" autocomplete="new-password">
+            <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="confirm_password">👁</button>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Salvar Senha</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Gerenciar Usuários -->
+    <div class="section">
+      <div class="section-title">Gerenciar Usuários</div>
+      <div class="section-desc">Edite separadamente o papel do usuário no sistema e o status de acesso da conta</div>
+      <div class="section-note">
+        Revisor define o papel do usuário no fluxo de avaliação.
+        Conta ativa define se ele pode entrar no sistema.
+        Desativar a conta <strong>não remove</strong> automaticamente o papel de revisor.
+        Um usuário com Revisor ligado e Conta ativa desligada será contado como <strong>revisor inativo</strong>.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>E-mail</th>
+            <th>Papéis no Sistema</th>
+            <th>Conta Ativa</th>
+            <th>Senha</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% users.forEach(u => { %>
+          <tr>
+            <input type="hidden" name="user_ids" value="<%= u.id %>" form="bulk-flags-form">
+            <td>
+              <div>
+                <strong style="color: #f1f5f9;"><%= u.name || u.email %></strong>
+                <% if (u.cpf || u.institution) { %>
+                  <span class="user-detail"><%= u.cpf || '' %> <%= u.cpf && u.institution ? '|' : '' %> <%= u.institution || '' %></span>
+                <% } %>
+              </div>
+            </td>
+            <td><%= u.email %></td>
+            <td>
+              <div style="display: flex; gap: 0.25rem; align-items: center;">
+                <label class="toggle-switch">
+                  <input name="is_admin_<%= u.id %>" value="1" type="checkbox" form="bulk-flags-form" <%= u.is_admin ? 'checked' : '' %>>
+                  <span class="toggle-slider"></span>
+                </label>
+                <% if (u.is_admin) { %><span class="badge badge-admin">Admin</span><% } else { %><span class="badge badge-inactive">Admin</span><% } %>
+                <label class="toggle-switch" style="margin-left: 0.5rem;">
+                  <input name="is_reviewer_<%= u.id %>" value="1" type="checkbox" form="bulk-flags-form" <%= u.is_reviewer ? 'checked' : '' %>>
+                  <span class="toggle-slider"></span>
+                </label>
+                <% if (u.is_reviewer) { %><span class="badge badge-reviewer">Revisor</span><% } else { %><span class="badge badge-inactive">Revisor</span><% } %>
+              </div>
+              <div style="margin-top: 0.45rem; color:#64748b; font-size:0.72rem;">
+                Admin e Revisor sao papeis independentes.
+              </div>
+            </td>
+            <td>
+              <label class="toggle-switch">
+                <input name="is_public_<%= u.id %>" value="1" type="checkbox" form="bulk-flags-form" <%= u.is_public ? 'checked' : '' %>>
+                <span class="toggle-slider"></span>
+              </label>
+              <span style="margin-left: 0.5rem; font-size: 0.75rem;">
+                <%= u.is_public ? 'Conta ativa' : 'Conta inativa' %>
+              </span>
+              <% if (u.is_reviewer && !u.is_public) { %>
+                <div style="margin-top: 0.45rem;"><span class="badge badge-warning">Revisor inativo</span></div>
+              <% } %>
+            </td>
+            <td>
+              <span class="badge badge-<%= u.password_changed ? 'active' : 'inactive' %>">
+                <%= u.password_changed ? 'Alterada' : '1º acesso' %>
+              </span>
+            </td>
+            <td class="actions-cell">
+              <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
+              <% if (u.id !== currentUser.id) { %>
+              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
+                <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
+              </form>
+              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir usuário <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+                <input type="hidden" name="_method" value="DELETE">
+                <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+              </form>
+              <% } %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" form="bulk-flags-form">Salvar Alterações</button>
+      </div>
+    </div>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+
+  <form id="bulk-flags-form" method="POST" action="/admin/users/bulk-update-flags" style="display:none;"></form>
+  <script>
+    document.querySelectorAll('.toggle-password').forEach(function(button) {
+      button.addEventListener('click', function() {
+        var input = document.getElementById(button.getAttribute('data-target'));
+        var showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        button.textContent = showing ? '👁' : '🙈';
+        button.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
+      });
+    });
+  </script>
+
+</body>
+</html>

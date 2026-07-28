@@ -12,60 +12,102 @@ function requireAuth(req, res, next) {
 }
 
 router.get('/', requireAuth, (req, res) => {
-  const areaFilter = req.query.area || '';
-  let sql = 'SELECT * FROM reviewers WHERE is_active = 1';
-  const params = [];
-  if (areaFilter) {
-    sql += ' AND area = ?';
-    params.push(areaFilter);
-  }
-  sql += ' ORDER BY area, name';
-  const reviewers = db.prepare(sql).all(...params);
-  const allAreas = db.prepare('SELECT DISTINCT area FROM reviewers WHERE is_active=1 ORDER BY area').all().map(r => r.area);
-  res.render('admin/reviewers/list', { reviewers, allAreas, areaFilter, title: 'Revisores' });
+  const users = db.prepare('SELECT id, name, email, is_reviewer, is_admin, is_public, password_changed, created_at FROM users WHERE is_reviewer = 1 ORDER BY name').all();
+  res.render('admin/reviewers/list', { reviewers: users, allAreas: [], title: 'Revisores' });
 });
 
 router.get('/new', requireAuth, (req, res) => {
-  const areas = db.prepare('SELECT DISTINCT area FROM reviewers ORDER BY area').all().map(r => r.area);
-  res.render('admin/reviewers/form', { reviewer: null, areas, title: 'Novo Revisor' });
+  res.render('admin/reviewers/form', { reviewer: null, areas: ['Outra'], title: 'Novo Revisor', year: new Date().getFullYear() });
 });
 
 router.post('/', requireAuth, (req, res) => {
-  const { name, email, area, institution, bio, is_active, password } = req.body;
-  const hash = password ? bcrypt.hashSync(password, 10) : null;
+  const { name, email, area, password } = req.body;
+  if (!name || !email || !password) {
+    return res.render('admin/reviewers/form', {
+      reviewer: { name, email, area },
+      areas: ['Outra'],
+      title: 'Novo Revisor',
+      year: new Date().getFullYear(),
+      error: 'Nome, e-mail e senha são obrigatórios.'
+    });
+  }
+  
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(email).get();
+  if (existing) {
+    return res.render('admin/reviewers/form', {
+      reviewer: { name, email, area },
+      areas: ['Outra'],
+      title: 'Novo Revisor',
+      year: new Date().getFullYear(),
+      error: 'Já existe um usuário com o e-mail ' + email
+    });
+  }
+  
+  const hash = bcrypt.hashSync(password, 10);
   db.prepare(`
-    INSERT INTO reviewers (name, email, password, area, institution, bio, is_active, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-  `).run(name, email, hash, area, institution || '', bio || '', is_active === 'on' ? 1 : 0);
+    INSERT INTO users (name, email, password, is_reviewer, is_admin, is_public, password_changed, created_at, updated_at)
+    VALUES (?, ?, ?, 1, 0, 1, 0, datetime('now'), datetime('now'))
+  `).bind(name, email, hash).run();
+  
+  res.redirect('/admin/reviewers');
+});
+
+router.post('/:id', requireAuth, (req, res) => {
+  const { _method, name, email, password, is_active } = req.body;
+  const id = parseInt(req.params.id, 10);
+
+  if (_method === 'DELETE') {
+    db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+    return res.redirect('/admin/reviewers');
+  }
+
+  if (_method === 'PUT') {
+    if (password) {
+      const hash = bcrypt.hashSync(password, 10);
+      db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=0, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
+        .bind(name, email, hash, is_active === 'on' ? 1 : 0, id).run();
+    } else {
+      db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=0, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
+        .bind(name, email, is_active === 'on' ? 1 : 0, id).run();
+    }
+    return res.redirect('/admin/reviewers');
+  }
+
+  // Fallback: edit
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').bind(id).get();
+  if (password) {
+    const hash = bcrypt.hashSync(password, 10);
+    db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=0, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
+      .bind(name, email, hash, is_active === 'on' ? 1 : 0, id).run();
+  } else {
+    db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=0, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
+      .bind(name, email, is_active === 'on' ? 1 : 0, id).run();
+  }
   res.redirect('/admin/reviewers');
 });
 
 router.get('/:id/edit', requireAuth, (req, res) => {
-  const reviewer = db.prepare('SELECT * FROM reviewers WHERE id = ?').get(req.params.id);
-  if (!reviewer) return res.status(404).render('error', { title: 'Revisor não encontrado' });
-  const areas = db.prepare('SELECT DISTINCT area FROM reviewers ORDER BY area').all().map(r => r.area);
-  res.render('admin/reviewers/form', { reviewer, areas, title: 'Editar Revisor' });
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').bind(req.params.id).get();
+  if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
+  res.render('admin/reviewers/form', { reviewer: user, areas: ['Outra'], title: 'Editar Revisor', year: new Date().getFullYear() });
 });
 
 router.put('/:id', requireAuth, (req, res) => {
-  const { name, email, area, institution, bio, is_active, password } = req.body;
+  const id = parseInt(req.params.id, 10);
+  const { name, email, password, is_active } = req.body;
   if (password) {
     const hash = bcrypt.hashSync(password, 10);
-    db.prepare(`
-      UPDATE reviewers SET name=?, email=?, area=?, institution=?, bio=?, is_active=?, password=?, updated_at=datetime('now')
-      WHERE id=?
-    `).run(name, email, area, institution || '', bio || '', is_active === 'on' ? 1 : 0, hash, req.params.id);
+    db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=0, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
+      .bind(name, email, hash, is_active === 'on' ? 1 : 0, id).run();
   } else {
-    db.prepare(`
-      UPDATE reviewers SET name=?, email=?, area=?, institution=?, bio=?, is_active=?, updated_at=datetime('now')
-      WHERE id=?
-    `).run(name, email, area, institution || '', bio || '', is_active === 'on' ? 1 : 0, req.params.id);
+    db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=0, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
+      .bind(name, email, is_active === 'on' ? 1 : 0, id).run();
   }
   res.redirect('/admin/reviewers');
 });
 
 router.delete('/:id', requireAuth, (req, res) => {
-  db.prepare('DELETE FROM reviewers WHERE id = ?').run(req.params.id);
+  db.prepare('DELETE FROM users WHERE id = ?').bind(req.params.id).run();
   res.redirect('/admin/reviewers');
 });
 

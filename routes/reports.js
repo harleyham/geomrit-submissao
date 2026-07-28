@@ -12,18 +12,67 @@ function requireAuth(req, res, next) {
 
 // Painel admin - relatórios do evento
 router.get('/', requireAuth, (req, res) => {
-  const eventId = parseInt(req.query.eventId);
-  if (!eventId) return res.redirect('/admin');
-  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  try {
+    const eventId = parseInt(req.query.eventId);
+    if (!eventId) return res.redirect('/admin');
+    const event = db.prepare('SELECT * FROM events WHERE id = ?').bind(eventId).get();
+    if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+    
+    const assignments = getAssignmentsByEvent(eventId);
   
-  const assignments = getAssignmentsByEvent(eventId);
-  
+  // Estatísticas do evento
+  const stats = db.prepare(`
+    SELECT 
+      COUNT(*) as total_submitted,
+      SUM(CASE WHEN status = 'approved' AND type = 'oral' THEN 1 ELSE 0 END) as oral_approved,
+      SUM(CASE WHEN status = 'approved' AND type = 'poster' THEN 1 ELSE 0 END) as poster_approved,
+      SUM(CASE WHEN status = 'rejected' AND type = 'oral' THEN 1 ELSE 0 END) as oral_rejected,
+      SUM(CASE WHEN status = 'rejected' AND type = 'poster' THEN 1 ELSE 0 END) as poster_rejected
+    FROM articles
+    WHERE event_id = ?
+  `).bind(eventId).get();
+
+  const totalSubmited = stats.total_submitted || 0;
+  const oralApproved = stats.oral_approved || 0;
+  const posterApproved = stats.poster_approved || 0;
+  const oralRejected = stats.oral_rejected || 0;
+  const posterRejected = stats.poster_rejected || 0;
+
+  // Artigos aprovados separados por tipo
+  const articlesOral = db.prepare(`
+    SELECT a.id, a.title, a.title_en, a.authors, a.area, a.type, a.contributor, a.affiliation, a.city
+    FROM articles a
+    WHERE a.event_id = ? AND a.status = 'approved' AND a.type = 'oral'
+    ORDER BY a.title
+  `).bind(eventId).all();
+
+  const articlesPoster = db.prepare(`
+    SELECT a.id, a.title, a.title_en, a.authors, a.area, a.type, a.contributor, a.affiliation, a.city
+    FROM articles a
+    WHERE a.event_id = ? AND a.status = 'approved' AND a.type = 'poster'
+    ORDER BY a.title
+  `).bind(eventId).all();
+
+  // Artigos reprovados separados por tipo
+  const articlesOralRejected = db.prepare(`
+    SELECT a.id, a.title, a.title_en, a.authors, a.area, a.type, a.contributor, a.affiliation, a.city, a.rejection_reason
+    FROM articles a
+    WHERE a.event_id = ? AND a.status = 'rejected' AND a.type = 'oral'
+    ORDER BY a.title
+  `).bind(eventId).all();
+
+  const articlesPosterRejected = db.prepare(`
+    SELECT a.id, a.title, a.title_en, a.authors, a.area, a.type, a.contributor, a.affiliation, a.city, a.rejection_reason
+    FROM articles a
+    WHERE a.event_id = ? AND a.status = 'rejected' AND a.type = 'poster'
+    ORDER BY a.title
+  `).bind(eventId).all();
+
   // Calcular decisão final por artigo com base nos relatórios dos revisores
   const articleDecisions = {};
   assignments.forEach(a => {
-    if (!articleDecisions[a.id]) {
-      articleDecisions[a.id] = {
+    if (!articleDecisions[a.article_id]) {
+      articleDecisions[a.article_id] = {
         article: a,
         approvals: 0,
         rejections: 0,
@@ -32,10 +81,10 @@ router.get('/', requireAuth, (req, res) => {
       };
     }
     if (a.report_id) {
-      articleDecisions[a.id].total_reports++;
-      if (a.recommendation === 'approved') articleDecisions[a.id].approvals++;
-      else if (a.recommendation === 'rejected') articleDecisions[a.id].rejections++;
-      else if (a.recommendation === 'revision_requested') articleDecisions[a.id].revisions++;
+      articleDecisions[a.article_id].total_reports++;
+      if (a.recommendation === 'approved') articleDecisions[a.article_id].approvals++;
+      else if (a.recommendation === 'rejected') articleDecisions[a.article_id].rejections++;
+      else if (a.recommendation === 'revision_requested') articleDecisions[a.article_id].revisions++;
     }
   });
   
@@ -61,16 +110,29 @@ router.get('/', requireAuth, (req, res) => {
   
   res.render('admin/reports/list', { 
     event, 
+    totalSubmited,
+    oralApproved,
+    posterApproved,
+    oralRejected,
+    posterRejected,
+    articlesOral,
+    articlesPoster,
+    articlesOralRejected,
+    articlesPosterRejected,
     articleDecisions: Object.values(articleDecisions),
     title: 'Relatórios - ' + event.name 
   });
+  } catch (err) {
+    console.error('ERROR in reports:', err);
+    throw err;
+  }
 });
 
 // Decidir destino do artigo (admin)
 router.post('/:id/decide', requireAuth, (req, res) => {
   const { final_status, eventId } = req.body;
   if (final_status) {
-    db.prepare('UPDATE articles SET status = ?, updated_at = datetime("now") WHERE id = ?').run(final_status, req.params.id);
+    db.prepare('UPDATE articles SET status = ?, updated_at = datetime("now") WHERE id = ?').bind(final_status, req.params.id).run();
   }
   res.redirect(`/admin/reports?eventId=${eventId}`);
 });

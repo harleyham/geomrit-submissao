@@ -23,6 +23,9 @@
     .event-card:hover { border-color: rgba(96,165,250,0.3); transform: translateY(-2px); }
     .event-card h3 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 0.5rem; }
     .event-card .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; margin-bottom: 0.75rem; }
+    .event-card .submission-badge { display: inline-block; margin-left: 0.5rem; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .event-card .submission-open { background: rgba(52,211,153,0.15); color: #34d399; }
+    .event-card .submission-closed { background: rgba(248,113,113,0.12); color: #f87171; }
     .event-card p { color: #94a3b8; font-size: 0.875rem; line-height: 1.6; margin-bottom: 1rem; }
     .event-meta { display: flex; gap: 1rem; color: #64748b; font-size: 0.75rem; margin-bottom: 1rem; }
     .event-meta span { display: flex; align-items: center; gap: 0.25rem; }
@@ -40,7 +43,11 @@
     <div class="topbar-inner">
       <a href="/" class="logo"><img src="/assets/Ligem.png" alt="LIGEM" style="height:36px;margin-right:0.5rem;vertical-align:middle"> Artigos LIGEM</a>
       <nav style="display:flex;gap:0.25rem;align-items:center">
-        <a href="/login" class="btn" style="padding:0.4rem 0.8rem;font-size:0.8125rem;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:6px;text-decoration:none">Admin</a>
+        <% if (isAdmin || isReviewer) { %>
+          <a href="<%= isAdmin ? '/admin/dashboard' : '/reviewer' %>" class="btn" style="padding:0.4rem 0.8rem;font-size:0.8125rem;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:6px;text-decoration:none"><%= userName %> | <%= userEmail %> | <%= isAdmin ? 'Dashboard' : 'Revisor' %></a>
+        <% } else { %>
+          <a href="/login" class="btn" style="padding:0.4rem 0.8rem;font-size:0.8125rem;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:6px;text-decoration:none">Entrar</a>
+        <% } %>
       </nav>
     </div>
   </header>
@@ -52,28 +59,37 @@
       <p>Sistema de submissão, revisão e distribuição de artigos para congressos e eventos acadêmicos da área de Processamento de Linguagens e Computação Cognitiva.</p>
     </div>
 
-    <h2 class="section-title">Eventos com Submissão Aberta</h2>
+    <h2 class="section-title">Eventos Publicados</h2>
 
     <% if (events.length > 0) { %>
       <div class="events-grid">
         <% events.forEach(event => { %>
           <div class="event-card">
             <span class="area"><%= event.area %></span>
+            <span class="submission-badge <%= event.submission.isOpen ? 'submission-open' : 'submission-closed' %>">
+              <%= event.submission.isOpen ? 'Submissão aberta' : 'Submissão fechada' %>
+            </span>
             <h3><%= event.name %></h3>
             <div class="event-meta">
               <span>📅 <%= new Date(event.date_start).toLocaleDateString('pt-BR') %></span>
               <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
             </div>
+            <% if (event.submission.start || event.submission.end) { %>
+              <div class="event-meta">
+                <% if (event.submission.start) { %><span>🟢 Início: <%= event.submission.start.toLocaleDateString('pt-BR') %></span><% } %>
+                <% if (event.submission.end) { %><span>⏰ Fim: <%= event.submission.end.toLocaleDateString('pt-BR') %></span><% } %>
+              </div>
+            <% } %>
             <% if (event.description) { %>
               <p><%= event.description.length > 150 ? event.description.substring(0, 150) + '...' : event.description %></p>
             <% } %>
-            <a href="/events/<%= event.id %>" class="btn btn-primary">Ver Detalhes</a>
+            <a href="/evento/<%= event.id %>" class="btn btn-primary">Ver Detalhes</a>
           </div>
         <% }) %>
       </div>
     <% } else { %>
       <div class="empty-state">
-        <h2>Nenhum evento com submissão aberta</h2>
+        <h2>Nenhum evento publicado</h2>
         <p>Em breve novos eventos serão disponibilizados.</p>
       </div>
     <% } %>

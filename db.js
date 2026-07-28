@@ -9,13 +9,23 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Criar tabelas com schema unificado
+// Criar novas tabelas com schema unificado de users
 db.exec(`
-  CREATE TABLE IF NOT EXISTS admins (
+  CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    cpf TEXT,
+    passport TEXT,
+    country TEXT,
+    institution TEXT,
+    is_admin INTEGER DEFAULT 0,
+    is_reviewer INTEGER DEFAULT 0,
+    is_public INTEGER DEFAULT 1,
+    password_changed INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS events (
@@ -29,19 +39,8 @@ db.exec(`
     url TEXT,
     area TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'draft',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS reviewers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT,
-    area TEXT NOT NULL,
-    institution TEXT,
-    bio TEXT,
-    is_active INTEGER DEFAULT 1,
+    submission_start DATE,
+    submission_end DATE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -83,7 +82,7 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE,
-    FOREIGN KEY (reviewer_id) REFERENCES reviewers(id) ON DELETE CASCADE
+    FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS reports (
@@ -98,12 +97,73 @@ db.exec(`
   );
 `);
 
-// Inserir admin padrão se não existir (senha vem de variável de ambiente ou padrão)
-const adminExists = db.prepare('SELECT id FROM admins WHERE username = ?').get('admin');
-if (!adminExists) {
-  const defaultPassword = process.env.ADMIN_PASSWORD || 'admin2027';
-  const hash = bcrypt.hashSync(defaultPassword, 10);
-  db.prepare('INSERT INTO admins (username, password) VALUES (?, ?)').run('admin', hash);
+// Migrate existing data: drop admins, merge reviewers into users
+try {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+  const tableNames = tables.map(t => t.name);
+
+  if (tableNames.includes('admins')) {
+    db.pragma('foreign_keys = OFF');
+    
+    // Map old reviewer.id → new user id (by email)
+    const reviewerMap = {};
+    const reviewerRows = db.prepare('SELECT id, name, email, password, is_active FROM reviewers').all();
+    reviewerRows.forEach(r => {
+      const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(r.email).get();
+      const userId = existing ? existing.id : null;
+      reviewerMap[r.id] = userId;
+      if (!existing) {
+        const newId = db.prepare('INSERT INTO users (name, email, password, is_reviewer, is_public, password_changed) VALUES (?, ?, ?, 1, 1, 0)').bind(r.name, r.email, r.password).get().insertId;
+        reviewerMap[r.id] = newId;
+      }
+    });
+    
+    // Migrate admins to users
+    const adminRows = db.prepare('SELECT id, username, password FROM admins').all();
+    adminRows.forEach(a => {
+      const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(a.username).get();
+      if (!existing) {
+        db.prepare('INSERT INTO users (name, email, password, is_admin, password_changed) VALUES (?, ?, ?, 1, 0)').bind(a.username, a.username, a.password).run();
+      }
+    });
+    
+    // Update assignments to use new user ids
+    if (Object.keys(reviewerMap).length > 0) {
+      const oldIds = Object.keys(reviewerMap);
+      oldIds.forEach(oldId => {
+        const newId = reviewerMap[oldId];
+        if (newId) {
+          db.prepare('UPDATE assignments SET reviewer_id = ? WHERE reviewer_id = ?').bind(newId, oldId).run();
+        }
+      });
+    }
+    
+    db.prepare('DROP TABLE IF EXISTS reviewers').run();
+    db.prepare('DROP TABLE IF EXISTS admins').run();
+    
+    db.pragma('foreign_keys = ON');
+  }
+} catch(e) {
+  console.warn('Migration warning:', e.message);
+}
+
+// Migrar colunas novas: cpf, passport, country, institution
+try {
+  const columns = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  if (!columns.includes('cpf')) db.exec('ALTER TABLE users ADD COLUMN cpf TEXT');
+  if (!columns.includes('passport')) db.exec('ALTER TABLE users ADD COLUMN passport TEXT');
+  if (!columns.includes('country')) db.exec('ALTER TABLE users ADD COLUMN country TEXT');
+  if (!columns.includes('institution')) db.exec('ALTER TABLE users ADD COLUMN institution TEXT');
+} catch(e) {
+  console.warn('Migration users columns:', e.message);
+}
+
+// Seed default admin if not exists
+const seedUser = db.prepare('SELECT id FROM users WHERE email = ?').bind('admin@admin.com').get();
+if (!seedUser) {
+  const hash = bcrypt.hashSync('123456', 10);
+  db.prepare('INSERT INTO users (name, email, password, is_admin, is_reviewer, is_public, password_changed) VALUES (?, ?, ?, 1, 0, 1, 0)').bind('Administrador', 'admin@admin.com', hash).run();
+  console.log('Seed admin criado: admin@admin.com / 123456');
 }
 
 // Exportar funções úteis
@@ -113,22 +173,22 @@ module.exports = {
     return db.prepare(`
       SELECT a.*, 
         COUNT(DISTINCT r.id) as report_count,
-        GROUP_CONCAT(DISTINCT re.name) as assigned_reviewers
+        GROUP_CONCAT(DISTINCT u.name) as assigned_reviewers
       FROM articles a
       LEFT JOIN assignments ass ON ass.article_id = a.id
-      LEFT JOIN reviewers re ON re.id = ass.reviewer_id
+      LEFT JOIN users u ON u.id = ass.reviewer_id
       LEFT JOIN reports r ON r.assignment_id = ass.id
       WHERE a.event_id = ?
       GROUP BY a.id
       ORDER BY a.created_at DESC
-    `).all(eventId);
+    `).bind(eventId).all();
   },
   getStatsByEvent: (eventId) => {
-    const total = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ?').get(eventId).count;
-    const pending = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "pending"').get(eventId).count;
-    const in_review = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "in_review"').get(eventId).count;
-    const approved = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "approved"').get(eventId).count;
-    const rejected = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "rejected"').get(eventId).count;
+    const total = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ?').bind(eventId).get().count;
+    const pending = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "pending"').bind(eventId).get().count;
+    const in_review = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "in_review"').bind(eventId).get().count;
+    const approved = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "approved"').bind(eventId).get().count;
+    const rejected = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "rejected"').bind(eventId).get().count;
     return { total, pending, in_review, approved, rejected };
   },
   getUnassignedArticles: (eventId) => {
@@ -137,7 +197,7 @@ module.exports = {
       WHERE a.event_id = ?
         AND a.id NOT IN (SELECT DISTINCT article_id FROM assignments)
       ORDER BY a.created_at DESC
-    `).all(eventId);
+    `).bind(eventId).all();
   },
   getArticleById: (articleId) => {
     return db.prepare(`
@@ -145,23 +205,24 @@ module.exports = {
       FROM articles a
       JOIN events e ON e.id = a.event_id
       WHERE a.id = ?
-    `).get(articleId);
+    `).bind(articleId).get();
   },
   getAssignmentsByEvent: (eventId) => {
     return db.prepare(`
-      SELECT a.id, a.title, a.authors, a.type, a.status,
+      SELECT 
+        a.id as article_id, a.title, a.authors, a.type, a.status,
         ass.id as assignment_id, ass.status as assignment_status,
-        r.id as reviewer_id, r.name as reviewer_name, r.area as reviewer_area,
+        u.id as reviewer_id, u.name as reviewer_name,
         rp.id as report_id, rp.score, rp.recommendation
       FROM articles a
       LEFT JOIN assignments ass ON ass.article_id = a.id
-      LEFT JOIN reviewers r ON r.id = ass.reviewer_id
+      LEFT JOIN users u ON u.id = ass.reviewer_id
       LEFT JOIN reports rp ON rp.assignment_id = ass.id
       WHERE a.event_id = ?
       ORDER BY a.created_at DESC
-    `).all(eventId);
+    `).bind(eventId).all();
   },
-  getPendingReviews: (reviewerId) => {
+  getPendingReviews: (reviewerUserId) => {
     return db.prepare(`
       SELECT a.id, a.title, a.authors, a.abstract, a.type,
         ass.id as assignment_id, e.name as event_name
@@ -171,9 +232,9 @@ module.exports = {
       LEFT JOIN reports rp ON rp.assignment_id = ass.id
       WHERE ass.reviewer_id = ? AND rp.id IS NULL AND ass.status = 'accepted'
       ORDER BY a.date_submitted DESC
-    `).all(reviewerId);
+    `).bind(reviewerUserId).all();
   },
-  getReviewedArticles: (reviewerId) => {
+  getReviewedArticles: (reviewerUserId) => {
     return db.prepare(`
       SELECT a.id, a.title, a.authors, a.type,
         ass.id as assignment_id, rp.id as report_id, rp.score, rp.recommendation, rp.report,
@@ -184,6 +245,6 @@ module.exports = {
       JOIN reports rp ON rp.assignment_id = ass.id
       WHERE ass.reviewer_id = ?
       ORDER BY a.date_submitted DESC
-    `).all(reviewerId);
+    `).bind(reviewerUserId).all();
   }
 };

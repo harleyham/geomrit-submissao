@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+    .event-meta { color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
+    .section-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
+    .section-header h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; }
+    .section-body { padding: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
+    td { padding: 0.75rem 1.5rem; font-size: 0.875rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.05); }
+    tr:hover td { background: rgba(148,163,184,0.03); }
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .badge-area { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .badge-approved { background: rgba(52,211,153,0.15); color: #34d399; }
+    .badge-rejected { background: rgba(248,113,113,0.15); color: #f87171; }
+    .badge-revision { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .badge-pending { background: rgba(100,116,139,0.2); color: #94a3b8; }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.4rem 0.75rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+    .actions { display: flex; gap: 0.375rem; align-items: center; }
+    .decision-select { background: rgba(15,23,42,0.6); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.2); border-radius: 6px; padding: 0.35rem 0.6rem; font-size: 0.8125rem; }
+    .form-inline { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .empty-state { text-align: center; padding: 3rem 2rem; color: #64748b; }
+    .empty-state p { margin-bottom: 1rem; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events" class="active">Eventos</a>
+        <a href="/admin/users">Usuários</a>
+        <form method="POST" action="/admin/logout" style="display:inline"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>Relatórios - <%= event.name %></h1>
+        <p class="event-meta"><%= event.area %> · <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> – <%= event.date_end ? new Date(event.date_end).toLocaleDateString('pt-BR') : '' %></p>
+      </div>
+      <a href="/admin/events" class="btn btn-ghost">← Voltar</a>
+    </div>
+
+    <!-- Informações do Evento -->
+    <div class="section">
+      <div class="section-header">
+        <h2>Informações do Evento</h2>
+      </div>
+      <div class="section-body" style="padding: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+          <div>
+            <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Nome</h3>
+            <p style="font-size: 1.0625rem; color: #f1f5f9; font-weight: 600;"><%= event.name %></p>
+          </div>
+          <div>
+            <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Localização</h3>
+            <p style="font-size: 1.0625rem; color: #f1f5f9;"><%= event.location || 'Não informada' %></p>
+          </div>
+          <div>
+            <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Período do Evento</h3>
+            <p style="font-size: 1.0625rem; color: #f1f5f9;"><%= new Date(event.date_start).toLocaleDateString('pt-BR') %> – <%= event.date_end ? new Date(event.date_end).toLocaleDateString('pt-BR') : 'Não definido' %></p>
+          </div>
+          <div>
+            <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Período de Submissão</h3>
+            <p style="font-size: 1.0625rem; color: #f1f5f9;"><%= event.submission_start ? new Date(event.submission_start).toLocaleDateString('pt-BR') : 'ND' %> – <%= event.submission_end ? new Date(event.submission_end).toLocaleDateString('pt-BR') : 'ND' %></p>
+          </div>
+          <div>
+            <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Área</h3>
+            <p style="font-size: 1.0625rem; color: #f1f5f9;"><%= event.area %></p>
+          </div>
+          <% if (event.url) { %>
+          <div>
+            <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Website</h3>
+            <p style="font-size: 1.0625rem;"><a href="<%= event.url %>" target="_blank" style="color: #60a5fa; text-decoration: none;"><%= event.url %></a></p>
+          </div>
+          <% } %>
+        </div>
+        <% if (event.description) { %>
+        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(148,163,184,0.1);">
+          <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Descrição</h3>
+          <p style="color: #cbd5e1; line-height: 1.6;"><%= event.description %></p>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="section">
+      <div class="section-header">
+        <h2>Estatísticas do Evento</h2>
+      </div>
+      <div class="section-body" style="padding: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem;">
+          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #60a5fa;"><%= totalSubmited %></div>
+            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Artigos Submetidos</div>
+          </div>
+          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #34d399;"><%= oralApproved %></div>
+            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Aprovados - Oral</div>
+          </div>
+          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #a78bfa;"><%= posterApproved %></div>
+            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Aprovados - Pôster</div>
+          </div>
+          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #f87171;"><%= oralRejected %></div>
+            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Reprovados - Oral</div>
+          </div>
+          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #f87171;"><%= posterRejected %></div>
+            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Reprovados - Pôster</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artigos Aprovados - Oral -->
+    <% if (articlesOral.length > 0) { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Artigos Aprovados - Apresentação Oral (<%= articlesOral.length %>)</h2>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Título</th>
+              <th>Autores</th>
+              <th>Área</th>
+              <th>Título (EN)</th>
+              <th>Submetente</th>
+              <th>Afiliação</th>
+              <th>Cidade</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% articlesOral.forEach((art, i) => { %>
+            <tr>
+              <td style="text-align: center; color: #64748b;"><%= i + 1 %></td>
+              <td><strong style="color: #f1f5f9;"><%= art.title %></strong></td>
+              <td style="color: #cbd5e1;"><%= art.authors %></td>
+              <td><span class="badge badge-area"><%= art.area %></span></td>
+              <td style="color: #94a3b8; font-size: 0.8125rem;"><%= art.title_en || '-' %></td>
+              <td><%= art.contributor || '-' %></td>
+              <td><%= art.affiliation || '-' %></td>
+              <td><%= art.city || '-' %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Artigos Aprovados - Apresentação Oral (0)</h2>
+      </div>
+      <div class="section-body">
+        <div class="empty-state"><p>Nenhum artigo aprovado para apresentação oral.</p></div>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Artigos Aprovados - Pôster -->
+    <% if (articlesPoster.length > 0) { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Artigos Aprovados - Apresentação de Pôster (<%= articlesPoster.length %>)</h2>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Título</th>
+              <th>Autores</th>
+              <th>Área</th>
+              <th>Título (EN)</th>
+              <th>Submetente</th>
+              <th>Afiliação</th>
+              <th>Cidade</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% articlesPoster.forEach((art, i) => { %>
+            <tr>
+              <td style="text-align: center; color: #64748b;"><%= i + 1 %></td>
+              <td><strong style="color: #f1f5f9;"><%= art.title %></strong></td>
+              <td style="color: #cbd5e1;"><%= art.authors %></td>
+              <td><span class="badge badge-area"><%= art.area %></span></td>
+              <td style="color: #94a3b8; font-size: 0.8125rem;"><%= art.title_en || '-' %></td>
+              <td><%= art.contributor || '-' %></td>
+              <td><%= art.affiliation || '-' %></td>
+              <td><%= art.city || '-' %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Artigos Aprovados - Apresentação de Pôster (0)</h2>
+      </div>
+      <div class="section-body">
+        <div class="empty-state"><p>Nenhum artigo aprovado para apresentação de pôster.</p></div>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Artigos Reprovados - Oral -->
+    <% if (articlesOralRejected.length > 0) { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Artigos Reprovados - Apresentação Oral (<%= articlesOralRejected.length %>)</h2>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Título</th>
+              <th>Autores</th>
+              <th>Área</th>
+              <th>Título (EN)</th>
+              <th>Submetente</th>
+              <th>Afiliação</th>
+              <th>Cidade</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% articlesOralRejected.forEach((art, i) => { %>
+            <tr>
+              <td style="text-align: center; color: #64748b;"><%= i + 1 %></td>
+              <td><strong style="color: #f87171;"><%= art.title %></strong></td>
+              <td style="color: #cbd5e1;"><%= art.authors %></td>
+              <td><span class="badge badge-area"><%= art.area %></span></td>
+              <td style="color: #94a3b8; font-size: 0.8125rem;"><%= art.title_en || '-' %></td>
+              <td><%= art.contributor || '-' %></td>
+              <td><%= art.affiliation || '-' %></td>
+              <td><%= art.city || '-' %></td>
+              <td style="color: #f87171; font-size: 0.8125rem;"><%= art.rejection_reason || '-' %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Artigos Reprovados - Apresentação Oral (0)</h2>
+      </div>
+      <div class="section-body">
+        <div class="empty-state"><p>Nenhum artigo reprovado para apresentação oral.</p></div>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Artigos Reprovados - Pôster -->
+    <% if (articlesPosterRejected.length > 0) { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Artigos Reprovados - Apresentação de Pôster (<%= articlesPosterRejected.length %>)</h2>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Título</th>
+              <th>Autores</th>
+              <th>Área</th>
+              <th>Título (EN)</th>
+              <th>Submetente</th>
+              <th>Afiliação</th>
+              <th>Cidade</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% articlesPosterRejected.forEach((art, i) => { %>
+            <tr>
+              <td style="text-align: center; color: #64748b;"><%= i + 1 %></td>
+              <td><strong style="color: #f87171;"><%= art.title %></strong></td>
+              <td style="color: #cbd5e1;"><%= art.authors %></td>
+              <td><span class="badge badge-area"><%= art.area %></span></td>
+              <td style="color: #94a3b8; font-size: 0.8125rem;"><%= art.title_en || '-' %></td>
+              <td><%= art.contributor || '-' %></td>
+              <td><%= art.affiliation || '-' %></td>
+              <td><%= art.city || '-' %></td>
+              <td style="color: #f87171; font-size: 0.8125rem;"><%= art.rejection_reason || '-' %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Artigos Reprovados - Apresentação de Pôster (0)</h2>
+      </div>
+      <div class="section-body">
+        <div class="empty-state"><p>Nenhum artigo reprovado para apresentação de pôster.</p></div>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Decisões dos Relatórios por Artigo -->
+    <% if (articleDecisions.length > 0) { %>
+    <div class="section">
+      <div class="section-header">
+        <h2>Decisões dos Relatórios por Artigo</h2>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Área</th>
+              <th>Tipo</th>
+              <th>Relatórios</th>
+              <th>Aprovações</th>
+              <th>Rejeições</th>
+              <th>Revisões</th>
+              <th>Decisão Final</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% articleDecisions.forEach(dec => { %>
+            <tr>
+              <td>
+                <strong style="color: #f1f5f9;"><%= dec.article.title %></strong><br>
+                <small style="color:#64748b"><%= dec.article.authors %></small>
+              </td>
+              <td><span class="badge badge-area"><%= dec.article.area %></span></td>
+              <td><%= dec.article.type %></td>
+              <td style="text-align: center;"><%= dec.total_reports %></td>
+              <td style="text-align: center; color: #34d399;"><%= dec.approvals %></td>
+              <td style="text-align: center; color: #f87171;"><%= dec.rejections %></td>
+              <td style="text-align: center; color: #fbbf24;"><%= dec.revisions %></td>
+              <td>
+                <% if (dec.final_recommendation === 'pending') { %>
+                  <span class="badge badge-pending">Pendente</span>
+                <% } else { %>
+                  <span class="badge badge-<%= dec.final_recommendation %>"><%= dec.final_recommendation_label %></span>
+                <% } %>
+              </td>
+              <td>
+                <span class="badge badge-<%= dec.article.status %>"><%= dec.article.status %></span>
+              </td>
+              <td class="actions">
+                <form method="POST" action="/admin/reports/<%= dec.article.id %>/decide" class="form-inline">
+                  <input type="hidden" name="eventId" value="<%= event.id %>">
+                  <select name="final_status" class="decision-select">
+                    <option value="pending" <%= dec.article.status === 'pending' ? 'selected' : '' %>>Pendente</option>
+                    <option value="in_review" <%= dec.article.status === 'in_review' ? 'selected' : '' %>>Em Análise</option>
+                    <option value="approved" <%= dec.article.status === 'approved' ? 'selected' : '' %>>Aprovado</option>
+                    <option value="rejected" <%= dec.article.status === 'rejected' ? 'selected' : '' %>>Rejeitado</option>
+                  </select>
+                  <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+                </form>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (totalSubmited === 0) { %>
+    <div class="section">
+      <div class="empty-state">
+        <p>Nenhum artigo submetido para este evento.</p>
+        <a href="/admin/articles?eventId=<%= event.id %>" class="btn btn-primary">Ver Artigos</a>
+      </div>
+    </div>
+    <% } %>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>

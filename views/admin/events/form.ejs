@@ -42,7 +42,8 @@
       <nav class="topbar-nav">
         <a href="/admin">Dashboard</a>
         <a href="/admin/events">Eventos</a>
-        <a href="/admin/reviewers">Revisores</a>
+        <a href="/admin/users">Usuários</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
         <form method="POST" action="/admin/logout" style="display:inline"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
       </nav>
     </div>
@@ -85,6 +86,16 @@
           <div class="form-group">
             <label for="date_end">Data Fim</label>
             <input type="date" id="date_end" name="date_end" value="<%= event ? event.date_end : '' %>">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="submission_start">Início Submissão</label>
+            <input type="date" id="submission_start" name="submission_start" value="<%= event ? event.submission_start : '' %>">
+          </div>
+          <div class="form-group">
+            <label for="submission_end">Fim Submissão</label>
+            <input type="date" id="submission_end" name="submission_end" value="<%= event ? event.submission_end : '' %>">
           </div>
         </div>
         <div class="form-group">

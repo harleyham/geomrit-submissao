@@ -52,7 +52,13 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a href="/reviewer" class="logo"><span class="logo-icon">◆</span> Painel do Revisor</a>
-      <nav><a href="/reviewer">← Voltar</a></nav>
+      <nav style="display:flex; gap:0.5rem; align-items:center;">
+        <a href="/reviewer">← Voltar</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <form method="POST" action="/reviewer/logout" style="display:inline">
+          <button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem; color:#f87171;">Sair</button>
+        </form>
+      </nav>
     </div>
   </header>
 
