@@ -18,9 +18,15 @@
     .event-header { margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
     .event-header .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.75rem; }
     .event-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .event-title-block { margin-top: 1rem; }
     .event-meta { display: flex; gap: 1.5rem; color: #94a3b8; font-size: 0.875rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .event-meta span { display: flex; align-items: center; gap: 0.375rem; }
     .event-description { color: #cbd5e1; line-height: 1.7; font-size: 0.9375rem; }
+    .event-link-card { margin-top: 1.25rem; padding: 1rem 1.1rem; border-radius: 12px; background: rgba(59,130,246,0.08); border: 1px solid rgba(96,165,250,0.18); }
+    .event-link-card .label { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #93c5fd; margin-bottom: 0.45rem; }
+    .event-link-card .value { font-size: 0.98rem; font-weight: 600; color: #f8fafc; word-break: break-word; }
+    .event-link-card .value a { color: #93c5fd; text-decoration: none; }
+    .event-link-card .value a:hover { text-decoration: underline; }
     .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
     .section h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 1.25rem; }
     .form-group { margin-bottom: 1.25rem; }
@@ -58,16 +64,31 @@
   <main class="main-content">
     <div class="event-header">
       <span class="area"><%= event.area %></span>
-      <h1><%= event.name %></h1>
-      <div class="event-meta">
-        <span>📅 <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> - <%= new Date(event.date_end).toLocaleDateString('pt-BR') %></span>
-        <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
-        <% if (event.submission.start) { %><span>🟢 Submissões: <%= event.submission.start.toLocaleDateString('pt-BR') %></span><% } %>
-        <% if (event.submission.end) { %><span>⏰ Até: <%= event.submission.end.toLocaleDateString('pt-BR') %></span><% } %>
-      </div>
       <span class="submission-status <%= event.submission.isOpen ? 'open' : 'closed' %>">
         <%= event.submission.isOpen ? 'Submissão aberta' : 'Submissão indisponível' %>
       </span>
+      <div class="event-link-card">
+        <span class="label">URL do Evento</span>
+        <div class="value">
+          <% if (event.url && event.url.trim()) { %>
+            <a href="<%= event.url %>" target="_blank" rel="noopener noreferrer"><%= event.url %></a>
+          <% } else { %>
+            TBD
+          <% } %>
+        </div>
+      </div>
+      <div class="event-title-block">
+        <h1><%= event.name %></h1>
+        <div class="event-meta">
+          <span>
+            📅 <%= event.formattedDateStart || 'Data não informada' %>
+            <% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %>
+          </span>
+          <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
+          <% if (event.submissionDisplay && event.submissionDisplay.start) { %><span>🟢 Submissões: <%= event.submissionDisplay.start %></span><% } %>
+          <% if (event.submissionDisplay && event.submissionDisplay.end) { %><span>⏰ Até: <%= event.submissionDisplay.end %></span><% } %>
+        </div>
+      </div>
       <% if (event.description) { %>
         <p class="event-description"><%= event.description %></p>
       <% } %>

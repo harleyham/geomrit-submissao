@@ -82,12 +82,12 @@ router.get('/:id/stats', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
-  const totalArticles = db.prepare('SELECT COUNT(*) as cnt FROM articles WHERE event_id = ?').bind(req.params.id).get().cnt;
+  const totalArticles = db.prepare("SELECT COUNT(*) as cnt FROM articles WHERE event_id = ? AND status != 'draft'").bind(req.params.id).get().cnt;
   const approved = db.prepare('SELECT COUNT(*) as cnt FROM articles WHERE event_id = ? AND status = ?').bind(req.params.id, 'approved').get().cnt;
   const rejected = db.prepare('SELECT COUNT(*) as cnt FROM articles WHERE event_id = ? AND status = ?').bind(req.params.id, 'rejected').get().cnt;
   const pending = totalArticles - approved - rejected;
 
-  const articleIds = db.prepare('SELECT id FROM articles WHERE event_id = ?').bind(req.params.id).all().map(a => a.id);
+  const articleIds = db.prepare("SELECT id FROM articles WHERE event_id = ? AND status != 'draft'").bind(req.params.id).all().map(a => a.id);
   let reviewersCount = 0;
   let assignedCount = 0;
   const topReviewers = [];
@@ -104,7 +104,7 @@ router.get('/:id/stats', (req, res) => {
     `).bind(...articleIds).all();
   }
 
-  const articles = db.prepare('SELECT * FROM articles WHERE event_id = ? ORDER BY created_at DESC').bind(req.params.id).all();
+  const articles = db.prepare("SELECT * FROM articles WHERE event_id = ? AND status != 'draft' ORDER BY created_at DESC").bind(req.params.id).all();
 
   res.render('admin/events/stats', {
     event, title: 'Stats - ' + event.name, year: new Date().getFullYear(),
@@ -115,7 +115,7 @@ router.get('/:id/stats', (req, res) => {
 
 // Publicar evento
 router.post('/:id/publish', (req, res) => {
-  db.prepare('UPDATE events SET status = ?, updated_at = datetime("now") WHERE id = ?').bind('published', req.params.id).run();
+  db.prepare("UPDATE events SET status = ?, updated_at = datetime('now') WHERE id = ?").bind('published', req.params.id).run();
   res.redirect('/admin/events');
 });
 

@@ -43,9 +43,10 @@
     <div class="topbar-inner">
       <a href="/" class="logo"><img src="/assets/Ligem.png" alt="LIGEM" style="height:36px;margin-right:0.5rem;vertical-align:middle"> Artigos LIGEM</a>
       <nav style="display:flex;gap:0.25rem;align-items:center">
-        <% if (isAdmin || isReviewer) { %>
-          <a href="<%= isAdmin ? '/admin/dashboard' : '/reviewer' %>" class="btn" style="padding:0.4rem 0.8rem;font-size:0.8125rem;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:6px;text-decoration:none"><%= userName %> | <%= userEmail %> | <%= isAdmin ? 'Dashboard' : 'Revisor' %></a>
+        <% if (isAdmin || isReviewer || isPublic) { %>
+          <a href="<%= isAdmin ? '/admin/dashboard' : isReviewer ? '/reviewer' : '/author' %>" class="btn" style="padding:0.4rem 0.8rem;font-size:0.8125rem;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:6px;text-decoration:none"><%= userName %> | <%= userEmail %> | <%= isAdmin ? 'Dashboard' : isReviewer ? 'Revisor' : 'Autor' %></a>
         <% } else { %>
+          <a href="/cadastro" class="btn" style="padding:0.4rem 0.8rem;font-size:0.8125rem;color:#cbd5e1;border:1px solid rgba(96,165,250,0.25);border-radius:6px;text-decoration:none;background:rgba(59,130,246,0.08)">Solicitar Cadastro</a>
           <a href="/login" class="btn" style="padding:0.4rem 0.8rem;font-size:0.8125rem;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:6px;text-decoration:none">Entrar</a>
         <% } %>
       </nav>
@@ -56,10 +57,10 @@
     <div class="hero">
       <img src="/assets/Ligem.png" alt="LIGEM" style="max-height:120px;margin-bottom:1.5rem;filter:brightness(1.1)">
       <h1>Artigos <span>LIGEM</span>.Redes</h1>
-      <p>Sistema de submissão, revisão e distribuição de artigos para congressos e eventos acadêmicos da área de Processamento de Linguagens e Computação Cognitiva.</p>
+      <p>Sistema de submissão, revisão e distribuição de artigos para congressos e eventos.</p>
     </div>
 
-    <h2 class="section-title">Eventos Publicados</h2>
+    <h2 class="section-title">Eventos</h2>
 
     <% if (events.length > 0) { %>
       <div class="events-grid">

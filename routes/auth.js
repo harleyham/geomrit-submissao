@@ -12,9 +12,10 @@ function requireAuth(req, res, next) {
 
 // Login page
 router.get('/', (req, res) => {
-  if (req.session.isAdmin || req.session.isReviewer) {
+  if (req.session.isAdmin || req.session.isReviewer || req.session.isPublic) {
     if (req.session.isAdmin) return res.redirect('/admin/dashboard');
     if (req.session.isReviewer) return res.redirect('/reviewer');
+    if (req.session.isPublic) return res.redirect('/author');
   }
   res.render('login', {
     error: null,
@@ -26,13 +27,16 @@ router.get('/', (req, res) => {
 router.get('/dashboard', requireAuth, (req, res) => {
   const totalEvents = db.prepare('SELECT COUNT(*) as count FROM events').get().count;
   const publishedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'published'").get().count;
-  const totalArticles = db.prepare('SELECT COUNT(*) as count FROM articles').get().count;
+  const totalArticles = db.prepare("SELECT COUNT(*) as count FROM articles WHERE status != 'draft'").get().count;
+  const pendingArticles = db.prepare("SELECT COUNT(*) as count FROM articles WHERE status = 'pending'").get().count;
   const activeReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 1').get().count;
   const inactiveReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 0').get().count;
+  const pendingUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
   const recentArticles = db.prepare(`
     SELECT a.*, e.name as event_name
     FROM articles a
     JOIN events e ON a.event_id = e.id
+    WHERE a.status != 'draft'
     ORDER BY a.created_at DESC
     LIMIT 10
   `).all();
@@ -42,8 +46,10 @@ router.get('/dashboard', requireAuth, (req, res) => {
     totalEvents,
     publishedEvents,
     totalArticles,
+    pendingArticles,
     activeReviewers,
     inactiveReviewers,
+    pendingUsers,
     recentArticles,
     year: new Date().getFullYear()
   });
@@ -77,6 +83,13 @@ router.post('/', (req, res) => {
       year: new Date().getFullYear()
     });
   }
+
+  if (user.approval_status === 'pending') {
+    return res.render('login', {
+      error: 'Seu cadastro ainda está pendente de validação por um administrador.',
+      year: new Date().getFullYear()
+    });
+  }
   
   // Verificar se o usuário tem permissão pública
   if (!user.is_public) {
@@ -91,6 +104,9 @@ router.post('/', (req, res) => {
   req.session.userName = user.name;
   req.session.userEmail = user.email;
   req.session.userRoles = [];
+  req.session.isAdmin = false;
+  req.session.isReviewer = false;
+  req.session.isPublic = false;
   
   if (user.is_admin) {
     req.session.isAdmin = true;
@@ -123,7 +139,7 @@ router.post('/', (req, res) => {
     return res.redirect('/reviewer');
   }
   
-  return res.redirect('/');
+  return res.redirect('/author');
 });
 
 // Logout (GET e POST)
@@ -166,6 +182,7 @@ router.get('/change-password', (req, res) => {
   if (user && user.password_changed) {
     if (req.session.isAdmin) return res.redirect('/admin/dashboard');
     if (req.session.isReviewer) return res.redirect('/reviewer');
+    if (req.session.isPublic) return res.redirect('/author');
     return res.redirect('/');
   }
   res.render('change-password', { 
@@ -217,6 +234,9 @@ router.post('/change-password', (req, res) => {
   }
   if (req.session.isReviewer) {
     return res.redirect('/reviewer');
+  }
+  if (req.session.isPublic) {
+    return res.redirect('/author');
   }
   return res.redirect('/');
 });

@@ -52,6 +52,7 @@
     .badge-active { background: rgba(52,211,153,0.15); color: #34d399; }
     .badge-inactive { background: rgba(100,116,139,0.2); color: #94a3b8; }
     .badge-warning { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .badge-info { background: rgba(59,130,246,0.15); color: #93c5fd; }
     .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
     .toggle-switch input { opacity: 0; width: 0; height: 0; }
     .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: rgba(100,116,139,0.4); border-radius: 24px; transition: 0.2s; }
@@ -82,6 +83,8 @@
   </header>
 
   <main class="main-content">
+    <% const pendingList = typeof pendingUsers !== 'undefined' ? pendingUsers : users.filter(u => u.approval_status === 'pending'); %>
+    <% const approvedList = typeof approvedUsers !== 'undefined' ? approvedUsers : users.filter(u => u.approval_status !== 'pending'); %>
     <div class="page-header">
       <h1>Usuários</h1>
       <a href="/admin/users/new" class="btn btn-primary">+ Novo Usuário</a>
@@ -126,10 +129,64 @@
       </form>
     </div>
 
-    <!-- Gerenciar Usuários -->
+    <% if (pendingList.length > 0) { %>
+    <div class="section">
+      <div class="section-title">Cadastros Pendentes de Aprovação</div>
+      <div class="section-desc">Solicitações externas aguardando validação administrativa</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>E-mail</th>
+            <th>Dados Complementares</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pendingList.forEach(u => { %>
+          <tr>
+            <td>
+              <div>
+                <strong style="color: #f1f5f9;"><%= u.name || u.email %></strong>
+              </div>
+            </td>
+            <td><%= u.email %></td>
+            <td>
+              <% if (u.cpf || u.passport || u.country || u.institution) { %>
+                <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                  <% if (u.institution) { %><span><strong>Instituição:</strong> <%= u.institution %></span><% } %>
+                  <% if (u.country) { %><span><strong>País:</strong> <%= u.country %></span><% } %>
+                  <% if (u.cpf) { %><span><strong>CPF:</strong> <%= u.cpf %></span><% } %>
+                  <% if (u.passport) { %><span><strong>Passaporte:</strong> <%= u.passport %></span><% } %>
+                </div>
+              <% } else { %>
+                <span style="color:#64748b;">Sem dados complementares</span>
+              <% } %>
+            </td>
+            <td><span class="badge badge-info">Pendente de aprovação</span></td>
+            <td class="actions-cell">
+              <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
+              <form method="POST" action="/admin/users/<%= u.id %>/approve" style="display:inline" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
+                <button type="submit" class="btn btn-primary btn-sm">Aprovar Cadastro</button>
+              </form>
+              <% if (u.id !== currentUser.id && u.email !== 'admin@admin.com') { %>
+              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir solicitação de cadastro de <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+                <input type="hidden" name="_method" value="DELETE">
+                <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+              </form>
+              <% } %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+
     <div class="section">
       <div class="section-title">Gerenciar Usuários</div>
-      <div class="section-desc">Edite separadamente o papel do usuário no sistema e o status de acesso da conta</div>
+      <div class="section-desc">Usuários já aprovados, com gestão de papéis e status de acesso</div>
       <div class="section-note">
         Revisor define o papel do usuário no fluxo de avaliação.
         Conta ativa define se ele pode entrar no sistema.
@@ -148,7 +205,7 @@
           </tr>
         </thead>
         <tbody>
-          <% users.forEach(u => { %>
+          <% approvedList.forEach(u => { %>
           <tr>
             <input type="hidden" name="user_ids" value="<%= u.id %>" form="bulk-flags-form">
             <td>
@@ -159,7 +216,11 @@
                 <% } %>
               </div>
             </td>
-            <td><%= u.email %></td>
+            <td>
+              <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                <span><%= u.email %></span>
+              </div>
+            </td>
             <td>
               <div style="display: flex; gap: 0.25rem; align-items: center;">
                 <label class="toggle-switch">
@@ -174,7 +235,7 @@
                 <% if (u.is_reviewer) { %><span class="badge badge-reviewer">Revisor</span><% } else { %><span class="badge badge-inactive">Revisor</span><% } %>
               </div>
               <div style="margin-top: 0.45rem; color:#64748b; font-size:0.72rem;">
-                Admin e Revisor sao papeis independentes.
+                Admin e Revisor são papéis independentes.
               </div>
             </td>
             <td>
@@ -200,10 +261,14 @@
               <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
                 <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
               </form>
+              <% if (u.email !== 'admin@admin.com') { %>
               <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir usuário <%= u.email %>?\nEsta ação não pode ser desfeita.')">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
               </form>
+              <% } else { %>
+              <span class="badge badge-warning">Conta protegida</span>
+              <% } %>
               <% } %>
             </td>
           </tr>

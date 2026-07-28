@@ -23,6 +23,9 @@ db.exec(`
     is_admin INTEGER DEFAULT 0,
     is_reviewer INTEGER DEFAULT 0,
     is_public INTEGER DEFAULT 1,
+    approval_status TEXT DEFAULT 'approved',
+    approved_at DATETIME,
+    approved_by INTEGER,
     password_changed INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -52,16 +55,24 @@ db.exec(`
     title_en TEXT DEFAULT '',
     area TEXT DEFAULT 'Outra',
     authors TEXT NOT NULL,
+    authors_json TEXT,
     abstract TEXT,
     keywords TEXT DEFAULT '',
     pdf_path TEXT,
+    file_original_name TEXT,
     contributor TEXT DEFAULT '',
     affiliation TEXT DEFAULT '',
     city TEXT DEFAULT '',
     email_submission TEXT DEFAULT '',
+    submitter_user_id INTEGER,
     access_code TEXT,
     type TEXT DEFAULT 'oral',
     status TEXT NOT NULL DEFAULT 'pending',
+    funding TEXT DEFAULT '',
+    blind_review_confirmed INTEGER DEFAULT 0,
+    ethics_confirmed INTEGER DEFAULT 0,
+    publication_authorized INTEGER DEFAULT 0,
+    presentation_needs TEXT DEFAULT '',
     reviewer_id INTEGER,
     reviewer_name TEXT,
     reviewer_area TEXT,
@@ -154,15 +165,37 @@ try {
   if (!columns.includes('passport')) db.exec('ALTER TABLE users ADD COLUMN passport TEXT');
   if (!columns.includes('country')) db.exec('ALTER TABLE users ADD COLUMN country TEXT');
   if (!columns.includes('institution')) db.exec('ALTER TABLE users ADD COLUMN institution TEXT');
+  if (!columns.includes('approval_status')) db.exec("ALTER TABLE users ADD COLUMN approval_status TEXT DEFAULT 'approved'");
+  if (!columns.includes('approved_at')) db.exec('ALTER TABLE users ADD COLUMN approved_at DATETIME');
+  if (!columns.includes('approved_by')) db.exec('ALTER TABLE users ADD COLUMN approved_by INTEGER');
+  db.prepare("UPDATE users SET approval_status = 'approved' WHERE approval_status IS NULL OR approval_status = ''").run();
 } catch(e) {
   console.warn('Migration users columns:', e.message);
+}
+
+try {
+  const articleColumns = db.prepare("PRAGMA table_info(articles)").all().map(c => c.name);
+  if (!articleColumns.includes('authors_json')) db.exec('ALTER TABLE articles ADD COLUMN authors_json TEXT');
+  if (!articleColumns.includes('file_original_name')) db.exec('ALTER TABLE articles ADD COLUMN file_original_name TEXT');
+  if (!articleColumns.includes('submitter_user_id')) db.exec('ALTER TABLE articles ADD COLUMN submitter_user_id INTEGER');
+  if (!articleColumns.includes('funding')) db.exec("ALTER TABLE articles ADD COLUMN funding TEXT DEFAULT ''");
+  if (!articleColumns.includes('blind_review_confirmed')) db.exec('ALTER TABLE articles ADD COLUMN blind_review_confirmed INTEGER DEFAULT 0');
+  if (!articleColumns.includes('ethics_confirmed')) db.exec('ALTER TABLE articles ADD COLUMN ethics_confirmed INTEGER DEFAULT 0');
+  if (!articleColumns.includes('publication_authorized')) db.exec('ALTER TABLE articles ADD COLUMN publication_authorized INTEGER DEFAULT 0');
+  if (!articleColumns.includes('presentation_needs')) db.exec("ALTER TABLE articles ADD COLUMN presentation_needs TEXT DEFAULT ''");
+} catch(e) {
+  console.warn('Migration articles columns:', e.message);
 }
 
 // Seed default admin if not exists
 const seedUser = db.prepare('SELECT id FROM users WHERE email = ?').bind('admin@admin.com').get();
 if (!seedUser) {
   const hash = bcrypt.hashSync('123456', 10);
-  db.prepare('INSERT INTO users (name, email, password, is_admin, is_reviewer, is_public, password_changed) VALUES (?, ?, ?, 1, 0, 1, 0)').bind('Administrador', 'admin@admin.com', hash).run();
+  db.prepare(`
+    INSERT INTO users
+    (name, email, password, is_admin, is_reviewer, is_public, approval_status, approved_at, password_changed)
+    VALUES (?, ?, ?, 1, 0, 1, 'approved', datetime('now'), 0)
+  `).bind('Administrador', 'admin@admin.com', hash).run();
   console.log('Seed admin criado: admin@admin.com / 123456');
 }
 
@@ -179,12 +212,13 @@ module.exports = {
       LEFT JOIN users u ON u.id = ass.reviewer_id
       LEFT JOIN reports r ON r.assignment_id = ass.id
       WHERE a.event_id = ?
+        AND a.status != 'draft'
       GROUP BY a.id
       ORDER BY a.created_at DESC
     `).bind(eventId).all();
   },
   getStatsByEvent: (eventId) => {
-    const total = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ?').bind(eventId).get().count;
+    const total = db.prepare("SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status != 'draft'").bind(eventId).get().count;
     const pending = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "pending"').bind(eventId).get().count;
     const in_review = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "in_review"').bind(eventId).get().count;
     const approved = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "approved"').bind(eventId).get().count;
@@ -195,6 +229,7 @@ module.exports = {
     return db.prepare(`
       SELECT a.* FROM articles a
       WHERE a.event_id = ?
+        AND a.status != 'draft'
         AND a.id NOT IN (SELECT DISTINCT article_id FROM assignments)
       ORDER BY a.created_at DESC
     `).bind(eventId).all();
@@ -219,6 +254,7 @@ module.exports = {
       LEFT JOIN users u ON u.id = ass.reviewer_id
       LEFT JOIN reports rp ON rp.assignment_id = ass.id
       WHERE a.event_id = ?
+        AND a.status != 'draft'
       ORDER BY a.created_at DESC
     `).bind(eventId).all();
   },

@@ -12,53 +12,79 @@
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
     .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
     .logo-icon { color: #60a5fa; }
-    .main-content { max-width: 700px; margin: 0 auto; padding: 3rem 2rem; }
+    .main-content { max-width: 980px; margin: 0 auto; padding: 3rem 2rem; }
     .back-link { display: inline-block; color: #60a5fa; text-decoration: none; font-size: 0.875rem; margin-bottom: 2rem; }
     .back-link:hover { text-decoration: underline; }
-    .card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; }
-    .card h1 { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
-    .card .event-info { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; }
-    .form-group { margin-bottom: 1.5rem; }
-    .form-group label { display: block; font-size: 0.875rem; font-weight: 500; color: #cbd5e1; margin-bottom: 0.375rem; }
+    .card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 16px; padding: 2rem; }
+    .card h1 { font-size: 1.65rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .card .event-info { color: #94a3b8; font-size: 0.92rem; margin-bottom: 1.5rem; line-height: 1.6; }
+    .section-block { padding-top: 1.25rem; margin-top: 1.25rem; border-top: 1px solid rgba(148,163,184,0.1); }
+    .section-block h2 { font-size: 1.05rem; font-weight: 700; color: #f8fafc; margin-bottom: 1rem; }
+    .section-block p.section-note { color: #94a3b8; font-size: 0.85rem; line-height: 1.6; margin-bottom: 1rem; }
+    .form-group { margin-bottom: 1.2rem; }
+    .form-group label { display: block; font-size: 0.875rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.4rem; }
     .form-group label .required { color: #f87171; }
     .form-group input, .form-group textarea, .form-group select {
-      width: 100%; padding: 0.625rem 0.75rem; background: rgba(15,23,42,0.6);
-      border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; color: #e2e8f0;
-      font-family: 'Inter', sans-serif; font-size: 0.875rem;
+      width: 100%; padding: 0.7rem 0.8rem; background: rgba(15,23,42,0.6);
+      border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; color: #e2e8f0;
+      font-family: 'Inter', sans-serif; font-size: 0.9rem;
     }
     .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
-      outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25);
+      outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
     }
-    .form-group textarea { resize: vertical; min-height: 120px; }
-    .form-group .help { font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; }
+    .form-group textarea { resize: vertical; min-height: 130px; }
+    .form-group .help { font-size: 0.75rem; color: #64748b; margin-top: 0.3rem; line-height: 1.5; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    .radio-group { display: flex; gap: 1.5rem; margin-top: 0.375rem; }
-    .radio-group label { display: flex; align-items: center; gap: 0.375rem; font-weight: 400; color: #cbd5e1; cursor: pointer; }
-    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; }
-    .btn-primary { background: #3b82f6; color: white; }
-    .btn-primary:hover { background: #2563eb; }
-    .btn-secondary { background: rgba(148,163,184,0.1); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.2); }
+    .radio-group { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
+    .radio-group label, .checkbox-row label { display: flex; align-items: center; gap: 0.45rem; font-weight: 500; color: #cbd5e1; cursor: pointer; }
+    .checkbox-row { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.85rem 1rem; border-radius: 12px; background: rgba(15,23,42,0.4); border: 1px solid rgba(148,163,184,0.12); margin-bottom: 0.9rem; }
+    .checkbox-row input { width: auto; margin-top: 0.1rem; }
+    .summary-counter { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+    .counter { font-size: 0.8rem; color: #93c5fd; }
+    .author-card { background: rgba(15,23,42,0.45); border: 1px solid rgba(148,163,184,0.12); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
+    .author-card-header { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.9rem; }
+    .author-card-title { font-size: 0.92rem; font-weight: 700; color: #f8fafc; }
+    .author-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; padding: 0.65rem 1.15rem; border-radius: 10px; font-size: 0.875rem; font-weight: 600; text-decoration: none; border: none; cursor: pointer; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); }
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
-    .success-card { text-align: center; padding: 3rem 2rem; }
-    .success-card .icon { font-size: 3rem; margin-bottom: 1rem; }
-    .success-card h1 { color: #34d399; margin-bottom: 0.5rem; }
-    .alert { border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 1.5rem; font-size: 0.875rem; }
+    .btn-danger { background: rgba(239,68,68,0.14); color: #fca5a5; border: 1px solid rgba(248,113,113,0.18); }
+    .btn-sm { padding: 0.35rem 0.65rem; font-size: 0.75rem; }
+    .alert { border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1.4rem; font-size: 0.9rem; line-height: 1.55; }
     .alert-error { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.2); color: #fca5a5; }
+    .alert-success { background: rgba(34,197,94,0.12); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
     .submission-window { margin-top: 0.75rem; color: #94a3b8; font-size: 0.875rem; line-height: 1.6; }
-    .access-code { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+    .access-code { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); border-radius: 12px; padding: 1rem; margin: 1.5rem 0; }
     .access-code .code { font-size: 1.5rem; font-weight: 700; color: #34d399; letter-spacing: 0.1em; font-family: monospace; }
     .access-code p { color: #94a3b8; font-size: 0.875rem; margin-top: 0.5rem; }
-    .actions { display: flex; gap: 1rem; margin-top: 2rem; }
+    .actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+    .file-note { color: #94a3b8; font-size: 0.8rem; margin-top: 0.35rem; }
     footer { text-align: center; padding: 3rem 2rem; color: #475569; font-size: 0.75rem; }
+    @media (max-width: 760px) {
+      .form-row { grid-template-columns: 1fr; }
+      .actions { flex-direction: column; }
+      .author-card-header { flex-direction: column; align-items: flex-start; }
+    }
   </style>
 </head>
 <body>
+  <% 
+    const safeFormData = typeof formData !== 'undefined' && formData ? formData : { authors: [{ name: '', email: '', institution: '', lattes: '', orcid: '', corresponding: true }] };
+    const safeAreaOptions = typeof areaOptions !== 'undefined' && areaOptions ? areaOptions : [event.area];
+    const safeAbstractLimit = typeof abstractLimit !== 'undefined' ? abstractLimit : 2500;
+    const safeSubmissionError = typeof submissionError !== 'undefined' ? submissionError : null;
+    const safeSuccessMessage = typeof successMessage !== 'undefined' ? successMessage : null;
+    const safeCurrentFileName = typeof currentFileName !== 'undefined' ? currentFileName : null;
+    const isEditingDraft = typeof editingDraft !== 'undefined' ? editingDraft : false;
+  %>
   <header class="topbar">
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
       <nav style="display:flex;gap:0.25rem;align-items:center">
         <% if (!submitted) { %>
-        <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar</a>
+        <a href="<%= isPublic ? '/author' : '/evento/' + event.id %>" class="btn btn-secondary">Voltar</a>
         <% } %>
       </nav>
     </div>
@@ -67,113 +93,332 @@
   <main class="main-content">
     <% if (submitted) { %>
       <div class="card">
-        <div class="success-card">
-          <div class="icon">✅</div>
-          <h1>Submissão Concluída!</h1>
-          <p>Seu artigo foi submetido com sucesso ao evento <strong><%= event.name %></strong>.</p>
+        <div style="text-align:center; padding: 2rem 1rem;">
+          <div style="font-size:3rem; margin-bottom:1rem;">✅</div>
+          <h1>Submissão Concluída</h1>
+          <p style="color:#cbd5e1; line-height:1.7;">Seu artigo foi submetido com sucesso ao evento <strong><%= event.name %></strong>.</p>
           <div class="access-code">
-            <p>Seu código de acesso:</p>
+            <p>Seu código de protocolo:</p>
             <div class="code"><%= access_code %></div>
             <p>Guarde este código para consultar o status do seu artigo futuramente.</p>
           </div>
           <div class="actions" style="justify-content:center">
             <a href="/consultar" class="btn btn-primary">Consultar Artigo</a>
-            <a href="/" class="btn btn-secondary">Voltar ao Início</a>
+            <a href="<%= isPublic ? '/author' : '/' %>" class="btn btn-secondary"><%= isPublic ? 'Ir para a Área do Autor' : 'Voltar ao Início' %></a>
           </div>
         </div>
       </div>
     <% } else { %>
-      <a href="/evento/<%= event.id %>" class="back-link">← Voltar ao evento</a>
+      <a href="<%= isPublic ? '/author' : '/evento/' + event.id %>" class="back-link">← <%= isPublic ? 'Voltar para a área do autor' : 'Voltar ao evento' %></a>
       <div class="card">
-        <h1>Submeter Artigo</h1>
-        <p class="event-info">Evento: <strong><%= event.name %></strong><br>
-        Área: <%= event.area %> | Período: <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> - <%= new Date(event.date_end).toLocaleDateString('pt-BR') %></p>
+        <h1><%= isEditingDraft ? 'Editar Rascunho de Artigo' : 'Formulário de Submissão de Artigo' %></h1>
+        <p class="event-info">
+          Evento: <strong><%= event.name %></strong><br>
+          Área principal: <%= event.area %> | Período do evento: <%= event.formattedDateStart || 'TBD' %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %>
+        </p>
         <div class="submission-window">
-          <% if (event.submission.start) { %>Início das submissões: <strong><%= event.submission.start.toLocaleDateString('pt-BR') %></strong><br><% } %>
-          <% if (event.submission.end) { %>Fim das submissões: <strong><%= event.submission.end.toLocaleDateString('pt-BR') %></strong><% } %>
+          <% if (event.submissionDisplay.start) { %>Início das submissões: <strong><%= event.submissionDisplay.start %></strong><br><% } %>
+          <% if (event.submissionDisplay.end) { %>Fim das submissões: <strong><%= event.submissionDisplay.end %></strong><% } %>
         </div>
 
-        <% if (submissionError) { %>
-          <div class="alert alert-error"><%= submissionError %></div>
+        <% if (safeSubmissionError) { %>
+          <div class="alert alert-error"><%= safeSubmissionError %></div>
+        <% } %>
+        <% if (safeSuccessMessage) { %>
+          <div class="alert alert-success"><%= safeSuccessMessage %></div>
         <% } %>
 
-        <% if (event.submission.isOpen) { %>
-        <form action="/submeter/<%= event.id %>" method="POST">
-          <div class="form-group">
-            <label>Título (Português) <span class="required">*</span></label>
-            <input type="text" name="title" required placeholder="Título completo do artigo em português">
-          </div>
+        <form action="/submeter/<%= event.id %>" method="POST" enctype="multipart/form-data" id="submission-form">
+          <input type="hidden" name="draft_id" value="<%= safeFormData.draft_id || '' %>">
 
-          <div class="form-group">
-            <label>Título (English) <span class="required">*</span></label>
-            <input type="text" name="title_en" required placeholder="Full article title in English">
-          </div>
-
-          <div class="form-group">
-            <label>Área <span class="required">*</span></label>
-            <input type="text" name="area" value="<%= event.area %>" readonly>
-            <div class="help">A área é definida pelo evento e não pode ser alterada.</div>
-          </div>
-
-          <div class="form-group">
-            <label>Autores <span class="required">*</span></label>
-            <textarea name="authors" required placeholder="Liste todos os autores, separados por ponto e vírgula&#10;Ex: Autor 1; Autor 2; Autor 3"></textarea>
-          </div>
-
-          <div class="form-group">
-            <label>Resumo / Abstract</label>
-            <textarea name="abstract" rows="5" placeholder="Resumo ou abstract do artigo"></textarea>
-          </div>
-
-          <div class="form-group">
-            <label>Palavras-chave</label>
-            <input type="text" name="keywords" placeholder="Ex: processamento de linguagem natural; deep learning; análise de sentimentos">
-          </div>
-
-          <div class="form-row">
+          <div class="section-block" style="margin-top:0; padding-top:0; border-top:none;">
+            <h2>1. Informações Básicas do Trabalho</h2>
             <div class="form-group">
-              <label>Contribuidor</label>
-              <input type="text" name="contributor" placeholder="Primeiro autor / autor correspondente">
+              <label for="title">Título do Artigo <span class="required">*</span></label>
+              <input type="text" id="title" name="title" required value="<%= safeFormData.title || '' %>">
             </div>
+
             <div class="form-group">
-              <label>Afiliação</label>
-              <input type="text" name="affiliation" placeholder="Instituição">
+              <label for="area">Eixo Temático / Trilha <span class="required">*</span></label>
+              <select id="area" name="area" required>
+                <% safeAreaOptions.forEach(function(option) { %>
+                  <option value="<%= option %>" <%= safeFormData.area === option || (!safeFormData.area && event.area === option) ? 'selected' : '' %>><%= option %></option>
+                <% }) %>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Modalidade de Apresentação <span class="required">*</span></label>
+              <div class="radio-group">
+                <label><input type="radio" name="type" value="oral" <%= safeFormData.type !== 'poster' ? 'checked' : '' %>> Apresentação Oral</label>
+                <label><input type="radio" name="type" value="poster" <%= safeFormData.type === 'poster' ? 'checked' : '' %>> Pôster / Painel</label>
+              </div>
             </div>
           </div>
 
-          <div class="form-row">
+          <div class="section-block">
+            <h2>2. Resumo e Palavras-Chave</h2>
             <div class="form-group">
-              <label>Cidade</label>
-              <input type="text" name="city" placeholder="Cidade da afiliação">
+              <div class="summary-counter">
+                <label for="abstract">Abstract / Resumo <span class="required">*</span></label>
+                <span class="counter"><span id="abstract-count">0</span> / <%= safeAbstractLimit %> caracteres</span>
+              </div>
+              <textarea id="abstract" name="abstract" rows="6" required><%= safeFormData.abstract || '' %></textarea>
             </div>
+
             <div class="form-group">
-              <label>Email para submissão</label>
-              <input type="email" name="email_submission" placeholder="email@instituicao.edu.br">
+              <label for="keywords">Palavras-Chave <span class="required">*</span></label>
+              <input type="text" id="keywords" name="keywords" value="<%= safeFormData.keywords || '' %>">
+              <div class="help">Insira de 3 a 5 palavras-chave separadas por vírgula.</div>
             </div>
           </div>
 
-          <div class="form-group">
-            <label>Tipo de Apresentação <span class="required">*</span></label>
-            <div class="radio-group">
-              <label><input type="radio" name="type" value="oral" checked> Oral</label>
-              <label><input type="radio" name="type" value="poster"> Pôster</label>
+          <div class="section-block">
+            <h2>3. Autoria e Filiação</h2>
+            <p class="section-note">Adicione múltiplos autores, ordene a sequência de autoria e marque pelo menos um autor correspondente.</p>
+            <div id="authors-container">
+              <% safeFormData.authors.forEach(function(author, index) { %>
+                <div class="author-card" data-author-card>
+                  <div class="author-card-header">
+                    <div class="author-card-title">Autor <span data-author-index><%= index + 1 %></span></div>
+                    <div class="author-actions">
+                      <button type="button" class="btn btn-secondary btn-sm" data-move-up>Subir</button>
+                      <button type="button" class="btn btn-secondary btn-sm" data-move-down>Descer</button>
+                      <button type="button" class="btn btn-danger btn-sm" data-remove-author>Remover</button>
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>Nome Completo <span class="required">*</span></label>
+                      <input type="text" name="author_name" value="<%= author.name || '' %>">
+                    </div>
+                    <div class="form-group">
+                      <label>E-mail <span class="required">*</span></label>
+                      <input type="email" name="author_email" value="<%= author.email || '' %>">
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>Instituição de Origem <span class="required">*</span></label>
+                      <input type="text" name="author_institution" value="<%= author.institution || '' %>">
+                    </div>
+                    <div class="form-group">
+                      <label>Link do Currículo Lattes</label>
+                      <input type="url" name="author_lattes" value="<%= author.lattes || '' %>">
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>ORCID ID</label>
+                      <input type="text" name="author_orcid" value="<%= author.orcid || '' %>">
+                    </div>
+                    <div class="form-group">
+                      <label>Autor de Contato / Correspondente</label>
+                      <div class="radio-group">
+                        <label><input type="checkbox" name="author_corresponding" value="1" <%= author.corresponding ? 'checked' : '' %>> Sim</label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+            <button type="button" class="btn btn-secondary" id="add-author-btn">+ Adicionar Autor</button>
+          </div>
+
+          <div class="section-block">
+            <h2>4. Upload do Arquivo</h2>
+            <div class="form-group">
+              <label for="article_pdf">Upload do Artigo Completo (.pdf) <span class="required">*</span></label>
+              <input type="file" id="article_pdf" name="article_pdf" accept=".pdf">
+              <div class="help">Limite de tamanho: 10 MB.</div>
+              <% if (safeCurrentFileName) { %>
+                <div class="file-note">Arquivo atual: <strong><%= safeCurrentFileName %></strong></div>
+              <% } %>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="blind_review_confirmed" name="blind_review_confirmed" value="1" <%= safeFormData.blind_review_confirmed ? 'checked' : '' %>>
+              <label for="blind_review_confirmed">Confirmo que o arquivo PDF enviado não contém nomes de autores, filiações ou qualquer identificação no texto/propriedades do arquivo.</label>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <h2>5. Outros Campos Essenciais</h2>
+            <div class="form-group">
+              <label for="funding">Financiamento / Agência de Fomento</label>
+              <input type="text" id="funding" name="funding" value="<%= safeFormData.funding || '' %>" placeholder="Ex: CAPES, CNPq, FAPESP ou Não se aplica">
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="ethics_confirmed" name="ethics_confirmed" value="1" <%= safeFormData.ethics_confirmed ? 'checked' : '' %>>
+              <label for="ethics_confirmed">Declaro que o trabalho é original, não foi publicado anteriormente e atende aos critérios éticos da pesquisa.</label>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="publication_authorized" name="publication_authorized" value="1" <%= safeFormData.publication_authorized ? 'checked' : '' %>>
+              <label for="publication_authorized">Autorizo a publicação do artigo nos anais do evento caso seja aceito.</label>
+            </div>
+
+            <div class="form-group">
+              <label for="presentation_needs">Necessidades Especiais para Apresentação</label>
+              <input type="text" id="presentation_needs" name="presentation_needs" value="<%= safeFormData.presentation_needs || '' %>" placeholder="Ex: acessibilidade física, áudio/vídeo específico">
+            </div>
+          </div>
+
+          <div class="section-block">
+            <h2>Informações do Contato e Submissão</h2>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="contributor">Autor de Contato Principal</label>
+                <input type="text" id="contributor" name="contributor" value="<%= safeFormData.contributor || '' %>">
+              </div>
+              <div class="form-group">
+                <label for="email_submission">E-mail da Submissão <span class="required">*</span></label>
+                <input type="email" id="email_submission" name="email_submission" value="<%= safeFormData.email_submission || '' %>">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="affiliation">Filiação Principal</label>
+                <input type="text" id="affiliation" name="affiliation" value="<%= safeFormData.affiliation || '' %>">
+              </div>
+              <div class="form-group">
+                <label for="city">Cidade</label>
+                <input type="text" id="city" name="city" value="<%= safeFormData.city || '' %>">
+              </div>
             </div>
           </div>
 
           <div class="actions">
-            <button type="submit" class="btn btn-primary">Submeter Artigo</button>
-            <a href="/evento/<%= event.id %>" class="btn btn-secondary">Cancelar</a>
+            <% if (isPublic) { %>
+              <button type="submit" name="action" value="save_draft" class="btn btn-secondary">Salvar Rascunho</button>
+            <% } %>
+            <button type="submit" name="action" value="submit_article" class="btn btn-primary">Submeter Artigo</button>
+            <a href="<%= isPublic ? '/author' : '/evento/' + event.id %>" class="btn btn-secondary">Cancelar</a>
           </div>
         </form>
-        <% } else { %>
-          <div class="actions">
-            <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar ao evento</a>
-          </div>
-        <% } %>
       </div>
     <% } %>
   </main>
 
   <footer>&copy; <%= typeof year !== 'undefined' ? year : 2026 %> LIGEM.Redes</footer>
+
+  <script>
+    (function() {
+      var abstractInput = document.getElementById('abstract');
+      var abstractCount = document.getElementById('abstract-count');
+      var abstractLimit = <%= safeAbstractLimit %>;
+
+      function updateCounter() {
+        if (!abstractInput || !abstractCount) return;
+        abstractCount.textContent = abstractInput.value.length;
+        abstractCount.style.color = abstractInput.value.length > abstractLimit ? '#fca5a5' : '#93c5fd';
+      }
+
+      function refreshAuthorIndices() {
+        document.querySelectorAll('[data-author-card]').forEach(function(card, index) {
+          var label = card.querySelector('[data-author-index]');
+          if (label) label.textContent = String(index + 1);
+        });
+      }
+
+      function bindAuthorCard(card) {
+        var removeBtn = card.querySelector('[data-remove-author]');
+        var upBtn = card.querySelector('[data-move-up]');
+        var downBtn = card.querySelector('[data-move-down]');
+
+        removeBtn.addEventListener('click', function() {
+          var cards = document.querySelectorAll('[data-author-card]');
+          if (cards.length <= 1) return;
+          card.remove();
+          refreshAuthorIndices();
+        });
+
+        upBtn.addEventListener('click', function() {
+          var previous = card.previousElementSibling;
+          if (!previous) return;
+          card.parentNode.insertBefore(card, previous);
+          refreshAuthorIndices();
+        });
+
+        downBtn.addEventListener('click', function() {
+          var next = card.nextElementSibling;
+          if (!next) return;
+          card.parentNode.insertBefore(next, card);
+          refreshAuthorIndices();
+        });
+      }
+
+      var authorsContainer = document.getElementById('authors-container');
+      var addAuthorBtn = document.getElementById('add-author-btn');
+
+      function createAuthorCard() {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'author-card';
+        wrapper.setAttribute('data-author-card', '');
+        wrapper.innerHTML = `
+          <div class="author-card-header">
+            <div class="author-card-title">Autor <span data-author-index></span></div>
+            <div class="author-actions">
+              <button type="button" class="btn btn-secondary btn-sm" data-move-up>Subir</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-move-down>Descer</button>
+              <button type="button" class="btn btn-danger btn-sm" data-remove-author>Remover</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nome Completo <span class="required">*</span></label>
+              <input type="text" name="author_name">
+            </div>
+            <div class="form-group">
+              <label>E-mail <span class="required">*</span></label>
+              <input type="email" name="author_email">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Instituição de Origem <span class="required">*</span></label>
+              <input type="text" name="author_institution">
+            </div>
+            <div class="form-group">
+              <label>Link do Currículo Lattes</label>
+              <input type="url" name="author_lattes">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>ORCID ID</label>
+              <input type="text" name="author_orcid">
+            </div>
+            <div class="form-group">
+              <label>Autor de Contato / Correspondente</label>
+              <div class="radio-group">
+                <label><input type="checkbox" name="author_corresponding" value="1"> Sim</label>
+              </div>
+            </div>
+          </div>
+        `;
+        authorsContainer.appendChild(wrapper);
+        bindAuthorCard(wrapper);
+        refreshAuthorIndices();
+      }
+
+      if (abstractInput) {
+        abstractInput.addEventListener('input', updateCounter);
+        updateCounter();
+      }
+
+      document.querySelectorAll('[data-author-card]').forEach(bindAuthorCard);
+      refreshAuthorIndices();
+
+      if (addAuthorBtn) {
+        addAuthorBtn.addEventListener('click', createAuthorCard);
+      }
+    })();
+  </script>
 </body>
 </html>

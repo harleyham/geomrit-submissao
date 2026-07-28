@@ -69,6 +69,7 @@ const upload = multer({
 app.use((req, res, next) => {
   res.locals.isAdmin = req.session && req.session.isAdmin;
   res.locals.isReviewer = req.session && req.session.isReviewer;
+  res.locals.isPublic = req.session && req.session.isPublic;
   res.locals.userId = req.session && req.session.userId;
   res.locals.userName = req.session && req.session.userName;
   res.locals.userEmail = req.session && req.session.userEmail;

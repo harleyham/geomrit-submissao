@@ -29,8 +29,10 @@
     .stat-card .stat-value { font-size: 2rem; font-weight: 700; color: #f1f5f9; }
     .stat-card.events .stat-value { color: #60a5fa; }
     .stat-card.articles .stat-value { color: #a78bfa; }
+    .stat-card.pending-articles .stat-value { color: #fb7185; }
      .stat-card.reviewers .stat-value { color: #34d399; }
      .stat-card.inactive-reviewers .stat-value { color: #64748b; }
+    .stat-card.pending-users .stat-value { color: #f59e0b; }
     .stat-card.published .stat-value { color: #fbbf24; }
 
     .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; }
@@ -100,6 +102,10 @@
         <div class="stat-label">Total de Artigos</div>
         <div class="stat-value"><%= totalArticles %></div>
       </div>
+      <div class="stat-card pending-articles">
+        <div class="stat-label">Artigos Pendentes</div>
+        <div class="stat-value"><%= pendingArticles %></div>
+      </div>
       <div class="stat-card reviewers">
         <div class="stat-label">Revisores Ativos</div>
         <div class="stat-value"><%= activeReviewers %></div>
@@ -107,6 +113,10 @@
       <div class="stat-card inactive-reviewers">
         <div class="stat-label">Revisores Inativos</div>
         <div class="stat-value"><%= inactiveReviewers %></div>
+      </div>
+      <div class="stat-card pending-users">
+        <div class="stat-label">Usuários Pendentes</div>
+        <div class="stat-value"><%= pendingUsers %></div>
       </div>
     </div>
 

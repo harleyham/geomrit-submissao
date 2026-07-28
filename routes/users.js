@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const bcrypt = require('bcryptjs');
+const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
 
 function requireAuth(req, res, next) {
   if (!req.session.isAdmin) {
@@ -22,15 +23,37 @@ function sendToggleResponse(req, res, payload) {
   return res.redirect('/admin/users');
 }
 
+function getActiveAdminCount() {
+  return db.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1 AND is_public = 1').get().count;
+}
+
+function isRemovingLastActiveAdmin(currentUser, nextIsAdmin, nextIsPublic) {
+  const currentlyActiveAdmin = currentUser.is_admin === 1 && currentUser.is_public === 1;
+  const willRemainActiveAdmin = nextIsAdmin === 1 && nextIsPublic === 1;
+
+  return currentlyActiveAdmin && !willRemainActiveAdmin && getActiveAdminCount() <= 1;
+}
+
+function getNextApprovalStatus(currentStatus, nextIsPublic) {
+  if (currentStatus === 'pending' && nextIsPublic === 1) {
+    return 'approved';
+  }
+  return currentStatus || 'approved';
+}
+
 router.get('/', requireAuth, (req, res) => {
   const users = db.prepare(`
-    SELECT id, name, email, cpf, passport, country, institution, 
-           is_admin, is_reviewer, is_public, password_changed, created_at
-    FROM users ORDER BY name
+    SELECT id, name, email, cpf, passport, country, institution,
+           is_admin, is_reviewer, is_public, approval_status, approved_at,
+           password_changed, created_at
+    FROM users
+    ORDER BY CASE WHEN approval_status = 'pending' THEN 0 ELSE 1 END, name
   `).all();
+  const pendingUsers = users.filter((user) => user.approval_status === 'pending');
+  const approvedUsers = users.filter((user) => user.approval_status !== 'pending');
   const currentUser = db.prepare('SELECT id, name, email FROM users WHERE id = ?').bind(req.session.userId).get();
   res.render('admin/users/list', { 
-    users, currentUser,
+    users, pendingUsers, approvedUsers, currentUser,
     title: 'Usuários', 
     year: new Date().getFullYear(),
     success: req.query.success,
@@ -71,8 +94,8 @@ router.post('/', requireAuth, (req, res) => {
   const hash = bcrypt.hashSync(password, 10);
   db.prepare(`
     INSERT INTO users (name, email, password, cpf, passport, country, institution,
-      is_admin, is_reviewer, is_public, password_changed, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, datetime('now'), datetime('now'))
+      is_admin, is_reviewer, is_public, approval_status, approved_at, password_changed, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now'), 0, datetime('now'), datetime('now'))
   `).bind(
     name || email,
     email,
@@ -101,6 +124,16 @@ router.get('/:id/edit', requireAuth, (req, res) => {
 router.put('/:id', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { name, email, password, cpf, passport, country, institution, is_admin, is_reviewer } = req.body;
+  const user = db.prepare('SELECT id, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
+
+  if (!user) {
+    return res.redirect('/admin/users?error=Usuário não encontrado');
+  }
+
+  const nextIsAdmin = is_admin ? 1 : 0;
+  if (isRemovingLastActiveAdmin(user, nextIsAdmin, user.is_public)) {
+    return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
+  }
 
   if (password) {
     const hash = bcrypt.hashSync(password, 10);
@@ -111,7 +144,7 @@ router.put('/:id', requireAuth, (req, res) => {
     `).bind(
       name, email, hash,
       cpf || null, passport || null, country || null, institution || null,
-      is_admin ? 1 : 0, is_reviewer ? 1 : 0, id
+      nextIsAdmin, is_reviewer ? 1 : 0, id
     ).run();
   } else {
     db.prepare(`
@@ -121,7 +154,7 @@ router.put('/:id', requireAuth, (req, res) => {
     `).bind(
       name, email,
       cpf || null, passport || null, country || null, institution || null,
-      is_admin ? 1 : 0, is_reviewer ? 1 : 0, id
+      nextIsAdmin, is_reviewer ? 1 : 0, id
     ).run();
   }
 
@@ -129,7 +162,21 @@ router.put('/:id', requireAuth, (req, res) => {
 });
 
 router.delete('/:id', requireAuth, (req, res) => {
-  db.prepare('DELETE FROM users WHERE id = ?').bind(req.params.id).run();
+  const id = parseInt(req.params.id, 10);
+  const user = db.prepare('SELECT id, email, is_admin, is_public FROM users WHERE id = ?').bind(id).get();
+  if (!user) {
+    return res.redirect('/admin/users?error=Usuário não encontrado');
+  }
+
+  if (user.email === PROTECTED_ADMIN_EMAIL) {
+    return res.redirect('/admin/users?error=A conta administrativa padrão não pode ser excluída');
+  }
+
+  if (isRemovingLastActiveAdmin(user, 0, 0)) {
+    return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
+  }
+
+  db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
   res.redirect('/admin/users?success=Usuário excluído');
 });
 
@@ -178,7 +225,7 @@ router.post('/:id/reset-password', requireAuth, (req, res) => {
 
 router.post('/:id/update-flags', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').bind(id).get();
+  const user = db.prepare('SELECT id, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
   if (!user) {
     return res.redirect('/admin/users?error=Usuário não encontrado');
   }
@@ -186,12 +233,26 @@ router.post('/:id/update-flags', requireAuth, (req, res) => {
   const is_admin = parseToggleValue(req.body.is_admin);
   const is_reviewer = parseToggleValue(req.body.is_reviewer);
   const is_public = parseToggleValue(req.body.is_public);
+  const approvalStatus = getNextApprovalStatus(user.approval_status, is_public);
+
+  if (isRemovingLastActiveAdmin(user, is_admin, is_public)) {
+    return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
+  }
 
   db.prepare(`
     UPDATE users
-    SET is_admin = ?, is_reviewer = ?, is_public = ?, updated_at = datetime('now')
+    SET is_admin = ?, is_reviewer = ?, is_public = ?, approval_status = ?,
+        approved_at = CASE
+          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now')
+          ELSE approved_at
+        END,
+        approved_by = CASE
+          WHEN ? = 'approved' AND approved_by IS NULL THEN ?
+          ELSE approved_by
+        END,
+        updated_at = datetime('now')
     WHERE id = ?
-  `).bind(is_admin, is_reviewer, is_public, id).run();
+  `).bind(is_admin, is_reviewer, is_public, approvalStatus, approvalStatus, approvalStatus, req.session.userId, id).run();
 
   return res.redirect('/admin/users?success=Perfis do usuário atualizados');
 });
@@ -203,9 +264,42 @@ router.post('/bulk-update-flags', requireAuth, (req, res) => {
       ? [req.body.user_ids]
       : [];
 
+  const currentUsers = db.prepare(`
+    SELECT id, is_admin, is_public, approval_status
+    FROM users
+    WHERE id IN (${userIds.map(() => '?').join(',') || 'NULL'})
+  `).all(...userIds);
+
+  const currentUsersById = new Map(currentUsers.map((user) => [user.id, user]));
+  const activeAdminsAfterUpdate = db.prepare('SELECT id, is_admin, is_public FROM users').all().map((user) => {
+    const pendingUser = currentUsersById.get(user.id);
+    if (!pendingUser) {
+      return user;
+    }
+
+    return {
+      id: user.id,
+      is_admin: parseToggleValue(req.body[`is_admin_${user.id}`]),
+      is_public: parseToggleValue(req.body[`is_public_${user.id}`])
+    };
+  }).filter((user) => user.is_admin === 1 && user.is_public === 1);
+
+  if (activeAdminsAfterUpdate.length === 0) {
+    return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
+  }
+
   const updateStmt = db.prepare(`
     UPDATE users
-    SET is_admin = ?, is_reviewer = ?, is_public = ?, updated_at = datetime('now')
+    SET is_admin = ?, is_reviewer = ?, is_public = ?, approval_status = ?,
+        approved_at = CASE
+          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now')
+          ELSE approved_at
+        END,
+        approved_by = CASE
+          WHEN ? = 'approved' AND approved_by IS NULL THEN ?
+          ELSE approved_by
+        END,
+        updated_at = datetime('now')
     WHERE id = ?
   `);
 
@@ -213,10 +307,17 @@ router.post('/bulk-update-flags', requireAuth, (req, res) => {
     ids.forEach((rawId) => {
       const id = parseInt(rawId, 10);
       if (!Number.isInteger(id)) return;
+      const currentUser = currentUsersById.get(id);
+      const nextIsPublic = parseToggleValue(req.body[`is_public_${id}`]);
+      const approvalStatus = getNextApprovalStatus(currentUser && currentUser.approval_status, nextIsPublic);
       updateStmt.run(
         parseToggleValue(req.body[`is_admin_${id}`]),
         parseToggleValue(req.body[`is_reviewer_${id}`]),
-        parseToggleValue(req.body[`is_public_${id}`]),
+        nextIsPublic,
+        approvalStatus,
+        approvalStatus,
+        approvalStatus,
+        req.session.userId,
         id
       );
     });
@@ -229,14 +330,20 @@ router.post('/bulk-update-flags', requireAuth, (req, res) => {
 // Toggle is_admin
 router.post('/:id/toggle-admin', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').bind(id).get();
+  const user = db.prepare('SELECT id, is_admin, is_public FROM users WHERE id = ?').bind(id).get();
   if (!user) {
     return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
   }
   const { is_admin } = req.body;
+  const nextIsAdmin = parseToggleValue(is_admin);
+
+  if (isRemovingLastActiveAdmin(user, nextIsAdmin, user.is_public)) {
+    return sendToggleResponse(req, res, { success: false, error: 'O sistema deve manter pelo menos um administrador ativo.' });
+  }
+
   db.prepare('UPDATE users SET is_admin = ?, updated_at = datetime(\'now\') WHERE id = ?')
-    .bind(parseToggleValue(is_admin), id).run();
-  return sendToggleResponse(req, res, { success: true, id, is_admin: parseToggleValue(is_admin) });
+    .bind(nextIsAdmin, id).run();
+  return sendToggleResponse(req, res, { success: true, id, is_admin: nextIsAdmin });
 });
 
 // Toggle is_reviewer
@@ -255,14 +362,57 @@ router.post('/:id/toggle-reviewer', requireAuth, (req, res) => {
 // Toggle is_public
 router.post('/:id/toggle-public', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').bind(id).get();
+  const user = db.prepare('SELECT id, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
   if (!user) {
     return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
   }
   const { is_public } = req.body;
-  db.prepare('UPDATE users SET is_public = ?, updated_at = datetime(\'now\') WHERE id = ?')
-    .bind(parseToggleValue(is_public), id).run();
-  return sendToggleResponse(req, res, { success: true, id, is_public: parseToggleValue(is_public) });
+  const nextIsPublic = parseToggleValue(is_public);
+
+  if (isRemovingLastActiveAdmin(user, user.is_admin, nextIsPublic)) {
+    return sendToggleResponse(req, res, { success: false, error: 'O sistema deve manter pelo menos um administrador ativo.' });
+  }
+
+  const approvalStatus = getNextApprovalStatus(user.approval_status, nextIsPublic);
+  db.prepare(`
+    UPDATE users
+    SET is_public = ?, approval_status = ?,
+        approved_at = CASE
+          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now')
+          ELSE approved_at
+        END,
+        approved_by = CASE
+          WHEN ? = 'approved' AND approved_by IS NULL THEN ?
+          ELSE approved_by
+        END,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(nextIsPublic, approvalStatus, approvalStatus, approvalStatus, req.session.userId, id).run();
+  return sendToggleResponse(req, res, { success: true, id, is_public: nextIsPublic });
+});
+
+router.post('/:id/approve', requireAuth, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const user = db.prepare('SELECT id, approval_status FROM users WHERE id = ?').bind(id).get();
+  if (!user) {
+    return res.redirect('/admin/users?error=Usuário não encontrado');
+  }
+
+  if (user.approval_status === 'approved') {
+    return res.redirect('/admin/users?success=Cadastro já estava aprovado');
+  }
+
+  db.prepare(`
+    UPDATE users
+    SET is_public = 1,
+        approval_status = 'approved',
+        approved_at = datetime('now'),
+        approved_by = ?,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(req.session.userId, id).run();
+
+  return res.redirect('/admin/users?success=Cadastro aprovado com sucesso');
 });
 
 module.exports = router;

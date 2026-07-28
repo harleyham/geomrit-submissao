@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .nav { display: flex; gap: 0.5rem; align-items: center; }
+    .nav a, .nav button { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 8px; text-decoration: none; font-size: 0.875rem; border: 1px solid rgba(148,163,184,0.18); background: transparent; cursor: pointer; }
+    .nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .nav .danger { color: #f87171; }
+    .main-content { max-width: 1280px; margin: 0 auto; padding: 2rem; }
+    .hero { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+    .panel { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 16px; padding: 1.5rem; }
+    .panel h1, .panel h2 { color: #f8fafc; }
+    .hero p { color: #94a3b8; line-height: 1.7; margin-top: 0.75rem; }
+    .hero .meta { margin-top: 1rem; color: #cbd5e1; font-size: 0.95rem; }
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; }
+    .stat { background: rgba(15,23,42,0.4); border: 1px solid rgba(148,163,184,0.12); border-radius: 14px; padding: 1rem; }
+    .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.45rem; }
+    .stat-value { font-size: 1.8rem; font-weight: 700; color: #f8fafc; }
+    .grid { display: grid; grid-template-columns: 1.05fr 1.25fr; gap: 1.5rem; }
+    .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .section-title h2 { font-size: 1.1rem; }
+    .event-list, .info-list { display: flex; flex-direction: column; gap: 0.9rem; }
+    .event-item, .info-item { padding: 1rem; border-radius: 12px; background: rgba(15,23,42,0.35); border: 1px solid rgba(148,163,184,0.1); }
+    .event-item h3 { color: #f8fafc; margin-bottom: 0.35rem; }
+    .event-item p, .info-item p { color: #94a3b8; font-size: 0.875rem; line-height: 1.6; }
+    .badge { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
+    .badge-open { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .badge-draft { background: rgba(148,163,184,0.18); color: #cbd5e1; }
+    .badge-pending { background: rgba(251,191,36,0.16); color: #fbbf24; }
+    .badge-approved { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .badge-rejected { background: rgba(248,113,113,0.15); color: #fca5a5; }
+    .badge-review { background: rgba(96,165,250,0.16); color: #93c5fd; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.65rem 1rem; border-radius: 10px; text-decoration: none; border: none; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.18); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.8rem 0.9rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
+    td { padding: 0.85rem 0.9rem; border-top: 1px solid rgba(148,163,184,0.08); font-size: 0.86rem; color: #cbd5e1; vertical-align: top; }
+    tr:hover td { background: rgba(148,163,184,0.03); }
+    .empty { padding: 2rem; text-align: center; color: #64748b; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    @media (max-width: 1100px) {
+      .hero, .grid, .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo">Artigos LIGEM</a>
+      <nav class="nav">
+        <a href="/author" class="active">Área do Autor</a>
+        <a href="/">Eventos</a>
+        <span style="padding:0.35rem 0.7rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem;"><%= userEmail %></span>
+        <form method="POST" action="/login/logout" style="display:inline;">
+          <button type="submit" class="danger">Sair</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <section class="hero">
+      <div class="panel">
+        <h1>Área do Autor</h1>
+        <p>Use este espaço para preparar rascunhos, submeter novos trabalhos, acompanhar o andamento das suas submissões e consultar informações relevantes para a apresentação em eventos.</p>
+        <div class="meta">
+          <strong>Usuário:</strong> <%= userName || userEmail %><br>
+          <strong>E-mail vinculado às submissões:</strong> <%= userEmail %>
+        </div>
+        <div style="margin-top:1.25rem;display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <a href="/" class="btn btn-secondary">Ver Eventos</a>
+          <% if (openEvents.length > 0) { %>
+            <a href="/submeter/<%= openEvents[0].id %>" class="btn btn-primary">Nova Submissão</a>
+          <% } %>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Total</div>
+          <div class="stat-value"><%= stats.total %></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Rascunhos</div>
+          <div class="stat-value"><%= stats.drafts %></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Em andamento</div>
+          <div class="stat-value"><%= stats.pending %></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Aprovadas</div>
+          <div class="stat-value"><%= stats.approved %></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Rejeitadas</div>
+          <div class="stat-value"><%= stats.rejected %></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <div class="section-title">
+          <h2>Eventos com submissão aberta</h2>
+        </div>
+        <% if (openEvents.length > 0) { %>
+          <div class="event-list">
+            <% openEvents.forEach(event => { %>
+              <div class="event-item">
+                <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
+                  <div>
+                    <h3><%= event.name %></h3>
+                    <p><strong>Área:</strong> <%= event.area %></p>
+                    <p><strong>Prazo:</strong> <%= event.submissionDisplay.end || 'sem data limite' %></p>
+                  </div>
+                  <span class="badge badge-open">Aberto</span>
+                </div>
+                <div style="margin-top:0.9rem;display:flex;gap:0.6rem;flex-wrap:wrap;">
+                  <a href="/evento/<%= event.id %>" class="btn btn-secondary">Detalhes</a>
+                  <a href="/submeter/<%= event.id %>" class="btn btn-primary">Submeter Artigo</a>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="empty">Não há eventos com submissão aberta no momento.</div>
+        <% } %>
+      </div>
+
+      <div class="panel">
+        <div class="section-title">
+          <h2>Informações úteis ao autor</h2>
+        </div>
+        <div class="info-list">
+          <div class="info-item">
+            <p>O formulário agora permite cadastrar múltiplos autores, manter a ordem de autoria e marcar autores correspondentes.</p>
+          </div>
+          <div class="info-item">
+            <p>O envio final exige PDF em avaliação cega, declaração de originalidade e autorização de publicação.</p>
+          </div>
+          <div class="info-item">
+            <p>Palavras-chave devem ser informadas entre 3 e 5 termos, separados por vírgula.</p>
+          </div>
+          <div class="info-item">
+            <p>Rascunhos ficam disponíveis nesta área para edição posterior antes do envio definitivo.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:1.5rem;">
+      <div class="section-title">
+        <h2>Minhas Submissões</h2>
+      </div>
+      <% if (submissions.length > 0) { %>
+        <table>
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Evento</th>
+              <th>Tipo</th>
+              <th>Status</th>
+              <th>Código</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% submissions.forEach(article => { %>
+              <tr>
+                <td><strong style="color:#f8fafc;"><%= article.title || 'Sem título' %></strong></td>
+                <td><%= article.event_name %></td>
+                <td><%= article.type === 'poster' ? 'Pôster' : 'Oral' %></td>
+                <td>
+                  <span class="badge <%= article.status === 'draft' ? 'badge-draft' : article.status === 'approved' ? 'badge-approved' : article.status === 'rejected' ? 'badge-rejected' : article.status === 'in_review' ? 'badge-review' : 'badge-pending' %>">
+                    <%= article.status_label %>
+                  </span>
+                </td>
+                <td><code><%= article.access_code || '-' %></code></td>
+                <td>
+                  <% if (article.status === 'draft') { %>
+                    <a href="/submeter/<%= article.event_id %>?draftId=<%= article.id %>" class="btn btn-secondary">Editar Rascunho</a>
+                  <% } else { %>
+                    <a href="/consultar" class="btn btn-secondary">Consultar</a>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <div class="empty">Você ainda não possui submissões vinculadas a este e-mail.</div>
+      <% } %>
+    </section>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>
