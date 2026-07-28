@@ -63,10 +63,12 @@
 
   <main class="main-content">
     <div class="event-header">
-      <span class="area"><%= event.area %></span>
-      <span class="submission-status <%= event.submission.isOpen ? 'open' : 'closed' %>">
-        <%= event.submission.isOpen ? 'Submissão aberta' : 'Submissão indisponível' %>
-      </span>
+      <span class="area"><%= event.area_display %></span>
+      <% if (event.submission.isConfigured) { %>
+        <span class="submission-status <%= event.submission.isOpen ? 'open' : 'closed' %>">
+          <%= event.submission.isOpen ? 'Submissão aberta' : 'Submissão indisponível' %>
+        </span>
+      <% } %>
       <div class="event-link-card">
         <span class="label">URL do Evento</span>
         <div class="value">
@@ -99,13 +101,33 @@
         <h2>Submissões abertas</h2>
         <p class="event-description">O evento está aceitando artigos neste momento. Use o formulário de submissão para enviar seu trabalho.</p>
         <div class="form-actions">
+          <% if (isPublic || isReviewer) { %>
+            <a href="/evento/<%= event.id %>/inscricao" class="btn btn-ghost">Inscrever-se como Ouvinte</a>
+          <% } else if (isAdmin) { %>
+            <a href="/login" class="btn btn-ghost">Entrar com outra conta para se inscrever</a>
+          <% } else { %>
+            <a href="/login" class="btn btn-ghost">Entrar para se inscrever</a>
+            <a href="/cadastro" class="btn btn-ghost">Solicitar Cadastro</a>
+          <% } %>
           <a href="/submeter/<%= event.id %>" class="btn btn-primary">Submeter Artigo</a>
         </div>
       </div>
     <% } else { %>
-      <div class="closed">
-        <h2>Submissão Encerrada</h2>
-        <p><%= event.submission.message || 'O período de submissão para este evento não está aberto no momento.' %></p>
+      <div class="section">
+        <h2>Participação no evento</h2>
+        <% if (event.submission.isConfigured) { %>
+          <p class="event-description"><%= event.submission.message || 'O período de submissão para este evento não está aberto no momento.' %></p>
+        <% } %>
+        <div class="form-actions">
+          <% if (isPublic || isReviewer) { %>
+            <a href="/evento/<%= event.id %>/inscricao" class="btn btn-primary">Inscrever-se como Ouvinte</a>
+          <% } else if (isAdmin) { %>
+            <a href="/login" class="btn btn-ghost">Entrar com outra conta para se inscrever</a>
+          <% } else { %>
+            <a href="/login" class="btn btn-primary">Entrar para se inscrever</a>
+            <a href="/cadastro" class="btn btn-ghost">Solicitar Cadastro</a>
+          <% } %>
+        </div>
       </div>
     <% } %>
   </main>

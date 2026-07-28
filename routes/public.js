@@ -46,18 +46,23 @@ function getSubmissionWindow(event) {
   const start = event.submission_start ? new Date(`${event.submission_start}T00:00:00`) : null;
   const end = event.submission_end ? new Date(`${event.submission_end}T23:59:59`) : null;
 
-  let isOpen = true;
+  let isOpen = false;
+  let isConfigured = !!(start && end);
   let message = null;
 
-  if (start && now < start) {
+  if (!start || !end) {
+    message = 'Este evento não possui período de submissão de artigos configurado.';
+  } else if (now < start) {
     isOpen = false;
     message = `As submissões para este evento abrem em ${start.toLocaleDateString('pt-BR')}.`;
-  } else if (end && now > end) {
+  } else if (now > end) {
     isOpen = false;
     message = `O período de submissão deste evento encerrou em ${end.toLocaleDateString('pt-BR')}.`;
+  } else {
+    isOpen = true;
   }
 
-  return { isOpen, message, start, end };
+  return { isOpen, isConfigured, message, start, end };
 }
 
 function withSubmissionMeta(event) {
@@ -87,6 +92,21 @@ function requireUserSession(req, res, next) {
   next();
 }
 
+function requireNonAdminAuthorAccess(req, res, next) {
+  if (!req.session || !req.session.userId) {
+    return res.redirect('/login');
+  }
+
+  if (req.session.isAdmin) {
+    return res.status(403).render('error', {
+      title: 'Acesso não permitido',
+      message: 'Contas com perfil de administrador não podem acessar a área de submissão de artigos.'
+    });
+  }
+
+  return next();
+}
+
 function mapArticleStatus(status) {
   const labels = {
     draft: 'Rascunho',
@@ -98,17 +118,25 @@ function mapArticleStatus(status) {
   return labels[status] || status;
 }
 
+function parseAreaList(areaValue) {
+  return String(areaValue || '')
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function getAreaOptions(currentArea) {
-  const baseAreas = [
-    'Inteligência Artificial',
-    'Educação',
-    'Engenharia de Software',
-    'Processamento de Linguagens',
-    'Computação Cognitiva',
-    'Ciência de Dados'
-  ];
-  const dbAreas = db.prepare("SELECT DISTINCT area FROM events WHERE area IS NOT NULL AND area != '' ORDER BY area").all().map((row) => row.area);
-  return Array.from(new Set([currentArea, ...baseAreas, ...dbAreas].filter(Boolean)));
+  return Array.from(new Set(parseAreaList(currentArea))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function withAreaMeta(event) {
+  if (!event) return event;
+  const areaList = parseAreaList(event.area);
+  return {
+    ...event,
+    area_list: areaList,
+    area_display: areaList.join(' · ') || 'Sem área definida'
+  };
 }
 
 function normalizeFormData(body = {}, session = null) {
@@ -265,10 +293,82 @@ function buildFormDataFromDraft(draft, session) {
   });
 }
 
+function syncAuthorEventRegistration(eventId, session, formData) {
+  const normalizedEmail = String(formData.email_submission || '').trim().toLowerCase();
+  if (!normalizedEmail) return;
+
+  const existingRegistration = db.prepare(`
+    SELECT id
+    FROM event_registrations
+    WHERE event_id = ?
+      AND (
+        (user_id IS NOT NULL AND user_id = ?)
+        OR LOWER(TRIM(email)) = ?
+      )
+    ORDER BY id
+    LIMIT 1
+  `).get(
+    eventId,
+    session && session.userId ? session.userId : null,
+    normalizedEmail
+  );
+
+  const registrationName = String(formData.contributor || (session && session.userName) || normalizedEmail).trim();
+  const registrationInstitution = String(formData.affiliation || '').trim();
+
+  if (existingRegistration) {
+    db.prepare(`
+      UPDATE event_registrations
+      SET user_id = ?, name = ?, email = ?, institution = ?, registration_type = 'author', updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      session && session.userId ? session.userId : null,
+      registrationName,
+      normalizedEmail,
+      registrationInstitution,
+      existingRegistration.id
+    );
+    return;
+  }
+
+  db.prepare(`
+    INSERT INTO event_registrations (
+      event_id, user_id, name, email, institution, registration_type, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, 'author', datetime('now'), datetime('now'))
+  `).run(
+    eventId,
+    session && session.userId ? session.userId : null,
+    registrationName,
+    normalizedEmail,
+    registrationInstitution
+  );
+}
+
+function normalizeListenerRegistrationForm(body = {}, session = null) {
+  return {
+    name: String(body.name || (session && session.userName) || '').trim(),
+    email: String(body.email || (session && session.userEmail) || '').trim().toLowerCase(),
+    institution: String(body.institution || '').trim()
+  };
+}
+
+function renderListenerRegistrationForm(res, event, options = {}) {
+  res.render('public/event-register', {
+    event: withSubmissionMeta(withAreaMeta(event)),
+    title: options.title || `Inscrição no Evento - ${event.name}`,
+    error: options.error || null,
+    success: options.success || null,
+    formData: options.formData || {},
+    alreadyRegistered: !!options.alreadyRegistered,
+    registrationType: options.registrationType || null
+  });
+}
+
 function renderSubmissionForm(res, event, options = {}) {
   const formData = ensureAtLeastOneAuthor(options.formData || {});
   res.render('public/submit', {
-    event,
+    event: withAreaMeta(event),
     title: options.title || 'Submeter Artigo',
     submitted: !!options.submitted,
     submissionError: options.submissionError || null,
@@ -286,20 +386,106 @@ function renderSubmissionForm(res, event, options = {}) {
 router.get('/', (req, res) => {
   const events = db.prepare(`
     SELECT * FROM events WHERE status = 'published' ORDER BY date_start DESC
-  `).all().map(withSubmissionMeta);
+  `).all().map((event) => withSubmissionMeta(withAreaMeta(event)));
   res.render('public/home', { events, title: 'Eventos LIGEM.Redes' });
 });
 
 // Detalhes do evento
 router.get('/evento/:id', (req, res) => {
-  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
+  const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   res.render('public/event', { event: withSubmissionMeta(event), title: event.name });
 });
 
+router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  const existingRegistration = db.prepare(`
+    SELECT id, registration_type
+    FROM event_registrations
+    WHERE event_id = ?
+      AND (
+        user_id = ?
+        OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+      )
+    ORDER BY id
+    LIMIT 1
+  `).get(req.params.id, req.session.userId, req.session.userEmail || '');
+
+  return renderListenerRegistrationForm(res, event, {
+    formData: normalizeListenerRegistrationForm({}, req.session),
+    alreadyRegistered: !!existingRegistration,
+    registrationType: existingRegistration ? existingRegistration.registration_type : null,
+    success: existingRegistration
+      ? existingRegistration.registration_type === 'author'
+        ? 'Você já está inscrito neste evento como apresentador.'
+        : 'Você já está inscrito neste evento como ouvinte.'
+      : null
+  });
+});
+
+router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  const formData = normalizeListenerRegistrationForm(req.body, req.session);
+
+  if (!formData.name || !formData.email) {
+    return renderListenerRegistrationForm(res, event, {
+      error: 'Nome e e-mail são obrigatórios para a inscrição no evento.',
+      formData
+    });
+  }
+
+  const existingRegistration = db.prepare(`
+    SELECT id, registration_type
+    FROM event_registrations
+    WHERE event_id = ?
+      AND (
+        user_id = ?
+        OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+      )
+    ORDER BY id
+    LIMIT 1
+  `).get(req.params.id, req.session.userId, req.session.userEmail || '');
+
+  if (existingRegistration) {
+    const nextType = existingRegistration.registration_type === 'author' ? 'author' : 'listener';
+    db.prepare(`
+      UPDATE event_registrations
+      SET name = ?, email = ?, institution = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(formData.name, formData.email, formData.institution, existingRegistration.id);
+
+    return renderListenerRegistrationForm(res, event, {
+      success: nextType === 'author'
+        ? 'Sua participação já estava registrada como apresentador neste evento.'
+        : 'Sua inscrição como ouvinte já estava registrada neste evento.',
+      formData,
+      alreadyRegistered: true,
+      registrationType: nextType
+    });
+  }
+
+  db.prepare(`
+    INSERT INTO event_registrations (
+      event_id, user_id, name, email, institution, registration_type, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, 'listener', datetime('now'), datetime('now'))
+  `).run(event.id, req.session.userId, formData.name, formData.email, formData.institution);
+
+  return renderListenerRegistrationForm(res, event, {
+    success: 'Inscrição como ouvinte realizada com sucesso.',
+    formData,
+    alreadyRegistered: true,
+    registrationType: 'listener'
+  });
+});
+
 // Formulário de submissão
-router.get('/submeter/:eventId', (req, res) => {
-  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get();
+router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
+  const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
   const eventWithMeta = withSubmissionMeta(event);
@@ -325,9 +511,9 @@ router.get('/submeter/:eventId', (req, res) => {
 });
 
 // Processar submissão de artigo
-router.post('/submeter/:eventId', runUpload, (req, res) => {
+router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, res) => {
   try {
-    const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get();
+    const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get());
     if (!event) {
       if (req.file) removeUploadedFile(req.file.filename);
       return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -459,6 +645,8 @@ router.post('/submeter/:eventId', runUpload, (req, res) => {
       return res.redirect('/author');
     }
 
+    syncAuthorEventRegistration(event.id, req.session, formData);
+
     return renderSubmissionForm(res, eventWithMeta, {
       title: 'Submissão Concluída',
       submitted: true,
@@ -469,7 +657,7 @@ router.post('/submeter/:eventId', runUpload, (req, res) => {
     console.error('Erro ao processar submissão pública:', error);
     if (req.file) removeUploadedFile(req.file.filename);
 
-    const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get();
+    const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get());
     if (!event) {
       return res.status(500).render('error', { title: 'Erro interno do servidor', message: 'Ocorreu um erro inesperado.' });
     }
@@ -481,13 +669,13 @@ router.post('/submeter/:eventId', runUpload, (req, res) => {
   }
 });
 
-router.get('/author', requireUserSession, (req, res) => {
-  const openEvents = db.prepare(`
+router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
+  const participantEvents = db.prepare(`
     SELECT *
     FROM events
     WHERE status = 'published'
     ORDER BY date_start DESC
-  `).all().map(withSubmissionMeta).filter((event) => event.submission.isOpen);
+  `).all().map((event) => withSubmissionMeta(withAreaMeta(event)));
 
   const submissions = db.prepare(`
     SELECT a.*, e.name as event_name, e.date_start, e.date_end
@@ -501,6 +689,46 @@ router.get('/author', requireUserSession, (req, res) => {
     status_label: mapArticleStatus(article.status)
   }));
 
+  const participations = db.prepare(`
+    WITH approved_articles AS (
+      SELECT
+        event_id,
+        CASE
+          WHEN submitter_user_id IS NOT NULL THEN 'user:' || submitter_user_id
+          WHEN email_submission IS NOT NULL AND TRIM(email_submission) != '' THEN 'email:' || LOWER(TRIM(email_submission))
+          ELSE NULL
+        END as participant_key,
+        COUNT(*) as approved_count
+      FROM articles
+      WHERE status = 'approved'
+      GROUP BY event_id, participant_key
+    )
+    SELECT
+      er.*,
+      e.name as event_name,
+      e.date_start,
+      e.date_end,
+      e.location,
+      e.status as event_status,
+      COALESCE(aa.approved_count, 0) as approved_articles,
+      CASE
+        WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
+        WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
+        ELSE 'Ouvinte inscrito'
+      END as participation_label
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    LEFT JOIN approved_articles aa
+      ON aa.event_id = er.event_id
+     AND aa.participant_key = CASE
+       WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
+       ELSE 'email:' || LOWER(TRIM(er.email))
+     END
+    WHERE er.user_id = ?
+       OR LOWER(TRIM(er.email)) = LOWER(TRIM(?))
+    ORDER BY e.date_start DESC, er.created_at DESC
+  `).bind(req.session.userId, req.session.userEmail).all();
+
   const stats = {
     total: submissions.length,
     drafts: submissions.filter((item) => item.status === 'draft').length,
@@ -510,8 +738,9 @@ router.get('/author', requireUserSession, (req, res) => {
   };
 
   res.render('public/author-dashboard', {
-    title: 'Área do Autor',
-    openEvents,
+    title: 'Área do Participante',
+    participantEvents,
+    participations,
     submissions,
     stats
   });

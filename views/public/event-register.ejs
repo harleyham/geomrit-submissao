@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .main-content { max-width: 760px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+    .card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 18px; padding: 2rem; }
+    .event-badge { display: inline-block; margin-bottom: 1rem; padding: 0.3rem 0.8rem; border-radius: 9999px; background: rgba(96,165,250,0.14); color: #93c5fd; font-size: 0.75rem; font-weight: 700; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.75rem; color: #f8fafc; }
+    p.lead { color: #94a3b8; line-height: 1.7; margin-bottom: 1.5rem; }
+    .event-meta { color: #94a3b8; font-size: 0.9rem; line-height: 1.7; margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
+    .form-group input { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font-size: 0.95rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    .alert { padding: 0.95rem 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.9rem; }
+    .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
+    .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
+    .status-box { margin-bottom: 1rem; padding: 1rem; border-radius: 12px; background: rgba(59,130,246,0.08); border: 1px solid rgba(96,165,250,0.18); color: #cbd5e1; line-height: 1.6; }
+    .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
+    .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
+    .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2); }
+    footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav"><a href="/evento/<%= event.id %>">← Voltar ao evento</a></nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="card">
+      <span class="event-badge">Inscrição de Ouvinte</span>
+      <h1><%= event.name %></h1>
+      <p class="lead">Todos os participantes do evento devem estar cadastrados no sistema. Esta inscrição registra sua participação como ouvinte.</p>
+
+      <div class="event-meta">
+        <strong>Áreas:</strong> <%= event.area_display %><br>
+        <strong>Período do evento:</strong> <%= event.formattedDateStart || 'TBD' %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %><br>
+        <% if (event.location) { %><strong>Local:</strong> <%= event.location %><br><% } %>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-error"><%= error %></div>
+      <% } %>
+      <% if (success) { %>
+        <div class="alert alert-success"><%= success %></div>
+      <% } %>
+
+      <% if (alreadyRegistered) { %>
+        <div class="status-box">
+          <% if (registrationType === 'author') { %>
+            Sua participação neste evento já está registrada como <strong>apresentador</strong>.
+          <% } else { %>
+            Sua participação neste evento já está registrada como <strong>ouvinte</strong>.
+          <% } %>
+        </div>
+      <% } %>
+
+      <form method="POST" action="/evento/<%= event.id %>/inscricao">
+        <div class="form-group">
+          <label for="name">Nome completo *</label>
+          <input type="text" id="name" name="name" required value="<%= formData.name || '' %>">
+        </div>
+
+        <div class="form-group">
+          <label for="email">E-mail *</label>
+          <input type="email" id="email" name="email" required value="<%= formData.email || '' %>">
+        </div>
+
+        <div class="form-group">
+          <label for="institution">Instituição</label>
+          <input type="text" id="institution" name="institution" value="<%= formData.institution || '' %>">
+        </div>
+
+        <div class="actions">
+          <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar ao evento</a>
+          <button type="submit" class="btn btn-primary"><%= alreadyRegistered ? 'Atualizar Inscrição' : 'Confirmar Inscrição' %></button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+</body>
+</html>

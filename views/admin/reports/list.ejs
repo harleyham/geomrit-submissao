@@ -17,6 +17,7 @@
     .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
     .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
     .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .page-header-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
     .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
     .event-meta { color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; }
     .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
@@ -45,6 +46,37 @@
     .empty-state { text-align: center; padding: 3rem 2rem; color: #64748b; }
     .empty-state p { margin-bottom: 1rem; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    .print-only { display: none; }
+    @media print {
+      body { background: #ffffff; color: #111827; min-height: auto; }
+      .topbar, .no-print, footer { display: none !important; }
+      .print-only { display: block; }
+      .main-content { max-width: none; margin: 0; padding: 0; }
+      .page-header { margin-bottom: 1rem; }
+      .page-header h1, .section-header h2 { color: #111827; }
+      .event-meta, .empty-state, td, p, small, div { color: #374151; }
+      .section {
+        background: #ffffff;
+        border: 1px solid #d1d5db;
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+      }
+      .section-header, th {
+        background: #f3f4f6 !important;
+        color: #111827 !important;
+        border-color: #d1d5db;
+      }
+      table { width: 100%; }
+      tr, td, th { break-inside: avoid; page-break-inside: avoid; }
+      .badge {
+        color: #111827 !important;
+        background: #e5e7eb !important;
+        border: 1px solid #d1d5db;
+      }
+      a { color: #111827; text-decoration: none; }
+      @page { size: A4 portrait; margin: 12mm; }
+    }
   </style>
 </head>
 <body>
@@ -61,12 +93,19 @@
   </header>
 
   <main class="main-content">
+    <div class="print-only" style="margin-bottom: 1rem;">
+      <h1 style="font-size: 1.6rem; margin-bottom: 0.35rem;"><%= event.name %> - Relatório do Evento</h1>
+      <p style="font-size: 0.9rem;">Gerado em <%= new Date().toLocaleDateString('pt-BR') %></p>
+    </div>
     <div class="page-header">
       <div>
         <h1>Relatórios - <%= event.name %></h1>
-        <p class="event-meta"><%= event.area %> · <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> – <%= event.date_end ? new Date(event.date_end).toLocaleDateString('pt-BR') : '' %></p>
+        <p class="event-meta"><%= event.area_display || event.area %> · <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> – <%= event.date_end ? new Date(event.date_end).toLocaleDateString('pt-BR') : '' %></p>
       </div>
-      <a href="/admin/events" class="btn btn-ghost">← Voltar</a>
+      <div class="page-header-actions no-print">
+        <button type="button" id="print-report-btn" class="btn btn-primary">Imprimir em PDF</button>
+        <a href="/admin/events" class="btn btn-ghost">← Voltar</a>
+      </div>
     </div>
 
     <!-- Informações do Evento -->
@@ -138,6 +177,14 @@
           <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: #f87171;"><%= posterRejected %></div>
             <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Reprovados - Pôster</div>
+          </div>
+          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #60a5fa;"><%= authorRegistrations %></div>
+            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Inscritos com Artigo</div>
+          </div>
+          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #fbbf24;"><%= listenerRegistrations %></div>
+            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Inscritos Ouvintes</div>
           </div>
         </div>
       </div>
@@ -339,6 +386,47 @@
     </div>
     <% } %>
 
+    <!-- Participantes do Evento -->
+    <div class="section">
+      <div class="section-header">
+        <h2>Participantes do Evento (<%= participants.length %>)</h2>
+      </div>
+      <div class="section-body">
+        <% if (participants.length > 0) { %>
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Órgão</th>
+              <th>Participação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% participants.forEach((participant) => { %>
+            <tr>
+              <td><strong style="color: #f1f5f9;"><%= participant.name || '-' %></strong></td>
+              <td><%= participant.email || '-' %></td>
+              <td><%= participant.institution || '-' %></td>
+              <td>
+                <% if (participant.participation_label === 'Artigo aprovado') { %>
+                  <span class="badge badge-approved">Artigo aprovado</span>
+                <% } else if (participant.participation_label === 'Ouvinte') { %>
+                  <span class="badge badge-pending">Ouvinte</span>
+                <% } else { %>
+                  <span class="badge badge-revision">Inscrito com artigo</span>
+                <% } %>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+        <% } else { %>
+        <div class="empty-state"><p>Nenhum participante registrado para este evento.</p></div>
+        <% } %>
+      </div>
+    </div>
+
     <!-- Decisões dos Relatórios por Artigo -->
     <% if (articleDecisions.length > 0) { %>
     <div class="section">
@@ -415,5 +503,14 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes</footer>
+  <script>
+    (function() {
+      var printButton = document.getElementById('print-report-btn');
+      if (!printButton) return;
+      printButton.addEventListener('click', function() {
+        window.print();
+      });
+    })();
+  </script>
 </body>
 </html>

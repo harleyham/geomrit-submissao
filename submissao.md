@@ -12,10 +12,11 @@ O sistema deve permitir:
 
 1. Publicar eventos com janela de submissão configurável.
 2. Receber submissões públicas de artigos e gerar código de consulta.
-3. Gerenciar usuários com múltiplos perfis no mesmo cadastro.
-4. Atribuir artigos a revisores.
-5. Registrar pareceres com recomendação.
-6. Consolidar apoio à decisão administrativa por evento.
+3. Registrar participantes por evento, incluindo ouvintes e autores/apresentadores.
+4. Gerenciar usuários com múltiplos perfis no mesmo cadastro.
+5. Atribuir artigos a revisores.
+6. Registrar pareceres com recomendação.
+7. Consolidar apoio à decisão administrativa por evento.
 
 ## Stack Atual
 
@@ -36,11 +37,14 @@ O sistema deve permitir:
 - Login unificado por e-mail e senha.
 - Dashboard com estatísticas gerais.
 - CRUD de eventos.
+- Configuração de múltiplas áreas/trilhas por evento.
+- Configuração de subsídio a participantes por evento.
 - Gestão de usuários em `/admin/users`.
 - Atualização em lote de perfis e status de usuários.
 - Visualização de artigos por evento.
 - Atribuição de revisores.
 - Relatórios por evento com consolidação de pareceres.
+- Impressão do relatório do evento em PDF pelo navegador.
 
 ### Revisão
 
@@ -54,7 +58,9 @@ O sistema deve permitir:
 
 - Listagem de eventos publicados.
 - Página pública do evento.
+- Inscrição pública de participante como ouvinte, vinculada a conta autenticada.
 - Submissão de artigo com geração de código de acesso.
+- Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões.
 - Consulta de submissão por código.
 - Exibição pública de revisores ativos.
 
@@ -69,6 +75,9 @@ Flags de permissão:
 - `is_admin`
 - `is_reviewer`
 - `is_public`
+- `approval_status`
+- `approved_at`
+- `approved_by`
 
 ### Regras de acesso
 
@@ -119,6 +128,7 @@ A sessão persiste:
 - `location`
 - `url`
 - `area`
+- `offers_subsidy`
 - `status`
 - `submission_start`
 - `submission_end`
@@ -133,22 +143,42 @@ A sessão persiste:
 - `title_en`
 - `area`
 - `authors`
+- `authors_json`
 - `abstract`
 - `keywords`
 - `pdf_path`
+- `file_original_name`
 - `contributor`
 - `affiliation`
 - `city`
 - `email_submission`
+- `submitter_user_id`
 - `access_code`
 - `type`
 - `status`
+- `funding`
+- `blind_review_confirmed`
+- `ethics_confirmed`
+- `publication_authorized`
+- `presentation_needs`
 - `reviewer_id`
 - `reviewer_name`
 - `reviewer_area`
 - `review_notes`
 - `rejection_reason`
 - `date_submitted`
+- `created_at`
+- `updated_at`
+
+### `event_registrations`
+
+- `id`
+- `event_id`
+- `user_id`
+- `name`
+- `email`
+- `institution`
+- `registration_type`
 - `created_at`
 - `updated_at`
 
@@ -178,22 +208,42 @@ A sessão persiste:
 
 - Apenas eventos com `status = 'published'` aparecem no site público.
 - A submissão pública depende da janela configurada em `submission_start` e `submission_end`.
+- Um evento sem `submission_start` e `submission_end` não é tratado como evento com submissão fechada; ele é tratado como evento sem submissão de artigos configurada.
 - Antes de `submission_start`, a submissão fica bloqueada.
 - Depois de `submission_end`, a submissão fica bloqueada.
-- Se as datas de submissão não estiverem preenchidas, a submissão permanece liberada.
+- O campo `area` do evento suporta múltiplas áreas/trilhas, persistidas em `TEXT` normalizado e reutilizadas no formulário de submissão.
+- O formulário de submissão só apresenta áreas definidas no evento selecionado.
+- O evento pode registrar se oferece subsídio a participantes por meio de `offers_subsidy`.
+- Na criação e edição do evento, `date_end` não pode ser anterior a `date_start`.
+- Na criação e edição do evento, `submission_end` não pode ser anterior a `submission_start`.
 
 ### Usuários
 
 - O cadastro administrativo permite criar usuários com perfil de admin e/ou revisor.
+- O cadastro público gera usuário pendente de aprovação administrativa.
 - A troca de senha é obrigatória no primeiro acesso quando `password_changed = 0`.
 - Administrador pode resetar a senha de outro usuário.
 - A tela `/admin/users` separa papel no sistema e status de conta.
 - O conceito de `Revisor` é independente do conceito de `Conta ativa`.
+- Deve existir pelo menos uma conta ativa com perfil de administrador.
+- A conta administrativa padrão não deve ser excluída.
 
 ### Dashboard administrativo
 
 - `Revisores Ativos` conta usuários com `is_reviewer = 1` e `is_public = 1`.
 - `Revisores Inativos` conta usuários com `is_reviewer = 1` e `is_public = 0`.
+- `Usuários Pendentes` conta registros com `approval_status = 'pending'`.
+- `Inscritos` considera participantes registrados por evento.
+- `Inscritos Autores` considera participantes distintos com submissão não rascunho.
+- `Inscritos Ouvintes` considera registros `listener` em `event_registrations`.
+
+### Relatórios de evento
+
+- O relatório do evento consolida estatísticas de artigos e participantes.
+- O relatório exibe `Inscritos com Artigo` como participantes distintos, mesmo quando uma pessoa possui múltiplos artigos.
+- O relatório exibe `Inscritos Ouvintes`.
+- O relatório lista participantes com nome, e-mail, órgão/instituição e situação de participação.
+- O relatório pode ser impresso/exportado para PDF por meio da impressão do navegador.
 
 ### Revisão
 
@@ -202,10 +252,19 @@ A sessão persiste:
 - Um artigo revisado é identificado pela existência de `report`, não apenas pelo `status` de `articles`.
 - Ao registrar parecer, o sistema atualiza artigo, atribuição e relatório.
 
+### Participação em evento
+
+- Todo participante do evento deve estar associado a uma conta cadastrada no sistema.
+- Participantes ouvintes são registrados em `event_registrations` com `registration_type = 'listener'`.
+- Participantes que submetem artigo são registrados em `event_registrations` com `registration_type = 'author'`.
+- Se um ouvinte posteriormente submete artigo no mesmo evento, sua inscrição é promovida automaticamente para `author`.
+- Um participante com múltiplos artigos conta uma única vez nas métricas de inscritos com artigo.
+
 ### Autenticação e senha
 
 - Usuários inativos (`is_public = 0`) não conseguem autenticar.
 - Os formulários com senha possuem controle visual para mostrar ou ocultar caracteres.
+- Contas com perfil administrativo não podem acessar `/author` nem `/submeter/:eventId`.
 
 ## Fluxos Principais
 
@@ -213,13 +272,15 @@ A sessão persiste:
 
 1. Admin cria evento.
 2. Admin publica evento.
-3. Público submete artigo dentro da janela permitida.
-4. Sistema cria artigo com `status = 'pending'`.
-5. Admin atribui revisor.
-6. Sistema cria `assignment` e move o artigo para `in_review`.
-7. Revisor envia parecer.
-8. Sistema grava ou atualiza `report`.
-9. Admin acompanha os relatórios e define o status final do artigo.
+3. Participante autenticado pode se inscrever no evento como ouvinte.
+4. Público autenticado submete artigo dentro da janela permitida.
+5. Sistema cria artigo com `status = 'pending'`.
+6. Sistema registra ou promove a participação do inscrito para `author`.
+7. Admin atribui revisor.
+8. Sistema cria `assignment` e move o artigo para `in_review`.
+9. Revisor envia parecer.
+10. Sistema grava ou atualiza `report`.
+11. Admin acompanha os relatórios e define o status final do artigo.
 
 ### Fluxo de autenticação
 
@@ -230,6 +291,7 @@ A sessão persiste:
 5. Se `password_changed = 0`, redireciona para `/login/change-password`.
 6. Se `is_admin = 1`, redireciona para `/admin/dashboard`.
 7. Caso contrário, se `is_reviewer = 1`, redireciona para `/reviewer`.
+8. Caso não seja admin nem revisor, redireciona para `/author`.
 
 ## Rotas Principais
 
@@ -239,7 +301,10 @@ A sessão persiste:
 |------|------------|
 | `/` | Página inicial com eventos publicados |
 | `/evento/:id` | Detalhes do evento |
+| `/evento/:id/inscricao` | Inscrição do participante como ouvinte |
 | `/submeter/:eventId` | Formulário de submissão |
+| `/author` | Página do participante |
+| `/cadastro` | Solicitação de cadastro público |
 | `/consultar` | Consulta por código |
 | `/revisores` | Corpo de revisores |
 

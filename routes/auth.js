@@ -2,6 +2,28 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 
+function getAuthorRegistrationCountWhere(whereClause = '', bindParams = []) {
+  return db.prepare(`
+    SELECT COUNT(DISTINCT CASE
+      WHEN submitter_user_id IS NOT NULL THEN 'user:' || submitter_user_id
+      WHEN email_submission IS NOT NULL AND TRIM(email_submission) != '' THEN 'email:' || LOWER(TRIM(email_submission))
+      ELSE NULL
+    END) as count
+    FROM articles
+    WHERE status != 'draft'
+    ${whereClause}
+  `).bind(...bindParams).get().count;
+}
+
+function getListenerRegistrationCountWhere(whereClause = '', bindParams = []) {
+  return db.prepare(`
+    SELECT COUNT(*) as count
+    FROM event_registrations
+    WHERE registration_type = 'listener'
+    ${whereClause}
+  `).bind(...bindParams).get().count;
+}
+
 // Middleware de autenticação admin
 function requireAuth(req, res, next) {
   if (!req.session.isAdmin) {
@@ -29,6 +51,9 @@ router.get('/dashboard', requireAuth, (req, res) => {
   const publishedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'published'").get().count;
   const totalArticles = db.prepare("SELECT COUNT(*) as count FROM articles WHERE status != 'draft'").get().count;
   const pendingArticles = db.prepare("SELECT COUNT(*) as count FROM articles WHERE status = 'pending'").get().count;
+  const authorRegistrations = getAuthorRegistrationCountWhere();
+  const listenerRegistrations = getListenerRegistrationCountWhere();
+  const totalRegisteredParticipants = authorRegistrations + listenerRegistrations;
   const activeReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 1').get().count;
   const inactiveReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 0').get().count;
   const pendingUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
@@ -47,6 +72,9 @@ router.get('/dashboard', requireAuth, (req, res) => {
     publishedEvents,
     totalArticles,
     pendingArticles,
+    totalRegisteredParticipants,
+    authorRegistrations,
+    listenerRegistrations,
     activeReviewers,
     inactiveReviewers,
     pendingUsers,

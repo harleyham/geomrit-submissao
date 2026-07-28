@@ -58,7 +58,7 @@
     <div class="topbar-inner">
       <a href="/" class="logo">Artigos LIGEM</a>
       <nav class="nav">
-        <a href="/author" class="active">Área do Autor</a>
+        <a href="/author" class="active">Área do Participante</a>
         <a href="/">Eventos</a>
         <span style="padding:0.35rem 0.7rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem;"><%= userEmail %></span>
         <form method="POST" action="/login/logout" style="display:inline;">
@@ -71,17 +71,14 @@
   <main class="main-content">
     <section class="hero">
       <div class="panel">
-        <h1>Área do Autor</h1>
-        <p>Use este espaço para preparar rascunhos, submeter novos trabalhos, acompanhar o andamento das suas submissões e consultar informações relevantes para a apresentação em eventos.</p>
+        <h1>Área do Participante</h1>
+        <p>Use este espaço para se inscrever em eventos como ouvinte, submeter artigos, acompanhar suas participações e consultar informações relevantes sobre os eventos em que você está envolvido.</p>
         <div class="meta">
           <strong>Usuário:</strong> <%= userName || userEmail %><br>
-          <strong>E-mail vinculado às submissões:</strong> <%= userEmail %>
+          <strong>E-mail vinculado às participações:</strong> <%= userEmail %>
         </div>
         <div style="margin-top:1.25rem;display:flex;gap:0.75rem;flex-wrap:wrap;">
           <a href="/" class="btn btn-secondary">Ver Eventos</a>
-          <% if (openEvents.length > 0) { %>
-            <a href="/submeter/<%= openEvents[0].id %>" class="btn btn-primary">Nova Submissão</a>
-          <% } %>
         </div>
       </div>
       <div class="stats">
@@ -111,51 +108,101 @@
     <section class="grid">
       <div class="panel">
         <div class="section-title">
-          <h2>Eventos com submissão aberta</h2>
+          <h2>Eventos Disponíveis para Participação</h2>
         </div>
-        <% if (openEvents.length > 0) { %>
+        <% if (participantEvents.length > 0) { %>
           <div class="event-list">
-            <% openEvents.forEach(event => { %>
+            <% participantEvents.forEach(event => { %>
               <div class="event-item">
                 <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
                   <div>
                     <h3><%= event.name %></h3>
-                    <p><strong>Área:</strong> <%= event.area %></p>
-                    <p><strong>Prazo:</strong> <%= event.submissionDisplay.end || 'sem data limite' %></p>
+                    <p><strong>Áreas:</strong> <%= event.area_display %></p>
+                    <p><strong>Período do evento:</strong> <%= event.formattedDateStart || 'TBD' %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %></p>
+                    <p><strong>Prazo de submissão:</strong> <%= event.submissionDisplay.end || 'sem data limite' %></p>
                   </div>
-                  <span class="badge badge-open">Aberto</span>
+                  <span class="badge <%= event.submission.isOpen ? 'badge-open' : 'badge-draft' %>"><%= event.submission.isOpen ? 'Submissão aberta' : (event.submission.isConfigured ? 'Submissão fechada' : 'Sem submissão') %></span>
                 </div>
                 <div style="margin-top:0.9rem;display:flex;gap:0.6rem;flex-wrap:wrap;">
                   <a href="/evento/<%= event.id %>" class="btn btn-secondary">Detalhes</a>
-                  <a href="/submeter/<%= event.id %>" class="btn btn-primary">Submeter Artigo</a>
+                  <a href="/evento/<%= event.id %>/inscricao" class="btn btn-secondary">Inscrever-se como Ouvinte</a>
+                  <% if (event.submission.isOpen) { %>
+                    <a href="/submeter/<%= event.id %>" class="btn btn-primary">Submeter Artigo</a>
+                  <% } %>
                 </div>
               </div>
             <% }) %>
           </div>
         <% } else { %>
-          <div class="empty">Não há eventos com submissão aberta no momento.</div>
+          <div class="empty">Não há eventos publicados disponíveis no momento.</div>
         <% } %>
       </div>
 
       <div class="panel">
         <div class="section-title">
-          <h2>Informações úteis ao autor</h2>
+          <h2>Informações úteis ao participante</h2>
         </div>
         <div class="info-list">
           <div class="info-item">
-            <p>O formulário agora permite cadastrar múltiplos autores, manter a ordem de autoria e marcar autores correspondentes.</p>
+            <p>Você pode se inscrever como ouvinte em eventos publicados e manter sua participação vinculada à sua conta.</p>
+          </div>
+          <div class="info-item">
+            <p>Se optar por submeter artigo, o formulário permite múltiplos autores, ordem de autoria e autor correspondente.</p>
           </div>
           <div class="info-item">
             <p>O envio final exige PDF em avaliação cega, declaração de originalidade e autorização de publicação.</p>
           </div>
           <div class="info-item">
-            <p>Palavras-chave devem ser informadas entre 3 e 5 termos, separados por vírgula.</p>
-          </div>
-          <div class="info-item">
-            <p>Rascunhos ficam disponíveis nesta área para edição posterior antes do envio definitivo.</p>
+            <p>Rascunhos e submissões ficam disponíveis nesta área para edição, acompanhamento e consulta posterior.</p>
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="panel" style="margin-top:1.5rem;">
+      <div class="section-title">
+        <h2>Minhas Participações</h2>
+      </div>
+      <% if (participations.length > 0) { %>
+        <table>
+          <thead>
+            <tr>
+              <th>Evento</th>
+              <th>Período</th>
+              <th>Local</th>
+              <th>Participação</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% participations.forEach(participation => { %>
+              <tr>
+                <td><strong style="color:#f8fafc;"><%= participation.event_name %></strong></td>
+                <td>
+                  <%= participation.date_start ? new Date(participation.date_start).toLocaleDateString('pt-BR') : 'TBD' %>
+                  <% if (participation.date_end) { %> - <%= new Date(participation.date_end).toLocaleDateString('pt-BR') %><% } %>
+                </td>
+                <td><%= participation.location || '-' %></td>
+                <td>
+                  <span class="badge <%= participation.approved_articles > 0 ? 'badge-approved' : participation.registration_type === 'author' ? 'badge-review' : 'badge-open' %>">
+                    <%= participation.participation_label %>
+                  </span>
+                </td>
+                <td>
+                  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <a href="/evento/<%= participation.event_id %>" class="btn btn-secondary">Detalhes</a>
+                    <% if (participation.registration_type === 'listener') { %>
+                      <a href="/evento/<%= participation.event_id %>/inscricao" class="btn btn-secondary">Ver Inscrição</a>
+                    <% } %>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <div class="empty">Você ainda não possui participações registradas em eventos.</div>
+      <% } %>
     </section>
 
     <section class="panel" style="margin-top:1.5rem;">
@@ -198,7 +245,7 @@
           </tbody>
         </table>
       <% } else { %>
-        <div class="empty">Você ainda não possui submissões vinculadas a este e-mail.</div>
+        <div class="empty">Você ainda não possui submissões vinculadas a esta conta.</div>
       <% } %>
     </section>
   </main>

@@ -72,7 +72,7 @@
 <body>
   <% 
     const safeFormData = typeof formData !== 'undefined' && formData ? formData : { authors: [{ name: '', email: '', institution: '', lattes: '', orcid: '', corresponding: true }] };
-    const safeAreaOptions = typeof areaOptions !== 'undefined' && areaOptions ? areaOptions : [event.area];
+    const safeAreaOptions = typeof areaOptions !== 'undefined' && areaOptions ? areaOptions : (event.area_list || [event.area]);
     const safeAbstractLimit = typeof abstractLimit !== 'undefined' ? abstractLimit : 2500;
     const safeSubmissionError = typeof submissionError !== 'undefined' ? submissionError : null;
     const safeSuccessMessage = typeof successMessage !== 'undefined' ? successMessage : null;
@@ -114,7 +114,7 @@
         <h1><%= isEditingDraft ? 'Editar Rascunho de Artigo' : 'Formulário de Submissão de Artigo' %></h1>
         <p class="event-info">
           Evento: <strong><%= event.name %></strong><br>
-          Área principal: <%= event.area %> | Período do evento: <%= event.formattedDateStart || 'TBD' %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %>
+          Áreas do evento: <%= event.area_display %> | Período do evento: <%= event.formattedDateStart || 'TBD' %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %>
         </p>
         <div class="submission-window">
           <% if (event.submissionDisplay.start) { %>Início das submissões: <strong><%= event.submissionDisplay.start %></strong><br><% } %>
@@ -142,7 +142,7 @@
               <label for="area">Eixo Temático / Trilha <span class="required">*</span></label>
               <select id="area" name="area" required>
                 <% safeAreaOptions.forEach(function(option) { %>
-                  <option value="<%= option %>" <%= safeFormData.area === option || (!safeFormData.area && event.area === option) ? 'selected' : '' %>><%= option %></option>
+                  <option value="<%= option %>" <%= safeFormData.area === option || (!safeFormData.area && event.area_list && event.area_list[0] === option) ? 'selected' : '' %>><%= option %></option>
                 <% }) %>
               </select>
             </div>

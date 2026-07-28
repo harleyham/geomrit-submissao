@@ -41,6 +41,9 @@ db.exec(`
     location TEXT,
     url TEXT,
     area TEXT NOT NULL,
+    institution TEXT,
+    language TEXT,
+    offers_subsidy INTEGER DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'draft',
     submission_start DATE,
     submission_end DATE,
@@ -105,6 +108,20 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS event_registrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    user_id INTEGER,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    institution TEXT DEFAULT '',
+    registration_type TEXT NOT NULL DEFAULT 'listener',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
   );
 `);
 
@@ -185,6 +202,85 @@ try {
   if (!articleColumns.includes('presentation_needs')) db.exec("ALTER TABLE articles ADD COLUMN presentation_needs TEXT DEFAULT ''");
 } catch(e) {
   console.warn('Migration articles columns:', e.message);
+}
+
+try {
+  const eventColumns = db.prepare("PRAGMA table_info(events)").all().map(c => c.name);
+  if (!eventColumns.includes('offers_subsidy')) db.exec('ALTER TABLE events ADD COLUMN offers_subsidy INTEGER DEFAULT 0');
+  if (!eventColumns.includes('institution')) db.exec('ALTER TABLE events ADD COLUMN institution TEXT');
+  if (!eventColumns.includes('language')) db.exec('ALTER TABLE events ADD COLUMN language TEXT');
+} catch(e) {
+  console.warn('Migration events columns:', e.message);
+}
+
+try {
+  const authorRegistrations = db.prepare(`
+    SELECT
+      event_id,
+      submitter_user_id,
+      contributor,
+      email_submission,
+      affiliation
+    FROM articles
+    WHERE status != 'draft'
+      AND email_submission IS NOT NULL
+      AND TRIM(email_submission) != ''
+    GROUP BY event_id, LOWER(TRIM(email_submission)), COALESCE(submitter_user_id, 0)
+  `).all();
+
+  const findEventRegistration = db.prepare(`
+    SELECT id, registration_type
+    FROM event_registrations
+    WHERE event_id = ?
+      AND (
+        (user_id IS NOT NULL AND user_id = ?)
+        OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+      )
+    ORDER BY id
+    LIMIT 1
+  `);
+
+  const updateEventRegistration = db.prepare(`
+    UPDATE event_registrations
+    SET user_id = ?, name = ?, email = ?, institution = ?, registration_type = 'author', updated_at = datetime('now')
+    WHERE id = ?
+  `);
+
+  const insertEventRegistration = db.prepare(`
+    INSERT INTO event_registrations (
+      event_id, user_id, name, email, institution, registration_type, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, 'author', datetime('now'), datetime('now'))
+  `);
+
+  authorRegistrations.forEach((registration) => {
+    const existing = findEventRegistration.get(
+      registration.event_id,
+      registration.submitter_user_id || null,
+      registration.email_submission
+    );
+
+    if (existing) {
+      updateEventRegistration.run(
+        registration.submitter_user_id || null,
+        registration.contributor || registration.email_submission,
+        registration.email_submission,
+        registration.affiliation || '',
+        existing.id
+      );
+      return;
+    }
+
+    insertEventRegistration.run(
+      registration.event_id,
+      registration.submitter_user_id || null,
+      registration.contributor || registration.email_submission,
+      registration.email_submission,
+      registration.affiliation || ''
+    );
+  });
+} catch(e) {
+  console.warn('Migration event registrations backfill:', e.message);
 }
 
 // Seed default admin if not exists

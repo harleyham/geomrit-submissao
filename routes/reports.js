@@ -37,6 +37,20 @@ router.get('/', requireAuth, (req, res) => {
   const posterApproved = stats.poster_approved || 0;
   const oralRejected = stats.oral_rejected || 0;
   const posterRejected = stats.poster_rejected || 0;
+  const authorRegistrations = db.prepare(`
+    SELECT COUNT(DISTINCT CASE
+      WHEN submitter_user_id IS NOT NULL THEN 'user:' || submitter_user_id
+      WHEN email_submission IS NOT NULL AND TRIM(email_submission) != '' THEN 'email:' || LOWER(TRIM(email_submission))
+      ELSE NULL
+    END) as count
+    FROM articles
+    WHERE event_id = ? AND status != 'draft'
+  `).bind(eventId).get().count || 0;
+  const listenerRegistrations = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM event_registrations
+    WHERE event_id = ? AND registration_type = 'listener'
+  `).bind(eventId).get().count || 0;
 
   // Artigos aprovados separados por tipo
   const articlesOral = db.prepare(`
@@ -67,6 +81,47 @@ router.get('/', requireAuth, (req, res) => {
     WHERE a.event_id = ? AND a.status = 'rejected' AND a.type = 'poster'
     ORDER BY a.title
   `).bind(eventId).all();
+
+  const participants = db.prepare(`
+    WITH approved_authors AS (
+      SELECT
+        CASE
+          WHEN submitter_user_id IS NOT NULL THEN 'user:' || submitter_user_id
+          WHEN email_submission IS NOT NULL AND TRIM(email_submission) != '' THEN 'email:' || LOWER(TRIM(email_submission))
+          ELSE NULL
+        END as participant_key,
+        COUNT(*) as approved_articles
+      FROM articles
+      WHERE event_id = ?
+        AND status = 'approved'
+      GROUP BY participant_key
+    )
+    SELECT
+      er.name,
+      er.email,
+      er.institution,
+      er.registration_type,
+      COALESCE(aa.approved_articles, 0) as approved_articles,
+      CASE
+        WHEN COALESCE(aa.approved_articles, 0) > 0 THEN 'Artigo aprovado'
+        WHEN er.registration_type = 'listener' THEN 'Ouvinte'
+        ELSE 'Inscrito com artigo'
+      END as participation_label
+    FROM event_registrations er
+    LEFT JOIN approved_authors aa
+      ON aa.participant_key = CASE
+        WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
+        ELSE 'email:' || LOWER(TRIM(er.email))
+      END
+    WHERE er.event_id = ?
+    ORDER BY
+      CASE
+        WHEN COALESCE(aa.approved_articles, 0) > 0 THEN 0
+        WHEN er.registration_type = 'listener' THEN 2
+        ELSE 1
+      END,
+      er.name COLLATE NOCASE
+  `).bind(eventId, eventId).all();
 
   // Calcular decisão final por artigo com base nos relatórios dos revisores
   const articleDecisions = {};
@@ -115,10 +170,13 @@ router.get('/', requireAuth, (req, res) => {
     posterApproved,
     oralRejected,
     posterRejected,
+    authorRegistrations,
+    listenerRegistrations,
     articlesOral,
     articlesPoster,
     articlesOralRejected,
     articlesPosterRejected,
+    participants,
     articleDecisions: Object.values(articleDecisions),
     title: 'Relatórios - ' + event.name 
   });
