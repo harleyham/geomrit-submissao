@@ -16,6 +16,7 @@
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
     .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
     .main-content { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem; }
     .hero { margin-bottom: 1.75rem; }
     .hero h1 { font-size: 2rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.75rem; }
@@ -46,7 +47,16 @@
       <a href="/" class="logo">Artigos LIGEM</a>
       <div class="topbar-nav">
         <a href="/author" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Área do Participante</a>
+        <% if (isReviewer) { %>
+          <a href="/reviewer" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Painel do Revisor</a>
+        <% } %>
+        <% if (isAdmin) { %>
+          <a href="/admin/dashboard" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Dashboard Admin</a>
+        <% } %>
         <span class="pill"><%= userEmail %></span>
+        <form method="POST" action="/login/logout" style="display:inline;">
+          <button type="submit" class="btn btn-logout" style="padding:0.55rem 0.85rem;">Sair</button>
+        </form>
       </div>
     </div>
   </header>

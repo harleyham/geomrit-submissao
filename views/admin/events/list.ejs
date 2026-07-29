@@ -75,12 +75,12 @@
               <td><span class="badge badge-oral"><%= e.area_display %></span></td>
               <td><%= new Date(e.date_start).toLocaleDateString('pt-BR') %><% if (e.date_end) { %> – <%= new Date(e.date_end).toLocaleDateString('pt-BR') %><% } %></td>
               <td>
-                <% if (e.submission_start || e.submission_end) { %>
+                <% if (e.has_article_submission && (e.submission_start || e.submission_end)) { %>
                   <%= e.submission_start ? new Date(e.submission_start).toLocaleDateString('pt-BR') : 'Sem início' %>
                   –
                   <%= e.submission_end ? new Date(e.submission_end).toLocaleDateString('pt-BR') : 'Sem fim' %>
                 <% } else { %>
-                  <span style="color:#64748b;">Período não configurado</span>
+                  <span style="color:#64748b;">Sem submissão de artigos</span>
                 <% } %>
               </td>
               <td>
@@ -98,11 +98,9 @@
               <td><span class="badge badge-<%= e.status %>"><%= e.status === 'published' ? 'Publicado' : 'Rascunho' %></span></td>
               <td class="actions">
                 <a href="/admin/events/<%= e.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
-                <a href="/admin/events/<%= e.id %>/stats" class="btn btn-ghost btn-sm">Stats</a>
                 <% if (e.offers_subsidy) { %>
                   <a href="/admin/events/<%= e.id %>/subsidies" class="btn btn-ghost btn-sm">Subsídios</a>
                 <% } %>
-                <a href="/admin/assignments?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Distribuir</a>
                 <a href="/admin/reports?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Relatórios</a>
                 <a href="/admin/articles?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Artigos</a>
                 <% if (e.status !== 'published') { %>

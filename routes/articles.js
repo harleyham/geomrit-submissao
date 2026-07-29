@@ -4,6 +4,21 @@ const path = require('path');
 const fs = require('fs');
 const { db, getArticlesByEvent } = require('../db');
 
+function parseAreaList(areaValue) {
+  return String(areaValue || '')
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeArea(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 // Middleware de autenticação admin
 function requireAuth(req, res, next) {
   if (!req.session.isAdmin) {
@@ -25,7 +40,7 @@ router.get('/', requireAuth, (req, res) => {
 // Detalhe do artigo
 router.get('/:id', requireAuth, (req, res) => {
   const article = db.prepare(`
-    SELECT a.*, e.name as event_name, e.area,
+    SELECT a.*, e.name as event_name, e.area as event_area,
       GROUP_CONCAT(DISTINCT u.name) as assigned_reviewers
     FROM articles a
     JOIN events e ON e.id = a.event_id
@@ -35,7 +50,50 @@ router.get('/:id', requireAuth, (req, res) => {
     GROUP BY a.id
   `).bind(req.params.id).get();
   if (!article) return res.status(404).render('error', { title: 'Artigo não encontrado' });
-  res.render('admin/articles/detail', { article, title: article.title });
+  const assignedReviewers = db.prepare(`
+    SELECT
+      u.id,
+      u.name,
+      u.email,
+      u.institution,
+      ass.status as assignment_status
+    FROM assignments ass
+    JOIN users u ON u.id = ass.reviewer_id
+    WHERE ass.article_id = ?
+    ORDER BY u.name COLLATE NOCASE
+  `).bind(req.params.id).all();
+
+  const assignedReviewerIds = new Set(assignedReviewers.map((reviewer) => reviewer.id));
+  const articleArea = normalizeArea(article.area);
+  const availableReviewers = db.prepare(`
+    SELECT id, name, email, institution, reviewer_areas
+    FROM users
+    WHERE is_reviewer = 1
+      AND is_public = 1
+    ORDER BY name COLLATE NOCASE
+  `).all().map((reviewer) => {
+    const reviewerAreaList = parseAreaList(reviewer.reviewer_areas);
+    const normalizedReviewerAreas = reviewerAreaList.map(normalizeArea);
+    const matchesArticleArea = !!articleArea && normalizedReviewerAreas.includes(articleArea);
+
+    return {
+      ...reviewer,
+      reviewer_area_list: reviewerAreaList,
+      is_assigned: assignedReviewerIds.has(reviewer.id),
+      matches_article_area: matchesArticleArea
+    };
+  }).sort((left, right) => {
+    if (left.is_assigned !== right.is_assigned) return left.is_assigned ? 1 : -1;
+    if (left.matches_article_area !== right.matches_article_area) return left.matches_article_area ? -1 : 1;
+    return left.name.localeCompare(right.name, 'pt-BR');
+  });
+
+  res.render('admin/articles/detail', {
+    article,
+    assignedReviewers,
+    availableReviewers,
+    title: article.title
+  });
 });
 
 // Atualizar status
@@ -70,13 +128,13 @@ router.post('/:id/assign', requireAuth, (req, res) => {
   if (action === 'assign') {
     const existing = db.prepare('SELECT id FROM assignments WHERE article_id = ? AND reviewer_id = ?').bind(req.params.id, reviewer_id).get();
     if (existing) return res.redirect('/admin/articles/' + req.params.id);
-    db.prepare('INSERT OR IGNORE INTO assignments (article_id, reviewer_id, status) VALUES (?, ?, "pending")').bind(req.params.id, reviewer_id).run();
-    db.prepare('UPDATE articles SET status = "in_review", updated_at = datetime("now") WHERE id = ?').bind(req.params.id).run();
+    db.prepare("INSERT OR IGNORE INTO assignments (article_id, reviewer_id, status) VALUES (?, ?, 'pending')").bind(req.params.id, reviewer_id).run();
+    db.prepare("UPDATE articles SET status = 'in_review', updated_at = datetime('now') WHERE id = ?").bind(req.params.id).run();
   } else if (action === 'unassign') {
     db.prepare('DELETE FROM assignments WHERE article_id = ? AND reviewer_id = ?').bind(req.params.id, reviewer_id).run();
     const assignedCount = db.prepare('SELECT COUNT(*) as count FROM assignments WHERE article_id = ?').bind(req.params.id).get().count;
     if (assignedCount === 0) {
-      db.prepare('UPDATE articles SET status = "pending", updated_at = datetime("now") WHERE id = ?').bind(req.params.id).run();
+      db.prepare("UPDATE articles SET status = 'pending', updated_at = datetime('now') WHERE id = ?").bind(req.params.id).run();
     }
   }
   res.redirect('/admin/articles/' + req.params.id);

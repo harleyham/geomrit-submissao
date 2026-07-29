@@ -67,6 +67,85 @@ function isValidCPF(value) {
   return digit1 === Number(cpf[9]) && digit2 === Number(cpf[10]);
 }
 
+function normalizeReviewerAreas(value) {
+  return Array.from(new Set(
+    String(value || '')
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  )).join(', ');
+}
+
+function parseAreaList(areaValue) {
+  return String(areaValue || '')
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function withAreaMeta(event) {
+  if (!event) return event;
+  const areaList = parseAreaList(event.area);
+  return {
+    ...event,
+    area_list: areaList,
+    area_display: areaList.join(' · ') || 'Sem área definida'
+  };
+}
+
+function getSubmissionWindow(event) {
+  if (!event.has_article_submission) {
+    return {
+      isOpen: false,
+      isConfigured: false,
+      start: null,
+      end: null
+    };
+  }
+
+  const now = new Date();
+  const start = event.submission_start ? new Date(`${event.submission_start}T00:00:00`) : null;
+  const end = event.submission_end ? new Date(`${event.submission_end}T23:59:59`) : null;
+
+  return {
+    isOpen: !!(start && end && now >= start && now <= end),
+    isConfigured: !!(start && end),
+    start,
+    end
+  };
+}
+
+function withSubmissionMeta(event) {
+  const submission = getSubmissionWindow(event);
+  const formatDate = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('pt-BR');
+  };
+
+  return {
+    ...event,
+    formattedDateStart: formatDate(event.date_start),
+    formattedDateEnd: formatDate(event.date_end),
+    submission,
+    submissionDisplay: {
+      start: submission.start ? formatDate(submission.start) : null,
+      end: submission.end ? formatDate(submission.end) : null
+    }
+  };
+}
+
+function mapArticleStatus(status) {
+  const labels = {
+    draft: 'Rascunho',
+    pending: 'Pendente',
+    in_review: 'Em revisão',
+    approved: 'Aprovado',
+    rejected: 'Rejeitado'
+  };
+  return labels[status] || status;
+}
+
 router.get('/', requireAuth, (req, res) => {
   const users = db.prepare(`
     SELECT id, name, email, cpf, passport, country, institution,
@@ -96,11 +175,12 @@ router.get('/new', requireAuth, (req, res) => {
 });
 
 router.post('/', requireAuth, (req, res) => {
-  const { name, email, password, cpf, passport, country, institution, is_admin, is_reviewer } = req.body;
+  const { name, email, password, cpf, passport, country, institution, reviewer_areas, is_admin, is_reviewer } = req.body;
+  const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
 
   if (!email || !password) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, is_admin, is_reviewer },
+      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'E-mail e senha são obrigatórios.'
@@ -110,7 +190,7 @@ router.post('/', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(email).get();
   if (existing) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, is_admin, is_reviewer },
+      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'Já existe um usuário com o e-mail ' + email
@@ -119,7 +199,7 @@ router.post('/', requireAuth, (req, res) => {
 
   if (!isValidCPF(cpf)) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, is_admin, is_reviewer },
+      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'O CPF informado é inválido.'
@@ -128,9 +208,9 @@ router.post('/', requireAuth, (req, res) => {
 
   const hash = bcrypt.hashSync(password, 10);
   db.prepare(`
-    INSERT INTO users (name, email, password, cpf, passport, country, institution,
+    INSERT INTO users (name, email, password, cpf, passport, country, institution, reviewer_areas,
       is_admin, is_reviewer, is_public, approval_status, approved_at, password_changed, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now'), 0, datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now'), 0, datetime('now'), datetime('now'))
   `).bind(
     name || email,
     email,
@@ -139,6 +219,7 @@ router.post('/', requireAuth, (req, res) => {
     passport || null,
     country || null,
     institution || null,
+    normalizedReviewerAreas || null,
     is_admin ? 1 : 0,
     is_reviewer ? 1 : 0
   ).run();
@@ -156,9 +237,127 @@ router.get('/:id/edit', requireAuth, (req, res) => {
   });
 });
 
+router.get('/:id/participant', requireAuth, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const previewUser = db.prepare(`
+    SELECT id, name, email
+    FROM users
+    WHERE id = ?
+  `).bind(userId).get();
+
+  if (!previewUser) {
+    return res.status(404).render('error', { title: 'Usuário não encontrado' });
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const participationKeys = db.prepare(`
+    SELECT DISTINCT event_id
+    FROM event_registrations
+    WHERE user_id = ?
+       OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+  `).bind(previewUser.id, previewUser.email).all();
+
+  const registeredEventIds = new Set(participationKeys.map((row) => Number(row.event_id)));
+
+  const participantEvents = db.prepare(`
+    SELECT *
+    FROM events
+    WHERE status = 'published'
+    ORDER BY date_start DESC
+  `).all()
+    .filter((event) => !registeredEventIds.has(Number(event.id)))
+    .filter((event) => {
+      if (!event.date_start) return false;
+      const eventStart = new Date(`${event.date_start}T00:00:00`);
+      return !Number.isNaN(eventStart.getTime()) && eventStart > today;
+    })
+    .map((event) => withSubmissionMeta(withAreaMeta(event)));
+
+  const submissions = db.prepare(`
+    SELECT a.*, e.name as event_name, e.date_start, e.date_end
+    FROM articles a
+    JOIN events e ON e.id = a.event_id
+    WHERE a.submitter_user_id = ?
+       OR (a.submitter_user_id IS NULL AND a.email_submission = ?)
+    ORDER BY a.created_at DESC
+  `).bind(previewUser.id, previewUser.email).all().map((article) => ({
+    ...article,
+    status_label: mapArticleStatus(article.status)
+  }));
+
+  const participations = db.prepare(`
+    WITH approved_articles AS (
+      SELECT
+        event_id,
+        CASE
+          WHEN submitter_user_id IS NOT NULL THEN 'user:' || submitter_user_id
+          WHEN email_submission IS NOT NULL AND TRIM(email_submission) != '' THEN 'email:' || LOWER(TRIM(email_submission))
+          ELSE NULL
+        END as participant_key,
+        COUNT(*) as approved_count
+      FROM articles
+      WHERE status = 'approved'
+      GROUP BY event_id, participant_key
+    )
+    SELECT
+      er.*,
+      e.name as event_name,
+      e.date_start,
+      e.date_end,
+      e.location,
+      e.status as event_status,
+      COALESCE(aa.approved_count, 0) as approved_articles,
+      CASE
+        WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
+        WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
+        ELSE 'Ouvinte inscrito'
+      END as participation_label
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    LEFT JOIN approved_articles aa
+      ON aa.event_id = er.event_id
+     AND aa.participant_key = CASE
+       WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
+       ELSE 'email:' || LOWER(TRIM(er.email))
+     END
+    WHERE er.user_id = ?
+       OR LOWER(TRIM(er.email)) = LOWER(TRIM(?))
+    ORDER BY e.date_start DESC, er.created_at DESC
+  `).bind(previewUser.id, previewUser.email).all().map((participation) => ({
+    ...participation,
+    can_cancel: false
+  }));
+
+  const stats = {
+    total: submissions.length,
+    drafts: submissions.filter((item) => item.status === 'draft').length,
+    pending: submissions.filter((item) => item.status === 'pending' || item.status === 'in_review').length,
+    approved: submissions.filter((item) => item.status === 'approved').length,
+    rejected: submissions.filter((item) => item.status === 'rejected').length
+  };
+
+  res.render('public/author-dashboard', {
+    title: `Área do Participante - ${previewUser.name || previewUser.email}`,
+    participantEvents,
+    participations,
+    submissions,
+    stats,
+    success: null,
+    error: null,
+    previewMode: true,
+    previewUser,
+    userName: previewUser.name,
+    userEmail: previewUser.email,
+    year: new Date().getFullYear()
+  });
+});
+
 router.put('/:id', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const { name, email, password, cpf, passport, country, institution, is_admin, is_reviewer } = req.body;
+  const { name, email, password, cpf, passport, country, institution, reviewer_areas, is_admin, is_reviewer } = req.body;
+  const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
   const user = db.prepare('SELECT id, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
 
   if (!user) {
@@ -172,7 +371,7 @@ router.put('/:id', requireAuth, (req, res) => {
 
   if (!isValidCPF(cpf)) {
     return res.render('admin/users/form', {
-      user: { id, name, email, cpf, passport, country, institution, is_admin, is_reviewer },
+      user: { id, name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer },
       title: 'Editar Usuário',
       year: new Date().getFullYear(),
       error: 'O CPF informado é inválido.'
@@ -182,22 +381,22 @@ router.put('/:id', requireAuth, (req, res) => {
   if (password) {
     const hash = bcrypt.hashSync(password, 10);
     db.prepare(`
-      UPDATE users SET name=?, email=?, password=?, cpf=?, passport=?, country=?, institution=?,
+      UPDATE users SET name=?, email=?, password=?, cpf=?, passport=?, country=?, institution=?, reviewer_areas=?,
         is_admin=?, is_reviewer=?, password_changed=0, updated_at=datetime('now')
       WHERE id=?
     `).bind(
       name, email, hash,
-      normalizeCPF(cpf) || null, passport || null, country || null, institution || null,
+      normalizeCPF(cpf) || null, passport || null, country || null, institution || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, id
     ).run();
   } else {
     db.prepare(`
-      UPDATE users SET name=?, email=?, cpf=?, passport=?, country=?, institution=?,
+      UPDATE users SET name=?, email=?, cpf=?, passport=?, country=?, institution=?, reviewer_areas=?,
         is_admin=?, is_reviewer=?, updated_at=datetime('now')
       WHERE id=?
     `).bind(
       name, email,
-      normalizeCPF(cpf) || null, passport || null, country || null, institution || null,
+      normalizeCPF(cpf) || null, passport || null, country || null, institution || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, id
     ).run();
   }

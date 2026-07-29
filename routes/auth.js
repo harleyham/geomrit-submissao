@@ -57,12 +57,53 @@ router.get('/dashboard', requireAuth, (req, res) => {
   const activeReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 1').get().count;
   const inactiveReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 0').get().count;
   const pendingUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
-  const recentArticles = db.prepare(`
-    SELECT a.*, e.name as event_name
+  const pendingReviewAssignmentArticles = db.prepare(`
+    SELECT
+      a.id,
+      a.event_id,
+      a.title,
+      a.type,
+      a.status,
+      a.created_at,
+      e.name as event_name
     FROM articles a
-    JOIN events e ON a.event_id = e.id
+    JOIN events e ON e.id = a.event_id
+    LEFT JOIN assignments ass ON ass.article_id = a.id
     WHERE a.status != 'draft'
-    ORDER BY a.created_at DESC
+      AND ass.id IS NULL
+    ORDER BY COALESCE(a.date_submitted, a.created_at) DESC, a.created_at DESC
+    LIMIT 10
+  `).all();
+  const pendingSubsidyRequests = db.prepare(`
+    SELECT
+      er.id,
+      er.event_id,
+      er.name,
+      er.email,
+      er.institution,
+      er.registration_type,
+      er.created_at,
+      e.name as event_name
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    WHERE er.subsidy_requested = 1
+      AND COALESCE(er.subsidy_status, 'pending') = 'pending'
+    ORDER BY er.created_at DESC
+    LIMIT 10
+  `).all();
+  const pendingRegistrationRequests = db.prepare(`
+    SELECT
+      id,
+      name,
+      email,
+      institution,
+      country,
+      cpf,
+      passport,
+      created_at
+    FROM users
+    WHERE approval_status = 'pending'
+    ORDER BY created_at DESC
     LIMIT 10
   `).all();
   
@@ -78,7 +119,9 @@ router.get('/dashboard', requireAuth, (req, res) => {
     activeReviewers,
     inactiveReviewers,
     pendingUsers,
-    recentArticles,
+    pendingReviewAssignmentArticles,
+    pendingSubsidyRequests,
+    pendingRegistrationRequests,
     year: new Date().getFullYear()
   });
 });
@@ -131,6 +174,7 @@ router.post('/', (req, res) => {
   req.session.userId = user.id;
   req.session.userName = user.name;
   req.session.userEmail = user.email;
+  req.session.userInstitution = user.institution || '';
   req.session.userRoles = [];
   req.session.isAdmin = false;
   req.session.isReviewer = false;

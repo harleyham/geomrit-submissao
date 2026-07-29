@@ -44,6 +44,8 @@
     .btn-primary:hover { background: #2563eb; }
     .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
     .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .logout-btn { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
     @media (max-width: 860px) {
       .main-content { padding: 1rem; }
@@ -56,7 +58,16 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
-      <nav class="topbar-nav"><a href="/">← Eventos</a></nav>
+      <nav class="topbar-nav" style="display:flex;gap:0.4rem;align-items:center;">
+        <a href="/">← Eventos</a>
+        <% if (userEmail) { %>
+          <a href="<%= isAdmin ? '/admin/dashboard' : isReviewer ? '/reviewer' : '/author' %>" class="btn btn-ghost"><%= isAdmin ? 'Dashboard' : isReviewer ? 'Revisor' : 'Área do Participante' %></a>
+          <span class="session-pill"><%= userEmail %></span>
+          <form method="POST" action="<%= isAdmin ? '/admin/logout' : isReviewer ? '/reviewer/logout' : '/login/logout' %>" style="display:inline;">
+            <button type="submit" class="btn logout-btn">Sair</button>
+          </form>
+        <% } %>
+      </nav>
     </div>
   </header>
 

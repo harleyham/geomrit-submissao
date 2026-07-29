@@ -54,6 +54,12 @@
     .alert { padding: 0.95rem 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.9rem; }
     .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,0.72); display: none; align-items: center; justify-content: center; padding: 1.5rem; z-index: 1200; }
+    .modal-backdrop.visible { display: flex; }
+    .modal-card { width: 100%; max-width: 420px; background: rgba(15,23,42,0.98); border: 1px solid rgba(148,163,184,0.18); border-radius: 18px; padding: 1.5rem; box-shadow: 0 30px 80px rgba(2,6,23,0.5); }
+    .modal-card h3 { color: #f8fafc; font-size: 1.15rem; margin-bottom: 0.7rem; }
+    .modal-card p { color: #94a3b8; line-height: 1.65; margin-bottom: 1.25rem; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 0.75rem; flex-wrap: wrap; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
     @media (max-width: 1100px) {
       .hero, .grid, .stats { grid-template-columns: 1fr; }
@@ -65,17 +71,31 @@
     <div class="topbar-inner">
       <a href="/" class="logo">Artigos LIGEM</a>
       <nav class="nav">
-        <a href="/author" class="active">Área do Participante</a>
-        <a href="/">Eventos</a>
-        <span style="padding:0.35rem 0.7rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem;"><%= userEmail %></span>
-        <form method="POST" action="/login/logout" style="display:inline;">
-          <button type="submit" class="danger">Sair</button>
-        </form>
+        <% if (previewMode) { %>
+          <a href="/admin/users" class="active">Usuários</a>
+          <a href="/">Eventos</a>
+          <span style="padding:0.35rem 0.7rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem;">Visualizando: <%= previewUser && previewUser.email ? previewUser.email : userEmail %></span>
+        <% } else { %>
+          <a href="/author" class="active">Área do Participante</a>
+          <% if (isReviewer) { %>
+            <a href="/reviewer">Painel do Revisor</a>
+          <% } %>
+          <% if (isAdmin) { %>
+            <a href="/admin/dashboard">Dashboard Admin</a>
+          <% } %>
+          <a href="/">Eventos</a>
+          <span style="padding:0.35rem 0.7rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem;"><%= userEmail %></span>
+          <form method="POST" action="/login/logout" style="display:inline;">
+            <button type="submit" class="danger">Sair</button>
+          </form>
+        <% } %>
       </nav>
     </div>
   </header>
 
   <main class="main-content">
+    <% const draftSubmissions = submissions.filter(function(article) { return article.status === 'draft'; }); %>
+    <% const submittedSubmissions = submissions.filter(function(article) { return article.status !== 'draft'; }); %>
     <% if (success) { %>
       <div class="alert alert-success"><%= success %></div>
     <% } %>
@@ -85,25 +105,40 @@
 
     <section class="hero">
       <div class="panel">
-        <h1>Área do Participante</h1>
+        <h1><%= previewMode ? 'Visualização da Área do Participante' : 'Área do Participante' %></h1>
         <p>Use este espaço para se inscrever em eventos como ouvinte, submeter artigos, acompanhar suas participações e consultar informações relevantes sobre os eventos em que você está envolvido.</p>
         <div class="meta">
           <strong>Usuário:</strong> <%= userName || userEmail %><br>
           <strong>E-mail vinculado às participações:</strong> <%= userEmail %>
         </div>
+        <% if (previewMode) { %>
+          <div class="alert" style="margin-top:1rem; margin-bottom:0; background:rgba(59,130,246,0.1); border:1px solid rgba(96,165,250,0.2); color:#bfdbfe;">
+            Visualização administrativa em modo leitura.
+          </div>
+        <% } %>
         <div style="margin-top:1.25rem;display:flex;gap:0.75rem;flex-wrap:wrap;">
           <a href="/" class="btn btn-secondary">Ver Eventos</a>
-          <a href="/author/profile" class="btn btn-primary">Alterar Meus Dados</a>
+          <% if (previewMode) { %>
+            <a href="/admin/users" class="btn btn-secondary">Voltar para Usuários</a>
+          <% } else { %>
+            <a href="/author/profile" class="btn btn-primary">Alterar Meus Dados</a>
+            <% if (isReviewer) { %>
+              <a href="/reviewer" class="btn btn-secondary">Ir para o Painel do Revisor</a>
+            <% } %>
+            <% if (isAdmin) { %>
+              <a href="/admin/dashboard" class="btn btn-secondary">Ir para o Dashboard Admin</a>
+            <% } %>
+          <% } %>
         </div>
       </div>
       <div class="stats">
         <div class="stat">
           <div class="stat-label">Total</div>
-          <div class="stat-value"><%= stats.total %></div>
+          <div class="stat-value" data-stat-total><%= stats.total %></div>
         </div>
         <div class="stat">
           <div class="stat-label">Rascunhos</div>
-          <div class="stat-value"><%= stats.drafts %></div>
+          <div class="stat-value" data-stat-drafts><%= stats.drafts %></div>
         </div>
         <div class="stat">
           <div class="stat-label">Em andamento</div>
@@ -135,7 +170,7 @@
                       <h3><%= event.name %></h3>
                       <p><strong>Áreas:</strong> <%= event.area_display %></p>
                       <p><strong>Período do evento:</strong> <%= event.formattedDateStart || 'TBD' %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %></p>
-                      <p><strong>Prazo de submissão:</strong> <%= event.submissionDisplay.end || 'sem data limite' %></p>
+                      <p><strong>Prazo de submissão:</strong> <%= event.has_article_submission ? (event.submissionDisplay.end || 'sem data limite') : 'evento sem submissão de artigos' %></p>
                     </div>
                     <span class="badge <%= event.submission.isOpen ? 'badge-open' : 'badge-draft' %>"><%= event.submission.isOpen ? 'Submissão aberta' : (event.submission.isConfigured ? 'Submissão fechada' : 'Sem submissão') %></span>
                   </div>
@@ -168,6 +203,41 @@
         </div>
       </div>
     </section>
+
+    <% if (!previewMode && draftSubmissions.length > 0) { %>
+      <section class="panel" style="margin-top:1.5rem;" data-drafts-panel>
+        <div class="section-title">
+          <h2>Meus Rascunhos</h2>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Evento</th>
+              <th>Última atualização</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% draftSubmissions.forEach(article => { %>
+              <tr data-draft-row="<%= article.id %>">
+                <td><strong style="color:#f8fafc;"><%= article.title || 'Sem título' %></strong></td>
+                <td><%= article.event_name %></td>
+                <td><%= new Date(article.updated_at || article.created_at).toLocaleDateString('pt-BR') %></td>
+                <td>
+                  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <a href="/submeter/<%= article.event_id %>?draftId=<%= article.id %>" class="btn btn-secondary">Continuar Preenchimento</a>
+                    <form method="POST" action="/author/drafts/<%= article.id %>/delete" style="display:inline;" data-draft-delete-form data-draft-id="<%= article.id %>">
+                      <button type="submit" class="btn btn-danger">Apagar</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </section>
+    <% } %>
 
     <section class="panel" style="margin-top:1.5rem;">
       <div class="section-title">
@@ -222,9 +292,9 @@
 
     <section class="panel" style="margin-top:1.5rem;">
       <div class="section-title">
-        <h2>Minhas Submissões</h2>
+        <h2>Submissões Enviadas</h2>
       </div>
-      <% if (submissions.length > 0) { %>
+      <% if (submittedSubmissions.length > 0) { %>
         <table>
           <thead>
             <tr>
@@ -237,7 +307,7 @@
             </tr>
           </thead>
           <tbody>
-            <% submissions.forEach(article => { %>
+            <% submittedSubmissions.forEach(article => { %>
               <tr>
                 <td><strong style="color:#f8fafc;"><%= article.title || 'Sem título' %></strong></td>
                 <td><%= article.event_name %></td>
@@ -249,22 +319,133 @@
                 </td>
                 <td><code><%= article.access_code || '-' %></code></td>
                 <td>
-                  <% if (article.status === 'draft') { %>
-                    <a href="/submeter/<%= article.event_id %>?draftId=<%= article.id %>" class="btn btn-secondary">Editar Rascunho</a>
-                  <% } else { %>
-                    <a href="/consultar" class="btn btn-secondary">Consultar</a>
-                  <% } %>
+                  <a href="/consultar" class="btn btn-secondary">Consultar</a>
                 </td>
               </tr>
             <% }) %>
           </tbody>
         </table>
       <% } else { %>
-        <div class="empty">Você ainda não possui submissões vinculadas a esta conta.</div>
+        <div class="empty">Você ainda não possui submissões enviadas vinculadas a esta conta.</div>
       <% } %>
     </section>
   </main>
 
+  <div class="modal-backdrop" id="draft-delete-modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="draft-delete-title">
+      <h3 id="draft-delete-title">Apagar rascunho</h3>
+      <p>Tem certeza de que deseja apagar este rascunho? Esta ação não pode ser desfeita.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="draft-delete-cancel">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="draft-delete-confirm">Apagar rascunho</button>
+      </div>
+    </div>
+  </div>
+
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+  <script>
+    (function() {
+      var deleteForms = document.querySelectorAll('[data-draft-delete-form]');
+      var totalStat = document.querySelector('[data-stat-total]');
+      var draftsStat = document.querySelector('[data-stat-drafts]');
+      var draftsPanel = document.querySelector('[data-drafts-panel]');
+      var deleteModal = document.getElementById('draft-delete-modal');
+      var cancelDeleteButton = document.getElementById('draft-delete-cancel');
+      var confirmDeleteButton = document.getElementById('draft-delete-confirm');
+      var pendingDeleteForm = null;
+
+      function updateStat(node, delta) {
+        if (!node) return;
+        var current = parseInt(node.textContent, 10);
+        if (Number.isNaN(current)) return;
+        node.textContent = String(Math.max(0, current + delta));
+      }
+
+      function handleEmptyDraftPanel() {
+        if (!draftsPanel) return;
+        var remainingRows = draftsPanel.querySelectorAll('[data-draft-row]');
+        if (remainingRows.length === 0) {
+          draftsPanel.remove();
+        }
+      }
+
+      function closeDeleteModal() {
+        pendingDeleteForm = null;
+        if (!deleteModal) return;
+        deleteModal.classList.remove('visible');
+        deleteModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function openDeleteModal(form) {
+        pendingDeleteForm = form;
+        if (!deleteModal) return;
+        deleteModal.classList.add('visible');
+        deleteModal.setAttribute('aria-hidden', 'false');
+      }
+
+      function submitDraftDeletion(form) {
+        fetch(form.action, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json'
+          }
+        }).then(function(response) {
+          if (!response.ok) {
+            throw new Error('Falha ao apagar rascunho.');
+          }
+          return response.json();
+        }).then(function(result) {
+          if (!result || !result.success) {
+            throw new Error(result && result.error ? result.error : 'Falha ao apagar rascunho.');
+          }
+
+          var row = document.querySelector('[data-draft-row="' + result.deletedDraftId + '"]');
+          if (row) {
+            row.remove();
+          }
+
+          updateStat(totalStat, -1);
+          updateStat(draftsStat, -1);
+          handleEmptyDraftPanel();
+        }).catch(function(error) {
+          window.location.href = '/author?error=' + encodeURIComponent(error.message || 'Falha ao apagar rascunho.');
+        }).finally(function() {
+          closeDeleteModal();
+        });
+      }
+
+      if (cancelDeleteButton) {
+        cancelDeleteButton.addEventListener('click', closeDeleteModal);
+      }
+
+      if (confirmDeleteButton) {
+        confirmDeleteButton.addEventListener('click', function() {
+          if (!pendingDeleteForm) return;
+          submitDraftDeletion(pendingDeleteForm);
+        });
+      }
+
+      if (deleteModal) {
+        deleteModal.addEventListener('click', function(event) {
+          if (event.target === deleteModal) {
+            closeDeleteModal();
+          }
+        });
+      }
+
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && deleteModal && deleteModal.classList.contains('visible')) {
+          closeDeleteModal();
+        }
+      });
+
+      deleteForms.forEach(function(form) {
+        form.addEventListener('submit', function(event) {
+          event.preventDefault();
+          openDeleteModal(form);
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

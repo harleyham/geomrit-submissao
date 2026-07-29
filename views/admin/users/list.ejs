@@ -130,7 +130,7 @@
     </div>
 
     <% if (pendingList.length > 0) { %>
-    <div class="section">
+    <div class="section" id="cadastros-pendentes">
       <div class="section-title">Cadastros Pendentes de Aprovação</div>
       <div class="section-desc">Solicitações externas aguardando validação administrativa</div>
       <table>
@@ -166,6 +166,7 @@
             </td>
             <td><span class="badge badge-info">Pendente de aprovação</span></td>
             <td class="actions-cell">
+              <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
               <form method="POST" action="/admin/users/<%= u.id %>/approve" style="display:inline" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
                 <button type="submit" class="btn btn-primary btn-sm">Aprovar Cadastro</button>
@@ -256,6 +257,7 @@
               </span>
             </td>
             <td class="actions-cell">
+              <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
               <% if (u.id !== currentUser.id) { %>
               <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">

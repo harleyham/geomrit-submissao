@@ -14,7 +14,7 @@
     .logo-icon { color: #60a5fa; }
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
     .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
-    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
     .topbar-nav form { display: inline; }
     .main-content { max-width: 1200px; margin: 0 auto; padding: 2rem; }
     .welcome { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
@@ -32,6 +32,11 @@
     .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
     .section-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
     .section-header h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; }
+    .quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .quick-action-card { display: block; padding: 1.2rem; border-radius: 12px; background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); text-decoration: none; transition: all 0.15s; }
+    .quick-action-card:hover { border-color: rgba(96,165,250,0.3); transform: translateY(-2px); }
+    .quick-action-label { font-size: 1rem; font-weight: 600; color: #f1f5f9; margin-bottom: 0.35rem; }
+    .quick-action-text { color: #94a3b8; font-size: 0.85rem; line-height: 1.5; }
     table { width: 100%; border-collapse: collapse; }
     th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
     td { padding: 0.75rem 1.5rem; font-size: 0.875rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.05); }
@@ -59,6 +64,12 @@
       <a href="/reviewer" class="logo"><span class="logo-icon">◆</span> Painel do Revisor</a>
       <nav class="topbar-nav">
         <a href="/reviewer" class="active">Artigos</a>
+        <% if (isAdmin) { %>
+          <a href="/admin/dashboard">Dashboard Admin</a>
+        <% } %>
+        <a href="/author">Área do Participante</a>
+        <a href="/author/profile">Meus Dados</a>
+        <a href="/">Eventos</a>
         <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
         <form method="POST" action="/reviewer/logout">
           <button type="submit" class="btn btn-ghost btn-sm">Sair</button>
@@ -71,6 +82,40 @@
     <div class="welcome">
       <h1>Olá, <%= reviewer.name %>!</h1>
       <p>Este é o seu painel de revisão de artigos.</p>
+    </div>
+
+    <div class="quick-actions">
+      <% if (isAdmin) { %>
+        <a href="/admin/dashboard" class="quick-action-card">
+          <div class="quick-action-label">Dashboard Admin</div>
+          <div class="quick-action-text">Volte para a administração principal do sistema.</div>
+        </a>
+      <% } %>
+
+      <a href="/author" class="quick-action-card">
+        <div class="quick-action-label">Minha Área de Participante</div>
+        <div class="quick-action-text">Acompanhe inscrições, submissões e eventos disponíveis.</div>
+      </a>
+
+      <a href="/author/profile" class="quick-action-card">
+        <div class="quick-action-label">Meus Dados</div>
+        <div class="quick-action-text">Atualize nome, e-mail, instituição e demais dados cadastrais.</div>
+      </a>
+
+      <a href="/" class="quick-action-card">
+        <div class="quick-action-label">Eventos Publicados</div>
+        <div class="quick-action-text">Consulte os eventos e cronogramas disponíveis no portal.</div>
+      </a>
+
+      <a href="/consultar" class="quick-action-card">
+        <div class="quick-action-label">Consultar Artigo</div>
+        <div class="quick-action-text">Busque um artigo pelo código de acesso.</div>
+      </a>
+
+      <a href="/reviewers" class="quick-action-card">
+        <div class="quick-action-label">Corpo de Revisores</div>
+        <div class="quick-action-text">Veja a listagem pública de revisores cadastrados.</div>
+      </a>
     </div>
 
     <% if (typeof error !== 'undefined' && error) { %>

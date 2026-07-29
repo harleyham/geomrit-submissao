@@ -38,13 +38,16 @@ O sistema deve permitir:
 
 - Login unificado por e-mail e senha.
 - Dashboard com estatísticas gerais.
+- Dashboard com cards de pendências para artigos sem revisor, pedidos de subsídio e solicitações de cadastro.
 - CRUD de eventos.
 - Configuração de múltiplas áreas/trilhas por evento.
+- Configuração explícita de evento com ou sem submissão de artigos.
 - Configuração de subsídio a participantes por evento.
 - Gestão de usuários em `/admin/users`.
 - Atualização em lote de perfis e status de usuários.
+- Visualização administrativa da área de participante de um usuário.
 - Visualização de artigos por evento.
-- Atribuição de revisores.
+- Atribuição de revisores com sugestão por trilha/área do artigo.
 - Relatórios por evento com consolidação de pareceres.
 - Página administrativa por evento para análise de pedidos de subsídio, com leitura dos documentos anexados e decisão de aprovação ou reprovação.
 - Impressão do relatório do evento em PDF pelo navegador.
@@ -56,6 +59,7 @@ O sistema deve permitir:
 - Lista de artigos pendentes baseada em `assignments` sem `reports`.
 - Lista de artigos revisados baseada em `reports`.
 - Envio de parecer com recomendação.
+- Navegação cruzada para área do participante e dashboard admin quando o usuário acumula perfis.
 
 ### Público
 
@@ -64,6 +68,7 @@ O sistema deve permitir:
 - Inscrição pública de participante como ouvinte, vinculada a conta autenticada.
 - Submissão de artigo com geração de código de acesso.
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive para contas com perfil de revisor.
+- Área do participante acessível também a contas com múltiplos perfis, com atalhos para revisão e administração quando aplicável.
 - Consulta de submissão por código.
 - Exibição pública de revisores ativos.
 
@@ -101,6 +106,8 @@ A sessão persiste:
 - `isAdmin`
 - `isReviewer`
 
+Quando o usuário está autenticado, a interface deve exibir ação explícita de logout (`Sair`) nas páginas navegáveis do fluxo correspondente.
+
 ## Modelo de Dados Principal
 
 ### `users`
@@ -113,6 +120,7 @@ A sessão persiste:
 - `passport`
 - `country`
 - `institution`
+- `reviewer_areas`
 - `is_admin`
 - `is_reviewer`
 - `is_public`
@@ -131,6 +139,7 @@ A sessão persiste:
 - `location`
 - `url`
 - `area`
+- `has_article_submission`
 - `offers_subsidy`
 - `registration_start`
 - `registration_end`
@@ -237,6 +246,7 @@ A sessão persiste:
 - O cronograma público do evento é organizado por `Inscrições`, `Submissão Artigos`, `Análise Submissão`, `Evento` e `Certificados`.
 - Cada etapa do cronograma pode ter período próprio configurado na administração do evento.
 - A submissão pública depende da janela configurada em `submission_start` e `submission_end`.
+- Eventos com `has_article_submission = 0` não exibem linhas de submissão e análise no cronograma público.
 - A inscrição pública depende da janela configurada em `registration_start` e `registration_end`.
 - A área de certificados depende da janela configurada em `certificates_start` e `certificates_end`.
 - Um evento sem `submission_start` e `submission_end` não é tratado como evento com submissão fechada; ele é tratado como evento sem submissão de artigos configurada.
@@ -251,6 +261,8 @@ A sessão persiste:
 - O formulário de submissão só apresenta áreas definidas no evento selecionado.
 - O participante só pode submeter artigo se estiver autenticado e já inscrito no evento.
 - Rascunhos podem ser salvos na área do participante, mas não contam como submissão efetiva nas métricas e relatórios.
+- Rascunhos podem ser salvos sem preenchimento completo dos campos obrigatórios; a validação integral ocorre apenas na submissão final.
+- O participante pode continuar a edição ou apagar rascunhos diretamente na área `/author`.
 - O evento pode registrar se oferece subsídio a participantes por meio de `offers_subsidy`.
 - Quando `offers_subsidy = 1`, a inscrição do participante pode incluir candidatura a subsídio financeiro.
 - Ao solicitar subsídio, o participante deve informar nível acadêmico, curso, instituição de vínculo, UF da instituição e ID Lattes com 16 dígitos.
@@ -259,12 +271,14 @@ A sessão persiste:
 - Na criação e edição do evento, `date_end` não pode ser anterior a `date_start`.
 - Na criação e edição do evento, `registration_end` não pode ser anterior a `registration_start`.
 - Na criação e edição do evento, `submission_end` não pode ser anterior a `submission_start`.
+- Na criação e edição do evento, `review_start` só pode ocorrer após o fim de `submission_end`.
 - Na criação e edição do evento, `review_end` não pode ser anterior a `review_start`.
 - Na criação e edição do evento, `certificates_end` não pode ser anterior a `certificates_start`.
 
 ### Usuários
 
 - O cadastro administrativo permite criar usuários com perfil de admin e/ou revisor.
+- O cadastro administrativo de revisor permite informar áreas de atuação em `reviewer_areas`.
 - O cadastro público gera usuário pendente de aprovação administrativa.
 - A troca de senha é obrigatória no primeiro acesso quando `password_changed = 0`.
 - Administrador pode resetar a senha de outro usuário.
@@ -296,13 +310,14 @@ A sessão persiste:
 - Uma atribuição sem relatório associado é considerada pendente.
 - Um artigo revisado é identificado pela existência de `report`, não apenas pelo `status` de `articles`.
 - Ao registrar parecer, o sistema atualiza artigo, atribuição e relatório.
+- A interface administrativa de designação destaca revisores compatíveis com a trilha do artigo com base em `reviewer_areas`.
 
 ### Participação em evento
 
 - Todo participante do evento deve estar associado a uma conta cadastrada no sistema.
 - Participantes ouvintes são registrados em `event_registrations` com `registration_type = 'listener'`.
 - Participantes que submetem artigo são registrados em `event_registrations` com `registration_type = 'author'`.
-- Usuários com perfil de revisor também podem participar do fluxo público e submeter artigos, desde que não sejam administradores.
+- Usuários com perfil de revisor e/ou administrador também podem acessar a própria área de participante e submeter artigos.
 - Se um ouvinte posteriormente submete artigo no mesmo evento, sua inscrição é promovida automaticamente para `author`.
 - Um participante com múltiplos artigos conta uma única vez nas métricas de inscritos com artigo.
 - O participante pode cancelar a inscrição de ouvinte até o dia anterior ao início do evento.
@@ -313,8 +328,9 @@ A sessão persiste:
 
 - Usuários inativos (`is_public = 0`) não conseguem autenticar.
 - Os formulários com senha possuem controle visual para mostrar ou ocultar caracteres.
-- Contas com perfil administrativo não podem acessar `/author` nem `/submeter/:eventId`.
 - Contas com perfil de revisor podem acessar `/author` e `/submeter/:eventId`, mantendo também o fluxo de revisão.
+- Contas com múltiplos perfis mantêm redirecionamento prioritário para `/admin/dashboard`, mas a interface expõe links explícitos para `/reviewer` e `/author`.
+- O botão `Sair`, em destaque vermelho, deve estar disponível nas páginas do usuário autenticado para encerramento imediato da sessão.
 
 ## Fluxos Principais
 
@@ -376,7 +392,6 @@ A sessão persiste:
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/articles` | Gestão de artigos |
 | `/admin/users` | Gestão de usuários |
-| `/admin/assignments` | Atribuição de revisores |
 | `/admin/reports` | Relatórios e decisão final |
 
 ### Revisão
@@ -398,23 +413,19 @@ artigos/
 │   ├── auth.js
 │   ├── events.js
 │   ├── articles.js
-│   ├── reviewers.js
 │   ├── users.js
-│   ├── assignments.js
 │   ├── reports.js
 │   ├── reviewer.js
-│   ├── public.js
-│   └── config.js
+│   └── public.js
 └── views/
 ```
 
 Observações estruturais:
 
-- `routes/config.js` continua presente como área legada em `/admin/config`.
-- `routes/reviewers.js` permanece como herança da estrutura anterior.
 - A área do participante continua servida pela rota `/author`, embora o fluxo hoje cubra inscrições e submissões.
 - O participante possui tela própria de atualização cadastral em `/author/profile`.
 - A criação e a edição de eventos já contemplam todas as datas do cronograma público.
+- Rotas e templates legados de configuração, distribuição, stats e reviewers foram removidos da aplicação ativa.
 
 ## Segurança e Operação
 
@@ -461,8 +472,11 @@ Observações operacionais:
 - Inscrição em evento com fluxo condicional de subsídio, incluindo dados acadêmicos e upload de documentos obrigatórios.
 - Página pública do evento reorganizada em formato de cronograma com ações por etapa.
 - Painel `/author` com cards clicáveis apenas para eventos futuros ainda disponíveis para participação.
+- Painel `/author` com separação visual entre `Meus Rascunhos` e `Submissões Enviadas`, incluindo continuação e exclusão de rascunhos.
+- Botão `Sair` padronizado nas páginas públicas autenticadas do participante e nas telas públicas acessadas com sessão ativa.
 - Relatórios por evento com recomendações consolidadas.
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
+- Navegação cruzada entre área do participante, painel do revisor e dashboard administrativo para usuários com múltiplos perfis.
 
 ### Parcial ou pendente de validação
 
@@ -505,3 +519,12 @@ Observações operacionais:
 2. API REST.
 3. Internacionalização.
 4. Melhorias adicionais de responsividade.
+
+
+### Meus comentários
+
+1. Implementar alterações no Dashboard, com contador para "Total de eventos realizados", "Eventos publicados" (que são aqueles que estão atualmente válidos - Vale aqui a pergunta: Depois do evento finalizado, vale a pena tirar da página de publicos, ou coloca-los em abaixo da página ?), "Inscritos total" (todos os eventos), "Inscritos atuais" (Inscritos em eventos que ainda estão para ocorrer)
+2. Implementar o controle de pagamento. Tem Eventos que há cobrança para inscrição (com possibilidade de isenção, desconto estudantil ou Cupom de desconto). Pode também haver cobrança para Submissão de artigos e cobrança para participação em palestras e minicursos. Na primeira versão apenas informar se tem cobranças, tabela de valores, solicitação de isenção, informe de cupom de desconto, upload de comprovante de pagamento.
+3. Não ví na tela do Revisor a trilha onde o Artigo foi proposto. O Revisor deve poder alterar Oral/Poster e alterar qual Trilha.
+4. Na listagem dos Artigos, em qualquer página deve haver a separação por Trilha e sé é Oral ou Poster
+5. Em algum local deve ser implementado a opção de fazer o download de todos os artigos do Evento

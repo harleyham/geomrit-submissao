@@ -1,11 +1,9 @@
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
-const multer = require('multer');
 const helmet = require('helmet');
 const compression = require('compression');
 const methodOverride = require('method-override');
-const { db } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,24 +46,6 @@ app.use(session({
   },
 }));
 
-// Multer para uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
-  },
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf', '.doc', '.docx'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, allowed.includes(ext));
-  },
-});
-
 // Dados globais para templates
 app.use((req, res, next) => {
   res.locals.isAdmin = req.session && req.session.isAdmin;
@@ -85,11 +65,8 @@ app.use((req, res, next) => {
 const { router: authRouter, requireAuth } = require('./routes/auth');
 const eventsRouter = require('./routes/events');
 const articlesRouter = require('./routes/articles');
-const reviewersRouter = require('./routes/reviewers');
 const usersRouter = require('./routes/users');
-const assignmentsRouter = require('./routes/assignments');
 const reportsRouter = require('./routes/reports');
-const configRouter = require('./routes/config');
 const publicRouter = require('./routes/public');
 const reviewerRoutes = require('./routes/reviewer');
 
@@ -103,11 +80,8 @@ app.use('/', publicRouter);
 app.use('/admin', authRouter);
 app.use('/admin/events', requireAuth, eventsRouter);
 app.use('/admin/articles', requireAuth, articlesRouter);
-app.use('/admin/reviewers', requireAuth, reviewersRouter);
 app.use('/admin/users', requireAuth, usersRouter);
-app.use('/admin/assignments', requireAuth, assignmentsRouter);
 app.use('/admin/reports', requireAuth, reportsRouter);
-app.use('/admin/config', requireAuth, configRouter);
 
 // Rotas do revisor
 app.use('/reviewer', reviewerRoutes);

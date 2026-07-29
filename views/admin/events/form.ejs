@@ -25,6 +25,16 @@
     .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
     .form-group textarea { min-height: 100px; resize: vertical; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; border: 1px solid rgba(148,163,184,0.14); border-radius: 12px; background: rgba(15,23,42,0.35); margin-bottom: 1.25rem; }
+    .toggle-copy strong { display: block; color: #f1f5f9; font-size: 0.95rem; margin-bottom: 0.25rem; }
+    .toggle-copy span { display: block; color: #94a3b8; font-size: 0.82rem; line-height: 1.5; }
+    .switch { position: relative; display: inline-flex; width: 54px; height: 30px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider { position: absolute; inset: 0; cursor: pointer; background: rgba(100,116,139,0.5); border-radius: 999px; transition: 0.2s; }
+    .switch-slider:before { content: ""; position: absolute; height: 22px; width: 22px; left: 4px; top: 4px; background: #fff; border-radius: 50%; transition: 0.2s; }
+    .switch input:checked + .switch-slider { background: #3b82f6; }
+    .switch input:checked + .switch-slider:before { transform: translateX(24px); }
+    .submission-settings.is-hidden { display: none; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
     .btn-primary { background: #3b82f6; color: white; }
     .btn-primary:hover { background: #2563eb; }
@@ -113,24 +123,36 @@
             <input type="date" id="registration_end" name="registration_end" value="<%= event ? event.registration_end : '' %>">
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="submission_start">Início Submissão</label>
-            <input type="date" id="submission_start" name="submission_start" value="<%= event ? event.submission_start : '' %>">
+        <div class="toggle-row">
+          <div class="toggle-copy">
+            <strong>Este evento terá submissão de artigos?</strong>
+            <span>Ative para configurar as datas de submissão e análise das submissões.</span>
           </div>
-          <div class="form-group">
-            <label for="submission_end">Fim Submissão</label>
-            <input type="date" id="submission_end" name="submission_end" value="<%= event ? event.submission_end : '' %>">
-          </div>
+          <label class="switch" for="has_article_submission">
+            <input type="checkbox" id="has_article_submission" name="has_article_submission" value="1" <%= event && event.has_article_submission ? 'checked' : '' %>>
+            <span class="switch-slider"></span>
+          </label>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="review_start">Início Análise das Submissões</label>
-            <input type="date" id="review_start" name="review_start" value="<%= event ? event.review_start : '' %>">
+        <div class="submission-settings <%= event && event.has_article_submission ? '' : 'is-hidden' %>" data-submission-settings>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="submission_start">Início Submissão</label>
+              <input type="date" id="submission_start" name="submission_start" value="<%= event ? event.submission_start : '' %>">
+            </div>
+            <div class="form-group">
+              <label for="submission_end">Fim Submissão</label>
+              <input type="date" id="submission_end" name="submission_end" value="<%= event ? event.submission_end : '' %>">
+            </div>
           </div>
-          <div class="form-group">
-            <label for="review_end">Fim Análise das Submissões</label>
-            <input type="date" id="review_end" name="review_end" value="<%= event ? event.review_end : '' %>">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="review_start">Início Análise das Submissões</label>
+              <input type="date" id="review_start" name="review_start" value="<%= event ? event.review_start : '' %>">
+            </div>
+            <div class="form-group">
+              <label for="review_end">Fim Análise das Submissões</label>
+              <input type="date" id="review_end" name="review_end" value="<%= event ? event.review_end : '' %>">
+            </div>
           </div>
         </div>
         <div class="form-row">
@@ -188,6 +210,34 @@
       </div>
     </form>
   </main>
+
+  <script>
+    (function() {
+      var toggle = document.getElementById('has_article_submission');
+      var settings = document.querySelector('[data-submission-settings]');
+      var submissionStart = document.getElementById('submission_start');
+      var submissionEnd = document.getElementById('submission_end');
+      var reviewStart = document.getElementById('review_start');
+      var reviewEnd = document.getElementById('review_end');
+
+      if (!toggle || !settings) return;
+
+      function syncSubmissionSettings() {
+        var enabled = toggle.checked;
+        settings.classList.toggle('is-hidden', !enabled);
+
+        if (!enabled) {
+          submissionStart.value = '';
+          submissionEnd.value = '';
+          reviewStart.value = '';
+          reviewEnd.value = '';
+        }
+      }
+
+      toggle.addEventListener('change', syncSubmissionSettings);
+      syncSubmissionSettings();
+    })();
+  </script>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 </body>

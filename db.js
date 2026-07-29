@@ -20,6 +20,7 @@ db.exec(`
     passport TEXT,
     country TEXT,
     institution TEXT,
+    reviewer_areas TEXT,
     is_admin INTEGER DEFAULT 0,
     is_reviewer INTEGER DEFAULT 0,
     is_public INTEGER DEFAULT 1,
@@ -43,6 +44,7 @@ db.exec(`
     area TEXT NOT NULL,
     institution TEXT,
     language TEXT,
+    has_article_submission INTEGER DEFAULT 0,
     offers_subsidy INTEGER DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'draft',
     registration_start DATE,
@@ -204,6 +206,7 @@ try {
   if (!columns.includes('passport')) db.exec('ALTER TABLE users ADD COLUMN passport TEXT');
   if (!columns.includes('country')) db.exec('ALTER TABLE users ADD COLUMN country TEXT');
   if (!columns.includes('institution')) db.exec('ALTER TABLE users ADD COLUMN institution TEXT');
+  if (!columns.includes('reviewer_areas')) db.exec('ALTER TABLE users ADD COLUMN reviewer_areas TEXT');
   if (!columns.includes('approval_status')) db.exec("ALTER TABLE users ADD COLUMN approval_status TEXT DEFAULT 'approved'");
   if (!columns.includes('approved_at')) db.exec('ALTER TABLE users ADD COLUMN approved_at DATETIME');
   if (!columns.includes('approved_by')) db.exec('ALTER TABLE users ADD COLUMN approved_by INTEGER');
@@ -228,6 +231,7 @@ try {
 
 try {
   const eventColumns = db.prepare("PRAGMA table_info(events)").all().map(c => c.name);
+  if (!eventColumns.includes('has_article_submission')) db.exec('ALTER TABLE events ADD COLUMN has_article_submission INTEGER DEFAULT 0');
   if (!eventColumns.includes('offers_subsidy')) db.exec('ALTER TABLE events ADD COLUMN offers_subsidy INTEGER DEFAULT 0');
   if (!eventColumns.includes('institution')) db.exec('ALTER TABLE events ADD COLUMN institution TEXT');
   if (!eventColumns.includes('language')) db.exec('ALTER TABLE events ADD COLUMN language TEXT');
@@ -237,6 +241,15 @@ try {
   if (!eventColumns.includes('review_end')) db.exec('ALTER TABLE events ADD COLUMN review_end DATE');
   if (!eventColumns.includes('certificates_start')) db.exec('ALTER TABLE events ADD COLUMN certificates_start DATE');
   if (!eventColumns.includes('certificates_end')) db.exec('ALTER TABLE events ADD COLUMN certificates_end DATE');
+  db.prepare(`
+    UPDATE events
+    SET has_article_submission = CASE
+      WHEN COALESCE(submission_start, submission_end, review_start, review_end) IS NOT NULL THEN 1
+      ELSE 0
+    END
+    WHERE has_article_submission IS NULL
+       OR (has_article_submission = 0 AND COALESCE(submission_start, submission_end, review_start, review_end) IS NOT NULL)
+  `).run();
 } catch(e) {
   console.warn('Migration events columns:', e.message);
 }
@@ -373,10 +386,10 @@ module.exports = {
   },
   getStatsByEvent: (eventId) => {
     const total = db.prepare("SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status != 'draft'").bind(eventId).get().count;
-    const pending = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "pending"').bind(eventId).get().count;
-    const in_review = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "in_review"').bind(eventId).get().count;
-    const approved = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "approved"').bind(eventId).get().count;
-    const rejected = db.prepare('SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = "rejected"').bind(eventId).get().count;
+    const pending = db.prepare("SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = 'pending'").bind(eventId).get().count;
+    const in_review = db.prepare("SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = 'in_review'").bind(eventId).get().count;
+    const approved = db.prepare("SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = 'approved'").bind(eventId).get().count;
+    const rejected = db.prepare("SELECT COUNT(*) as count FROM articles WHERE event_id = ? AND status = 'rejected'").bind(eventId).get().count;
     return { total, pending, in_review, approved, rejected };
   },
   getUnassignedArticles: (eventId) => {

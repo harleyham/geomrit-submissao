@@ -17,6 +17,14 @@ Versão atual registrada: **V0.1**.
 - Cadastro e edição de eventos ampliados para suportar datas de inscrições, análise de submissão e certificados.
 - Painel `/author` ajustado para mostrar apenas eventos futuros em cards clicáveis, levando diretamente à página pública do evento.
 - Fluxo público de submissão ajustado para exigir inscrição prévia no evento antes do envio do artigo.
+- Eventos passaram a suportar a flag `has_article_submission`, com exibição condicional das etapas de submissão e análise nas telas públicas.
+- Cadastro administrativo de usuários ampliado com `reviewer_areas`, permitindo sugerir revisores compatíveis com a trilha do artigo.
+- Tela administrativa do artigo ampliada com lista de revisores atribuídos, sugestão por trilha e ações de atribuição e remoção.
+- Dashboard administrativo ampliado com cards para artigos sem designação, solicitações de subsídio e solicitações de cadastro pendentes.
+- Painel do revisor ampliado com atalhos para área do participante, dashboard admin, eventos, consulta de artigo e corpo de revisores.
+- Área do participante ampliada com navegação para múltiplos perfis, bloco exclusivo de rascunhos e retomada de preenchimento.
+- Fluxo de exclusão de rascunhos implementado diretamente na área do participante, com atualização imediata dos contadores.
+- Modal customizado implementado para confirmar a exclusão de rascunhos sem usar a caixa nativa do navegador.
 
 ### Correções
 
@@ -26,11 +34,22 @@ Versão atual registrada: **V0.1**.
 - Correção do backend para bloquear submissões finais fora da janela de `submission_start` e `submission_end`.
 - Correção da lógica pública para esconder botões de ação quando a etapa do cronograma não possui período configurado.
 - Correção da ação de certificados para só aparecer quando houver inscrição válida, autenticação e janela de certificados aberta.
+- Correção da consistência de navegação para exibir o botão `Sair` em vermelho nas páginas públicas acessadas por usuários autenticados.
+- Correção do fluxo de login para evitar erro de renderização ao abrir a área do participante.
+- Correção da inscrição pública para reutilizar corretamente a instituição do usuário autenticado.
+- Correção do texto de sucesso e de inscrição já existente no fluxo de inscrição de ouvintes.
+- Correção do salvamento de rascunhos para não exigir validação completa antes da submissão final.
+- Correção da listagem de rascunhos na área do participante, incluindo contagem, retomada e atualização dos indicadores após exclusão.
+- Correção da rota de atribuição de revisores, ajustando literais SQL para o SQLite.
+- Correção da recomendação de revisores para usar a trilha do próprio artigo, e não a área geral do evento.
+- Correção da navegação entre perfis para permitir que contas com múltiplos papéis acessem `/author`, `/reviewer` e `/admin/dashboard` a partir das interfaces correspondentes.
 
 ### Observações Técnicas
 
 - O controle de período deixou de ser apenas visual: as rotas públicas de inscrição e submissão passaram a validar a janela diretamente no backend.
 - A janela de certificados já está modelada e controlada na interface pública, mas ainda não existe fluxo dedicado para emissão ou download.
+- Rotas legadas `routes/assignments.js`, `routes/config.js` e `routes/reviewers.js` deixaram de ser montadas e seus templates associados foram removidos da estrutura ativa.
+- A área administrativa do evento não possui mais a página `stats`; a visão consolidada permanece em `Relatórios`.
 
 ## 2026-07-28
 

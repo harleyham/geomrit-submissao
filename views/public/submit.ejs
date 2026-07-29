@@ -12,6 +12,8 @@
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
     .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
     .logo-icon { color: #60a5fa; }
+    .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
+    .session-pill { padding: 0.4rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
     .main-content { max-width: 980px; margin: 0 auto; padding: 3rem 2rem; }
     .back-link { display: inline-block; color: #60a5fa; text-decoration: none; font-size: 0.875rem; margin-bottom: 2rem; }
     .back-link:hover { text-decoration: underline; }
@@ -52,6 +54,7 @@
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
     .btn-danger { background: rgba(239,68,68,0.14); color: #fca5a5; border: 1px solid rgba(248,113,113,0.18); }
     .btn-sm { padding: 0.35rem 0.65rem; font-size: 0.75rem; }
+    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
     .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
     .alert { border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1.4rem; font-size: 0.9rem; line-height: 1.55; }
     .alert-error { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.2); color: #fca5a5; }
@@ -83,9 +86,16 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
-      <nav style="display:flex;gap:0.25rem;align-items:center">
+      <nav class="topbar-nav">
         <% if (!submitted) { %>
         <a href="<%= isPublic ? '/author' : '/evento/' + event.id %>" class="btn btn-secondary">Voltar</a>
+        <% } %>
+        <% if (userEmail) { %>
+          <a href="/author" class="btn btn-secondary">Área do Participante</a>
+          <span class="session-pill"><%= userEmail %></span>
+          <form method="POST" action="/login/logout" style="display:inline;">
+            <button type="submit" class="btn btn-logout">Sair</button>
+          </form>
         <% } %>
       </nav>
     </div>
@@ -239,11 +249,6 @@
                 <div class="file-note">Arquivo atual: <strong><%= safeCurrentFileName %></strong></div>
               <% } %>
             </div>
-
-            <div class="checkbox-row">
-              <input type="checkbox" id="blind_review_confirmed" name="blind_review_confirmed" value="1" <%= safeFormData.blind_review_confirmed ? 'checked' : '' %>>
-              <label for="blind_review_confirmed">Confirmo que o arquivo PDF enviado não contém nomes de autores, filiações ou qualquer identificação no texto/propriedades do arquivo.</label>
-            </div>
           </div>
 
           <div class="section-block">
@@ -255,7 +260,7 @@
 
             <div class="checkbox-row">
               <input type="checkbox" id="ethics_confirmed" name="ethics_confirmed" value="1" <%= safeFormData.ethics_confirmed ? 'checked' : '' %>>
-              <label for="ethics_confirmed">Declaro que o trabalho é original, não foi publicado anteriormente e atende aos critérios éticos da pesquisa.</label>
+              <label for="ethics_confirmed">Declaro que o trabalho é original, não foi publicado anteriormente.</label>
             </div>
 
             <div class="checkbox-row">
@@ -284,7 +289,7 @@
 
             <div class="form-row">
               <div class="form-group">
-                <label for="affiliation">Filiação Principal</label>
+                <label for="affiliation">Instituição Principal</label>
                 <input type="text" id="affiliation" name="affiliation" value="<%= safeFormData.affiliation || '' %>">
               </div>
               <div class="form-group">
@@ -296,7 +301,7 @@
 
           <div class="actions">
             <% if (isPublic) { %>
-              <button type="submit" name="action" value="save_draft" class="btn btn-secondary">Salvar Rascunho</button>
+              <button type="submit" name="action" value="save_draft" class="btn btn-secondary" formnovalidate>Salvar Rascunho</button>
             <% } %>
             <button type="submit" name="action" value="submit_article" class="btn btn-primary" <%= (!event.submission.isOpen || !hasRegistration) ? 'disabled' : '' %>>Submeter Artigo</button>
             <a href="<%= isPublic ? '/author' : '/evento/' + event.id %>" class="btn btn-secondary">Cancelar</a>

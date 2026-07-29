@@ -34,6 +34,7 @@ function validateEventDates({
   date_end,
   registration_start,
   registration_end,
+  has_article_submission,
   submission_start,
   submission_end,
   review_start,
@@ -49,12 +50,18 @@ function validateEventDates({
     return 'A data final do período de inscrições não pode ser anterior à data inicial.';
   }
 
-  if (submission_start && submission_end && submission_end < submission_start) {
-    return 'A data final do período de submissão não pode ser anterior à data inicial.';
-  }
+  if (has_article_submission) {
+    if (submission_start && submission_end && submission_end < submission_start) {
+      return 'A data final do período de submissão não pode ser anterior à data inicial.';
+    }
 
-  if (review_start && review_end && review_end < review_start) {
-    return 'A data final do período de análise das submissões não pode ser anterior à data inicial.';
+    if (submission_end && review_start && review_start <= submission_end) {
+      return 'O período de análise das submissões só pode começar após o fim do período de submissões.';
+    }
+
+    if (review_start && review_end && review_end < review_start) {
+      return 'A data final do período de análise das submissões não pode ser anterior à data inicial.';
+    }
   }
 
   if (certificates_start && certificates_end && certificates_end < certificates_start) {
@@ -128,10 +135,27 @@ router.get('/new', (req, res) => {
 
 // POST /:id — handles form submissions with _method override (edit & delete)
 router.post('/:id', (req, res) => {
-  const { _method, name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy } = req.body;
+  const { _method, name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
-  const validationError = validateEventDates({ date_start, date_end, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end });
+  const hasArticleSubmission = has_article_submission ? 1 : 0;
+  const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
+  const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
+  const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
+  const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
+  const validationError = validateEventDates({
+    date_start,
+    date_end,
+    registration_start,
+    registration_end,
+    has_article_submission: hasArticleSubmission,
+    submission_start: normalizedSubmissionStart,
+    submission_end: normalizedSubmissionEnd,
+    review_start: normalizedReviewStart,
+    review_end: normalizedReviewEnd,
+    certificates_start,
+    certificates_end
+  });
 
   // Handle PUT (edit event)
   if (_method === 'PUT') {
@@ -147,16 +171,17 @@ router.post('/:id', (req, res) => {
           location,
           url,
           area: normalizedArea,
+          has_article_submission: hasArticleSubmission,
           offers_subsidy: offersSubsidy,
           status: status || 'draft',
           institution,
           language,
           registration_start,
           registration_end,
-          submission_start,
-          submission_end,
-          review_start,
-          review_end,
+          submission_start: normalizedSubmissionStart,
+          submission_end: normalizedSubmissionEnd,
+          review_start: normalizedReviewStart,
+          review_end: normalizedReviewEnd,
           certificates_start,
           certificates_end
         }),
@@ -167,9 +192,9 @@ router.post('/:id', (req, res) => {
 
     const id = req.params.id;
     db.prepare(`
-      UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
+      UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
       WHERE id=?
-    `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, submission_start || null, submission_end || null, review_start || null, review_end || null, certificates_start || null, certificates_end || null, id).run();
+    `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, id).run();
     return res.redirect('/admin/events');
   }
 
@@ -192,16 +217,17 @@ router.post('/:id', (req, res) => {
         location,
         url,
         area: normalizedArea,
+        has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         status: status || 'draft',
         institution,
         language,
         registration_start,
         registration_end,
-        submission_start,
-        submission_end,
-        review_start,
-        review_end,
+        submission_start: normalizedSubmissionStart,
+        submission_end: normalizedSubmissionEnd,
+        review_start: normalizedReviewStart,
+        review_end: normalizedReviewEnd,
         certificates_start,
         certificates_end
       }),
@@ -212,18 +238,35 @@ router.post('/:id', (req, res) => {
 
   const id = req.params.id;
   db.prepare(`
-    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
+    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
     WHERE id=?
-    `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, submission_start || null, submission_end || null, review_start || null, review_end || null, certificates_start || null, certificates_end || null, id).run();
+    `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, id).run();
   res.redirect('/admin/events');
 });
 
 // Criar evento
 router.post('/', (req, res) => {
-  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy } = req.body;
+  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
-  const validationError = validateEventDates({ date_start, date_end, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end });
+  const hasArticleSubmission = has_article_submission ? 1 : 0;
+  const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
+  const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
+  const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
+  const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
+  const validationError = validateEventDates({
+    date_start,
+    date_end,
+    registration_start,
+    registration_end,
+    has_article_submission: hasArticleSubmission,
+    submission_start: normalizedSubmissionStart,
+    submission_end: normalizedSubmissionEnd,
+    review_start: normalizedReviewStart,
+    review_end: normalizedReviewEnd,
+    certificates_start,
+    certificates_end
+  });
 
   if (validationError) {
     return renderEventForm(res, {
@@ -236,16 +279,17 @@ router.post('/', (req, res) => {
         location,
         url,
         area: normalizedArea,
+        has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         status: status || 'draft',
         institution,
         language,
         registration_start,
         registration_end,
-        submission_start,
-        submission_end,
-        review_start,
-        review_end,
+        submission_start: normalizedSubmissionStart,
+        submission_end: normalizedSubmissionEnd,
+        review_start: normalizedReviewStart,
+        review_end: normalizedReviewEnd,
         certificates_start,
         certificates_end
       }),
@@ -255,9 +299,9 @@ router.post('/', (req, res) => {
   }
 
   db.prepare(`
-    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, offers_subsidy, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, submission_start || null, submission_end || null, review_start || null, review_end || null, certificates_start || null, certificates_end || null).run();
+    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null).run();
   res.redirect('/admin/events');
 });
 
@@ -270,10 +314,27 @@ router.get('/:id/edit', (req, res) => {
 
 // Atualizar evento (via PUT from method-override or fetch API)
 router.put('/:id', (req, res) => {
-  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy } = req.body;
+  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
-  const validationError = validateEventDates({ date_start, date_end, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end });
+  const hasArticleSubmission = has_article_submission ? 1 : 0;
+  const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
+  const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
+  const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
+  const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
+  const validationError = validateEventDates({
+    date_start,
+    date_end,
+    registration_start,
+    registration_end,
+    has_article_submission: hasArticleSubmission,
+    submission_start: normalizedSubmissionStart,
+    submission_end: normalizedSubmissionEnd,
+    review_start: normalizedReviewStart,
+    review_end: normalizedReviewEnd,
+    certificates_start,
+    certificates_end
+  });
 
   if (validationError) {
     return renderEventForm(res, {
@@ -287,16 +348,17 @@ router.put('/:id', (req, res) => {
         location,
         url,
         area: normalizedArea,
+        has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         status: status || 'draft',
         institution,
         language,
         registration_start,
         registration_end,
-        submission_start,
-        submission_end,
-        review_start,
-        review_end,
+        submission_start: normalizedSubmissionStart,
+        submission_end: normalizedSubmissionEnd,
+        review_start: normalizedReviewStart,
+        review_end: normalizedReviewEnd,
         certificates_start,
         certificates_end
       }),
@@ -306,9 +368,9 @@ router.put('/:id', (req, res) => {
   }
 
   db.prepare(`
-    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
+    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
     WHERE id=?
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, offersSubsidy, status, institution || '', language || '', registration_start || null, registration_end || null, submission_start || null, submission_end || null, review_start || null, review_end || null, certificates_start || null, certificates_end || null, req.params.id).run();
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.params.id).run();
   res.redirect('/admin/events');
 });
 
@@ -433,62 +495,6 @@ router.post('/:id/subsidies/:registrationId/decision', (req, res) => {
   ).run();
 
   res.redirect(`/admin/events/${req.params.id}/subsidies`);
-});
-
-// Stats do evento
-router.get('/:id/stats', (req, res) => {
-  const event = db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get();
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-
-  const totalArticles = db.prepare("SELECT COUNT(*) as cnt FROM articles WHERE event_id = ? AND status != 'draft'").bind(req.params.id).get().cnt;
-  const authorRegistrations = db.prepare(`
-    SELECT COUNT(DISTINCT CASE
-      WHEN submitter_user_id IS NOT NULL THEN 'user:' || submitter_user_id
-      WHEN email_submission IS NOT NULL AND TRIM(email_submission) != '' THEN 'email:' || LOWER(TRIM(email_submission))
-      ELSE NULL
-    END) as cnt
-    FROM articles
-    WHERE event_id = ? AND status != 'draft'
-  `).bind(req.params.id).get().cnt;
-  const listenerRegistrations = db.prepare(`
-    SELECT COUNT(*) as cnt
-    FROM event_registrations
-    WHERE event_id = ? AND registration_type = 'listener'
-  `).bind(req.params.id).get().cnt;
-  const subsidyRequests = db.prepare(`
-    SELECT COUNT(*) as cnt
-    FROM event_registrations
-    WHERE event_id = ? AND subsidy_requested = 1
-  `).bind(req.params.id).get().cnt;
-  const registeredParticipants = authorRegistrations + listenerRegistrations;
-  const approved = db.prepare('SELECT COUNT(*) as cnt FROM articles WHERE event_id = ? AND status = ?').bind(req.params.id, 'approved').get().cnt;
-  const rejected = db.prepare('SELECT COUNT(*) as cnt FROM articles WHERE event_id = ? AND status = ?').bind(req.params.id, 'rejected').get().cnt;
-  const pending = totalArticles - approved - rejected;
-
-  const articleIds = db.prepare("SELECT id FROM articles WHERE event_id = ? AND status != 'draft'").bind(req.params.id).all().map(a => a.id);
-  let reviewersCount = 0;
-  let assignedCount = 0;
-  const topReviewers = [];
-  if (articleIds.length > 0) {
-    const ids = articleIds.map(() => '?').join(',');
-    reviewersCount = db.prepare(`SELECT COUNT(DISTINCT reviewer_id) as cnt FROM assignments WHERE article_id IN (${ids})`).bind(...articleIds).all()[0].cnt;
-    assignedCount = db.prepare(`SELECT COUNT(DISTINCT article_id) as cnt FROM assignments WHERE article_id IN (${ids})`).bind(...articleIds).all()[0].cnt;
-    topReviewers = db.prepare(`
-      SELECT u.id as reviewer_id, u.name as reviewer_name, COUNT(*) as cnt
-      FROM assignments a
-      JOIN users u ON u.id = a.reviewer_id
-      WHERE a.article_id IN (${ids})
-      GROUP BY u.id ORDER BY cnt DESC LIMIT 5
-    `).bind(...articleIds).all();
-  }
-
-  const articles = db.prepare("SELECT * FROM articles WHERE event_id = ? AND status != 'draft' ORDER BY created_at DESC").bind(req.params.id).all();
-
-  res.render('admin/events/stats', {
-    event, title: 'Stats - ' + event.name, year: new Date().getFullYear(),
-    totalArticles, registeredParticipants, authorRegistrations, listenerRegistrations, subsidyRequests, approved, rejected, pending, reviewers: reviewersCount, assigned: assignedCount,
-    articles, topReviewers
-  });
 });
 
 // Publicar evento
