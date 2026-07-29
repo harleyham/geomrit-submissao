@@ -58,7 +58,12 @@
   <main class="main-content">
     <div class="page-header">
       <h1>📊 Stats — <%= event.name %></h1>
-      <a href="/admin/events" class="btn btn-ghost">← Voltar</a>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+        <% if (event.offers_subsidy) { %>
+          <a href="/admin/events/<%= event.id %>/subsidies" class="btn btn-ghost">Subsídios</a>
+        <% } %>
+        <a href="/admin/events" class="btn btn-ghost">← Voltar</a>
+      </div>
     </div>
 
     <div class="stats-grid">
@@ -77,6 +82,10 @@
       <div class="stat-card">
         <div class="stat-number blue"><%= listenerRegistrations %></div>
         <div class="stat-label">Ouvintes Inscritos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number blue"><%= subsidyRequests %></div>
+        <div class="stat-label">Pedidos de Subsídio</div>
       </div>
       <div class="stat-card">
         <div class="stat-number green"><%= approved %></div>

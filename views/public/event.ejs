@@ -14,44 +14,42 @@
     .logo-icon { color: #60a5fa; }
     .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
     .topbar-nav a:hover { color: #e2e8f0; }
-    .main-content { max-width: 800px; margin: 0 auto; padding: 2rem; }
-    .event-header { margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
-    .event-header .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.75rem; }
-    .event-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
-    .event-title-block { margin-top: 1rem; }
-    .event-meta { display: flex; gap: 1.5rem; color: #94a3b8; font-size: 0.875rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .event-meta span { display: flex; align-items: center; gap: 0.375rem; }
-    .event-description { color: #cbd5e1; line-height: 1.7; font-size: 0.9375rem; }
+    .main-content { max-width: 1120px; margin: 0 auto; padding: 2rem; }
+    .event-shell { background: rgba(30,41,59,0.58); border: 1px solid rgba(148,163,184,0.1); border-radius: 18px; padding: 2rem; margin-bottom: 1.5rem; }
+    .event-header .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.9rem; }
+    .event-header h1 { font-size: 2rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.4rem; }
+    .event-meta { color: #94a3b8; font-size: 0.94rem; line-height: 1.7; }
+    .event-description { color: #cbd5e1; line-height: 1.7; font-size: 0.95rem; margin-top: 1rem; }
     .event-link-card { margin-top: 1.25rem; padding: 1rem 1.1rem; border-radius: 12px; background: rgba(59,130,246,0.08); border: 1px solid rgba(96,165,250,0.18); }
     .event-link-card .label { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #93c5fd; margin-bottom: 0.45rem; }
     .event-link-card .value { font-size: 0.98rem; font-weight: 600; color: #f8fafc; word-break: break-word; }
     .event-link-card .value a { color: #93c5fd; text-decoration: none; }
     .event-link-card .value a:hover { text-decoration: underline; }
-    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
-    .section h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 1.25rem; }
-    .form-group { margin-bottom: 1.25rem; }
-    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
-    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
-    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
-    .form-group textarea { min-height: 200px; resize: vertical; }
-    .form-group small { color: #64748b; font-size: 0.75rem; margin-top: 0.25rem; display: block; }
+    .timeline-title { font-size: 1rem; font-weight: 700; color: #f8fafc; margin: 1.5rem 0 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; }
+    .timeline-table-wrap { border: 1px solid rgba(148,163,184,0.12); border-radius: 14px; overflow: hidden; background: rgba(2,6,23,0.3); }
+    .timeline-table { width: 100%; border-collapse: collapse; }
+    .timeline-table th { text-align: left; padding: 0.9rem 1rem; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; background: rgba(15,23,42,0.6); }
+    .timeline-table td { padding: 1rem; font-size: 0.94rem; color: #e2e8f0; border-top: 1px solid rgba(148,163,184,0.08); }
+    .timeline-table tr:first-child td { border-top: none; }
+    .timeline-label { font-weight: 700; color: #f8fafc; }
+    .muted { color: #94a3b8; }
+    .timeline-action { white-space: nowrap; }
+    .timeline-status { display: inline-flex; align-items: center; padding: 0.32rem 0.75rem; border-radius: 999px; font-size: 0.74rem; font-weight: 700; border: 1px solid transparent; }
+    .timeline-status.status-positive { background: rgba(34,197,94,0.13); color: #4ade80; border-color: rgba(74,222,128,0.16); }
+    .timeline-status.status-neutral { background: rgba(96,165,250,0.12); color: #93c5fd; border-color: rgba(147,197,253,0.18); }
+    .timeline-status.status-negative { background: rgba(248,113,113,0.12); color: #fca5a5; border-color: rgba(252,165,165,0.18); }
+    .timeline-status.status-muted { background: rgba(148,163,184,0.14); color: #cbd5e1; border-color: rgba(203,213,225,0.14); }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
     .btn-primary { background: #3b82f6; color: white; }
     .btn-primary:hover { background: #2563eb; }
     .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
     .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
-    .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
-    .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem; }
-    .alert-success { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
-    .alert-error { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
-    .alert-info { background: rgba(96,165,250,0.12); color: #93c5fd; border: 1px solid rgba(96,165,250,0.2); }
-    .submission-status { display: inline-block; margin-top: 1rem; padding: 0.35rem 0.8rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
-    .submission-status.open { background: rgba(52,211,153,0.15); color: #34d399; }
-    .submission-status.closed { background: rgba(248,113,113,0.12); color: #f87171; }
-    .closed { text-align: center; padding: 4rem 2rem; }
-    .closed h2 { font-size: 1.5rem; font-weight: 600; color: #94a3b8; margin-bottom: 0.5rem; }
-    .closed p { color: #64748b; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    @media (max-width: 860px) {
+      .main-content { padding: 1rem; }
+      .event-shell { padding: 1.25rem; }
+      .timeline-table th, .timeline-table td { padding: 0.75rem; font-size: 0.82rem; }
+    }
   </style>
 </head>
 <body>
@@ -63,92 +61,67 @@
   </header>
 
   <main class="main-content">
-    <div class="event-header">
-      <span class="area"><%= event.area_display %></span>
-      <% if (event.submission.isConfigured) { %>
-        <span class="submission-status <%= event.submission.isOpen ? 'open' : 'closed' %>">
-          <%= event.submission.isOpen ? 'Submissão aberta' : 'Submissão indisponível' %>
-        </span>
-      <% } %>
-      <div class="event-link-card">
-        <span class="label">URL do Evento</span>
-        <div class="value">
-          <% if (event.url && event.url.trim()) { %>
-            <a href="<%= event.url %>" target="_blank" rel="noopener noreferrer"><%= event.url %></a>
-          <% } else { %>
-            TBD
-          <% } %>
-        </div>
-      </div>
-      <div class="event-title-block">
+    <div class="event-shell">
+      <div class="event-header">
+        <span class="area"><%= event.area_display %></span>
         <h1><%= event.name %></h1>
         <div class="event-meta">
-          <span>
-            📅 <%= event.formattedDateStart || 'Data não informada' %>
-            <% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %>
-          </span>
-          <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
-          <% if (event.submissionDisplay && event.submissionDisplay.start) { %><span>🟢 Submissões: <%= event.submissionDisplay.start %></span><% } %>
-          <% if (event.submissionDisplay && event.submissionDisplay.end) { %><span>⏰ Até: <%= event.submissionDisplay.end %></span><% } %>
+          <% if (event.location) { %><div><strong style="color:#cbd5e1;">Local:</strong> <%= event.location %></div><% } %>
+          <% if (event.formattedDateStart) { %>
+            <div><strong style="color:#cbd5e1;">Período do evento:</strong> <%= event.formattedDateStart %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %></div>
+          <% } %>
         </div>
+        <div class="event-link-card">
+          <span class="label">URL do Evento</span>
+          <div class="value">
+            <% if (event.url && event.url.trim()) { %>
+              <a href="<%= event.url %>" target="_blank" rel="noopener noreferrer"><%= event.url %></a>
+            <% } else { %>
+              TBD
+            <% } %>
+          </div>
+        </div>
+        <% if (event.description) { %>
+          <p class="event-description"><%= event.description %></p>
+        <% } %>
       </div>
-      <% if (event.description) { %>
-        <p class="event-description"><%= event.description %></p>
-      <% } %>
-    </div>
 
-    <% if (event.submission.isOpen) { %>
-      <div class="section">
-        <h2>Submissões abertas</h2>
-        <p class="event-description">O evento está aceitando artigos neste momento. Use o formulário de submissão para enviar seu trabalho.</p>
-        <% if (registration) { %>
-          <div class="alert alert-info" style="margin-top:1rem;">
-            <%= registration.registration_type === 'author'
-              ? 'Você já está inscrito neste evento como participante com artigo submetido.'
-              : 'Você já está inscrito neste evento como ouvinte.' %>
-          </div>
-        <% } %>
-        <div class="form-actions">
-          <% if ((isPublic || isReviewer) && !registration) { %>
-            <a href="/evento/<%= event.id %>/inscricao" class="btn btn-ghost">Inscrever-se como Ouvinte</a>
-          <% } else if ((isPublic || isReviewer) && registration) { %>
-            <a href="/author" class="btn btn-ghost">Ver minhas participações</a>
-          <% } else if (isAdmin) { %>
-            <a href="/login" class="btn btn-ghost">Entrar com outra conta para se inscrever</a>
-          <% } else { %>
-            <a href="/login" class="btn btn-ghost">Entrar para se inscrever</a>
-            <a href="/cadastro" class="btn btn-ghost">Solicitar Cadastro</a>
-          <% } %>
-          <a href="/submeter/<%= event.id %>" class="btn btn-primary">Submeter Artigo</a>
-        </div>
+      <div class="timeline-title">Cronograma</div>
+      <div class="timeline-table-wrap">
+        <table class="timeline-table">
+          <thead>
+            <tr>
+              <th>Cronograma</th>
+              <th>Data Início</th>
+              <th>Data Fim</th>
+              <th>Status</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% timeline.forEach(function(item) { %>
+              <tr>
+                <td class="timeline-label"><%= item.label %></td>
+                <td class="muted"><%= item.startLabel %></td>
+                <td class="muted"><%= item.endLabel %></td>
+                <td><span class="timeline-status <%= item.statusTone %>"><%= item.status %></span></td>
+                <td class="timeline-action">
+                  <% if (item.actionHref) { %>
+                    <a
+                      href="<%= item.actionHref %>"
+                      class="btn <%= item.actionTone === 'primary' ? 'btn-primary' : 'btn-ghost' %>"
+                      <%= item.actionExternal ? 'target="_blank" rel="noopener noreferrer"' : '' %>
+                    ><%= item.actionLabel %></a>
+                  <% } else { %>
+                    <span class="muted">-</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
       </div>
-    <% } else { %>
-      <div class="section">
-        <h2>Participação no evento</h2>
-        <% if (event.submission.isConfigured) { %>
-          <p class="event-description"><%= event.submission.message || 'O período de submissão para este evento não está aberto no momento.' %></p>
-        <% } %>
-        <% if (registration) { %>
-          <div class="alert alert-info" style="margin-top:1rem;">
-            <%= registration.registration_type === 'author'
-              ? 'Você já está inscrito neste evento como participante com artigo submetido.'
-              : 'Você já está inscrito neste evento como ouvinte.' %>
-          </div>
-        <% } %>
-        <div class="form-actions">
-          <% if ((isPublic || isReviewer) && !registration) { %>
-            <a href="/evento/<%= event.id %>/inscricao" class="btn btn-primary">Inscrever-se como Ouvinte</a>
-          <% } else if ((isPublic || isReviewer) && registration) { %>
-            <a href="/author" class="btn btn-primary">Ver minhas participações</a>
-          <% } else if (isAdmin) { %>
-            <a href="/login" class="btn btn-ghost">Entrar com outra conta para se inscrever</a>
-          <% } else { %>
-            <a href="/login" class="btn btn-primary">Entrar para se inscrever</a>
-            <a href="/cadastro" class="btn btn-ghost">Solicitar Cadastro</a>
-          <% } %>
-        </div>
-      </div>
-    <% } %>
+    </div>
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>

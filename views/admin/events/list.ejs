@@ -66,7 +66,7 @@
       <div class="section-body">
         <table>
           <thead>
-            <tr><th>Nome</th><th>Áreas</th><th>Data do Evento</th><th>Submissão</th><th>Inscritos</th><th>Status</th><th>Ações</th></tr>
+            <tr><th>Nome</th><th>Áreas</th><th>Data do Evento</th><th>Submissão</th><th>Inscritos</th><th>Subsídios</th><th>Status</th><th>Ações</th></tr>
           </thead>
           <tbody>
             <% events.forEach(e => { %>
@@ -87,10 +87,21 @@
                 <strong><%= e.registered_count %></strong><br>
                 <small style="color:#64748b">Autores: <%= e.author_registered_count %> · Ouvintes: <%= e.listener_registered_count %></small>
               </td>
+              <td>
+                <% if (e.offers_subsidy) { %>
+                  <strong><%= e.subsidy_request_count %></strong><br>
+                  <small style="color:#64748b">pedidos</small>
+                <% } else { %>
+                  <span style="color:#64748b;">Não oferece</span>
+                <% } %>
+              </td>
               <td><span class="badge badge-<%= e.status %>"><%= e.status === 'published' ? 'Publicado' : 'Rascunho' %></span></td>
               <td class="actions">
                 <a href="/admin/events/<%= e.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
                 <a href="/admin/events/<%= e.id %>/stats" class="btn btn-ghost btn-sm">Stats</a>
+                <% if (e.offers_subsidy) { %>
+                  <a href="/admin/events/<%= e.id %>/subsidies" class="btn btn-ghost btn-sm">Subsídios</a>
+                <% } %>
                 <a href="/admin/assignments?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Distribuir</a>
                 <a href="/admin/reports?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Relatórios</a>
                 <a href="/admin/articles?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Artigos</a>
@@ -98,9 +109,6 @@
                   <form method="POST" action="/admin/events/<%= e.id %>/publish" style="display:inline" onsubmit="return confirm('Publicar o evento <%= e.name %>?')">
                     <button type="submit" class="btn btn-primary btn-sm">Publicar</button>
                   </form>
-                <% } %>
-                <% if (e.status === 'published') { %>
-                  <a href="/evento/<%= e.id %>" target="_blank" class="btn btn-ghost btn-sm">Ver</a>
                 <% } %>
               </td>
             </tr>

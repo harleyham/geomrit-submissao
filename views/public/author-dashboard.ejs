@@ -30,6 +30,9 @@
     .section-title h2 { font-size: 1.1rem; }
     .event-list, .info-list { display: flex; flex-direction: column; gap: 0.9rem; }
     .event-item, .info-item { padding: 1rem; border-radius: 12px; background: rgba(15,23,42,0.35); border: 1px solid rgba(148,163,184,0.1); }
+    .event-link { display: block; text-decoration: none; color: inherit; transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease; }
+    .event-link:hover .event-item, .event-link:focus-visible .event-item { transform: translateY(-2px); border-color: rgba(96,165,250,0.4); background: rgba(15,23,42,0.52); }
+    .event-link:focus-visible { outline: none; }
     .event-item h3 { color: #f8fafc; margin-bottom: 0.35rem; }
     .event-item p, .info-item p { color: #94a3b8; font-size: 0.875rem; line-height: 1.6; }
     .badge { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
@@ -125,28 +128,23 @@
         <% if (participantEvents.length > 0) { %>
           <div class="event-list">
             <% participantEvents.forEach(event => { %>
-              <div class="event-item">
-                <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
-                  <div>
-                    <h3><%= event.name %></h3>
-                    <p><strong>Áreas:</strong> <%= event.area_display %></p>
-                    <p><strong>Período do evento:</strong> <%= event.formattedDateStart || 'TBD' %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %></p>
-                    <p><strong>Prazo de submissão:</strong> <%= event.submissionDisplay.end || 'sem data limite' %></p>
+              <a href="/evento/<%= event.id %>" class="event-link" aria-label="Abrir evento <%= event.name %>">
+                <div class="event-item">
+                  <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
+                    <div>
+                      <h3><%= event.name %></h3>
+                      <p><strong>Áreas:</strong> <%= event.area_display %></p>
+                      <p><strong>Período do evento:</strong> <%= event.formattedDateStart || 'TBD' %><% if (event.formattedDateEnd) { %> - <%= event.formattedDateEnd %><% } %></p>
+                      <p><strong>Prazo de submissão:</strong> <%= event.submissionDisplay.end || 'sem data limite' %></p>
+                    </div>
+                    <span class="badge <%= event.submission.isOpen ? 'badge-open' : 'badge-draft' %>"><%= event.submission.isOpen ? 'Submissão aberta' : (event.submission.isConfigured ? 'Submissão fechada' : 'Sem submissão') %></span>
                   </div>
-                  <span class="badge <%= event.submission.isOpen ? 'badge-open' : 'badge-draft' %>"><%= event.submission.isOpen ? 'Submissão aberta' : (event.submission.isConfigured ? 'Submissão fechada' : 'Sem submissão') %></span>
                 </div>
-                <div style="margin-top:0.9rem;display:flex;gap:0.6rem;flex-wrap:wrap;">
-                  <a href="/evento/<%= event.id %>" class="btn btn-secondary">Detalhes</a>
-                  <a href="/evento/<%= event.id %>/inscricao" class="btn btn-secondary">Inscrever-se como Ouvinte</a>
-                  <% if (event.submission.isOpen) { %>
-                    <a href="/submeter/<%= event.id %>" class="btn btn-primary">Submeter Artigo</a>
-                  <% } %>
-                </div>
-              </div>
+              </a>
             <% }) %>
           </div>
         <% } else { %>
-          <div class="empty">Não há eventos publicados disponíveis no momento.</div>
+          <div class="empty">Não há eventos futuros disponíveis no momento.</div>
         <% } %>
       </div>
 

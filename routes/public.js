@@ -108,6 +108,277 @@ function withSubmissionMeta(event) {
   };
 }
 
+function formatDisplayDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('pt-BR');
+}
+
+function getEventStatus(event) {
+  const now = new Date();
+  const start = event.date_start ? new Date(`${event.date_start}T00:00:00`) : null;
+  const end = event.date_end ? new Date(`${event.date_end}T23:59:59`) : start;
+
+  if (!start) return 'A definir';
+  if (now < start) return 'Programado';
+  if (end && now > end) return 'Encerrado';
+  return 'Em andamento';
+}
+
+function getRegistrationStatus(event) {
+  const window = getRegistrationWindow(event);
+  if (!window.isConfigured) return 'A definir';
+  if (!window.isOpen) return window.start && new Date() < window.start ? 'Programada' : 'Encerrada';
+  return 'Disponivel';
+}
+
+function getAnalysisStatus(event) {
+  const reviewStart = event.review_start ? new Date(`${event.review_start}T00:00:00`) : null;
+  const reviewEnd = event.review_end ? new Date(`${event.review_end}T23:59:59`) : null;
+  const now = new Date();
+
+  if (!reviewStart || !reviewEnd) return 'A definir';
+  if (now < reviewStart) return 'Programada';
+  if (now > reviewEnd) return 'Encerrada';
+  return 'Em análise';
+}
+
+function getStatusTone(status) {
+  const value = String(status || '').toLowerCase();
+  if (['aberta', 'disponivel', 'em andamento', 'em análise'].includes(value)) return 'status-positive';
+  if (['programado', 'programada', 'aguardando submissões'].includes(value)) return 'status-neutral';
+  if (['encerrada', 'encerrado', 'indisponivel'].includes(value)) return 'status-negative';
+  return 'status-muted';
+}
+
+function getRegistrationWindow(event) {
+  const now = new Date();
+  const start = event.registration_start ? new Date(`${event.registration_start}T00:00:00`) : null;
+  const end = event.registration_end ? new Date(`${event.registration_end}T23:59:59`) : null;
+
+  if (!start || !end) {
+    return {
+      isOpen: false,
+      isConfigured: false,
+      message: 'Este evento não possui período de inscrições configurado.',
+      start,
+      end
+    };
+  }
+
+  if (now < start) {
+    return {
+      isOpen: false,
+      isConfigured: true,
+      message: `As inscrições para este evento abrem em ${start.toLocaleDateString('pt-BR')}.`,
+      start,
+      end
+    };
+  }
+
+  if (now > end) {
+    return {
+      isOpen: false,
+      isConfigured: true,
+      message: `O período de inscrições deste evento encerrou em ${end.toLocaleDateString('pt-BR')}.`,
+      start,
+      end
+    };
+  }
+
+  return { isOpen: true, isConfigured: true, message: null, start, end };
+}
+
+function getCertificatesWindow(event) {
+  const now = new Date();
+  const start = event.certificates_start ? new Date(`${event.certificates_start}T00:00:00`) : null;
+  const end = event.certificates_end ? new Date(`${event.certificates_end}T23:59:59`) : null;
+
+  if (!start || !end) {
+    return {
+      isOpen: false,
+      isConfigured: false,
+      message: 'Este evento não possui período de certificados configurado.',
+      start,
+      end
+    };
+  }
+
+  if (now < start) {
+    return {
+      isOpen: false,
+      isConfigured: true,
+      message: `Os certificados deste evento estarão disponíveis a partir de ${start.toLocaleDateString('pt-BR')}.`,
+      start,
+      end
+    };
+  }
+
+  if (now > end) {
+    return {
+      isOpen: false,
+      isConfigured: true,
+      message: `O período para acesso aos certificados deste evento encerrou em ${end.toLocaleDateString('pt-BR')}.`,
+      start,
+      end
+    };
+  }
+
+  return { isOpen: true, isConfigured: true, message: null, start, end };
+}
+
+function buildEventTimeline(event, options = {}) {
+  const { registration = null, session = null } = options;
+  const isAdmin = !!(session && session.isAdmin);
+  const isAuthenticatedParticipant = !!(session && session.userId && !isAdmin);
+  const hasRegistration = !!registration;
+  const registrationWindow = getRegistrationWindow(event);
+  const certificatesWindow = getCertificatesWindow(event);
+  const registrationStart = event.registration_start ? new Date(`${event.registration_start}T00:00:00`) : null;
+  const registrationEnd = event.registration_end ? new Date(`${event.registration_end}T23:59:59`) : null;
+  const submissionStart = event.submission_start ? new Date(`${event.submission_start}T00:00:00`) : null;
+  const submissionEnd = event.submission_end ? new Date(`${event.submission_end}T23:59:59`) : null;
+  const eventStart = event.date_start ? new Date(`${event.date_start}T00:00:00`) : null;
+  const eventEnd = event.date_end ? new Date(`${event.date_end}T23:59:59`) : eventStart;
+  const reviewStart = event.review_start ? new Date(`${event.review_start}T00:00:00`) : null;
+  const reviewEnd = event.review_end ? new Date(`${event.review_end}T23:59:59`) : null;
+  const certificatesStart = event.certificates_start ? new Date(`${event.certificates_start}T00:00:00`) : null;
+  const certificatesEnd = event.certificates_end ? new Date(`${event.certificates_end}T23:59:59`) : null;
+
+  const submissionStatus = event.submission.isOpen
+    ? 'Aberta'
+    : event.submission.isConfigured
+      ? (submissionStart && new Date() < submissionStart ? 'Programada' : 'Encerrada')
+      : 'Nao configurada';
+
+  const timeline = [
+    {
+      label: 'Inscrições',
+      startLabel: formatDisplayDate(registrationStart) || 'A definir',
+      endLabel: formatDisplayDate(registrationEnd) || 'A definir',
+      status: getRegistrationStatus(event)
+    },
+    {
+      label: 'Submissão Artigos',
+      startLabel: formatDisplayDate(submissionStart) || 'A definir',
+      endLabel: formatDisplayDate(submissionEnd) || 'A definir',
+      status: submissionStatus
+    },
+    {
+      label: 'Análise Submissão',
+      startLabel: formatDisplayDate(reviewStart) || 'A definir',
+      endLabel: formatDisplayDate(reviewEnd) || 'A definir',
+      status: getAnalysisStatus(event)
+    },
+    {
+      label: 'Evento',
+      startLabel: formatDisplayDate(eventStart) || 'A definir',
+      endLabel: formatDisplayDate(eventEnd) || 'A definir',
+      status: getEventStatus(event)
+    },
+    {
+      label: 'Certificados',
+      startLabel: formatDisplayDate(certificatesStart) || 'A definir',
+      endLabel: formatDisplayDate(certificatesEnd) || 'A definir',
+      status: (!certificatesStart || !certificatesEnd)
+        ? 'A definir'
+        : (new Date() < certificatesStart ? 'Programada' : (new Date() > certificatesEnd ? 'Encerrada' : 'Disponivel'))
+    }
+  ].map((item) => ({
+    ...item,
+    statusTone: getStatusTone(item.status)
+  }));
+
+  return timeline.map((item) => {
+    if (item.label === 'Inscrições') {
+      if (!registrationWindow.isConfigured) {
+        return item;
+      }
+
+      if (hasRegistration) {
+        return {
+          ...item,
+          actionLabel: 'Minhas participações',
+          actionHref: '/author',
+          actionTone: 'ghost'
+        };
+      }
+
+      if (isAuthenticatedParticipant) {
+        return {
+          ...item,
+          actionLabel: 'Inscrever-se',
+          actionHref: `/evento/${event.id}/inscricao`,
+          actionTone: registrationWindow.isOpen ? 'primary' : 'ghost'
+        };
+      }
+
+      return {
+        ...item,
+        actionLabel: 'Entrar',
+        actionHref: '/login',
+        actionTone: 'ghost'
+      };
+    }
+
+    if (item.label === 'Submissão Artigos') {
+      if (!event.submission.isConfigured) {
+        return item;
+      }
+
+      if (isAuthenticatedParticipant && hasRegistration) {
+        return {
+          ...item,
+          actionLabel: 'Submeter Artigo',
+          actionHref: `/submeter/${event.id}`,
+          actionTone: item.status === 'Aberta' ? 'primary' : 'ghost'
+        };
+      }
+
+      if (isAuthenticatedParticipant) {
+        return {
+          ...item,
+          actionLabel: 'Inscrever-se',
+          actionHref: `/evento/${event.id}/inscricao`,
+          actionTone: 'ghost'
+        };
+      }
+
+      return {
+        ...item,
+        actionLabel: 'Entrar',
+        actionHref: '/login',
+        actionTone: 'ghost'
+      };
+    }
+
+    if (item.label === 'Evento' && event.url && String(event.url).trim()) {
+      return {
+        ...item,
+        actionLabel: 'Acessar site',
+        actionHref: event.url,
+        actionTone: 'ghost',
+        actionExternal: true
+      };
+    }
+
+    if (item.label === 'Certificados' && !certificatesWindow.isConfigured) {
+      return item;
+    }
+
+    if (item.label === 'Certificados' && session && session.userId && !isAdmin && hasRegistration && certificatesWindow.isOpen) {
+      return {
+        ...item,
+        actionLabel: 'Área do participante',
+        actionHref: '/author',
+        actionTone: 'ghost'
+      };
+    }
+
+    return item;
+  });
+}
+
 function requireUserSession(req, res, next) {
   if (!req.session || !req.session.userId) {
     return res.redirect('/login');
@@ -386,9 +657,14 @@ function normalizeListenerRegistrationForm(body = {}, session = null) {
 
 function validateListenerRegistrationForm(formData, event, existingRegistration, uploadedFiles) {
   const errors = [];
+  const registrationWindow = getRegistrationWindow(event);
   const hasAcademicHistory = !!(uploadedFiles.academic_history_pdf || (existingRegistration && existingRegistration.academic_history_pdf_path));
   const hasMotivationLetter = !!(uploadedFiles.motivation_letter_pdf || (existingRegistration && existingRegistration.motivation_letter_pdf_path));
   const hasRecommendationLetter = !!(uploadedFiles.recommendation_letter_pdf || (existingRegistration && existingRegistration.recommendation_letter_pdf_path));
+
+  if (!registrationWindow.isOpen) {
+    errors.push(registrationWindow.message || 'O período de inscrições deste evento está fechado.');
+  }
 
   if (!formData.name || !formData.email) {
     errors.push('Nome e e-mail são obrigatórios para a inscrição no evento.');
@@ -436,6 +712,14 @@ function buildRegistrationDocumentMeta(existingRegistration, uploadedFiles) {
   };
 }
 
+function getSubsidyStatusForRegistration(event, formData) {
+  if (!(event.offers_subsidy && formData.subsidy_requested)) {
+    return 'not_requested';
+  }
+
+  return 'pending';
+}
+
 function removeReplacedRegistrationFiles(existingRegistration, uploadedFiles) {
   if (!existingRegistration) return;
   if (uploadedFiles.academic_history_pdf && existingRegistration.academic_history_pdf_path) removeUploadedFile(existingRegistration.academic_history_pdf_path);
@@ -444,14 +728,16 @@ function removeReplacedRegistrationFiles(existingRegistration, uploadedFiles) {
 }
 
 function renderListenerRegistrationForm(res, event, options = {}) {
+  const eventWithMeta = withSubmissionMeta(withAreaMeta(event));
   res.render('public/event-register', {
-    event: withSubmissionMeta(withAreaMeta(event)),
+    event: eventWithMeta,
     title: options.title || `Inscrição no Evento - ${event.name}`,
     error: options.error || null,
     success: options.success || null,
     formData: options.formData || {},
     alreadyRegistered: !!options.alreadyRegistered,
-    registrationType: options.registrationType || null
+    registrationType: options.registrationType || null,
+    registrationWindow: getRegistrationWindow(eventWithMeta)
   });
 }
 
@@ -468,7 +754,8 @@ function renderSubmissionForm(res, event, options = {}) {
     areaOptions: getAreaOptions(event.area),
     abstractLimit: ABSTRACT_LIMIT,
     currentFileName: options.currentFileName || null,
-    editingDraft: !!options.editingDraft
+    editingDraft: !!options.editingDraft,
+    hasRegistration: !!options.hasRegistration
   });
 }
 
@@ -552,7 +839,11 @@ router.get('/evento/:id', (req, res) => {
   res.render('public/event', {
     event: withSubmissionMeta(event),
     title: event.name,
-    registration
+    registration,
+    timeline: buildEventTimeline(withSubmissionMeta(event), {
+      registration,
+      session: req.session
+    })
   });
 });
 
@@ -574,7 +865,10 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
     LIMIT 1
   `).get(req.params.id, req.session.userId, req.session.userEmail || '');
 
+  const registrationWindow = getRegistrationWindow(event);
+
   return renderListenerRegistrationForm(res, event, {
+    error: !registrationWindow.isOpen ? registrationWindow.message : null,
     formData: existingRegistration
       ? {
           name: existingRegistration.name || req.session.userName || '',
@@ -622,6 +916,23 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
     LIMIT 1
   `).get(req.params.id, req.session.userId, req.session.userEmail || '');
 
+  const registrationWindow = getRegistrationWindow(event);
+
+  if (!registrationWindow.isOpen) {
+    removeUploadedRegistrationFiles(uploadedFiles);
+    return renderListenerRegistrationForm(res, event, {
+      error: registrationWindow.message,
+      formData: {
+        ...formData,
+        academic_history_original_name: existingRegistration ? existingRegistration.academic_history_original_name || '' : '',
+        motivation_letter_original_name: existingRegistration ? existingRegistration.motivation_letter_original_name || '' : '',
+        recommendation_letter_original_name: existingRegistration ? existingRegistration.recommendation_letter_original_name || '' : ''
+      },
+      alreadyRegistered: !!existingRegistration,
+      registrationType: existingRegistration ? existingRegistration.registration_type : null
+    });
+  }
+
   if (req.registrationUploadError) {
     removeUploadedRegistrationFiles(uploadedFiles);
     return renderListenerRegistrationForm(res, event, {
@@ -663,6 +974,9 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
       UPDATE event_registrations
       SET name = ?, email = ?, institution = ?, subsidy_requested = ?, student_level = ?, student_course = ?,
           student_institution_name = ?, student_institution_state = ?, student_lattes_id = ?,
+          subsidy_status = ?, subsidy_review_notes = CASE WHEN ? = 'pending' THEN '' ELSE subsidy_review_notes END,
+          subsidy_reviewed_at = CASE WHEN ? = 'pending' THEN NULL ELSE subsidy_reviewed_at END,
+          subsidy_reviewed_by = CASE WHEN ? = 'pending' THEN NULL ELSE subsidy_reviewed_by END,
           academic_history_pdf_path = ?, academic_history_original_name = ?,
           motivation_letter_pdf_path = ?, motivation_letter_original_name = ?,
           recommendation_letter_pdf_path = ?, recommendation_letter_original_name = ?,
@@ -678,6 +992,10 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
       event.offers_subsidy && formData.subsidy_requested ? formData.student_institution_name : '',
       event.offers_subsidy && formData.subsidy_requested ? formData.student_institution_state : '',
       event.offers_subsidy && formData.subsidy_requested ? formData.student_lattes_id : '',
+      getSubsidyStatusForRegistration(event, formData),
+      getSubsidyStatusForRegistration(event, formData),
+      getSubsidyStatusForRegistration(event, formData),
+      getSubsidyStatusForRegistration(event, formData),
       event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_pdf_path : '',
       event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
       event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_pdf_path : '',
@@ -705,13 +1023,13 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
   db.prepare(`
     INSERT INTO event_registrations (
       event_id, user_id, name, email, institution, registration_type, subsidy_requested, student_level,
-      student_course, student_institution_name, student_institution_state, student_lattes_id,
+      student_course, student_institution_name, student_institution_state, student_lattes_id, subsidy_status,
       academic_history_pdf_path, academic_history_original_name,
       motivation_letter_pdf_path, motivation_letter_original_name,
       recommendation_letter_pdf_path, recommendation_letter_original_name,
       created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, 'listener', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, 'listener', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).run(
     event.id,
     req.session.userId,
@@ -724,6 +1042,7 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
     event.offers_subsidy && formData.subsidy_requested ? formData.student_institution_name : '',
     event.offers_subsidy && formData.subsidy_requested ? formData.student_institution_state : '',
     event.offers_subsidy && formData.subsidy_requested ? formData.student_lattes_id : '',
+    getSubsidyStatusForRegistration(event, formData),
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_pdf_path : '',
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_pdf_path : '',
@@ -751,16 +1070,37 @@ router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
   const eventWithMeta = withSubmissionMeta(event);
+  const registration = db.prepare(`
+    SELECT id, registration_type
+    FROM event_registrations
+    WHERE event_id = ?
+      AND (
+        user_id = ?
+        OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+      )
+    ORDER BY id
+    LIMIT 1
+  `).get(req.params.eventId, req.session.userId, req.session.userEmail || '');
   const draft = getDraftForEditing(req.query.draftId, event.id, req);
   const formData = draft
     ? buildFormDataFromDraft(draft, req.session)
     : ensureAtLeastOneAuthor(normalizeFormData({}, req.session));
 
+  if (!registration) {
+    return renderSubmissionForm(res, eventWithMeta, {
+      submissionError: 'Para submeter artigo, você precisa estar inscrito neste evento.',
+      formData,
+      currentFileName: null,
+      hasRegistration: false
+    });
+  }
+
   if (!eventWithMeta.submission.isOpen && !draft) {
     return renderSubmissionForm(res, eventWithMeta, {
       submissionError: eventWithMeta.submission.message,
       formData,
-      currentFileName: null
+      currentFileName: null,
+      hasRegistration: true
     });
   }
 
@@ -768,7 +1108,8 @@ router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
     formData,
     currentFileName: draft ? draft.file_original_name : null,
     editingDraft: !!draft,
-    successMessage: draft ? 'Rascunho carregado. Você pode continuar a edição e submeter quando estiver pronto.' : null
+    successMessage: draft ? 'Rascunho carregado. Você pode continuar a edição e submeter quando estiver pronto.' : null,
+    hasRegistration: true
   });
 });
 
@@ -786,6 +1127,17 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
     const action = req.body && req.body.action === 'save_draft' ? 'save_draft' : 'submit_article';
     const isDraft = action === 'save_draft';
     const existingDraft = getDraftForEditing(formData.draft_id, event.id, req);
+    const registration = db.prepare(`
+      SELECT id, registration_type
+      FROM event_registrations
+      WHERE event_id = ?
+        AND (
+          user_id = ?
+          OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+        )
+      ORDER BY id
+      LIMIT 1
+    `).get(req.params.eventId, req.session.userId, req.session.userEmail || '');
 
     if (req.uploadError) {
       if (req.file) removeUploadedFile(req.file.filename);
@@ -793,7 +1145,8 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
         submissionError: req.uploadError,
         formData,
         currentFileName: existingDraft ? existingDraft.file_original_name : null,
-        editingDraft: !!existingDraft
+        editingDraft: !!existingDraft,
+        hasRegistration: !!registration
       });
     }
 
@@ -801,7 +1154,19 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
       if (req.file) removeUploadedFile(req.file.filename);
       return renderSubmissionForm(res, eventWithMeta, {
         submissionError: 'Para salvar rascunho, faça login como autor no sistema.',
-        formData
+        formData,
+        hasRegistration: !!registration
+      });
+    }
+
+    if (!registration) {
+      if (req.file) removeUploadedFile(req.file.filename);
+      return renderSubmissionForm(res, eventWithMeta, {
+        submissionError: 'Para submeter artigo, você precisa estar inscrito neste evento.',
+        formData,
+        currentFileName: existingDraft ? existingDraft.file_original_name : null,
+        editingDraft: !!existingDraft,
+        hasRegistration: false
       });
     }
 
@@ -817,7 +1182,8 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
         submissionError: errors.join(' '),
         formData,
         currentFileName: existingDraft ? existingDraft.file_original_name : fileOriginalName,
-        editingDraft: !!existingDraft
+        editingDraft: !!existingDraft,
+        hasRegistration: true
       });
     }
 
@@ -913,7 +1279,8 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
       title: 'Submissão Concluída',
       submitted: true,
       access_code: nextAccessCode,
-      formData: ensureAtLeastOneAuthor(normalizeFormData({}, req.session))
+      formData: ensureAtLeastOneAuthor(normalizeFormData({}, req.session)),
+      hasRegistration: true
     });
   } catch (error) {
     console.error('Erro ao processar submissão pública:', error);
@@ -926,12 +1293,16 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
 
     return renderSubmissionForm(res, withSubmissionMeta(event), {
       submissionError: 'Ocorreu um erro ao processar a submissão. Revise os dados e tente novamente.',
-      formData: ensureAtLeastOneAuthor(normalizeFormData(req.body, req.session))
+      formData: ensureAtLeastOneAuthor(normalizeFormData(req.body, req.session)),
+      hasRegistration: true
     });
   }
 });
 
 router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const participationKeys = db.prepare(`
     SELECT DISTINCT event_id
     FROM event_registrations
@@ -948,6 +1319,11 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
     ORDER BY date_start DESC
   `).all()
     .filter((event) => !registeredEventIds.has(Number(event.id)))
+    .filter((event) => {
+      if (!event.date_start) return false;
+      const eventStart = new Date(`${event.date_start}T00:00:00`);
+      return !Number.isNaN(eventStart.getTime()) && eventStart > today;
+    })
     .map((event) => withSubmissionMeta(withAreaMeta(event)));
 
   const submissions = db.prepare(`

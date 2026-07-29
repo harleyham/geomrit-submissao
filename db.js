@@ -45,8 +45,14 @@ db.exec(`
     language TEXT,
     offers_subsidy INTEGER DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'draft',
+    registration_start DATE,
+    registration_end DATE,
     submission_start DATE,
     submission_end DATE,
+    review_start DATE,
+    review_end DATE,
+    certificates_start DATE,
+    certificates_end DATE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -124,6 +130,10 @@ db.exec(`
     student_institution_name TEXT DEFAULT '',
     student_institution_state TEXT DEFAULT '',
     student_lattes_id TEXT DEFAULT '',
+    subsidy_status TEXT DEFAULT 'not_requested',
+    subsidy_review_notes TEXT DEFAULT '',
+    subsidy_reviewed_at DATETIME,
+    subsidy_reviewed_by INTEGER,
     academic_history_pdf_path TEXT DEFAULT '',
     academic_history_original_name TEXT DEFAULT '',
     motivation_letter_pdf_path TEXT DEFAULT '',
@@ -221,6 +231,12 @@ try {
   if (!eventColumns.includes('offers_subsidy')) db.exec('ALTER TABLE events ADD COLUMN offers_subsidy INTEGER DEFAULT 0');
   if (!eventColumns.includes('institution')) db.exec('ALTER TABLE events ADD COLUMN institution TEXT');
   if (!eventColumns.includes('language')) db.exec('ALTER TABLE events ADD COLUMN language TEXT');
+  if (!eventColumns.includes('registration_start')) db.exec('ALTER TABLE events ADD COLUMN registration_start DATE');
+  if (!eventColumns.includes('registration_end')) db.exec('ALTER TABLE events ADD COLUMN registration_end DATE');
+  if (!eventColumns.includes('review_start')) db.exec('ALTER TABLE events ADD COLUMN review_start DATE');
+  if (!eventColumns.includes('review_end')) db.exec('ALTER TABLE events ADD COLUMN review_end DATE');
+  if (!eventColumns.includes('certificates_start')) db.exec('ALTER TABLE events ADD COLUMN certificates_start DATE');
+  if (!eventColumns.includes('certificates_end')) db.exec('ALTER TABLE events ADD COLUMN certificates_end DATE');
 } catch(e) {
   console.warn('Migration events columns:', e.message);
 }
@@ -233,12 +249,24 @@ try {
   if (!registrationColumns.includes('student_institution_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_institution_name TEXT DEFAULT ''");
   if (!registrationColumns.includes('student_institution_state')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_institution_state TEXT DEFAULT ''");
   if (!registrationColumns.includes('student_lattes_id')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_lattes_id TEXT DEFAULT ''");
+  if (!registrationColumns.includes('subsidy_status')) db.exec("ALTER TABLE event_registrations ADD COLUMN subsidy_status TEXT DEFAULT 'not_requested'");
+  if (!registrationColumns.includes('subsidy_review_notes')) db.exec("ALTER TABLE event_registrations ADD COLUMN subsidy_review_notes TEXT DEFAULT ''");
+  if (!registrationColumns.includes('subsidy_reviewed_at')) db.exec("ALTER TABLE event_registrations ADD COLUMN subsidy_reviewed_at DATETIME");
+  if (!registrationColumns.includes('subsidy_reviewed_by')) db.exec("ALTER TABLE event_registrations ADD COLUMN subsidy_reviewed_by INTEGER");
   if (!registrationColumns.includes('academic_history_pdf_path')) db.exec("ALTER TABLE event_registrations ADD COLUMN academic_history_pdf_path TEXT DEFAULT ''");
   if (!registrationColumns.includes('academic_history_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN academic_history_original_name TEXT DEFAULT ''");
   if (!registrationColumns.includes('motivation_letter_pdf_path')) db.exec("ALTER TABLE event_registrations ADD COLUMN motivation_letter_pdf_path TEXT DEFAULT ''");
   if (!registrationColumns.includes('motivation_letter_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN motivation_letter_original_name TEXT DEFAULT ''");
   if (!registrationColumns.includes('recommendation_letter_pdf_path')) db.exec("ALTER TABLE event_registrations ADD COLUMN recommendation_letter_pdf_path TEXT DEFAULT ''");
   if (!registrationColumns.includes('recommendation_letter_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN recommendation_letter_original_name TEXT DEFAULT ''");
+  db.prepare(`
+    UPDATE event_registrations
+    SET subsidy_status = CASE
+      WHEN subsidy_requested = 1 THEN 'pending'
+      ELSE 'not_requested'
+    END
+    WHERE subsidy_status IS NULL OR TRIM(subsidy_status) = ''
+  `).run();
 } catch(e) {
   console.warn('Migration event registrations columns:', e.message);
 }

@@ -6,7 +6,7 @@ Aplicação web para gestão de eventos científicos com publicação de eventos
 
 Versão atual do projeto: **V0.1**.
 
-Data de referência desta especificação: **28/07/2026**.
+Data de referência desta especificação: **29/07/2026**.
 
 ## Objetivo do Produto
 
@@ -46,6 +46,7 @@ O sistema deve permitir:
 - Visualização de artigos por evento.
 - Atribuição de revisores.
 - Relatórios por evento com consolidação de pareceres.
+- Página administrativa por evento para análise de pedidos de subsídio, com leitura dos documentos anexados e decisão de aprovação ou reprovação.
 - Impressão do relatório do evento em PDF pelo navegador.
 
 ### Revisão
@@ -59,7 +60,7 @@ O sistema deve permitir:
 ### Público
 
 - Listagem de eventos publicados.
-- Página pública do evento com URL destacada e fallback `TBD` quando não informada.
+- Página pública do evento com URL destacada e tabela de cronograma por etapa.
 - Inscrição pública de participante como ouvinte, vinculada a conta autenticada.
 - Submissão de artigo com geração de código de acesso.
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive para contas com perfil de revisor.
@@ -131,9 +132,17 @@ A sessão persiste:
 - `url`
 - `area`
 - `offers_subsidy`
+- `registration_start`
+- `registration_end`
 - `status`
+- `institution`
+- `language`
 - `submission_start`
 - `submission_end`
+- `review_start`
+- `review_end`
+- `certificates_start`
+- `certificates_end`
 - `created_at`
 - `updated_at`
 
@@ -187,6 +196,10 @@ A sessão persiste:
 - `student_institution_name`
 - `student_institution_state`
 - `student_lattes_id`
+- `subsidy_status`
+- `subsidy_review_notes`
+- `subsidy_reviewed_at`
+- `subsidy_reviewed_by`
 - `academic_history_pdf_path`
 - `academic_history_original_name`
 - `motivation_letter_pdf_path`
@@ -221,19 +234,33 @@ A sessão persiste:
 ### Eventos e submissão
 
 - Apenas eventos com `status = 'published'` aparecem no site público.
+- O cronograma público do evento é organizado por `Inscrições`, `Submissão Artigos`, `Análise Submissão`, `Evento` e `Certificados`.
+- Cada etapa do cronograma pode ter período próprio configurado na administração do evento.
 - A submissão pública depende da janela configurada em `submission_start` e `submission_end`.
+- A inscrição pública depende da janela configurada em `registration_start` e `registration_end`.
+- A área de certificados depende da janela configurada em `certificates_start` e `certificates_end`.
 - Um evento sem `submission_start` e `submission_end` não é tratado como evento com submissão fechada; ele é tratado como evento sem submissão de artigos configurada.
-- Quando não existe janela de submissão configurada, a interface pública não mostra badge ou mensagem de status de submissão.
+- Quando uma etapa do cronograma não possui janela configurada, a página pública do evento não exibe botão de ação para essa etapa.
 - Antes de `submission_start`, a submissão fica bloqueada.
 - Depois de `submission_end`, a submissão fica bloqueada.
+- Antes de `registration_start`, a inscrição fica bloqueada.
+- Depois de `registration_end`, a inscrição fica bloqueada.
+- Antes de `certificates_start`, o acesso a certificados fica bloqueado.
+- Depois de `certificates_end`, o acesso a certificados fica bloqueado.
 - O campo `area` do evento suporta múltiplas áreas/trilhas, persistidas em `TEXT` normalizado e reutilizadas no formulário de submissão.
 - O formulário de submissão só apresenta áreas definidas no evento selecionado.
+- O participante só pode submeter artigo se estiver autenticado e já inscrito no evento.
+- Rascunhos podem ser salvos na área do participante, mas não contam como submissão efetiva nas métricas e relatórios.
 - O evento pode registrar se oferece subsídio a participantes por meio de `offers_subsidy`.
 - Quando `offers_subsidy = 1`, a inscrição do participante pode incluir candidatura a subsídio financeiro.
 - Ao solicitar subsídio, o participante deve informar nível acadêmico, curso, instituição de vínculo, UF da instituição e ID Lattes com 16 dígitos.
 - Ao solicitar subsídio, o participante deve anexar histórico escolar, carta de motivação e carta de recomendação em PDF, com limite de 10 MB por arquivo.
+- Pedidos de subsídio ficam disponíveis apenas para administradores em uma página do evento, com status de análise (`pending`, `approved`, `rejected`), leitura dos documentos anexados e registro de observações da decisão.
 - Na criação e edição do evento, `date_end` não pode ser anterior a `date_start`.
+- Na criação e edição do evento, `registration_end` não pode ser anterior a `registration_start`.
 - Na criação e edição do evento, `submission_end` não pode ser anterior a `submission_start`.
+- Na criação e edição do evento, `review_end` não pode ser anterior a `review_start`.
+- Na criação e edição do evento, `certificates_end` não pode ser anterior a `certificates_start`.
 
 ### Usuários
 
@@ -275,6 +302,7 @@ A sessão persiste:
 - Todo participante do evento deve estar associado a uma conta cadastrada no sistema.
 - Participantes ouvintes são registrados em `event_registrations` com `registration_type = 'listener'`.
 - Participantes que submetem artigo são registrados em `event_registrations` com `registration_type = 'author'`.
+- Usuários com perfil de revisor também podem participar do fluxo público e submeter artigos, desde que não sejam administradores.
 - Se um ouvinte posteriormente submete artigo no mesmo evento, sua inscrição é promovida automaticamente para `author`.
 - Um participante com múltiplos artigos conta uma única vez nas métricas de inscritos com artigo.
 - O participante pode cancelar a inscrição de ouvinte até o dia anterior ao início do evento.
@@ -294,8 +322,8 @@ A sessão persiste:
 
 1. Admin cria evento.
 2. Admin publica evento.
-3. Participante autenticado pode se inscrever no evento como ouvinte.
-4. Público autenticado submete artigo dentro da janela permitida.
+3. Participante autenticado pode se inscrever no evento como ouvinte dentro da janela de inscrições.
+4. Público autenticado e já inscrito submete artigo dentro da janela permitida.
 5. Sistema cria artigo com `status = 'pending'`.
 6. Sistema registra ou promove a participação do inscrito para `author`.
 7. Admin atribui revisor.
@@ -345,6 +373,7 @@ A sessão persiste:
 |------|------------|
 | `/admin/dashboard` | Dashboard administrativo |
 | `/admin/events` | Gestão de eventos |
+| `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/articles` | Gestão de artigos |
 | `/admin/users` | Gestão de usuários |
 | `/admin/assignments` | Atribuição de revisores |
@@ -385,6 +414,7 @@ Observações estruturais:
 - `routes/reviewers.js` permanece como herança da estrutura anterior.
 - A área do participante continua servida pela rota `/author`, embora o fluxo hoje cubra inscrições e submissões.
 - O participante possui tela própria de atualização cadastral em `/author/profile`.
+- A criação e a edição de eventos já contemplam todas as datas do cronograma público.
 
 ## Segurança e Operação
 
@@ -424,16 +454,20 @@ Observações operacionais:
 - Fluxo de atribuição de revisores.
 - Dashboard do revisor baseado em atribuições e pareceres.
 - Restrição de submissão por janela real de datas.
-- Eventos sem período de submissão configurado não exibem status de submissão na home nem na página pública do evento.
+- Restrição de inscrição por janela real de datas.
+- Restrição de acesso à área de certificados conforme janela do evento.
+- Eventos sem período configurado em uma etapa do cronograma não exibem botão de ação correspondente na página pública do evento.
 - Cancelamento de inscrição de ouvinte antes do início do evento.
 - Inscrição em evento com fluxo condicional de subsídio, incluindo dados acadêmicos e upload de documentos obrigatórios.
+- Página pública do evento reorganizada em formato de cronograma com ações por etapa.
+- Painel `/author` com cards clicáveis apenas para eventos futuros ainda disponíveis para participação.
 - Relatórios por evento com recomendações consolidadas.
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 
 ### Parcial ou pendente de validação
 
 - Decisão final administrativa precisa de validação funcional ponta a ponta.
-- Upload público de arquivo ainda não está completo no fluxo efetivo.
+- Fluxo real de certificados ainda não possui área dedicada própria; hoje a janela já é controlada, mas a emissão/consulta específica ainda precisa ser implementada.
 
 ### Fora do escopo atual
 
@@ -444,7 +478,7 @@ Observações operacionais:
 
 ## Riscos e Gaps Conhecidos
 
-1. O campo `pdf_path` existe, mas o upload público real ainda não está operacional de ponta a ponta.
+1. Ainda não existe uma área dedicada de emissão ou download de certificados, embora a janela de certificados já esteja modelada.
 2. Existem rotas legadas ainda montadas no projeto, especialmente `/admin/config`.
 3. Ainda há endpoints legados de toggle individual de perfis no backend, embora a interface principal já utilize salvamento em lote.
 4. O fluxo completo de decisão final administrativa ainda requer validação integrada.
@@ -453,7 +487,7 @@ Observações operacionais:
 
 ### Alta prioridade
 
-1. Concluir o upload real de artigo na submissão pública.
+1. Implementar a área dedicada de certificados para participantes dentro da janela válida.
 2. Validar o fluxo completo de evento, submissão, atribuição, parecer e decisão final.
 3. Reforçar validações server-side e client-side nos formulários principais.
 4. Revisar proteção contra CSRF e endurecimento geral de segurança.

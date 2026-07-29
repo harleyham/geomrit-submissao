@@ -40,6 +40,7 @@
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
     .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2); }
+    .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
     @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
     footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
   </style>
@@ -200,7 +201,7 @@
 
         <div class="actions">
           <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar ao evento</a>
-          <button type="submit" class="btn btn-primary"><%= alreadyRegistered ? 'Atualizar Inscrição' : 'Confirmar Inscrição' %></button>
+          <button type="submit" class="btn btn-primary" <%= registrationWindow && !registrationWindow.isOpen ? 'disabled' : '' %>><%= alreadyRegistered ? 'Atualizar Inscrição' : 'Confirmar Inscrição' %></button>
         </div>
       </form>
     </div>

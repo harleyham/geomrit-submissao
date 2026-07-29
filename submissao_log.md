@@ -4,6 +4,34 @@ Registro cronológico das alterações relevantes do sistema de submissão de ar
 
 Versão atual registrada: **V0.1**.
 
+## 2026-07-29
+
+### Documentação
+
+- `submissao.md` atualizado para refletir o cronograma público por evento, as novas janelas administrativas (`registration`, `review`, `certificates`) e as regras reais de bloqueio por período.
+- `submissao_log.md` atualizado com o histórico das mudanças implementadas em 29 de julho de 2026.
+
+### Implementações
+
+- Página pública do evento reorganizada em formato de cronograma com coluna de ação por etapa.
+- Cadastro e edição de eventos ampliados para suportar datas de inscrições, análise de submissão e certificados.
+- Painel `/author` ajustado para mostrar apenas eventos futuros em cards clicáveis, levando diretamente à página pública do evento.
+- Fluxo público de submissão ajustado para exigir inscrição prévia no evento antes do envio do artigo.
+
+### Correções
+
+- Correção do comportamento dos botões da página pública do evento para trocar a ação conforme autenticação e inscrição do participante.
+- Correção da regra da etapa `Submissão Artigos`, que agora só habilita envio para usuário autenticado e inscrito.
+- Correção do backend para bloquear inscrições fora da janela de `registration_start` e `registration_end`.
+- Correção do backend para bloquear submissões finais fora da janela de `submission_start` e `submission_end`.
+- Correção da lógica pública para esconder botões de ação quando a etapa do cronograma não possui período configurado.
+- Correção da ação de certificados para só aparecer quando houver inscrição válida, autenticação e janela de certificados aberta.
+
+### Observações Técnicas
+
+- O controle de período deixou de ser apenas visual: as rotas públicas de inscrição e submissão passaram a validar a janela diretamente no backend.
+- A janela de certificados já está modelada e controlada na interface pública, mas ainda não existe fluxo dedicado para emissão ou download.
+
 ## 2026-07-28
 
 ### Documentação
@@ -14,6 +42,9 @@ Versão atual registrada: **V0.1**.
 
 ### Implementações
 
+- Página administrativa por evento implementada para listagem e análise dos pedidos de subsídio.
+- Leitura administrativa dos documentos de subsídio implementada com acesso aos PDFs anexados no cadastro do participante.
+- Fluxo administrativo de aprovação e reprovação de pedidos de subsídio implementado com persistência de status, observações e autor da análise.
 - Fluxo de revisão ajustado para usar `assignments` e `reports` como fonte de verdade no painel do revisor.
 - Regra real de período de submissão aplicada com base em `submission_start` e `submission_end`.
 - Exibição do e-mail do usuário autenticado adicionada nas áreas principais do painel administrativo e do painel do revisor.
