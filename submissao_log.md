@@ -2,6 +2,8 @@
 
 Registro cronológico das alterações relevantes do sistema de submissão de artigos.
 
+Versão atual registrada: **V0.1**.
+
 ## 2026-07-28
 
 ### Documentação
@@ -27,7 +29,7 @@ Registro cronológico das alterações relevantes do sistema de submissão de ar
 - Lista de eventos e estatísticas por evento ampliadas com contadores de participantes.
 - Relatório do evento ampliado com estatísticas de ouvintes, inscritos com artigo e listagem de participantes.
 - Relatório do evento passou a listar nome, e-mail, órgão e situação da participação.
-- Página do participante consolidada para usuários sem perfil admin/revisor, com listagem de eventos publicados, participações, rascunhos e submissões.
+- Página do participante consolidada para usuários autenticados sem perfil administrativo, incluindo revisores que também submetem artigos, com listagem de eventos publicados, participações, rascunhos e submissões.
 - Página `/author/profile` criada para edição dos dados cadastrais do participante.
 - Bloqueio explícito de contas administrativas no fluxo `/author` e `/submeter/:eventId`.
 - Botão de impressão do relatório implementado com layout otimizado para exportação em PDF via navegador.
@@ -37,6 +39,9 @@ Registro cronológico das alterações relevantes do sistema de submissão de ar
 
 ### Correções
 
+- Correção do cadastro e da edição de revisores para preservar perfis múltiplos no mesmo usuário, sem remover papel administrativo existente.
+- Correção da atribuição administrativa para permitir múltiplos revisores no mesmo artigo quando necessário.
+- Correção das estatísticas e do relatório do evento para não contar rascunhos como submissões efetivas.
 - Correção da separação entre artigos pendentes e artigos revisados no dashboard do revisor.
 - Correção da lógica pública de abertura e fechamento da janela de submissão.
 - Correção da interface pública para não exibir status de submissão quando o evento não possui janela de submissão configurada.

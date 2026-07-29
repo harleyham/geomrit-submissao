@@ -281,7 +281,7 @@
     </div>
   </main>
 
-  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 
   <form id="bulk-flags-form" method="POST" action="/admin/users/bulk-update-flags" style="display:none;"></form>
   <script>

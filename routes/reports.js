@@ -30,6 +30,7 @@ router.get('/', requireAuth, (req, res) => {
       SUM(CASE WHEN status = 'rejected' AND type = 'poster' THEN 1 ELSE 0 END) as poster_rejected
     FROM articles
     WHERE event_id = ?
+      AND status != 'draft'
   `).bind(eventId).get();
 
   const totalSubmited = stats.total_submitted || 0;

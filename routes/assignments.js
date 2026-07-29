@@ -23,12 +23,6 @@ router.post('/:articleId', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Revisor já atribuído' });
   }
   
-  // Verificar se o artigo não tem nenhum revisor
-  const existingReviewer = db.prepare('SELECT id FROM assignments WHERE article_id = ?').bind(req.params.articleId).get();
-  if (existingReviewer) {
-    return res.status(400).json({ error: 'Artigo já tem revisor' });
-  }
-  
   db.prepare(`
     INSERT INTO assignments (article_id, reviewer_id, status, created_at, updated_at)
     VALUES (?, ?, 'pending', datetime('now'), datetime('now'))

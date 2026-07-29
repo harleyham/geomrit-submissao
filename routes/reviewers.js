@@ -55,6 +55,11 @@ router.post('/', requireAuth, (req, res) => {
 router.post('/:id', requireAuth, (req, res) => {
   const { _method, name, email, password, is_active } = req.body;
   const id = parseInt(req.params.id, 10);
+  const user = db.prepare('SELECT id, is_admin FROM users WHERE id = ?').bind(id).get();
+
+  if (!user) {
+    return res.status(404).render('error', { title: 'Usuário não encontrado' });
+  }
 
   if (_method === 'DELETE') {
     db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
@@ -64,24 +69,23 @@ router.post('/:id', requireAuth, (req, res) => {
   if (_method === 'PUT') {
     if (password) {
       const hash = bcrypt.hashSync(password, 10);
-      db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=0, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
-        .bind(name, email, hash, is_active === 'on' ? 1 : 0, id).run();
+      db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=?, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
+        .bind(name, email, hash, user.is_admin, is_active === 'on' ? 1 : 0, id).run();
     } else {
-      db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=0, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
-        .bind(name, email, is_active === 'on' ? 1 : 0, id).run();
+      db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=?, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
+        .bind(name, email, user.is_admin, is_active === 'on' ? 1 : 0, id).run();
     }
     return res.redirect('/admin/reviewers');
   }
 
   // Fallback: edit
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').bind(id).get();
   if (password) {
     const hash = bcrypt.hashSync(password, 10);
-    db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=0, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
-      .bind(name, email, hash, is_active === 'on' ? 1 : 0, id).run();
+    db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=?, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
+      .bind(name, email, hash, user.is_admin, is_active === 'on' ? 1 : 0, id).run();
   } else {
-    db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=0, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
-      .bind(name, email, is_active === 'on' ? 1 : 0, id).run();
+    db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=?, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
+      .bind(name, email, user.is_admin, is_active === 'on' ? 1 : 0, id).run();
   }
   res.redirect('/admin/reviewers');
 });
@@ -95,13 +99,16 @@ router.get('/:id/edit', requireAuth, (req, res) => {
 router.put('/:id', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { name, email, password, is_active } = req.body;
+  const user = db.prepare('SELECT id, is_admin FROM users WHERE id = ?').bind(id).get();
+  if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
+
   if (password) {
     const hash = bcrypt.hashSync(password, 10);
-    db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=0, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
-      .bind(name, email, hash, is_active === 'on' ? 1 : 0, id).run();
+    db.prepare('UPDATE users SET name=?, email=?, password=?, is_reviewer=1, is_admin=?, is_public=?, password_changed=0, updated_at=datetime(\'now\') WHERE id=?')
+      .bind(name, email, hash, user.is_admin, is_active === 'on' ? 1 : 0, id).run();
   } else {
-    db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=0, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
-      .bind(name, email, is_active === 'on' ? 1 : 0, id).run();
+    db.prepare('UPDATE users SET name=?, email=?, is_reviewer=1, is_admin=?, is_public=?, updated_at=datetime(\'now\') WHERE id=?')
+      .bind(name, email, user.is_admin, is_active === 'on' ? 1 : 0, id).run();
   }
   res.redirect('/admin/reviewers');
 });

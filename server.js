@@ -9,6 +9,7 @@ const { db } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const APP_VERSION = 'V0.1';
 
 // Segurança e performance
 app.use(helmet({
@@ -76,6 +77,7 @@ app.use((req, res, next) => {
   res.locals.userRoles = req.session && req.session.userRoles;
   res.locals.url = req.originalUrl;
   res.locals.year = new Date().getFullYear();
+  res.locals.appVersion = APP_VERSION;
   next();
 });
 

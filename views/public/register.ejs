@@ -123,7 +123,7 @@
     </div>
   </main>
 
-  <footer>&copy; <%= year %> LIGEM.Redes</footer>
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
   <script>
     document.querySelectorAll('.toggle-password').forEach(function(button) {
       button.addEventListener('click', function() {

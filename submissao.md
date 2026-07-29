@@ -4,6 +4,8 @@
 
 Aplicação web para gestão de eventos científicos com publicação de eventos, inscrição de participantes, submissão pública de artigos, atribuição de revisores, emissão de pareceres e acompanhamento administrativo.
 
+Versão atual do projeto: **V0.1**.
+
 Data de referência desta especificação: **28/07/2026**.
 
 ## Objetivo do Produto
@@ -60,7 +62,7 @@ O sistema deve permitir:
 - Página pública do evento com URL destacada e fallback `TBD` quando não informada.
 - Inscrição pública de participante como ouvinte, vinculada a conta autenticada.
 - Submissão de artigo com geração de código de acesso.
-- Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões.
+- Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive para contas com perfil de revisor.
 - Consulta de submissão por código.
 - Exibição pública de revisores ativos.
 
@@ -284,6 +286,7 @@ A sessão persiste:
 - Usuários inativos (`is_public = 0`) não conseguem autenticar.
 - Os formulários com senha possuem controle visual para mostrar ou ocultar caracteres.
 - Contas com perfil administrativo não podem acessar `/author` nem `/submeter/:eventId`.
+- Contas com perfil de revisor podem acessar `/author` e `/submeter/:eventId`, mantendo também o fluxo de revisão.
 
 ## Fluxos Principais
 

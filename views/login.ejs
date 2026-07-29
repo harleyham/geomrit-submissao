@@ -13,6 +13,7 @@
     .login-header .logo { font-size: 2rem; color: #60a5fa; margin-bottom: 0.5rem; }
     .login-header h1 { font-size: 1.5rem; color: #f0f9ff; font-weight: 600; }
     .login-header p { color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem; }
+    .version-badge { display: inline-block; margin-top: 0.75rem; padding: 0.28rem 0.65rem; border-radius: 999px; background: rgba(96,165,250,0.14); border: 1px solid rgba(147,197,253,0.22); color: #bfdbfe; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; }
     .form-group { margin-bottom: 1.25rem; }
     .form-group label { display: block; color: #cbd5e1; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
     .form-group input { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; background: rgba(255,255,255,0.05); color: #f0f9ff; font-size: 0.9375rem; transition: border-color 0.2s, box-shadow 0.2s; }
@@ -32,6 +33,7 @@
       <div class="logo">◆</div>
       <h1>Artigos LIGEM</h1>
       <p>Sistema de Controle de Participação e Submissões em Eventos</p>
+      <div class="version-badge"><%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></div>
     </div>
 
     <% if (typeof error !== 'undefined' && error) { %>
@@ -55,7 +57,7 @@
     <div style="margin-top:1rem;text-align:center;">
       <a href="/cadastro" style="color:#93c5fd;text-decoration:none;font-size:0.875rem;">Solicitar novo cadastro</a>
     </div>
-    <p class="footer-text">&copy; <%= new Date().getFullYear() %> LIGEM.Redes</p>
+    <p class="footer-text">&copy; <%= typeof year !== 'undefined' ? year : new Date().getFullYear() %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></p>
   </div>
   <script>
     document.querySelectorAll('.toggle-password').forEach(function(button) {
