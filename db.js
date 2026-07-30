@@ -28,8 +28,8 @@ db.exec(`
     approved_at DATETIME,
     approved_by INTEGER,
     password_changed INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
   );
 
   CREATE TABLE IF NOT EXISTS events (
@@ -55,8 +55,8 @@ db.exec(`
     review_end DATE,
     certificates_start DATE,
     certificates_end DATE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
   );
 
   CREATE TABLE IF NOT EXISTS articles (
@@ -90,8 +90,8 @@ db.exec(`
     review_notes TEXT,
     rejection_reason TEXT,
     date_submitted DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
   );
 
@@ -101,8 +101,8 @@ db.exec(`
     reviewer_id INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     reviewed_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
     FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE,
     FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE CASCADE
   );
@@ -113,8 +113,8 @@ db.exec(`
     score INTEGER CHECK(score BETWEEN 1 AND 5),
     report TEXT,
     recommendation TEXT CHECK(recommendation IN ('approved', 'rejected', 'revision_requested')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
     FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE
   );
 
@@ -142,8 +142,8 @@ db.exec(`
     motivation_letter_original_name TEXT DEFAULT '',
     recommendation_letter_pdf_path TEXT DEFAULT '',
     recommendation_letter_original_name TEXT DEFAULT '',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
   );
@@ -313,7 +313,7 @@ try {
 
   const updateEventRegistration = db.prepare(`
     UPDATE event_registrations
-    SET user_id = ?, name = ?, email = ?, institution = ?, registration_type = 'author', updated_at = datetime('now')
+    SET user_id = ?, name = ?, email = ?, institution = ?, registration_type = 'author', updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `);
 
@@ -321,7 +321,7 @@ try {
     INSERT INTO event_registrations (
       event_id, user_id, name, email, institution, registration_type, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, 'author', datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, 'author', datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `);
 
   authorRegistrations.forEach((registration) => {
@@ -361,7 +361,7 @@ if (!seedUser) {
   db.prepare(`
     INSERT INTO users
     (name, email, password, is_admin, is_reviewer, is_public, approval_status, approved_at, password_changed)
-    VALUES (?, ?, ?, 1, 0, 1, 'approved', datetime('now'), 0)
+    VALUES (?, ?, ?, 1, 0, 1, 'approved', datetime('now', '-3 hours'), 0)
   `).bind('Administrador', 'admin@admin.com', hash).run();
   console.log('Seed admin criado: admin@admin.com / 123456');
 }
@@ -433,7 +433,7 @@ module.exports = {
       JOIN articles a ON a.id = ass.article_id
       JOIN events e ON e.id = a.event_id
       LEFT JOIN reports rp ON rp.assignment_id = ass.id
-      WHERE ass.reviewer_id = ? AND rp.id IS NULL AND ass.status = 'accepted'
+      WHERE ass.reviewer_id = ? AND rp.id IS NULL AND ass.status != 'declined'
       ORDER BY a.date_submitted DESC
     `).bind(reviewerUserId).all();
   },

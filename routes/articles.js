@@ -56,9 +56,14 @@ router.get('/:id', requireAuth, (req, res) => {
       u.name,
       u.email,
       u.institution,
-      ass.status as assignment_status
+      ass.status as assignment_status,
+      ass.reviewed_at,
+      rp.recommendation,
+      rp.report,
+      rp.updated_at as report_updated_at
     FROM assignments ass
     JOIN users u ON u.id = ass.reviewer_id
+    LEFT JOIN reports rp ON rp.assignment_id = ass.id
     WHERE ass.article_id = ?
     ORDER BY u.name COLLATE NOCASE
   `).bind(req.params.id).all();
@@ -92,14 +97,44 @@ router.get('/:id', requireAuth, (req, res) => {
     article,
     assignedReviewers,
     availableReviewers,
-    title: article.title
+    title: article.title,
+    success: req.query.success || null,
+    error: req.query.error || null
   });
+});
+
+router.post('/:id/final-decision', requireAuth, (req, res) => {
+  const articleId = parseInt(req.params.id, 10);
+  const eventId = parseInt(req.body.eventId, 10);
+  const finalStatus = String(req.body.final_status || '').trim();
+  const presentationType = String(req.body.presentation_type || '').trim();
+
+  const article = db.prepare('SELECT id FROM articles WHERE id = ?').bind(articleId).get();
+  if (!article) {
+    return res.status(404).render('error', { title: 'Artigo não encontrado' });
+  }
+
+  if (!['pending', 'in_review', 'approved', 'rejected'].includes(finalStatus)) {
+    return res.redirect(`/admin/articles/${articleId}?eventId=${eventId}&error=Status final inválido.`);
+  }
+
+  if (!['oral', 'poster'].includes(presentationType)) {
+    return res.redirect(`/admin/articles/${articleId}?eventId=${eventId}&error=Tipo de apresentação inválido.`);
+  }
+
+  db.prepare(`
+    UPDATE articles
+    SET status = ?, type = ?, updated_at = datetime('now', '-3 hours')
+    WHERE id = ?
+  `).bind(finalStatus, presentationType, articleId).run();
+
+  return res.redirect(`/admin/articles/${articleId}?eventId=${eventId}&success=Deliberação final atualizada com sucesso.`);
 });
 
 // Atualizar status
 router.put('/:id', requireAuth, (req, res) => {
   const { status } = req.body;
-  db.prepare('UPDATE articles SET status = ?, updated_at = datetime("now") WHERE id = ?').bind(status, req.params.id).run();
+  db.prepare('UPDATE articles SET status = ?, updated_at = datetime("now", "-3 hours") WHERE id = ?').bind(status, req.params.id).run();
   res.json({ success: true });
 });
 
@@ -119,22 +154,32 @@ router.delete('/:id', requireAuth, (req, res) => {
     try { fs.unlinkSync(filePath); } catch (e) {}
   }
   db.prepare('DELETE FROM articles WHERE id = ?').bind(req.params.id).run();
+  const wantsJson = (req.get('accept') || '').includes('application/json') || req.xhr;
+  if (wantsJson) {
+    return res.json({ success: true, deletedId: Number(req.params.id) });
+  }
   res.redirect('/admin/articles?eventId=' + req.query.eventId);
 });
 
 // Atribuir revisor a artigo
 router.post('/:id/assign', requireAuth, (req, res) => {
   const { reviewer_id, action, eventId } = req.body;
+  const article = db.prepare('SELECT status FROM articles WHERE id = ?').bind(req.params.id).get();
+  if (!article) {
+    return res.status(404).render('error', { title: 'Artigo não encontrado' });
+  }
   if (action === 'assign') {
     const existing = db.prepare('SELECT id FROM assignments WHERE article_id = ? AND reviewer_id = ?').bind(req.params.id, reviewer_id).get();
     if (existing) return res.redirect('/admin/articles/' + req.params.id);
     db.prepare("INSERT OR IGNORE INTO assignments (article_id, reviewer_id, status) VALUES (?, ?, 'pending')").bind(req.params.id, reviewer_id).run();
-    db.prepare("UPDATE articles SET status = 'in_review', updated_at = datetime('now') WHERE id = ?").bind(req.params.id).run();
+    if (!['approved', 'rejected'].includes(article.status)) {
+      db.prepare("UPDATE articles SET status = 'in_review', updated_at = datetime('now', '-3 hours') WHERE id = ?").bind(req.params.id).run();
+    }
   } else if (action === 'unassign') {
     db.prepare('DELETE FROM assignments WHERE article_id = ? AND reviewer_id = ?').bind(req.params.id, reviewer_id).run();
     const assignedCount = db.prepare('SELECT COUNT(*) as count FROM assignments WHERE article_id = ?').bind(req.params.id).get().count;
-    if (assignedCount === 0) {
-      db.prepare("UPDATE articles SET status = 'pending', updated_at = datetime('now') WHERE id = ?").bind(req.params.id).run();
+    if (assignedCount === 0 && !['approved', 'rejected'].includes(article.status)) {
+      db.prepare("UPDATE articles SET status = 'pending', updated_at = datetime('now', '-3 hours') WHERE id = ?").bind(req.params.id).run();
     }
   }
   res.redirect('/admin/articles/' + req.params.id);

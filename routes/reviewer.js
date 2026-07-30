@@ -18,7 +18,7 @@ function getReviewerDashboardData(reviewerId, reviewerName) {
 
   const pendingArticles = db.prepare(`
     SELECT
-      a.id, a.title, a.contributor, a.date_submitted,
+      a.id, a.title, a.contributor, a.date_submitted, a.area, a.type,
       e.name as event_name,
       ass.id as assignment_id,
       ass.status as assignment_status
@@ -35,7 +35,7 @@ function getReviewerDashboardData(reviewerId, reviewerName) {
 
   const reviewedArticles = db.prepare(`
     SELECT
-      a.id, a.title, a.date_submitted,
+      a.id, a.title, a.date_submitted, a.area, a.type,
       e.name as event_name,
       rp.recommendation,
       rp.updated_at as reviewed_at
@@ -143,7 +143,7 @@ router.get('/articles/:id', requireReviewer, (req, res) => {
 // Submeter revisão
 router.post('/articles/:id/review', requireReviewer, (req, res) => {
   const articleId = req.params.id;
-  const { status, review_notes, rejection_reason } = req.body;
+  const { recommendation, review_notes, rejection_reason } = req.body;
   const reviewerId = req.session.userId;
   
   const assignment = db.prepare(`
@@ -155,37 +155,45 @@ router.post('/articles/:id/review', requireReviewer, (req, res) => {
     return res.redirect('/reviewer');
   }
   
+  const normalizedRecommendation = recommendation === 'rejected'
+    ? 'rejected'
+    : recommendation === 'revision_requested'
+      ? 'revision_requested'
+      : 'approved';
+  const reportBody = normalizedRecommendation === 'rejected' && rejection_reason
+    ? `${review_notes}\n\nMotivo da rejeicao: ${rejection_reason}`
+    : review_notes;
+
+  const article = db.prepare('SELECT status FROM articles WHERE id = ?').bind(articleId).get();
+  const nextArticleStatus = ['approved', 'rejected'].includes(article && article.status)
+    ? article.status
+    : 'in_review';
+
   db.prepare(`
-    UPDATE articles 
-    SET status = ?, reviewer_id = ?, reviewer_name = ?, reviewer_area = ?, 
-        review_notes = ?, rejection_reason = ?, updated_at = datetime('now')
+    UPDATE articles
+    SET status = ?, updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `).bind(
-    status,
-    reviewerId,
-    req.session.userName,
-    '',
-    review_notes,
-    status === 'rejected' ? rejection_reason : null,
+    nextArticleStatus,
     articleId
   ).run();
   
   db.prepare(`
-    UPDATE assignments SET reviewed_at = datetime('now'), status = 'accepted', updated_at = datetime('now')
+    UPDATE assignments SET reviewed_at = datetime('now', '-3 hours'), status = 'reviewed', updated_at = datetime('now', '-3 hours')
     WHERE article_id = ? AND reviewer_id = ?
   `).bind(articleId, reviewerId).run();
   
   const existingReport = db.prepare('SELECT id FROM reports WHERE assignment_id = ?').bind(assignment.id).get();
   if (existingReport) {
     db.prepare(`
-      UPDATE reports SET score=?, report=?, recommendation=?, updated_at=datetime('now')
+      UPDATE reports SET score=?, report=?, recommendation=?, updated_at=datetime('now', '-3 hours')
       WHERE assignment_id = ?
-    `).bind(null, review_notes, status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'revision_requested', assignment.id).run();
+    `).bind(null, reportBody, normalizedRecommendation, assignment.id).run();
   } else {
     db.prepare(`
       INSERT INTO reports (assignment_id, score, report, recommendation, created_at, updated_at)
-      VALUES (?, NULL, ?, ?, datetime('now'), datetime('now'))
-    `).bind(assignment.id, review_notes, status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'revision_requested').run();
+      VALUES (?, NULL, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+    `).bind(assignment.id, reportBody, normalizedRecommendation).run();
   }
   
   res.redirect('/reviewer');

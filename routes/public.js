@@ -240,8 +240,7 @@ function getCertificatesWindow(event) {
 
 function buildEventTimeline(event, options = {}) {
   const { registration = null, session = null } = options;
-  const isAdmin = !!(session && session.isAdmin);
-  const isAuthenticatedParticipant = !!(session && session.userId && !isAdmin);
+  const isAuthenticatedParticipant = !!(session && session.userId);
   const hasRegistration = !!registration;
   const registrationWindow = getRegistrationWindow(event);
   const certificatesWindow = getCertificatesWindow(event);
@@ -382,7 +381,7 @@ function buildEventTimeline(event, options = {}) {
       return item;
     }
 
-    if (item.label === 'Certificados' && session && session.userId && !isAdmin && hasRegistration && certificatesWindow.isOpen) {
+    if (item.label === 'Certificados' && session && session.userId && hasRegistration && certificatesWindow.isOpen) {
       return {
         ...item,
         actionLabel: 'Área do participante',
@@ -620,7 +619,7 @@ function syncAuthorEventRegistration(eventId, session, formData) {
   if (existingRegistration) {
     db.prepare(`
       UPDATE event_registrations
-      SET user_id = ?, name = ?, email = ?, institution = ?, registration_type = 'author', updated_at = datetime('now')
+      SET user_id = ?, name = ?, email = ?, institution = ?, registration_type = 'author', updated_at = datetime('now', '-3 hours')
       WHERE id = ?
     `).run(
       session && session.userId ? session.userId : null,
@@ -636,7 +635,7 @@ function syncAuthorEventRegistration(eventId, session, formData) {
     INSERT INTO event_registrations (
       event_id, user_id, name, email, institution, registration_type, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, 'author', datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, 'author', datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).run(
     eventId,
     session && session.userId ? session.userId : null,
@@ -992,7 +991,7 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
           academic_history_pdf_path = ?, academic_history_original_name = ?,
           motivation_letter_pdf_path = ?, motivation_letter_original_name = ?,
           recommendation_letter_pdf_path = ?, recommendation_letter_original_name = ?,
-          updated_at = datetime('now')
+          updated_at = datetime('now', '-3 hours')
       WHERE id = ?
     `).run(
       formData.name,
@@ -1041,7 +1040,7 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
       recommendation_letter_pdf_path, recommendation_letter_original_name,
       created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, 'listener', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, 'listener', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).run(
     event.id,
     req.session.userId,
@@ -1219,7 +1218,7 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
             pdf_path = ?, file_original_name = ?, contributor = ?, affiliation = ?, city = ?,
             email_submission = ?, submitter_user_id = ?, access_code = ?, type = ?, status = ?,
             funding = ?, blind_review_confirmed = ?, ethics_confirmed = ?, publication_authorized = ?,
-            presentation_needs = ?, updated_at = datetime('now')
+            presentation_needs = ?, updated_at = datetime('now', '-3 hours')
         WHERE id = ?
       `).bind(
         formData.title.trim(),
@@ -1253,7 +1252,7 @@ router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, 
          contributor, affiliation, city, email_submission, submitter_user_id, access_code, type, status,
          funding, blind_review_confirmed, ethics_confirmed, publication_authorized, presentation_needs,
          date_submitted, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'), datetime('now', '-3 hours'))
       `).bind(
         event.id,
         formData.title.trim(),
@@ -1560,7 +1559,7 @@ router.post('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
 
   db.prepare(`
     UPDATE users
-    SET name = ?, email = ?, institution = ?, cpf = ?, passport = ?, country = ?, updated_at = datetime('now')
+    SET name = ?, email = ?, institution = ?, cpf = ?, passport = ?, country = ?, updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `).run(
     formData.name,
@@ -1592,11 +1591,20 @@ router.get('/consultar', (req, res) => {
 router.post('/consultar', (req, res) => {
   const { access_code } = req.body;
   const article = db.prepare(`
-    SELECT a.*, e.name as event_name
+    SELECT
+      a.*,
+      e.name as event_name,
+      COUNT(DISTINCT rp.id) as report_count,
+      COALESCE(SUM(CASE WHEN rp.recommendation = 'approved' THEN 1 ELSE 0 END), 0) as approval_count,
+      COALESCE(SUM(CASE WHEN rp.recommendation = 'rejected' THEN 1 ELSE 0 END), 0) as rejection_count,
+      COALESCE(SUM(CASE WHEN rp.recommendation = 'revision_requested' THEN 1 ELSE 0 END), 0) as revision_count
     FROM articles a
     JOIN events e ON a.event_id = e.id
+    LEFT JOIN assignments ass ON ass.article_id = a.id
+    LEFT JOIN reports rp ON rp.assignment_id = ass.id
     WHERE a.access_code = ?
       AND a.status != 'draft'
+    GROUP BY a.id, e.name
   `).bind(access_code).get();
 
   if (!article) {
@@ -1687,7 +1695,7 @@ router.post('/cadastro', (req, res) => {
       is_admin, is_reviewer, is_public, approval_status, approved_at,
       password_changed, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'pending', NULL, 1, datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'pending', NULL, 1, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).bind(
     name,
     email,

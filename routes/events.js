@@ -192,7 +192,7 @@ router.post('/:id', (req, res) => {
 
     const id = req.params.id;
     db.prepare(`
-      UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
+      UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now', '-3 hours')
       WHERE id=?
     `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, id).run();
     return res.redirect('/admin/events');
@@ -238,7 +238,7 @@ router.post('/:id', (req, res) => {
 
   const id = req.params.id;
   db.prepare(`
-    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
+    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
     `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, id).run();
   res.redirect('/admin/events');
@@ -300,7 +300,7 @@ router.post('/', (req, res) => {
 
   db.prepare(`
     INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null).run();
   res.redirect('/admin/events');
 });
@@ -368,7 +368,7 @@ router.put('/:id', (req, res) => {
   }
 
   db.prepare(`
-    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now')
+    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
   `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.params.id).run();
   res.redirect('/admin/events');
@@ -484,8 +484,8 @@ router.post('/:id/subsidies/:registrationId/decision', (req, res) => {
 
   db.prepare(`
     UPDATE event_registrations
-    SET subsidy_status = ?, subsidy_review_notes = ?, subsidy_reviewed_at = datetime('now'),
-        subsidy_reviewed_by = ?, updated_at = datetime('now')
+    SET subsidy_status = ?, subsidy_review_notes = ?, subsidy_reviewed_at = datetime('now', '-3 hours'),
+        subsidy_reviewed_by = ?, updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `).bind(
     normalizedStatus,
@@ -499,7 +499,7 @@ router.post('/:id/subsidies/:registrationId/decision', (req, res) => {
 
 // Publicar evento
 router.post('/:id/publish', (req, res) => {
-  db.prepare("UPDATE events SET status = ?, updated_at = datetime('now') WHERE id = ?").bind('published', req.params.id).run();
+  db.prepare("UPDATE events SET status = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?").bind('published', req.params.id).run();
   res.redirect('/admin/events');
 });
 

@@ -1,24 +1,25 @@
-# Sistema de Participação e Submissão em Eventos
+# Sistema de Gestão de Eventos, Artigos, Presença e Certificados
 
 ## Visão Geral
 
-Aplicação web para gestão de eventos científicos com publicação de eventos, inscrição de participantes, submissão pública de artigos, atribuição de revisores, emissão de pareceres e acompanhamento administrativo.
+Aplicação web para gestão de eventos acadêmicos e científicos, com inscrição de participantes, submissão de artigos, revisão, controle de presença e emissão de certificados de participação.
 
 Versão atual do projeto: **V0.1**.
 
-Data de referência desta especificação: **29/07/2026**.
+Data de referência desta especificação: **30/07/2026**.
 
 ## Objetivo do Produto
 
 O sistema deve permitir:
 
-1. Publicar eventos com janela de submissão configurável.
-2. Receber submissões públicas de artigos e gerar código de consulta.
-3. Registrar participantes por evento, incluindo ouvintes e autores/apresentadores.
-4. Gerenciar usuários com múltiplos perfis no mesmo cadastro.
-5. Atribuir artigos a revisores.
-6. Registrar pareceres com recomendação.
-7. Consolidar apoio à decisão administrativa por evento.
+1. Gerenciar eventos, como cursos, seminários, escolas de verão e atividades correlatas.
+2. Receber, organizar e analisar submissões de artigos científicos.
+3. Registrar participantes por evento, incluindo ouvintes, autores e apresentadores.
+4. Gerenciar listas de presença vinculadas aos eventos.
+5. Gerenciar e emitir certificados de participação.
+6. Gerenciar usuários com múltiplos perfis no mesmo cadastro.
+7. Atribuir artigos a revisores e registrar pareceres com recomendação.
+8. Consolidar apoio à deliberação final administrativa por evento.
 
 ## Stack Atual
 
@@ -38,18 +39,21 @@ O sistema deve permitir:
 
 - Login unificado por e-mail e senha.
 - Dashboard com estatísticas gerais.
-- Dashboard com cards de pendências para artigos sem revisor, pedidos de subsídio e solicitações de cadastro.
+- Dashboard com cards e listas de pendências para artigos sem revisor, em análise, prontos para deliberação final, pedidos de subsídio e solicitações de cadastro.
 - CRUD de eventos.
 - Configuração de múltiplas áreas/trilhas por evento.
 - Configuração explícita de evento com ou sem submissão de artigos.
 - Configuração de subsídio a participantes por evento.
+- Acompanhamento de inscrições, participação e elegibilidade para certificados de participação por evento.
 - Gestão de usuários em `/admin/users`.
 - Atualização em lote de perfis e status de usuários.
 - Visualização administrativa da área de participante de um usuário.
 - Visualização de artigos por evento.
+- Página administrativa do artigo com leitura dos pareceres já enviados.
 - Atribuição de revisores com sugestão por trilha/área do artigo.
+- Deliberação final administrativa na própria página do artigo, com definição de status e modalidade `oral` ou `poster`.
 - Relatórios por evento com consolidação de pareceres.
-- Página administrativa por evento para análise de pedidos de subsídio, com leitura dos documentos anexados e decisão de aprovação ou reprovação.
+- Página administrativa por evento para analisar pedidos de subsídio, ler documentos anexados e registrar aprovação ou reprovação.
 - Impressão do relatório do evento em PDF pelo navegador.
 
 ### Revisão
@@ -58,8 +62,8 @@ O sistema deve permitir:
 - Dashboard do revisor.
 - Lista de artigos pendentes baseada em `assignments` sem `reports`.
 - Lista de artigos revisados baseada em `reports`.
-- Envio de parecer com recomendação.
-- Navegação cruzada para área do participante e dashboard admin quando o usuário acumula perfis.
+- Envio de parecer com recomendação individual, sem deliberação final automática do artigo.
+- Navegação cruzada para a área do participante e o dashboard admin quando o usuário acumula perfis.
 
 ### Público
 
@@ -67,10 +71,12 @@ O sistema deve permitir:
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
 - Inscrição pública de participante como ouvinte, vinculada a conta autenticada.
 - Submissão de artigo com geração de código de acesso.
-- Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive para contas com perfil de revisor.
+- Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive em contas com perfil de revisor.
 - Área do participante acessível também a contas com múltiplos perfis, com atalhos para revisão e administração quando aplicável.
 - Consulta de submissão por código.
+- Consulta por código com andamento agregado da avaliação, sem expor um único revisor como responsável oficial.
 - Exibição pública de revisores ativos.
+- Fluxo de participação preparado para sustentar controle de presença e emissão de certificados por evento.
 
 ## Perfis, Acesso e Sessão
 
@@ -181,9 +187,6 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `ethics_confirmed`
 - `publication_authorized`
 - `presentation_needs`
-- `reviewer_id`
-- `reviewer_name`
-- `reviewer_area`
 - `review_notes`
 - `rejection_reason`
 - `date_submitted`
@@ -223,6 +226,8 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `id`
 - `article_id`
 - `reviewer_id`
+- `reviewer_name`
+- `reviewer_area`
 - `status`
 - `reviewed_at`
 - `created_at`
@@ -248,16 +253,16 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - A submissão pública depende da janela configurada em `submission_start` e `submission_end`.
 - Eventos com `has_article_submission = 0` não exibem linhas de submissão e análise no cronograma público.
 - A inscrição pública depende da janela configurada em `registration_start` e `registration_end`.
-- A área de certificados depende da janela configurada em `certificates_start` e `certificates_end`.
-- Um evento sem `submission_start` e `submission_end` não é tratado como evento com submissão fechada; ele é tratado como evento sem submissão de artigos configurada.
+- A área de certificados de participação depende da janela configurada em `certificates_start` e `certificates_end`.
+- Um evento sem `submission_start` e `submission_end` não é tratado como submissão fechada, mas como evento sem submissão de artigos configurada.
 - Quando uma etapa do cronograma não possui janela configurada, a página pública do evento não exibe botão de ação para essa etapa.
 - Antes de `submission_start`, a submissão fica bloqueada.
 - Depois de `submission_end`, a submissão fica bloqueada.
 - Antes de `registration_start`, a inscrição fica bloqueada.
 - Depois de `registration_end`, a inscrição fica bloqueada.
-- Antes de `certificates_start`, o acesso a certificados fica bloqueado.
-- Depois de `certificates_end`, o acesso a certificados fica bloqueado.
-- O campo `area` do evento suporta múltiplas áreas/trilhas, persistidas em `TEXT` normalizado e reutilizadas no formulário de submissão.
+- Antes de `certificates_start`, o acesso aos certificados de participação fica bloqueado.
+- Depois de `certificates_end`, o acesso aos certificados de participação fica bloqueado.
+- O campo `area` do evento suporta múltiplas áreas ou trilhas, persistidas em `TEXT` normalizado e reutilizadas no formulário de submissão.
 - O formulário de submissão só apresenta áreas definidas no evento selecionado.
 - O participante só pode submeter artigo se estiver autenticado e já inscrito no evento.
 - Rascunhos podem ser salvos na área do participante, mas não contam como submissão efetiva nas métricas e relatórios.
@@ -267,7 +272,7 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - Quando `offers_subsidy = 1`, a inscrição do participante pode incluir candidatura a subsídio financeiro.
 - Ao solicitar subsídio, o participante deve informar nível acadêmico, curso, instituição de vínculo, UF da instituição e ID Lattes com 16 dígitos.
 - Ao solicitar subsídio, o participante deve anexar histórico escolar, carta de motivação e carta de recomendação em PDF, com limite de 10 MB por arquivo.
-- Pedidos de subsídio ficam disponíveis apenas para administradores em uma página do evento, com status de análise (`pending`, `approved`, `rejected`), leitura dos documentos anexados e registro de observações da decisão.
+- Pedidos de subsídio ficam disponíveis apenas para administradores, com status de análise (`pending`, `approved`, `rejected`), leitura dos anexos e registro de observações.
 - Na criação e edição do evento, `date_end` não pode ser anterior a `date_start`.
 - Na criação e edição do evento, `registration_end` não pode ser anterior a `registration_start`.
 - Na criação e edição do evento, `submission_end` não pode ser anterior a `submission_start`.
@@ -292,6 +297,9 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `Revisores Ativos` conta usuários com `is_reviewer = 1` e `is_public = 1`.
 - `Revisores Inativos` conta usuários com `is_reviewer = 1` e `is_public = 0`.
 - `Usuários Pendentes` conta registros com `approval_status = 'pending'`.
+- `Sem Revisor` conta artigos sem designação em `assignments`.
+- `Em Análise` conta artigos com revisor atribuído e ao menos um parecer ainda pendente.
+- `Prontos para Deliberação` conta artigos com todos os pareceres atribuídos já concluídos e sem deliberação final administrativa.
 - `Inscritos` considera participantes registrados por evento.
 - `Inscritos Autores` considera participantes distintos com submissão não rascunho.
 - `Inscritos Ouvintes` considera registros `listener` em `event_registrations`.
@@ -299,7 +307,7 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 ### Relatórios de evento
 
 - O relatório do evento consolida estatísticas de artigos e participantes.
-- O relatório exibe `Inscritos com Artigo` como participantes distintos, mesmo quando uma pessoa possui múltiplos artigos.
+- O relatório exibe `Inscritos com Artigo` como participantes distintos, mesmo quando uma mesma pessoa possui múltiplos artigos.
 - O relatório exibe `Inscritos Ouvintes`.
 - O relatório lista participantes com nome, e-mail, órgão/instituição e situação de participação.
 - O relatório pode ser impresso/exportado para PDF por meio da impressão do navegador.
@@ -309,8 +317,17 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - O dashboard do revisor usa `assignments` e `reports` como fonte de verdade.
 - Uma atribuição sem relatório associado é considerada pendente.
 - Um artigo revisado é identificado pela existência de `report`, não apenas pelo `status` de `articles`.
-- Ao registrar parecer, o sistema atualiza artigo, atribuição e relatório.
+- Ao registrar parecer, o sistema atualiza a atribuição e o relatório e mantém o artigo em análise até a deliberação final administrativa, salvo se ele já possuir status final anterior.
+- Um mesmo artigo pode possuir múltiplos revisores oficialmente, por meio de múltiplos registros em `assignments`.
+- A recomendação do revisor (`approved`, `rejected`, `revision_requested`) representa parecer individual e não deliberação final do artigo.
 - A interface administrativa de designação destaca revisores compatíveis com a trilha do artigo com base em `reviewer_areas`.
+
+### Deliberação final
+
+- A aprovação ou reprovação oficial do artigo é resultado da deliberação final administrativa.
+- A deliberação final administrativa pode ser registrada em `/admin/reports` e também diretamente na página do artigo.
+- A deliberação final permite alterar o `status` do artigo e ajustar a modalidade de apresentação entre `oral` e `poster`.
+- Um artigo só deve ser considerado oficialmente `approved` ou `rejected` após ação administrativa explícita.
 
 ### Participação em evento
 
@@ -318,7 +335,7 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - Participantes ouvintes são registrados em `event_registrations` com `registration_type = 'listener'`.
 - Participantes que submetem artigo são registrados em `event_registrations` com `registration_type = 'author'`.
 - Usuários com perfil de revisor e/ou administrador também podem acessar a própria área de participante e submeter artigos.
-- Se um ouvinte posteriormente submete artigo no mesmo evento, sua inscrição é promovida automaticamente para `author`.
+- Se um participante ouvinte posteriormente submete artigo no mesmo evento, sua inscrição é promovida automaticamente para `author`.
 - Um participante com múltiplos artigos conta uma única vez nas métricas de inscritos com artigo.
 - O participante pode cancelar a inscrição de ouvinte até o dia anterior ao início do evento.
 - Inscrições já promovidas para `author` não podem ser canceladas pela área do participante.
@@ -329,7 +346,7 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - Usuários inativos (`is_public = 0`) não conseguem autenticar.
 - Os formulários com senha possuem controle visual para mostrar ou ocultar caracteres.
 - Contas com perfil de revisor podem acessar `/author` e `/submeter/:eventId`, mantendo também o fluxo de revisão.
-- Contas com múltiplos perfis mantêm redirecionamento prioritário para `/admin/dashboard`, mas a interface expõe links explícitos para `/reviewer` e `/author`.
+- Contas com múltiplos perfis mantêm redirecionamento prioritário para `/admin/dashboard`, mas a interface expõe links para `/reviewer` e `/author`.
 - O botão `Sair`, em destaque vermelho, deve estar disponível nas páginas do usuário autenticado para encerramento imediato da sessão.
 
 ## Fluxos Principais
@@ -391,8 +408,9 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 | `/admin/events` | Gestão de eventos |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/articles` | Gestão de artigos |
+| `/admin/articles/:id` | Detalhe do artigo com pareceres, atribuição de revisores e deliberação final |
 | `/admin/users` | Gestão de usuários |
-| `/admin/reports` | Relatórios e decisão final |
+| `/admin/reports` | Relatórios e deliberação final |
 
 ### Revisão
 
@@ -422,7 +440,7 @@ artigos/
 
 Observações estruturais:
 
-- A área do participante continua servida pela rota `/author`, embora o fluxo hoje cubra inscrições e submissões.
+- A área do participante continua servida pela rota `/author`, embora hoje cubra participação no evento e submissões.
 - O participante possui tela própria de atualização cadastral em `/author/profile`.
 - A criação e a edição de eventos já contemplam todas as datas do cronograma público.
 - Rotas e templates legados de configuração, distribuição, stats e reviewers foram removidos da aplicação ativa.
@@ -446,6 +464,7 @@ Observações operacionais:
 
 - O sistema não possui hot reload nativo.
 - Mudanças em rotas e templates exigem reinício do servidor.
+- Os novos timestamps do sistema passaram a ser gravados em horário local do Brasil (`UTC-3`) nas rotas ativas.
 - A seed padrão de administrador continua documentada no código atual com e-mail `admin@admin.com` e senha inicial `123456`.
 
 ## Status Atual
@@ -464,15 +483,20 @@ Observações operacionais:
 - Combobox padronizado de países nos formulários públicos e administrativos.
 - Fluxo de atribuição de revisores.
 - Dashboard do revisor baseado em atribuições e pareceres.
+- Dashboard administrativo com separação entre artigos sem revisor, em análise e prontos para deliberação final.
 - Restrição de submissão por janela real de datas.
 - Restrição de inscrição por janela real de datas.
-- Restrição de acesso à área de certificados conforme janela do evento.
+- Restrição de acesso à área de certificados de participação conforme janela do evento.
 - Eventos sem período configurado em uma etapa do cronograma não exibem botão de ação correspondente na página pública do evento.
 - Cancelamento de inscrição de ouvinte antes do início do evento.
 - Inscrição em evento com fluxo condicional de subsídio, incluindo dados acadêmicos e upload de documentos obrigatórios.
 - Página pública do evento reorganizada em formato de cronograma com ações por etapa.
 - Painel `/author` com cards clicáveis apenas para eventos futuros ainda disponíveis para participação.
 - Painel `/author` com separação visual entre `Meus Rascunhos` e `Submissões Enviadas`, incluindo continuação e exclusão de rascunhos.
+- Página administrativa do artigo com leitura expansível do texto dos pareceres enviados pelos revisores.
+- Deliberação final administrativa na própria página do artigo, incluindo mudança de modalidade `Oral/Pôster`.
+- Painel do revisor com separação visual entre `Meu Parecer` e `Aguardando deliberação final administrativa`.
+- Modal customizado para confirmação de exclusão de artigos na listagem administrativa.
 - Botão `Sair` padronizado nas páginas públicas autenticadas do participante e nas telas públicas acessadas com sessão ativa.
 - Relatórios por evento com recomendações consolidadas.
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
@@ -481,7 +505,7 @@ Observações operacionais:
 ### Parcial ou pendente de validação
 
 - Decisão final administrativa precisa de validação funcional ponta a ponta.
-- Fluxo real de certificados ainda não possui área dedicada própria; hoje a janela já é controlada, mas a emissão/consulta específica ainda precisa ser implementada.
+- O fluxo de certificados de participação ainda não possui área dedicada; a janela já é controlada, mas a emissão e a consulta ainda precisam ser implementadas.
 
 ### Fora do escopo atual
 
@@ -492,26 +516,26 @@ Observações operacionais:
 
 ## Riscos e Gaps Conhecidos
 
-1. Ainda não existe uma área dedicada de emissão ou download de certificados, embora a janela de certificados já esteja modelada.
-2. Existem rotas legadas ainda montadas no projeto, especialmente `/admin/config`.
-3. Ainda há endpoints legados de toggle individual de perfis no backend, embora a interface principal já utilize salvamento em lote.
-4. O fluxo completo de decisão final administrativa ainda requer validação integrada.
+1. Ainda não existe uma área dedicada de emissão ou download de certificados de participação, embora a janela de certificados já esteja modelada.
+2. Ainda há endpoints legados de toggle individual de perfis no backend, embora a interface principal já utilize salvamento em lote.
+3. A exclusão física de artigos pela área administrativa ainda exige revisão de consistência com `event_registrations` e histórico de participação.
+4. O fluxo completo de deliberação final administrativa ainda requer validação integrada.
 
 ## Próximos Passos Recomendados
 
 ### Alta prioridade
 
-1. Implementar a área dedicada de certificados para participantes dentro da janela válida.
-2. Validar o fluxo completo de evento, submissão, atribuição, parecer e decisão final.
-3. Reforçar validações server-side e client-side nos formulários principais.
-4. Revisar proteção contra CSRF e endurecimento geral de segurança.
+1. Implementar a área dedicada de certificados de participação para participantes dentro da janela válida.
+2. Validar o fluxo completo de evento, submissão, atribuição, parecer e deliberação final administrativa.
+3. Reforçar a regra de exclusão/cancelamento de artigos para evitar inconsistência com inscrições do participante.
+4. Reforçar validações server-side e client-side nos formulários principais.
+5. Revisar proteção contra CSRF e endurecimento geral de segurança.
 
 ### Média prioridade
 
-1. Remover ou aposentar rotas legadas.
-2. Melhorar busca e filtros de artigos.
-3. Implementar notificações para atribuição e mudança de status.
-4. Adicionar histórico de revisão e trilha de auditoria.
+1. Melhorar busca e filtros de artigos.
+2. Implementar notificações para atribuição e mudança de status.
+3. Adicionar histórico de revisão e trilha de auditoria.
 
 ### Baixa prioridade
 
@@ -521,10 +545,10 @@ Observações operacionais:
 4. Melhorias adicionais de responsividade.
 
 
-### Meus comentários
+### Observações editoriais e backlog
 
-1. Implementar alterações no Dashboard, com contador para "Total de eventos realizados", "Eventos publicados" (que são aqueles que estão atualmente válidos - Vale aqui a pergunta: Depois do evento finalizado, vale a pena tirar da página de publicos, ou coloca-los em abaixo da página ?), "Inscritos total" (todos os eventos), "Inscritos atuais" (Inscritos em eventos que ainda estão para ocorrer)
-2. Implementar o controle de pagamento. Tem Eventos que há cobrança para inscrição (com possibilidade de isenção, desconto estudantil ou Cupom de desconto). Pode também haver cobrança para Submissão de artigos e cobrança para participação em palestras e minicursos. Na primeira versão apenas informar se tem cobranças, tabela de valores, solicitação de isenção, informe de cupom de desconto, upload de comprovante de pagamento.
-3. Não ví na tela do Revisor a trilha onde o Artigo foi proposto. O Revisor deve poder alterar Oral/Poster e alterar qual Trilha.
-4. Na listagem dos Artigos, em qualquer página deve haver a separação por Trilha e sé é Oral ou Poster
-5. Em algum local deve ser implementado a opção de fazer o download de todos os artigos do Evento
+1. Ampliar o dashboard com contadores para total de eventos realizados, eventos publicados, inscritos totais e inscritos em eventos futuros. Também vale decidir se eventos encerrados continuam visíveis na área pública.
+2. Implementar controle de pagamento. Em uma primeira versão, basta informar cobranças, tabela de valores, pedido de isenção, cupom de desconto e upload de comprovante.
+3. Exibir na tela do revisor a trilha do artigo. Avaliar também se o revisor poderá sugerir mudança de modalidade `oral/poster` e de trilha.
+4. Destacar na listagem de artigos a trilha e a modalidade `oral/poster`.
+5. Implementar uma opção para baixar todos os artigos de um evento.

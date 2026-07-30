@@ -24,12 +24,16 @@
     .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
 
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .stats-group { margin-bottom: 2rem; }
+    .stats-group-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 0.85rem; }
     .stat-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 1.5rem; }
     .stat-card .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem; }
     .stat-card .stat-value { font-size: 2rem; font-weight: 700; color: #f1f5f9; }
     .stat-card.events .stat-value { color: #60a5fa; }
     .stat-card.articles .stat-value { color: #a78bfa; }
     .stat-card.pending-articles .stat-value { color: #fb7185; }
+    .stat-card.review-running .stat-value { color: #fbbf24; }
+    .stat-card.ready-decision .stat-value { color: #34d399; }
      .stat-card.reviewers .stat-value { color: #34d399; }
      .stat-card.inactive-reviewers .stat-value { color: #64748b; }
     .stat-card.pending-users .stat-value { color: #f59e0b; }
@@ -95,52 +99,85 @@
       <% } %>
     </div>
 
-    <div class="stats-grid">
-      <div class="stat-card events">
-        <div class="stat-label">Total de Eventos</div>
-        <div class="stat-value"><%= totalEvents %></div>
+    <div class="stats-group">
+      <div class="stats-group-title">Eventos</div>
+      <div class="stats-grid">
+        <div class="stat-card events">
+          <div class="stat-label">Total de Eventos</div>
+          <div class="stat-value"><%= totalEvents %></div>
+        </div>
+        <div class="stat-card published">
+          <div class="stat-label">Eventos Publicados</div>
+          <div class="stat-value"><%= publishedEvents %></div>
+        </div>
       </div>
-      <div class="stat-card published">
-        <div class="stat-label">Eventos Publicados</div>
-        <div class="stat-value"><%= publishedEvents %></div>
+    </div>
+
+    <div class="stats-group">
+      <div class="stats-group-title">Revisores</div>
+      <div class="stats-grid">
+        <div class="stat-card reviewers">
+          <div class="stat-label">Revisores Ativos</div>
+          <div class="stat-value"><%= activeReviewers %></div>
+        </div>
+        <div class="stat-card inactive-reviewers">
+          <div class="stat-label">Revisores Inativos</div>
+          <div class="stat-value"><%= inactiveReviewers %></div>
+        </div>
       </div>
-      <div class="stat-card articles">
-        <div class="stat-label">Total de Artigos</div>
-        <div class="stat-value"><%= totalArticles %></div>
+    </div>
+
+    <div class="stats-group">
+      <div class="stats-group-title">Usuários</div>
+      <div class="stats-grid">
+        <div class="stat-card pending-users">
+          <div class="stat-label">Usuários Pendentes</div>
+          <div class="stat-value"><%= pendingUsers %></div>
+        </div>
+        <div class="stat-card articles">
+          <div class="stat-label">Inscritos</div>
+          <div class="stat-value"><%= totalRegisteredParticipants %></div>
+        </div>
+        <div class="stat-card articles">
+          <div class="stat-label">Inscritos Autores</div>
+          <div class="stat-value"><%= authorRegistrations %></div>
+        </div>
+        <div class="stat-card articles">
+          <div class="stat-label">Inscritos Ouvintes</div>
+          <div class="stat-value"><%= listenerRegistrations %></div>
+        </div>
       </div>
-      <div class="stat-card pending-articles">
-        <div class="stat-label">Artigos Pendentes</div>
-        <div class="stat-value"><%= pendingArticles %></div>
-      </div>
-      <div class="stat-card articles">
-        <div class="stat-label">Inscritos</div>
-        <div class="stat-value"><%= totalRegisteredParticipants %></div>
-      </div>
-      <div class="stat-card articles">
-        <div class="stat-label">Inscritos Autores</div>
-        <div class="stat-value"><%= authorRegistrations %></div>
-      </div>
-      <div class="stat-card articles">
-        <div class="stat-label">Inscritos Ouvintes</div>
-        <div class="stat-value"><%= listenerRegistrations %></div>
-      </div>
-      <div class="stat-card reviewers">
-        <div class="stat-label">Revisores Ativos</div>
-        <div class="stat-value"><%= activeReviewers %></div>
-      </div>
-      <div class="stat-card inactive-reviewers">
-        <div class="stat-label">Revisores Inativos</div>
-        <div class="stat-value"><%= inactiveReviewers %></div>
-      </div>
-      <div class="stat-card pending-users">
-        <div class="stat-label">Usuários Pendentes</div>
-        <div class="stat-value"><%= pendingUsers %></div>
+    </div>
+
+    <div class="stats-group">
+      <div class="stats-group-title">Artigos</div>
+      <div class="stats-grid">
+        <div class="stat-card articles">
+          <div class="stat-label">Total de Artigos</div>
+          <div class="stat-value"><%= totalArticles %></div>
+        </div>
+        <div class="stat-card pending-articles">
+          <div class="stat-label">Pendências com Artigos</div>
+          <div class="stat-value"><%= pendingArticles %></div>
+        </div>
+        <div class="stat-card pending-articles">
+          <div class="stat-label">Sem Revisor</div>
+          <div class="stat-value"><%= articlesWithoutReviewer %></div>
+        </div>
+        <div class="stat-card review-running">
+          <div class="stat-label">Em Análise</div>
+          <div class="stat-value"><%= articlesUnderReview %></div>
+        </div>
+        <div class="stat-card ready-decision">
+          <div class="stat-label">Prontos para Deliberação</div>
+          <div class="stat-value"><%= articlesReadyForDecision %></div>
+        </div>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header">
-        <h2>Artigos pendentes de apreciação</h2>
+        <h2>Artigos sem revisor atribuído</h2>
       </div>
       <div class="section-body">
         <% if (pendingReviewAssignmentArticles.length > 0) { %>
@@ -163,7 +200,67 @@
         <% } else { %>
         <div class="empty">
           <p>Todos os artigos submetidos já possuem revisor atribuído.</p>
-          <p>Não há pendências de apreciação no momento.</p>
+          <p>Não há artigos aguardando designação de revisor.</p>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="section" style="margin-top:1.5rem;">
+      <div class="section-header">
+        <h2>Artigos ainda em análise pelos revisores</h2>
+      </div>
+      <div class="section-body">
+        <% if (inReviewArticles.length > 0) { %>
+        <table>
+          <thead>
+            <tr><th>Título</th><th>Evento</th><th>Tipo</th><th>Status</th><th>Submetido em</th></tr>
+          </thead>
+          <tbody>
+            <% inReviewArticles.forEach(a => { %>
+            <tr>
+              <td><a href="/admin/articles/<%= a.id %>?eventId=<%= a.event_id %>"><%= a.title %></a></td>
+              <td><%= a.event_name %></td>
+              <td><span class="badge badge-<%= a.type %>"><%= a.type === 'oral' ? 'Oral' : 'Poster' %></span></td>
+              <td><span class="badge badge-in-review">Em análise</span></td>
+              <td><%= new Date(a.created_at).toLocaleDateString('pt-BR') %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+        <% } else { %>
+        <div class="empty">
+          <p>Não há artigos aguardando parecer dos revisores neste momento.</p>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="section" style="margin-top:1.5rem;">
+      <div class="section-header">
+        <h2>Artigos prontos para deliberação final</h2>
+      </div>
+      <div class="section-body">
+        <% if (readyForDecisionArticles.length > 0) { %>
+        <table>
+          <thead>
+            <tr><th>Título</th><th>Evento</th><th>Tipo</th><th>Status</th><th>Submetido em</th></tr>
+          </thead>
+          <tbody>
+            <% readyForDecisionArticles.forEach(a => { %>
+            <tr>
+              <td><a href="/admin/articles/<%= a.id %>?eventId=<%= a.event_id %>"><%= a.title %></a></td>
+              <td><%= a.event_name %></td>
+              <td><span class="badge badge-<%= a.type %>"><%= a.type === 'oral' ? 'Oral' : 'Poster' %></span></td>
+              <td><span class="badge badge-approved">Aguardando decisão final</span></td>
+              <td><%= new Date(a.created_at).toLocaleDateString('pt-BR') %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+        <% } else { %>
+        <div class="empty">
+          <p>Não há artigos com todos os pareceres concluídos aguardando decisão final.</p>
         </div>
         <% } %>
       </div>

@@ -69,9 +69,11 @@
       <h1><%= article.title %></h1>
       <h2><%= article.title_en %></h2>
       <div class="article-meta">
-        <span>📅 <%= new Date(article.date_submitted).toLocaleDateString('pt-BR') %></span>
+        <span>📅 <%= new Date(article.date_submitted || article.created_at).toLocaleDateString('pt-BR') %></span>
         <span>🏛️ <%= article.event_name %></span>
         <span>👤 <%= article.contributor %></span>
+        <span>🧭 <%= article.area || 'Sem trilha definida' %></span>
+        <span>🎤 <%= article.type === 'poster' ? 'Pôster' : 'Oral' %></span>
       </div>
     </div>
 
@@ -97,13 +99,15 @@
     </div>
 
     <div class="review-section">
-      <h2>Revisão</h2>
+      <h2>Parecer do Revisor</h2>
+      <p style="margin-bottom: 1rem; color: #94a3b8;">Seu envio registra uma recomendação individual. A decisão final do artigo continua sob responsabilidade administrativa.</p>
       <form method="POST" action="/reviewer/articles/<%= article.id %>/review">
         <div class="form-group">
-          <label for="status">Decisão *</label>
-          <select id="status" name="status" required>
-            <option value="approved">Aprovar</option>
-            <option value="rejected">Rejeitar</option>
+          <label for="recommendation">Recomendação *</label>
+          <select id="recommendation" name="recommendation" required>
+            <option value="approved">Recomendar aprovação</option>
+            <option value="revision_requested">Solicitar revisão</option>
+            <option value="rejected">Recomendar rejeição</option>
           </select>
         </div>
 
@@ -119,8 +123,8 @@
 
         <div class="form-actions">
           <a href="/reviewer" class="btn btn-ghost">Cancelar</a>
-          <button type="submit" class="btn btn-approved">Aprovar Artigo</button>
-          <button type="submit" name="status" value="rejected" class="btn btn-rejected">Rejeitar Artigo</button>
+          <button type="submit" class="btn btn-approved">Enviar Parecer</button>
+          <button type="submit" name="recommendation" value="rejected" class="btn btn-rejected">Recomendar Rejeição</button>
         </div>
       </form>
     </div>

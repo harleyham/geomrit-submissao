@@ -210,7 +210,7 @@ router.post('/', requireAuth, (req, res) => {
   db.prepare(`
     INSERT INTO users (name, email, password, cpf, passport, country, institution, reviewer_areas,
       is_admin, is_reviewer, is_public, approval_status, approved_at, password_changed, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now'), 0, datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).bind(
     name || email,
     email,
@@ -382,7 +382,7 @@ router.put('/:id', requireAuth, (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     db.prepare(`
       UPDATE users SET name=?, email=?, password=?, cpf=?, passport=?, country=?, institution=?, reviewer_areas=?,
-        is_admin=?, is_reviewer=?, password_changed=0, updated_at=datetime('now')
+        is_admin=?, is_reviewer=?, password_changed=0, updated_at=datetime('now', '-3 hours')
       WHERE id=?
     `).bind(
       name, email, hash,
@@ -392,7 +392,7 @@ router.put('/:id', requireAuth, (req, res) => {
   } else {
     db.prepare(`
       UPDATE users SET name=?, email=?, cpf=?, passport=?, country=?, institution=?, reviewer_areas=?,
-        is_admin=?, is_reviewer=?, updated_at=datetime('now')
+        is_admin=?, is_reviewer=?, updated_at=datetime('now', '-3 hours')
       WHERE id=?
     `).bind(
       name, email,
@@ -486,14 +486,14 @@ router.post('/:id/update-flags', requireAuth, (req, res) => {
     UPDATE users
     SET is_admin = ?, is_reviewer = ?, is_public = ?, approval_status = ?,
         approved_at = CASE
-          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now')
+          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now', '-3 hours')
           ELSE approved_at
         END,
         approved_by = CASE
           WHEN ? = 'approved' AND approved_by IS NULL THEN ?
           ELSE approved_by
         END,
-        updated_at = datetime('now')
+        updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `).bind(is_admin, is_reviewer, is_public, approvalStatus, approvalStatus, approvalStatus, req.session.userId, id).run();
 
@@ -535,14 +535,14 @@ router.post('/bulk-update-flags', requireAuth, (req, res) => {
     UPDATE users
     SET is_admin = ?, is_reviewer = ?, is_public = ?, approval_status = ?,
         approved_at = CASE
-          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now')
+          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now', '-3 hours')
           ELSE approved_at
         END,
         approved_by = CASE
           WHEN ? = 'approved' AND approved_by IS NULL THEN ?
           ELSE approved_by
         END,
-        updated_at = datetime('now')
+        updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `);
 
@@ -621,14 +621,14 @@ router.post('/:id/toggle-public', requireAuth, (req, res) => {
     UPDATE users
     SET is_public = ?, approval_status = ?,
         approved_at = CASE
-          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now')
+          WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now', '-3 hours')
           ELSE approved_at
         END,
         approved_by = CASE
           WHEN ? = 'approved' AND approved_by IS NULL THEN ?
           ELSE approved_by
         END,
-        updated_at = datetime('now')
+        updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `).bind(nextIsPublic, approvalStatus, approvalStatus, approvalStatus, req.session.userId, id).run();
   return sendToggleResponse(req, res, { success: true, id, is_public: nextIsPublic });
@@ -649,9 +649,9 @@ router.post('/:id/approve', requireAuth, (req, res) => {
     UPDATE users
     SET is_public = 1,
         approval_status = 'approved',
-        approved_at = datetime('now'),
+        approved_at = datetime('now', '-3 hours'),
         approved_by = ?,
-        updated_at = datetime('now')
+        updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `).bind(req.session.userId, id).run();
 

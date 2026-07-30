@@ -102,10 +102,17 @@
             <p style="color: #94a3b8; font-size: 0.875rem; line-height: 1.6; margin-top: 0.25rem;"><%= article.abstract %></p>
           </div>
         <% } %>
-        <% if (article.reviewer_name) { %>
+        <% if (article.report_count > 0) { %>
           <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(148,163,184,0.1);">
-            <strong style="color: #e2e8f0; font-size: 0.875rem;">Revisor Responsável</strong>
-            <p style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem;"><%= article.reviewer_name %> (<%= article.reviewer_area %>)</p>
+            <strong style="color: #e2e8f0; font-size: 0.875rem;">Andamento da Avaliação</strong>
+            <p style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem;">
+              Pareceres recebidos: <%= article.report_count %>
+              <% if (article.approval_count || article.rejection_count || article.revision_count) { %>
+                • Aprovações: <%= article.approval_count %>
+                • Rejeições: <%= article.rejection_count %>
+                • Revisões solicitadas: <%= article.revision_count %>
+              <% } %>
+            </p>
           </div>
         <% } %>
         <div class="actions" style="margin-top: 1.5rem;">

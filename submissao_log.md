@@ -1,20 +1,52 @@
 # Histórico Técnico do Projeto
 
-Registro cronológico das alterações relevantes do sistema de submissão de artigos.
+Registro cronológico das principais alterações no sistema de gestão de eventos, avaliação de artigos, participação, presença e certificados de participação.
 
 Versão atual registrada: **V0.1**.
+
+## 2026-07-30
+
+### Documentação
+
+- `submissao.md` atualizado para refletir o fluxo atual de deliberação final administrativa, a leitura dos pareceres na página do artigo, os novos agrupamentos do dashboard e a persistência de timestamps em horário local do Brasil.
+- `submissao_log.md` atualizado com o histórico das mudanças implementadas em 30 de julho de 2026.
+- Documentação reposicionada para tratar o produto como sistema de gestão de eventos, artigos, presença e certificados de participação, e não apenas como fluxo de submissão.
+
+### Implementações
+
+- Página administrativa do artigo ampliada com seção de deliberação final, permitindo aprovar, reprovar e alterar a modalidade `oral`/`poster` sem sair do detalhe do artigo.
+- Card `Revisores Atribuídos` ampliado com leitura expansível dos pareceres já enviados.
+- Dashboard administrativo reorganizado em grupos temáticos (`Eventos`, `Revisores`, `Usuários`, `Artigos`).
+- Dashboard administrativo ampliado com métricas e listas para artigos sem revisor, em análise e prontos para deliberação final.
+- Fluxo de exclusão de artigos na listagem administrativa ajustado para usar modal customizado em vez da caixa nativa do navegador.
+- Consulta pública por código ampliada com andamento agregado da avaliação, usando contagem de pareceres e recomendações.
+
+### Correções
+
+- Correção do fluxo de parecer do revisor para registrar recomendação individual sem deliberação final automática do artigo.
+- Correção do painel do revisor para diferenciar `Meu Parecer` de `Aguardando deliberação final administrativa`.
+- Correção do link `Corpo de Revisores` no painel do revisor, ajustando a navegação para `/revisores`.
+- Correção da página pública do evento para permitir que contas administrativas autenticadas também sigam o fluxo de participante em inscrições, submissões e certificados de participação, quando aplicável.
+- Correção da listagem administrativa de artigos para usar rótulos de status em português no combobox de ação.
+- Correção da persistência de timestamps nas rotas ativas para gravar em horário local do Brasil (`UTC-3`) em vez de UTC puro.
+
+### Observações Técnicas
+
+- O fluxo oficial de múltiplos revisores agora trata `assignments` e `reports` como fonte de verdade para recomendações individuais, enquanto a deliberação final administrativa permanece como etapa própria.
+- O status `accepted` em atribuições antigas pode continuar aparecendo em registros históricos já persistidos antes da atualização do fluxo.
+- A exclusão física de artigos pela administração ainda pode exigir ajustes adicionais para sincronizar a participação em `event_registrations`.
 
 ## 2026-07-29
 
 ### Documentação
 
-- `submissao.md` atualizado para refletir o cronograma público por evento, as novas janelas administrativas (`registration`, `review`, `certificates`) e as regras reais de bloqueio por período.
+- `submissao.md` atualizado para refletir o cronograma público por evento, as novas janelas (`registration`, `review`, `certificates`) e as regras reais de bloqueio por período.
 - `submissao_log.md` atualizado com o histórico das mudanças implementadas em 29 de julho de 2026.
 
 ### Implementações
 
 - Página pública do evento reorganizada em formato de cronograma com coluna de ação por etapa.
-- Cadastro e edição de eventos ampliados para suportar datas de inscrições, análise de submissão e certificados.
+- Cadastro e edição de eventos ampliados para suportar datas de inscrições, análise de submissão e certificados de participação.
 - Painel `/author` ajustado para mostrar apenas eventos futuros em cards clicáveis, levando diretamente à página pública do evento.
 - Fluxo público de submissão ajustado para exigir inscrição prévia no evento antes do envio do artigo.
 - Eventos passaram a suportar a flag `has_article_submission`, com exibição condicional das etapas de submissão e análise nas telas públicas.
@@ -29,11 +61,11 @@ Versão atual registrada: **V0.1**.
 ### Correções
 
 - Correção do comportamento dos botões da página pública do evento para trocar a ação conforme autenticação e inscrição do participante.
-- Correção da regra da etapa `Submissão Artigos`, que agora só habilita envio para usuário autenticado e inscrito.
+- Correção da etapa `Submissão Artigos`, que agora só habilita envio para usuário autenticado e inscrito.
 - Correção do backend para bloquear inscrições fora da janela de `registration_start` e `registration_end`.
 - Correção do backend para bloquear submissões finais fora da janela de `submission_start` e `submission_end`.
-- Correção da lógica pública para esconder botões de ação quando a etapa do cronograma não possui período configurado.
-- Correção da ação de certificados para só aparecer quando houver inscrição válida, autenticação e janela de certificados aberta.
+- Correção da lógica pública para ocultar botões de ação quando a etapa do cronograma não possui período configurado.
+- Correção da ação de certificados de participação para só aparecer quando houver inscrição válida, autenticação e janela de certificados de participação aberta.
 - Correção da consistência de navegação para exibir o botão `Sair` em vermelho nas páginas públicas acessadas por usuários autenticados.
 - Correção do fluxo de login para evitar erro de renderização ao abrir a área do participante.
 - Correção da inscrição pública para reutilizar corretamente a instituição do usuário autenticado.
@@ -46,9 +78,9 @@ Versão atual registrada: **V0.1**.
 
 ### Observações Técnicas
 
-- O controle de período deixou de ser apenas visual: as rotas públicas de inscrição e submissão passaram a validar a janela diretamente no backend.
-- A janela de certificados já está modelada e controlada na interface pública, mas ainda não existe fluxo dedicado para emissão ou download.
-- Rotas legadas `routes/assignments.js`, `routes/config.js` e `routes/reviewers.js` deixaram de ser montadas e seus templates associados foram removidos da estrutura ativa.
+- O controle de período deixou de ser apenas visual. As rotas públicas de inscrição e submissão passaram a validar a janela diretamente no backend.
+- A janela de certificados de participação já está modelada e controlada na interface pública, mas ainda não existe fluxo dedicado para emissão ou download.
+- Rotas legadas sem uso, como `routes/assignments.js`, `routes/config.js` e `routes/reviewers.js`, podem ser removidas da base ativa juntamente com seus templates associados.
 - A área administrativa do evento não possui mais a página `stats`; a visão consolidada permanece em `Relatórios`.
 
 ## 2026-07-28
@@ -57,7 +89,7 @@ Versão atual registrada: **V0.1**.
 
 - `submissao.md` consolidado como especificação técnica do estado atual do produto.
 - `submissao_log.md` mantido como histórico técnico incremental do projeto.
-- Documentação atualizada para refletir inscrição de participantes, áreas múltiplas por evento, subsídio e métricas de participação.
+- Documentação atualizada para refletir inscrições, áreas múltiplas por evento, subsídio e métricas de participação.
 
 ### Implementações
 
@@ -81,7 +113,7 @@ Versão atual registrada: **V0.1**.
 - Relatório do evento passou a listar nome, e-mail, órgão e situação da participação.
 - Página do participante consolidada para usuários autenticados sem perfil administrativo, incluindo revisores que também submetem artigos, com listagem de eventos publicados, participações, rascunhos e submissões.
 - Página `/author/profile` criada para edição dos dados cadastrais do participante.
-- Bloqueio explícito de contas administrativas no fluxo `/author` e `/submeter/:eventId`.
+- Navegação do fluxo `/author` mantida também para contas administrativas com múltiplos perfis, preservando o autoacompanhamento de participações e submissões no mesmo cadastro.
 - Botão de impressão do relatório implementado com layout otimizado para exportação em PDF via navegador.
 - Lista padronizada de países adicionada aos formulários com campo de país.
 - Fluxo de cancelamento de inscrição de ouvinte implementado na área do participante até o dia anterior ao início do evento.
@@ -118,7 +150,7 @@ Versão atual registrada: **V0.1**.
 - O sistema continua exigindo reinício do servidor para refletir alterações em rotas e templates.
 - A métrica de inscritos por evento agora diferencia ouvintes de participantes com submissão.
 - A tabela `event_registrations` passou a ser a fonte de verdade para participação explícita em evento.
-- A tabela `event_registrations` passou a armazenar também os dados da candidatura a subsídio quando aplicável.
+- A tabela `event_registrations` passou a armazenar também os dados da candidatura a subsídio, quando aplicável.
 
 ### Pendências Conhecidas
 

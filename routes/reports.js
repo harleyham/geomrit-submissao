@@ -70,16 +70,26 @@ router.get('/', requireAuth, (req, res) => {
 
   // Artigos reprovados separados por tipo
   const articlesOralRejected = db.prepare(`
-    SELECT a.id, a.title, a.title_en, a.authors, a.area, a.type, a.contributor, a.affiliation, a.city, a.rejection_reason
+    SELECT
+      a.id, a.title, a.title_en, a.authors, a.area, a.type, a.contributor, a.affiliation, a.city,
+      GROUP_CONCAT(CASE WHEN rp.recommendation = 'rejected' THEN rp.report END, ' | ') as rejection_reason
     FROM articles a
+    LEFT JOIN assignments ass ON ass.article_id = a.id
+    LEFT JOIN reports rp ON rp.assignment_id = ass.id
     WHERE a.event_id = ? AND a.status = 'rejected' AND a.type = 'oral'
+    GROUP BY a.id
     ORDER BY a.title
   `).bind(eventId).all();
 
   const articlesPosterRejected = db.prepare(`
-    SELECT a.id, a.title, a.title_en, a.authors, a.area, a.type, a.contributor, a.affiliation, a.city, a.rejection_reason
+    SELECT
+      a.id, a.title, a.title_en, a.authors, a.area, a.type, a.contributor, a.affiliation, a.city,
+      GROUP_CONCAT(CASE WHEN rp.recommendation = 'rejected' THEN rp.report END, ' | ') as rejection_reason
     FROM articles a
+    LEFT JOIN assignments ass ON ass.article_id = a.id
+    LEFT JOIN reports rp ON rp.assignment_id = ass.id
     WHERE a.event_id = ? AND a.status = 'rejected' AND a.type = 'poster'
+    GROUP BY a.id
     ORDER BY a.title
   `).bind(eventId).all();
 
@@ -190,8 +200,8 @@ router.get('/', requireAuth, (req, res) => {
 // Decidir destino do artigo (admin)
 router.post('/:id/decide', requireAuth, (req, res) => {
   const { final_status, eventId } = req.body;
-  if (final_status) {
-    db.prepare('UPDATE articles SET status = ?, updated_at = datetime("now") WHERE id = ?').bind(final_status, req.params.id).run();
+  if (['pending', 'in_review', 'approved', 'rejected'].includes(final_status)) {
+    db.prepare('UPDATE articles SET status = ?, updated_at = datetime("now", "-3 hours") WHERE id = ?').bind(final_status, req.params.id).run();
   }
   res.redirect(`/admin/reports?eventId=${eventId}`);
 });

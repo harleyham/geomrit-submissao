@@ -38,6 +38,12 @@
     .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
     .actions { display: flex; gap: 0.375rem; }
     a { color: #60a5fa; text-decoration: none; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,0.72); display: none; align-items: center; justify-content: center; padding: 1.5rem; z-index: 1200; }
+    .modal-backdrop.visible { display: flex; }
+    .modal-card { width: 100%; max-width: 420px; background: rgba(15,23,42,0.98); border: 1px solid rgba(148,163,184,0.18); border-radius: 18px; padding: 1.5rem; box-shadow: 0 30px 80px rgba(2,6,23,0.5); }
+    .modal-card h2 { color: #f8fafc; font-size: 1.15rem; margin-bottom: 0.7rem; }
+    .modal-card p { color: #94a3b8; line-height: 1.65; margin-bottom: 1.25rem; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 0.75rem; flex-wrap: wrap; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
     .status-select { padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid rgba(148,163,184,0.2); background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.8rem; }
   </style>
@@ -75,13 +81,13 @@
             <td><%= new Date(a.created_at).toLocaleDateString('pt-BR') %></td>
             <td class="actions">
               <select class="status-select" onchange="changeStatus(<%= a.id %>, this.value)">
-                <option value="submitted" <%= a.status === 'submitted' ? 'selected' : '' %>>Submitted</option>
-                <option value="in_review" <%= a.status === 'in_review' ? 'selected' : '' %>>In Review</option>
-                <option value="approved" <%= a.status === 'approved' ? 'selected' : '' %>>Approved</option>
-                <option value="rejected" <%= a.status === 'rejected' ? 'selected' : '' %>>Rejected</option>
+                <option value="pending" <%= a.status === 'pending' ? 'selected' : '' %>>Pendente</option>
+                <option value="in_review" <%= a.status === 'in_review' ? 'selected' : '' %>>Em análise</option>
+                <option value="approved" <%= a.status === 'approved' ? 'selected' : '' %>>Aprovado</option>
+                <option value="rejected" <%= a.status === 'rejected' ? 'selected' : '' %>>Rejeitado</option>
               </select>
               <a href="/admin/articles/<%= a.id %>/download?eventId=<%= event.id %>" class="btn btn-ghost btn-sm">📄</a>
-              <button onclick="deleteArticle(<%= a.id %>, <%= event.id %>)" class="btn btn-danger btn-sm">✕</button>
+              <button type="button" class="btn btn-danger btn-sm" data-delete-article data-article-id="<%= a.id %>" data-event-id="<%= event.id %>">✕</button>
             </td>
           </tr>
           <% }) %>
@@ -90,17 +96,92 @@
     </div>
   </main>
 
+  <div class="modal-backdrop" id="delete-modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+      <h2 id="delete-modal-title">Excluir artigo</h2>
+      <p>Essa ação remove o artigo e o arquivo PDF associado. Deseja continuar?</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="delete-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="delete-confirm-btn">Excluir</button>
+      </div>
+    </div>
+  </div>
+
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 
   <script>
+    let pendingDelete = null;
+    const deleteModal = document.getElementById('delete-modal');
+    const deleteCancelBtn = document.getElementById('delete-cancel-btn');
+    const deleteConfirmBtn = document.getElementById('delete-confirm-btn');
+
     function changeStatus(id, status) {
       fetch('/admin/articles/' + id, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status}) });
     }
-    function deleteArticle(id, eventId) {
-      if (confirm('Excluir artigo?')) {
-        fetch('/admin/articles/' + id + '?eventId=' + eventId, { method: 'DELETE' }).then(() => location.reload());
+
+    function openDeleteModal(id, eventId) {
+      pendingDelete = { id, eventId };
+      deleteModal.classList.add('visible');
+      deleteModal.setAttribute('aria-hidden', 'false');
+      deleteConfirmBtn.focus();
+    }
+
+    function closeDeleteModal() {
+      pendingDelete = null;
+      deleteModal.classList.remove('visible');
+      deleteModal.setAttribute('aria-hidden', 'true');
+    }
+
+    async function deleteArticle(id, eventId) {
+
+      try {
+        const response = await fetch('/admin/articles/' + id + '?eventId=' + eventId, {
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Falha ao excluir o artigo.');
+        }
+
+        const result = await response.json();
+        if (!result || !result.success) {
+          throw new Error('Falha ao excluir o artigo.');
+        }
+
+        location.reload();
+      } catch (error) {
+        alert(error.message || 'Nao foi possivel excluir o artigo.');
       }
     }
+
+    document.querySelectorAll('[data-delete-article]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        openDeleteModal(button.getAttribute('data-article-id'), button.getAttribute('data-event-id'));
+      });
+    });
+
+    deleteCancelBtn.addEventListener('click', closeDeleteModal);
+    deleteConfirmBtn.addEventListener('click', async function() {
+      if (!pendingDelete) return;
+      const currentDelete = pendingDelete;
+      closeDeleteModal();
+      await deleteArticle(currentDelete.id, currentDelete.eventId);
+    });
+
+    deleteModal.addEventListener('click', function(event) {
+      if (event.target === deleteModal) {
+        closeDeleteModal();
+      }
+    });
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && deleteModal.classList.contains('visible')) {
+        closeDeleteModal();
+      }
+    });
   </script>
 </body>
 </html>
