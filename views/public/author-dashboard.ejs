@@ -94,6 +94,7 @@
   </header>
 
   <main class="main-content">
+    <div style="margin-bottom:1rem;"><a href="/author/certificates" class="btn btn-ghost">Meus Certificados</a></div>
     <% const draftSubmissions = submissions.filter(function(article) { return article.status === 'draft'; }); %>
     <% const submittedSubmissions = submissions.filter(function(article) { return article.status !== 'draft'; }); %>
     <% if (success) { %>
@@ -106,7 +107,7 @@
     <section class="hero">
       <div class="panel">
         <h1><%= previewMode ? 'Visualização da Área do Participante' : 'Área do Participante' %></h1>
-        <p>Use este espaço para se inscrever em eventos como ouvinte, submeter artigos, acompanhar suas participações e consultar informações relevantes sobre os eventos em que você está envolvido.</p>
+        <p>Use este espaço para se inscrever em eventos como participante, submeter artigos, acompanhar suas participações e consultar informações relevantes sobre os eventos em que você está envolvido.</p>
         <div class="meta">
           <strong>Usuário:</strong> <%= userName || userEmail %><br>
           <strong>E-mail vinculado às participações:</strong> <%= userEmail %>
@@ -189,7 +190,7 @@
         </div>
         <div class="info-list">
           <div class="info-item">
-            <p>Você pode se inscrever como ouvinte em eventos publicados e manter sua participação vinculada à sua conta.</p>
+            <p>Você pode se inscrever como participante em eventos publicados e manter sua participação vinculada à sua conta.</p>
           </div>
           <div class="info-item">
             <p>Se optar por submeter artigo, o formulário permite múltiplos autores, ordem de autoria e autor correspondente.</p>

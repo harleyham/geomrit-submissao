@@ -4,6 +4,38 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-07-31
+
+### Implementações
+
+- Gestão administrativa de participantes por evento concluída com criação ou seleção de conta, inscrição, edição, remoção condicionada e auditoria.
+- Tabela `participant_audit_logs` adicionada para registrar alterações manuais na participação e a reconciliação provocada pela exclusão de artigos.
+- Índices únicos adicionados para impedir duplicidade de inscrição por evento/e-mail normalizado e por evento/conta vinculada.
+- Exclusão administrativa de artigo ajustada: ao remover o último artigo submetido, a inscrição do autor é preservada e reclassificada para `listener`; se houver outro artigo, permanece como `author`.
+- Presença simples por evento implementada com a tabela `attendance_records`, lançamento manual, remoção, observação opcional e identificação do administrador responsável.
+- Painel administrativo de presença adicionado à gestão do evento, com filtros e totais de inscritos, presentes e participantes sem presença.
+- Formulário administrativo de inclusão de participante ampliado com seletor de contas já cadastradas, preenchimento automático e vínculo explícito ao evento.
+- Inclusão administrativa passou a exigir conta vinculada: o admin cria uma conta com senha temporária ou inscreve conta ativa já existente, preservando o acesso do participante a autosserviço e certificados.
+- Download administrativo em lote dos artigos de um evento implementado em arquivo ZIP, incluindo apenas submissões com PDF disponível.
+- Relatório do evento ampliado com checkbox por seção e controles para selecionar ou limpar todas as seções antes da impressão em PDF.
+- Layout da listagem administrativa de eventos ajustado para quebrar os botões de ação e permitir rolagem horizontal da tabela em telas estreitas.
+
+### Correções
+
+- Correção do download ZIP em lote para usar a API `ZipArchive` compatível com a versão instalada da dependência `archiver`.
+
+### Certificados
+
+- Módulo de certificados implementado com regra de elegibilidade por presença, emissão versionada, reemissão auditável e download autenticado em PDF.
+- Biblioteca de fundos de certificado adicionada com seleção de imagens existentes e upload administrativo de PNG/JPEG.
+
+### Atividades e presença detalhada
+
+- Cadastro administrativo de atividades internas por evento adicionado, com tipos como palestra, seminário, mesa-redonda, minicurso e outras atividades.
+- Atividades passaram a armazenar data, carga horária e indicação de emissão de certificado.
+- Presença por atividade implementada em `activity_attendance_records`, permitindo registrar a participação da mesma pessoa em várias atividades do evento.
+- Base `activity_certificate_rules` adicionada para suportar regras e fundos específicos por atividade; a conexão da emissão de certificados a essa seleção permanece como próxima etapa.
+
 ## 2026-07-30
 
 ### Documentação
@@ -11,6 +43,8 @@ Versão atual registrada: **V0.1**.
 - `submissao.md` atualizado para refletir o fluxo atual de deliberação final administrativa, a leitura dos pareceres na página do artigo, os novos agrupamentos do dashboard e a persistência de timestamps em horário local do Brasil.
 - `submissao_log.md` atualizado com o histórico das mudanças implementadas em 30 de julho de 2026.
 - Documentação reposicionada para tratar o produto como sistema de gestão de eventos, artigos, presença e certificados de participação, e não apenas como fluxo de submissão.
+- Documentação ampliada com diagnóstico por objetivo e planejamento por fases para cobrir integralmente gestão de eventos, avaliação de artigos, presença e certificados de participação.
+- Planejamento documental detalhado em épicos, entregas incrementais e tarefas técnicas agrupadas por arquivo.
 
 ### Implementações
 
@@ -69,7 +103,7 @@ Versão atual registrada: **V0.1**.
 - Correção da consistência de navegação para exibir o botão `Sair` em vermelho nas páginas públicas acessadas por usuários autenticados.
 - Correção do fluxo de login para evitar erro de renderização ao abrir a área do participante.
 - Correção da inscrição pública para reutilizar corretamente a instituição do usuário autenticado.
-- Correção do texto de sucesso e de inscrição já existente no fluxo de inscrição de ouvintes.
+- Correção do texto de sucesso e de inscrição já existente no fluxo de inscrição de participantes.
 - Correção do salvamento de rascunhos para não exigir validação completa antes da submissão final.
 - Correção da listagem de rascunhos na área do participante, incluindo contagem, retomada e atualização dos indicadores após exclusão.
 - Correção da rota de atribuição de revisores, ajustando literais SQL para o SQLite.
@@ -105,18 +139,18 @@ Versão atual registrada: **V0.1**.
 - Badge visual adicionado para identificar revisor inativo na tela de usuários.
 - Área do evento alterada para suportar múltiplas áreas/trilhas por evento e reutilização dessas áreas na submissão de artigo.
 - Campo de subsídio a participantes adicionado ao cadastro de eventos.
-- Fluxo público de inscrição de ouvintes por evento implementado com persistência em `event_registrations`.
+- Fluxo público de inscrição de participantes por evento implementado com persistência em `event_registrations`.
 - Sincronização automática de inscrição quando participante submete artigo no evento, promovendo `listener` para `author` quando aplicável.
-- Dashboard administrativo ampliado com métricas de inscritos totais, autores e ouvintes.
+- Dashboard administrativo ampliado com métricas de inscritos totais, autores e participantes.
 - Lista de eventos e estatísticas por evento ampliadas com contadores de participantes.
-- Relatório do evento ampliado com estatísticas de ouvintes, inscritos com artigo e listagem de participantes.
+- Relatório do evento ampliado com estatísticas de participantes, inscritos com artigo e listagem de participantes.
 - Relatório do evento passou a listar nome, e-mail, órgão e situação da participação.
 - Página do participante consolidada para usuários autenticados sem perfil administrativo, incluindo revisores que também submetem artigos, com listagem de eventos publicados, participações, rascunhos e submissões.
 - Página `/author/profile` criada para edição dos dados cadastrais do participante.
 - Navegação do fluxo `/author` mantida também para contas administrativas com múltiplos perfis, preservando o autoacompanhamento de participações e submissões no mesmo cadastro.
 - Botão de impressão do relatório implementado com layout otimizado para exportação em PDF via navegador.
 - Lista padronizada de países adicionada aos formulários com campo de país.
-- Fluxo de cancelamento de inscrição de ouvinte implementado na área do participante até o dia anterior ao início do evento.
+- Fluxo de cancelamento de inscrição de participante sem artigo implementado na área do participante até o dia anterior ao início do evento.
 - Fluxo de subsídio na inscrição do evento implementado com dados acadêmicos, ID Lattes e upload de histórico escolar, carta de motivação e carta de recomendação.
 
 ### Correções
@@ -148,7 +182,7 @@ Versão atual registrada: **V0.1**.
 - A rota `POST /admin/users/bulk-update-flags` passou a ser o fluxo principal de persistência de perfis na listagem de usuários.
 - Endpoints legados de toggle individual continuam presentes no backend, mas a interface principal não depende mais deles.
 - O sistema continua exigindo reinício do servidor para refletir alterações em rotas e templates.
-- A métrica de inscritos por evento agora diferencia ouvintes de participantes com submissão.
+- A métrica de inscritos por evento agora diferencia participantes sem artigo de participantes com submissão.
 - A tabela `event_registrations` passou a ser a fonte de verdade para participação explícita em evento.
 - A tabela `event_registrations` passou a armazenar também os dados da candidatura a subsídio, quando aplicável.
 

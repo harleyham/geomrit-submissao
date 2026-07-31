@@ -5,6 +5,7 @@ const path = require('path');
 const multer = require('multer');
 const { db } = require('../db');
 const bcrypt = require('bcryptjs');
+const { renderCertificatePdf } = require('../services/certificates');
 
 const ABSTRACT_LIMIT = 2500;
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -1019,7 +1020,7 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
     return renderListenerRegistrationForm(res, event, {
       success: nextType === 'author'
         ? 'Sua participação já estava registrada como apresentador neste evento.'
-        : 'Sua inscrição como ouvinte já estava registrada neste evento.',
+        : 'Sua inscrição como participante já estava registrada neste evento.',
       formData: {
         ...formData,
         academic_history_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
@@ -1377,7 +1378,7 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
       CASE
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
         WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
-        ELSE 'Ouvinte inscrito'
+        ELSE 'Participante inscrito'
       END as participation_label
     FROM event_registrations er
     JOIN events e ON e.id = er.event_id
@@ -1416,6 +1417,34 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
     success: req.query.success || null,
     error: req.query.error || null
   });
+});
+
+router.get('/author/certificates', requireNonAdminAuthorAccess, (req, res) => {
+  const certificates = db.prepare(`
+    SELECT ce.*, e.certificates_start, e.certificates_end, cb.file_path AS background_path
+    FROM certificate_emissions ce
+    JOIN event_registrations er ON er.id = ce.registration_id
+    JOIN events e ON e.id = ce.event_id
+    LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
+    WHERE ce.status = 'issued' AND (er.user_id = ? OR LOWER(TRIM(er.email)) = LOWER(TRIM(?)))
+    ORDER BY ce.issued_at DESC
+  `).all(req.session.userId, req.session.userEmail || '').map((certificate) => ({ ...certificate, window: getCertificatesWindow(certificate) }));
+  res.render('public/certificates', { title: 'Meus Certificados', certificates });
+});
+
+router.get('/author/certificates/:id/download', requireNonAdminAuthorAccess, (req, res) => {
+  const certificate = db.prepare(`
+    SELECT ce.*, e.certificates_start, e.certificates_end, cb.file_path AS background_path
+    FROM certificate_emissions ce
+    JOIN event_registrations er ON er.id = ce.registration_id
+    JOIN events e ON e.id = ce.event_id
+    LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
+    WHERE ce.id = ? AND ce.status = 'issued'
+      AND (er.user_id = ? OR LOWER(TRIM(er.email)) = LOWER(TRIM(?)))
+  `).get(req.params.id, req.session.userId, req.session.userEmail || '');
+  if (!certificate) return res.status(404).render('error', { title: 'Certificado não encontrado' });
+  if (!getCertificatesWindow(certificate).isOpen) return res.status(403).render('error', { title: 'Certificado indisponível', message: getCertificatesWindow(certificate).message });
+  res.type('application/pdf'); res.attachment(`certificado-${certificate.certificate_code}.pdf`); renderCertificatePdf(res, certificate);
 });
 
 router.post('/author/drafts/:id/delete', requireNonAdminAuthorAccess, (req, res) => {
@@ -1485,7 +1514,7 @@ router.post('/evento/:id/inscricao/cancelar', requireNonAdminAuthorAccess, (req,
   }
 
   if (registration.registration_type !== 'listener') {
-    return res.redirect('/author?error=Apenas inscrições de ouvintes podem ser canceladas por esta área');
+    return res.redirect('/author?error=Apenas inscrições de participantes sem artigo podem ser canceladas por esta área');
   }
 
   if (!canCancelEventRegistration(event.date_start)) {

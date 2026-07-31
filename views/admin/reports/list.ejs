@@ -21,7 +21,7 @@
     .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
     .event-meta { color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; }
     .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
-    .section-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
+    .section-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
     .section-header h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; }
     .section-body { padding: 0; }
     table { width: 100%; border-collapse: collapse; }
@@ -47,9 +47,12 @@
     .empty-state p { margin-bottom: 1rem; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
     .print-only { display: none; }
+    .report-selection { display: inline-flex; align-items: center; gap: 0.45rem; color: #94a3b8; font-size: 0.78rem; font-weight: 500; white-space: nowrap; }
+    .report-selection input { accent-color: #3b82f6; }
     @media print {
       body { background: #ffffff; color: #111827; min-height: auto; }
-      .topbar, .no-print, footer { display: none !important; }
+      .topbar, .no-print, footer, .report-selection { display: none !important; }
+      .section.report-excluded { display: none !important; }
       .print-only { display: block; }
       .main-content { max-width: none; margin: 0; padding: 0; }
       .page-header { margin-bottom: 1rem; }
@@ -104,14 +107,17 @@
       </div>
       <div class="page-header-actions no-print">
         <button type="button" id="print-report-btn" class="btn btn-primary">Imprimir em PDF</button>
+        <button type="button" id="select-all-report-sections" class="btn btn-ghost">Selecionar todos</button>
+        <button type="button" id="clear-report-sections" class="btn btn-ghost">Limpar seleção</button>
         <a href="/admin/events" class="btn btn-ghost">← Voltar</a>
       </div>
     </div>
 
     <!-- Informações do Evento -->
-    <div class="section">
+    <div class="section" data-report-section="event-info">
       <div class="section-header">
         <h2>Informações do Evento</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="event-info" checked> Incluir no PDF</label>
       </div>
       <div class="section-body" style="padding: 1.5rem;">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
@@ -152,9 +158,10 @@
     </div>
 
     <!-- Estatísticas -->
-    <div class="section">
+    <div class="section" data-report-section="event-stats">
       <div class="section-header">
         <h2>Estatísticas do Evento</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="event-stats" checked> Incluir no PDF</label>
       </div>
       <div class="section-body" style="padding: 1.5rem;">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem;">
@@ -184,7 +191,7 @@
           </div>
           <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: #fbbf24;"><%= listenerRegistrations %></div>
-            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Inscritos Ouvintes</div>
+            <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Inscritos Participantes</div>
           </div>
         </div>
       </div>
@@ -192,9 +199,10 @@
 
     <!-- Artigos Aprovados - Oral -->
     <% if (articlesOral.length > 0) { %>
-    <div class="section">
+    <div class="section" data-report-section="approved-oral">
       <div class="section-header">
         <h2>Artigos Aprovados - Apresentação Oral (<%= articlesOral.length %>)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-oral" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <table>
@@ -228,9 +236,10 @@
       </div>
     </div>
     <% } else { %>
-    <div class="section">
+    <div class="section" data-report-section="approved-oral">
       <div class="section-header">
         <h2>Artigos Aprovados - Apresentação Oral (0)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-oral" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <div class="empty-state"><p>Nenhum artigo aprovado para apresentação oral.</p></div>
@@ -240,9 +249,10 @@
 
     <!-- Artigos Aprovados - Pôster -->
     <% if (articlesPoster.length > 0) { %>
-    <div class="section">
+    <div class="section" data-report-section="approved-poster">
       <div class="section-header">
         <h2>Artigos Aprovados - Apresentação de Pôster (<%= articlesPoster.length %>)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-poster" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <table>
@@ -276,9 +286,10 @@
       </div>
     </div>
     <% } else { %>
-    <div class="section">
+    <div class="section" data-report-section="approved-poster">
       <div class="section-header">
         <h2>Artigos Aprovados - Apresentação de Pôster (0)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-poster" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <div class="empty-state"><p>Nenhum artigo aprovado para apresentação de pôster.</p></div>
@@ -288,9 +299,10 @@
 
     <!-- Artigos Reprovados - Oral -->
     <% if (articlesOralRejected.length > 0) { %>
-    <div class="section">
+    <div class="section" data-report-section="rejected-oral">
       <div class="section-header">
         <h2>Artigos Reprovados - Apresentação Oral (<%= articlesOralRejected.length %>)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-oral" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <table>
@@ -326,9 +338,10 @@
       </div>
     </div>
     <% } else { %>
-    <div class="section">
+    <div class="section" data-report-section="rejected-oral">
       <div class="section-header">
         <h2>Artigos Reprovados - Apresentação Oral (0)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-oral" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <div class="empty-state"><p>Nenhum artigo reprovado para apresentação oral.</p></div>
@@ -338,9 +351,10 @@
 
     <!-- Artigos Reprovados - Pôster -->
     <% if (articlesPosterRejected.length > 0) { %>
-    <div class="section">
+    <div class="section" data-report-section="rejected-poster">
       <div class="section-header">
         <h2>Artigos Reprovados - Apresentação de Pôster (<%= articlesPosterRejected.length %>)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-poster" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <table>
@@ -376,9 +390,10 @@
       </div>
     </div>
     <% } else { %>
-    <div class="section">
+    <div class="section" data-report-section="rejected-poster">
       <div class="section-header">
         <h2>Artigos Reprovados - Apresentação de Pôster (0)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-poster" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <div class="empty-state"><p>Nenhum artigo reprovado para apresentação de pôster.</p></div>
@@ -387,9 +402,10 @@
     <% } %>
 
     <!-- Participantes do Evento -->
-    <div class="section">
+    <div class="section" data-report-section="participants">
       <div class="section-header">
         <h2>Participantes do Evento (<%= participants.length %>)</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="participants" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <% if (participants.length > 0) { %>
@@ -411,8 +427,8 @@
               <td>
                 <% if (participant.participation_label === 'Artigo aprovado') { %>
                   <span class="badge badge-approved">Artigo aprovado</span>
-                <% } else if (participant.participation_label === 'Ouvinte') { %>
-                  <span class="badge badge-pending">Ouvinte</span>
+                <% } else if (participant.participation_label === 'Participante') { %>
+                  <span class="badge badge-pending">Participante</span>
                 <% } else { %>
                   <span class="badge badge-revision">Inscrito com artigo</span>
                 <% } %>
@@ -429,9 +445,10 @@
 
     <!-- Decisões dos Relatórios por Artigo -->
     <% if (articleDecisions.length > 0) { %>
-    <div class="section">
+    <div class="section" data-report-section="article-decisions">
       <div class="section-header">
         <h2>Decisões dos Relatórios por Artigo</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="article-decisions" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <table>
@@ -493,7 +510,11 @@
     <% } %>
 
     <% if (totalSubmited === 0) { %>
-    <div class="section">
+    <div class="section" data-report-section="empty-articles">
+      <div class="section-header">
+        <h2>Artigos</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="empty-articles" checked> Incluir no PDF</label>
+      </div>
       <div class="empty-state">
         <p>Nenhum artigo submetido para este evento.</p>
         <a href="/admin/articles?eventId=<%= event.id %>" class="btn btn-primary">Ver Artigos</a>
@@ -506,6 +527,26 @@
   <script>
     (function() {
       var printButton = document.getElementById('print-report-btn');
+      var sectionToggles = Array.prototype.slice.call(document.querySelectorAll('[data-report-toggle]'));
+      var syncSection = function(toggle) {
+        var section = document.querySelector('[data-report-section="' + toggle.dataset.reportToggle + '"]');
+        if (section) section.classList.toggle('report-excluded', !toggle.checked);
+      };
+      sectionToggles.forEach(function(toggle) {
+        toggle.addEventListener('change', function() { syncSection(toggle); });
+        syncSection(toggle);
+      });
+
+      var setSelection = function(checked) {
+        sectionToggles.forEach(function(toggle) {
+          toggle.checked = checked;
+          syncSection(toggle);
+        });
+      };
+      var selectAllButton = document.getElementById('select-all-report-sections');
+      var clearButton = document.getElementById('clear-report-sections');
+      if (selectAllButton) selectAllButton.addEventListener('click', function() { setSelection(true); });
+      if (clearButton) clearButton.addEventListener('click', function() { setSelection(false); });
       if (!printButton) return;
       printButton.addEventListener('click', function() {
         window.print();

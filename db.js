@@ -147,6 +147,105 @@ db.exec(`
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
   );
+
+  CREATE TABLE IF NOT EXISTS participant_audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    registration_id INTEGER,
+    actor_user_id INTEGER,
+    action TEXT NOT NULL,
+    details TEXT DEFAULT '',
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS attendance_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    registration_id INTEGER NOT NULL,
+    marked_by INTEGER,
+    attended_at DATETIME NOT NULL DEFAULT (datetime('now', '-3 hours')),
+    notes TEXT DEFAULT '',
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+    FOREIGN KEY (marked_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE(event_id, registration_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS certificate_backgrounds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS certificate_rules (
+    event_id INTEGER PRIMARY KEY,
+    min_attendance INTEGER NOT NULL DEFAULT 1 CHECK(min_attendance >= 1),
+    background_id INTEGER,
+    updated_by INTEGER,
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS certificate_emissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    registration_id INTEGER NOT NULL,
+    background_id INTEGER,
+    certificate_code TEXT NOT NULL UNIQUE,
+    version INTEGER NOT NULL DEFAULT 1,
+    attendance_count INTEGER NOT NULL,
+    participant_name TEXT NOT NULL,
+    event_name TEXT NOT NULL,
+    event_date_start DATE,
+    event_date_end DATE,
+    status TEXT NOT NULL DEFAULT 'issued',
+    issued_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    issued_by INTEGER,
+    reissued_from_id INTEGER,
+    activity_id INTEGER,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+    FOREIGN KEY (background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL,
+    FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (reissued_from_id) REFERENCES certificate_emissions(id) ON DELETE SET NULL,
+    UNIQUE(event_id, registration_id, version)
+  );
+
+  CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
+  CREATE TABLE IF NOT EXISTS activity_attendance_records (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,registration_id INTEGER NOT NULL,marked_by INTEGER,attended_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,registration_id),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE);
+  CREATE TABLE IF NOT EXISTS activity_certificate_rules (activity_id INTEGER PRIMARY KEY,min_attendance INTEGER NOT NULL DEFAULT 1,background_id INTEGER,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL);
+`);
+
+try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){ console.warn('Migration certificates:',e.message); }
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id ON event_registrations(event_id);
+  CREATE INDEX IF NOT EXISTS idx_event_registrations_user_id ON event_registrations(user_id);
+  CREATE INDEX IF NOT EXISTS idx_event_registrations_email ON event_registrations(email);
+  CREATE INDEX IF NOT EXISTS idx_event_registrations_type ON event_registrations(registration_type);
+  CREATE INDEX IF NOT EXISTS idx_participant_audit_event_id ON participant_audit_logs(event_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_participant_audit_registration_id ON participant_audit_logs(registration_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_attendance_records_event_id ON attendance_records(event_id, attended_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_attendance_records_registration_id ON attendance_records(registration_id);
+  CREATE INDEX IF NOT EXISTS idx_certificate_emissions_registration_id ON certificate_emissions(registration_id, status);
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_email
+    ON event_registrations(event_id, LOWER(TRIM(email)))
+    WHERE TRIM(email) != '';
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_user
+    ON event_registrations(event_id, user_id)
+    WHERE user_id IS NOT NULL;
 `);
 
 // Migrate existing data: drop admins, merge reviewers into users
@@ -369,6 +468,18 @@ if (!seedUser) {
 // Exportar funções úteis
 module.exports = {
   db,
+  recordParticipantAudit: ({ eventId, registrationId = null, actorUserId = null, action, details = {} }) => {
+    db.prepare(`
+      INSERT INTO participant_audit_logs (event_id, registration_id, actor_user_id, action, details, created_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now', '-3 hours'))
+    `).run(
+      eventId,
+      registrationId,
+      actorUserId,
+      action,
+      JSON.stringify(details)
+    );
+  },
   getArticlesByEvent: (eventId) => {
     return db.prepare(`
       SELECT a.*, 

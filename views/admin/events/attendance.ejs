@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { min-height: 100vh; background: #0a0f1a; color: #e2e8f0; font-family: Inter, sans-serif; }
+    .topbar { height: 64px; padding: 0 2rem; display: flex; align-items: center; background: rgba(15,23,42,.82); border-bottom: 1px solid rgba(148,163,184,.1); }
+    .topbar-inner, .main { width: 100%; max-width: 1440px; margin: 0 auto; }
+    .topbar-inner { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    .logo { color: #f8fafc; text-decoration: none; font-weight: 700; font-size: 1.2rem; } .logo span { color: #60a5fa; }
+    nav { display: flex; align-items: center; gap: .35rem; } nav a { color: #94a3b8; padding: .5rem .75rem; text-decoration: none; border-radius: 7px; font-size: .86rem; } nav a:hover { background: rgba(148,163,184,.1); color: #fff; }
+    .main { padding: 2rem; } .header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; margin-bottom: 1.5rem; } h1 { color: #f8fafc; font-size: 1.75rem; } .muted { color: #94a3b8; margin-top: .4rem; }
+    .actions, .filters, .row-actions { display: flex; gap: .6rem; flex-wrap: wrap; } .btn { cursor: pointer; display: inline-flex; justify-content: center; align-items: center; text-decoration: none; font: inherit; font-size: .82rem; font-weight: 600; border-radius: 8px; padding: .55rem .85rem; border: 1px solid transparent; } .primary { background: #2563eb; color:#fff; } .ghost { background: transparent; color: #cbd5e1; border-color: rgba(148,163,184,.22); } .danger { color:#fca5a5; border-color:rgba(248,113,113,.35); background:transparent; }
+    .stats { display: grid; grid-template-columns: repeat(3,minmax(160px,1fr)); gap: 1rem; margin-bottom: 1.5rem; } .stat, .panel { background: rgba(30,41,59,.6); border: 1px solid rgba(148,163,184,.1); border-radius: 12px; } .stat { padding: 1.1rem; } .number { color:#f8fafc; font-size:1.7rem; font-weight:700; } .label { margin-top:.25rem; font-size:.73rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+    .alert { padding: .85rem 1rem; border-radius: 9px; margin-bottom: 1rem; } .success { color:#86efac; background:rgba(34,197,94,.1); border:1px solid rgba(74,222,128,.22); } .error { color:#fca5a5; background:rgba(239,68,68,.1); border:1px solid rgba(248,113,113,.24); }
+    .filters { padding: 1rem 1.25rem; align-items:end; border-bottom:1px solid rgba(148,163,184,.1); } .field { flex:1; min-width: 200px; } label { display:block; color:#94a3b8; font-size:.78rem; margin-bottom:.4rem; } input, select { width:100%; border:1px solid rgba(148,163,184,.18); border-radius:8px; background:rgba(2,6,23,.42); color:#f8fafc; padding:.65rem .75rem; font:inherit; font-size:.86rem; }
+    .panel { overflow:hidden; } table { border-collapse:collapse; width:100%; } th { padding:.8rem 1.2rem; text-align:left; color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; background:rgba(15,23,42,.25); } td { padding:.85rem 1.2rem; border-top:1px solid rgba(148,163,184,.07); vertical-align:middle; font-size:.86rem; } tr:hover td { background:rgba(148,163,184,.03); } strong { color:#f8fafc; display:block; } small { color:#94a3b8; } .badge { display:inline-flex; border-radius:999px; font-size:.72rem; font-weight:700; padding:.25rem .6rem; } .present { background:rgba(34,197,94,.15); color:#86efac; } .absent { background:rgba(148,163,184,.14); color:#cbd5e1; } .row-form { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; } .notes { width:170px; } .empty { padding:2rem 1.25rem; color:#94a3b8; } footer { text-align:center; padding:2rem; color:#475569; font-size:.75rem; }
+    @media(max-width:900px){ .header{flex-direction:column}.stats{grid-template-columns:1fr}.panel{overflow-x:auto}.topbar{padding:0 1rem}.main{padding:1.25rem}.topbar-inner{align-items:flex-start}.topbar nav{flex-wrap:wrap;justify-content:flex-end} }
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="topbar-inner">
+    <a href="/" class="logo"><span>◆</span> Artigos LIGEM</a>
+    <nav><a href="/admin">Dashboard</a><a href="/admin/events">Eventos</a><a href="/admin/users">Usuários</a><% if (userEmail) { %><small><%= userEmail %></small><% } %><form method="POST" action="/admin/logout"><button class="btn danger" type="submit">Sair</button></form></nav>
+  </div></header>
+  <main class="main">
+    <div class="header"><div><h1>Controle de Presença</h1><p class="muted"><strong><%= event.name %></strong> · Registro simples: uma presença por participante neste evento.</p></div><div class="actions"><a class="btn ghost" href="/admin/events/<%= event.id %>/participants">Participantes</a><a class="btn ghost" href="/admin/events">Voltar aos eventos</a></div></div>
+    <section class="stats"><div class="stat"><div class="number"><%= summary.registered %></div><div class="label">Inscritos</div></div><div class="stat"><div class="number"><%= summary.present %></div><div class="label">Presentes</div></div><div class="stat"><div class="number"><%= summary.absent %></div><div class="label">Sem presença</div></div></section>
+    <% if (success) { %><div class="alert success"><%= success %></div><% } %><% if (error) { %><div class="alert error"><%= error %></div><% } %>
+    <section class="panel">
+      <form class="filters" method="GET"><div class="field"><label for="q">Buscar participante</label><input id="q" name="q" value="<%= filters.query %>" placeholder="Nome, e-mail ou instituição"></div><div class="field" style="max-width:190px"><label for="status">Presença</label><select id="status" name="status"><option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Todos</option><option value="present" <%= filters.status === 'present' ? 'selected' : '' %>>Presentes</option><option value="absent" <%= filters.status === 'absent' ? 'selected' : '' %>>Sem presença</option></select></div><div class="actions"><button class="btn primary" type="submit">Aplicar filtros</button><a class="btn ghost" href="/admin/events/<%= event.id %>/attendance">Limpar</a></div></form>
+      <% if (!participants.length) { %><div class="empty">Nenhum participante encontrado para os filtros informados.</div><% } else { %>
+      <table><thead><tr><th>Participante</th><th>Tipo</th><th>Situação</th><th>Total</th><th>Lançamento manual</th></tr></thead><tbody>
+      <% participants.forEach((participant) => { %><tr>
+        <td><strong><%= participant.name %></strong><small><%= participant.email %><br><%= participant.institution || 'Instituição não informada' %></small></td>
+        <td><%= participant.registration_type === 'author' ? 'Com artigo' : 'Participante' %></td>
+        <td><% if (participant.attendance_total) { %><span class="badge present">Presente</span><small><br><%= participant.attended_at %><% if (participant.marked_by_name) { %> · por <%= participant.marked_by_name %><% } %></small><% } else { %><span class="badge absent">Sem presença</span><% } %></td>
+        <td><strong><%= participant.attendance_total %></strong><small>presença(s)</small></td>
+        <td><form class="row-form" method="POST" action="/admin/events/<%= event.id %>/attendance/<%= participant.id %>"><input class="notes" name="notes" value="<%= participant.notes || '' %>" maxlength="500" placeholder="Observação opcional"><% if (participant.attendance_total) { %><button class="btn primary" type="submit" name="action" value="mark_present">Atualizar</button><button class="btn danger" type="submit" name="action" value="mark_absent">Remover</button><% } else { %><button class="btn primary" type="submit" name="action" value="mark_present">Marcar presente</button><% } %></form></td>
+      </tr><% }) %>
+      </tbody></table><% } %>
+    </section>
+  </main>
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1080px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 820px; margin: 0 auto; padding: 2rem; }
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f8fafc; }
+    .page-header p { color: #94a3b8; margin-top: 0.45rem; line-height: 1.6; }
+    .card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 14px; padding: 1.5rem; }
+    .alert { margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 10px; font-size: 0.9rem; }
+    .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.24); color: #fca5a5; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+    .meta-box { padding: 1rem; border-radius: 12px; background: rgba(2,6,23,0.28); border: 1px solid rgba(148,163,184,0.1); }
+    .meta-box strong { display: block; color: #f8fafc; margin-bottom: 0.35rem; }
+    .meta-box span { color: #94a3b8; line-height: 1.6; font-size: 0.9rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
+    .form-group input, .form-group select { width: 100%; padding: 0.78rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font-size: 0.95rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    .help-text { color: #94a3b8; font-size: 0.78rem; line-height: 1.5; margin-top: 0.4rem; }
+    .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.05rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
+    .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
+    .btn-secondary { background: transparent; color: #cbd5e1; border-color: rgba(148,163,184,0.2); }
+    footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
+    @media (max-width: 720px) { .meta-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events" class="active">Eventos</a>
+        <a href="/admin/users">Usuários</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline"><button type="submit" class="btn btn-secondary" style="padding:0.45rem 0.75rem;">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1><%= registration ? 'Editar Participante' : 'Adicionar Participante' %></h1>
+      <p>Evento: <strong><%= event.name %></strong>. Esta operação altera apenas o registro da participação no evento, sem modificar automaticamente a conta global do usuário.</p>
+    </div>
+
+    <div class="card">
+      <% if (error) { %>
+        <div class="alert alert-error"><%= error %></div>
+      <% } %>
+
+      <% if (registration) { %>
+      <div class="meta-grid">
+        <div class="meta-box">
+          <strong>Situação atual</strong>
+          <span>
+            <%= registration.approved_articles > 0 ? 'Apresentador com artigo aprovado' : registration.registration_type === 'author' ? 'Participante com artigo submetido' : 'Participante inscrito' %><br>
+            <%= registration.submitted_articles %> artigo(s) submetido(s)
+          </span>
+        </div>
+        <div class="meta-box">
+          <strong>Conta vinculada</strong>
+          <span>
+            <% if (registration.user_id) { %>
+              <%= registration.linked_user_name || registration.name %><br>
+              <%= registration.linked_user_email || registration.email %>
+            <% } else { %>
+              Registro sem vínculo direto com conta de usuário.
+            <% } %>
+          </span>
+        </div>
+      </div>
+      <% } else { %>
+        <p class="help-text" style="margin-bottom:1.5rem;">Toda inscrição administrativa possui uma conta vinculada. Crie uma conta com senha temporária ou selecione uma conta existente.</p>
+      <% } %>
+
+      <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>">
+        <% if (registration) { %><input type="hidden" name="_method" value="PUT"><% } %>
+
+        <% if (!registration) { %>
+          <div class="form-group">
+            <label for="account_mode">Como adicionar o participante</label>
+            <select id="account_mode" name="account_mode">
+              <option value="new" <%= formData.account_mode !== 'existing' ? 'selected' : '' %>>Criar conta e inscrever no evento</option>
+              <option value="existing" <%= formData.account_mode === 'existing' ? 'selected' : '' %>>Inscrever conta já cadastrada</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="existing-user-group">
+            <label for="existing_user_id">Conta já cadastrada</label>
+            <select id="existing_user_id" name="existing_user_id">
+              <option value="">Selecione uma conta</option>
+              <% availableUsers.forEach((user) => { %>
+                <option
+                  value="<%= user.id %>"
+                  data-name="<%= user.name %>"
+                  data-email="<%= user.email %>"
+                  data-institution="<%= user.institution || '' %>"
+                  <%= String(formData.existing_user_id || '') === String(user.id) ? 'selected' : '' %>
+                ><%= user.name %> — <%= user.email %><%= user.is_public ? '' : ' (conta inativa)' %></option>
+              <% }) %>
+            </select>
+            <div class="help-text">Os dados da conta selecionada serão usados para criar a inscrição no evento.</div>
+          </div>
+        <% } %>
+
+        <div class="form-group">
+          <label for="name">Nome do participante</label>
+          <input type="text" id="name" name="name" required value="<%= formData.name %>">
+        </div>
+
+        <div class="form-group">
+          <label for="email">E-mail de contato</label>
+          <input type="email" id="email" name="email" required value="<%= formData.email %>">
+          <div class="help-text">Se houver conta vinculada, este campo altera o registro da participação no evento, não o e-mail da conta global do usuário.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="institution">Instituição</label>
+          <input type="text" id="institution" name="institution" value="<%= formData.institution %>">
+        </div>
+
+        <% if (!registration) { %>
+          <div id="temporary-password-fields">
+            <div class="form-group">
+              <label for="temporary_password">Senha temporária</label>
+              <input type="password" id="temporary_password" name="temporary_password" minlength="6" autocomplete="new-password">
+              <div class="help-text">O participante deverá trocar esta senha no primeiro acesso.</div>
+            </div>
+            <div class="form-group">
+              <label for="confirm_temporary_password">Confirmar senha temporária</label>
+              <input type="password" id="confirm_temporary_password" name="confirm_temporary_password" minlength="6" autocomplete="new-password">
+            </div>
+          </div>
+        <% } %>
+
+        <div class="form-group">
+          <label for="registration_type">Tipo de participação</label>
+          <select id="registration_type" name="registration_type" <%= registration && registration.submitted_articles > 0 ? 'disabled' : '' %>>
+            <option value="listener" <%= formData.registration_type === 'listener' ? 'selected' : '' %>>Participante</option>
+            <option value="author" <%= formData.registration_type === 'author' ? 'selected' : '' %>>Participante com artigo</option>
+          </select>
+          <% if (registration && registration.submitted_articles > 0) { %>
+            <input type="hidden" name="registration_type" value="author">
+            <div class="help-text">Este participante possui artigo submetido. Por isso, o tipo de participação permanece travado como participante com artigo.</div>
+          <% } else { %>
+            <div class="help-text">Use esta opção para corrigir registros administrativos quando a participação estiver classificada incorretamente.</div>
+          <% } %>
+        </div>
+
+        <div class="actions">
+          <a href="/admin/events/<%= event.id %>/participants" class="btn btn-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary">Salvar alterações</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <% if (!registration) { %>
+    <script>
+      const accountModeSelect = document.getElementById('account_mode');
+      const existingUserSelect = document.getElementById('existing_user_id');
+      const existingUserGroup = document.getElementById('existing-user-group');
+      const temporaryPasswordFields = document.getElementById('temporary-password-fields');
+      const temporaryPassword = document.getElementById('temporary_password');
+      const confirmTemporaryPassword = document.getElementById('confirm_temporary_password');
+      const syncAccountMode = () => {
+        const usesExistingAccount = accountModeSelect.value === 'existing';
+        const option = existingUserSelect.options[existingUserSelect.selectedIndex];
+        const isExistingUser = usesExistingAccount && !!(option && option.value);
+        const nameInput = document.getElementById('name');
+        const emailInput = document.getElementById('email');
+        const institutionInput = document.getElementById('institution');
+        existingUserGroup.style.display = usesExistingAccount ? 'block' : 'none';
+        existingUserSelect.disabled = !usesExistingAccount;
+        temporaryPasswordFields.style.display = usesExistingAccount ? 'none' : 'block';
+        temporaryPassword.required = !usesExistingAccount;
+        confirmTemporaryPassword.required = !usesExistingAccount;
+        if (isExistingUser) {
+          nameInput.value = option.dataset.name || '';
+          emailInput.value = option.dataset.email || '';
+          institutionInput.value = option.dataset.institution || '';
+        }
+        nameInput.readOnly = isExistingUser;
+        emailInput.readOnly = isExistingUser;
+        institutionInput.readOnly = isExistingUser;
+      };
+      accountModeSelect.addEventListener('change', syncAccountMode);
+      existingUserSelect.addEventListener('change', syncAccountMode);
+      syncAccountMode();
+    </script>
+  <% } %>
+
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+</body>
+</html>

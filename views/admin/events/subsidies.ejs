@@ -97,7 +97,7 @@
                   <div class="request-meta">
                     <div><strong>E-mail:</strong> <%= request.email %></div>
                     <div><strong>Instituição:</strong> <%= request.institution || '-' %></div>
-                    <div><strong>Inscrição:</strong> <%= request.registration_type === 'author' ? 'Apresentador/Autor' : 'Ouvinte' %></div>
+                    <div><strong>Inscrição:</strong> <%= request.registration_type === 'author' ? 'Apresentador/Autor' : 'Participante' %></div>
                     <div><strong>Pedido enviado em:</strong> <%= new Date(request.created_at).toLocaleString('pt-BR') %></div>
                   </div>
                 </div>

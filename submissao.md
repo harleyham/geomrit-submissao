@@ -6,7 +6,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 
 Versão atual do projeto: **V0.1**.
 
-Data de referência desta especificação: **30/07/2026**.
+Data de referência desta especificação: **31/07/2026**.
 
 ## Objetivo do Produto
 
@@ -14,7 +14,7 @@ O sistema deve permitir:
 
 1. Gerenciar eventos, como cursos, seminários, escolas de verão e atividades correlatas.
 2. Receber, organizar e analisar submissões de artigos científicos.
-3. Registrar participantes por evento, incluindo ouvintes, autores e apresentadores.
+3. Registrar participantes por evento, incluindo participantes sem artigo, autores e apresentadores.
 4. Gerenciar listas de presença vinculadas aos eventos.
 5. Gerenciar e emitir certificados de participação.
 6. Gerenciar usuários com múltiplos perfis no mesmo cadastro.
@@ -31,7 +31,7 @@ O sistema deve permitir:
 | Sessão | `express-session` |
 | Segurança | `helmet`, `bcryptjs` |
 | Upload | `multer` |
-| Infra complementar | `compression`, `method-override` |
+| Infra complementar | `compression`, `method-override`, `archiver` |
 
 ## Escopo Funcional Implementado
 
@@ -55,6 +55,12 @@ O sistema deve permitir:
 - Relatórios por evento com consolidação de pareceres.
 - Página administrativa por evento para analisar pedidos de subsídio, ler documentos anexados e registrar aprovação ou reprovação.
 - Impressão do relatório do evento em PDF pelo navegador.
+- Seleção de seções do relatório antes da impressão em PDF.
+- Gestão administrativa de participantes por evento, com criação de conta, inscrição, edição e remoção condicionada.
+- Controle de presença simples por evento, com lançamento e remoção manuais.
+- Download em lote dos PDFs submetidos em arquivo ZIP por evento.
+- Configuração de certificados por evento, com elegibilidade por presença, emissão, reemissão versionada e download autenticado em PDF.
+- Biblioteca administrativa de fundos PNG/JPEG para certificados, com seleção de fundo existente ou upload de novo arquivo.
 
 ### Revisão
 
@@ -69,7 +75,7 @@ O sistema deve permitir:
 
 - Listagem de eventos publicados.
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
-- Inscrição pública de participante como ouvinte, vinculada a conta autenticada.
+- Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Submissão de artigo com geração de código de acesso.
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive em contas com perfil de revisor.
 - Área do participante acessível também a contas com múltiplos perfis, com atalhos para revisão e administração quando aplicável.
@@ -221,6 +227,51 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `created_at`
 - `updated_at`
 
+### `participant_audit_logs`
+
+- `id`
+- `event_id`
+- `registration_id`
+- `actor_user_id`
+- `action`
+- `details`
+- `created_at`
+
+### `attendance_records`
+
+- `id`
+- `event_id`
+- `registration_id`
+- `marked_by`
+- `attended_at`
+- `notes`
+- `created_at`
+- `updated_at`
+
+### `event_activities`
+
+- `id`
+- `event_id`
+- `name`
+- `activity_type`
+- `activity_date`
+- `workload_hours`
+- `certificate_enabled`
+
+### `activity_attendance_records`
+
+- `id`
+- `activity_id`
+- `registration_id`
+- `marked_by`
+- `attended_at`
+
+### `activity_certificate_rules`
+
+- `activity_id`
+- `min_attendance`
+- `background_id`
+
 ### `assignments`
 
 - `id`
@@ -302,15 +353,17 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `Prontos para Deliberação` conta artigos com todos os pareceres atribuídos já concluídos e sem deliberação final administrativa.
 - `Inscritos` considera participantes registrados por evento.
 - `Inscritos Autores` considera participantes distintos com submissão não rascunho.
-- `Inscritos Ouvintes` considera registros `listener` em `event_registrations`.
+- `Inscritos Participantes` considera registros `listener` em `event_registrations`.
 
 ### Relatórios de evento
 
 - O relatório do evento consolida estatísticas de artigos e participantes.
 - O relatório exibe `Inscritos com Artigo` como participantes distintos, mesmo quando uma mesma pessoa possui múltiplos artigos.
-- O relatório exibe `Inscritos Ouvintes`.
+- O relatório exibe `Inscritos Participantes`.
 - O relatório lista participantes com nome, e-mail, órgão/instituição e situação de participação.
 - O relatório pode ser impresso/exportado para PDF por meio da impressão do navegador.
+- Antes da impressão, a administração pode marcar quais seções do relatório serão incluídas no PDF.
+- A listagem administrativa de artigos permite baixar, em um único arquivo ZIP, os PDFs submetidos de um evento.
 
 ### Revisão
 
@@ -332,14 +385,28 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 ### Participação em evento
 
 - Todo participante do evento deve estar associado a uma conta cadastrada no sistema.
-- Participantes ouvintes são registrados em `event_registrations` com `registration_type = 'listener'`.
+- Participantes sem artigo são registrados em `event_registrations` com `registration_type = 'listener'`.
 - Participantes que submetem artigo são registrados em `event_registrations` com `registration_type = 'author'`.
 - Usuários com perfil de revisor e/ou administrador também podem acessar a própria área de participante e submeter artigos.
-- Se um participante ouvinte posteriormente submete artigo no mesmo evento, sua inscrição é promovida automaticamente para `author`.
+- Se um participante sem artigo posteriormente submete artigo no mesmo evento, sua inscrição é promovida automaticamente para `author`.
 - Um participante com múltiplos artigos conta uma única vez nas métricas de inscritos com artigo.
-- O participante pode cancelar a inscrição de ouvinte até o dia anterior ao início do evento.
+- O participante pode cancelar a inscrição sem artigo até o dia anterior ao início do evento.
 - Inscrições já promovidas para `author` não podem ser canceladas pela área do participante.
 - Quando o evento oferece subsídio, os dados e anexos da candidatura ficam vinculados à própria inscrição do evento.
+- A administração pode criar, editar e remover inscrições manualmente. Toda inscrição manual possui conta vinculada: o admin seleciona uma conta ativa existente ou cria uma conta com senha temporária, obrigando a troca no primeiro acesso; uma inscrição com artigo submetido não pode ser removida diretamente.
+- Há unicidade por evento para e-mail normalizado e, quando informado, para a conta de usuário vinculada.
+- Ao excluir administrativamente o último artigo submetido de uma pessoa no evento, a inscrição é preservada e reclassificada de `author` para `listener`; se ainda houver outro artigo submetido, ela permanece como `author`.
+- Criações, edições, remoções manuais e a reconciliação decorrente da exclusão de artigo são gravadas em `participant_audit_logs`.
+
+### Presença
+
+- A primeira versão registra uma presença por participante em cada evento.
+- Apenas inscrições existentes em `event_registrations` podem receber presença.
+- O lançamento é administrativo e registra usuário responsável, data/hora e observação opcional.
+- Remover o registro de `attendance_records` devolve o participante à situação sem presença.
+- O painel administrativo consolida inscritos, presentes, sem presença e o total individual de presenças no evento.
+- O evento também pode conter atividades internas, como palestras, seminários, mesas-redondas e minicursos, com carga horária e presença próprias.
+- A presença por atividade é registrada separadamente e permite que o mesmo participante esteja presente em várias atividades do mesmo evento.
 
 ### Autenticação e senha
 
@@ -355,7 +422,7 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 
 1. Admin cria evento.
 2. Admin publica evento.
-3. Participante autenticado pode se inscrever no evento como ouvinte dentro da janela de inscrições.
+3. Participante autenticado pode se inscrever no evento como participante dentro da janela de inscrições.
 4. Público autenticado e já inscrito submete artigo dentro da janela permitida.
 5. Sistema cria artigo com `status = 'pending'`.
 6. Sistema registra ou promove a participação do inscrito para `author`.
@@ -384,9 +451,10 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 |------|------------|
 | `/` | Página inicial com eventos publicados |
 | `/evento/:id` | Detalhes do evento |
-| `/evento/:id/inscricao` | Inscrição do participante como ouvinte |
+| `/evento/:id/inscricao` | Inscrição do participante no evento |
 | `/submeter/:eventId` | Formulário de submissão |
 | `/author` | Página do participante |
+| `/author/certificates` | Consulta e download autenticado de certificados emitidos |
 | `/cadastro` | Solicitação de cadastro público |
 | `/consultar` | Consulta por código |
 | `/revisores` | Corpo de revisores |
@@ -407,7 +475,13 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 | `/admin/dashboard` | Dashboard administrativo |
 | `/admin/events` | Gestão de eventos |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
+| `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
+| `/admin/events/:id/attendance` | Controle de presença simples do evento |
+| `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
+| `/admin/events/:id/activities/:activityId/attendance` | Controle de presença da atividade |
+| `/admin/events/:id/certificates` | Regras, fundos, emissão e reemissão de certificados |
 | `/admin/articles` | Gestão de artigos |
+| `/admin/articles/download-all?eventId=:id` | Download ZIP dos PDFs submetidos do evento |
 | `/admin/articles/:id` | Detalhe do artigo com pareceres, atribuição de revisores e deliberação final |
 | `/admin/users` | Gestão de usuários |
 | `/admin/reports` | Relatórios e deliberação final |
@@ -452,6 +526,7 @@ Observações estruturais:
 - `helmet` com CSP configurada.
 - `compression` habilitado.
 - `method-override` habilitado para formulários com `_method`.
+- `archiver` utilizado para geração de ZIP em streaming no download em lote de artigos.
 
 Variáveis de ambiente em uso:
 
@@ -488,7 +563,7 @@ Observações operacionais:
 - Restrição de inscrição por janela real de datas.
 - Restrição de acesso à área de certificados de participação conforme janela do evento.
 - Eventos sem período configurado em uma etapa do cronograma não exibem botão de ação correspondente na página pública do evento.
-- Cancelamento de inscrição de ouvinte antes do início do evento.
+- Cancelamento de inscrição de participante sem artigo antes do início do evento.
 - Inscrição em evento com fluxo condicional de subsídio, incluindo dados acadêmicos e upload de documentos obrigatórios.
 - Página pública do evento reorganizada em formato de cronograma com ações por etapa.
 - Painel `/author` com cards clicáveis apenas para eventos futuros ainda disponíveis para participação.
@@ -501,6 +576,10 @@ Observações operacionais:
 - Relatórios por evento com recomendações consolidadas.
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 - Navegação cruzada entre área do participante, painel do revisor e dashboard administrativo para usuários com múltiplos perfis.
+- Gestão manual de participantes por evento, com criação de conta ou seleção de conta ativa existente, edição, remoção condicionada e auditoria.
+- Controle administrativo de presença simples por evento, com lançamento manual, remoção e total por participante.
+- Seleção individual das seções incluídas na impressão do relatório em PDF.
+- Download em lote dos PDFs submetidos por evento em arquivo ZIP.
 
 ### Parcial ou pendente de validação
 
@@ -510,7 +589,7 @@ Observações operacionais:
 ### Fora do escopo atual
 
 - Notificações por e-mail.
-- Exportação de relatórios.
+- Exportação estruturada de relatórios em CSV ou Excel.
 - API externa.
 - Internacionalização.
 
@@ -518,8 +597,7 @@ Observações operacionais:
 
 1. Ainda não existe uma área dedicada de emissão ou download de certificados de participação, embora a janela de certificados já esteja modelada.
 2. Ainda há endpoints legados de toggle individual de perfis no backend, embora a interface principal já utilize salvamento em lote.
-3. A exclusão física de artigos pela área administrativa ainda exige revisão de consistência com `event_registrations` e histórico de participação.
-4. O fluxo completo de deliberação final administrativa ainda requer validação integrada.
+3. O fluxo completo de deliberação final administrativa ainda requer validação integrada.
 
 ## Próximos Passos Recomendados
 
@@ -527,9 +605,8 @@ Observações operacionais:
 
 1. Implementar a área dedicada de certificados de participação para participantes dentro da janela válida.
 2. Validar o fluxo completo de evento, submissão, atribuição, parecer e deliberação final administrativa.
-3. Reforçar a regra de exclusão/cancelamento de artigos para evitar inconsistência com inscrições do participante.
-4. Reforçar validações server-side e client-side nos formulários principais.
-5. Revisar proteção contra CSRF e endurecimento geral de segurança.
+3. Reforçar validações server-side e client-side nos formulários principais.
+4. Revisar proteção contra CSRF e endurecimento geral de segurança.
 
 ### Média prioridade
 
@@ -544,11 +621,257 @@ Observações operacionais:
 3. Internacionalização.
 4. Melhorias adicionais de responsividade.
 
+## Planejamento Proposto
+
+### Diagnóstico por objetivo
+
+1. `Gerenciar eventos`
+   Status atual: implementado, com lacunas administrativas pontuais.
+   Base existente: CRUD de eventos, cronograma público, janelas de inscrição, submissão, revisão e certificados de participação.
+   Principais lacunas: política para eventos encerrados na área pública e eventual módulo financeiro, caso entre no escopo.
+
+2. `Gerenciar e analisar submissão de artigos científicos`
+   Status atual: implementado em nível operacional.
+   Base existente: submissão pública, rascunhos, vínculo com participante, múltiplos revisores, parecer individual, deliberação final administrativa e relatórios por evento.
+   Principais lacunas: trilha de auditoria da deliberação final e filtros operacionais mais fortes por trilha e modalidade.
+
+3. `Gerenciar lista de presença nos eventos`
+   Status atual: parcialmente implementado.
+   Base existente: `event_registrations` e `attendance_records` permitem lançamento manual de uma presença por participante em cada evento.
+   Principais lacunas: atividades internas, presença por atividade/dia, carga horária e indicadores de frequência.
+
+4. `Gerenciar e emitir certificados de participação`
+   Status atual: parcial.
+   Base existente: janela de certificados de participação configurável no evento e refletida no cronograma público.
+   Principais lacunas: regra de elegibilidade, geração real de certificado, área de download do participante, reemissão administrativa e auditoria de emissão.
+
+### Leitura executiva
+
+- `Eventos`: pronto para uso, com algumas lacunas administrativas.
+- `Artigos`: pronto para uso, com filtros e download ZIP por evento.
+- `Presença`: implementada por evento e por atividade.
+- `Certificados`: modelado no calendário, mas sem emissão real.
+
+### Épicos e execução incremental
+
+#### Épico 1: gestão administrativa de participantes por evento
+
+Objetivo: consolidar o núcleo administrativo de participação, hoje apoiado em `event_registrations`, para servir de base a presença e certificados.
+
+Entrega incremental 1:
+
+- listar participantes por evento;
+- buscar por nome, e-mail e tipo de participação;
+- exibir situação consolidada do participante;
+- permitir ajuste manual de `registration_type`.
+
+Estado: implementado. A entrega inclui também criação e remoção manual condicionada, índices únicos e auditoria de operações.
+
+Tarefas técnicas por arquivo:
+
+- `db.js`
+  Índices de consulta e índices únicos para `event_registrations`, além da tabela `participant_audit_logs`.
+- `routes/events.js`
+  Adicionar consultas consolidadas de participantes e métricas administrativas por evento.
+- `routes/users.js`
+  Reaproveitar a lógica já existente de status do participante e extrair helper comum, se necessário.
+- `routes/events.js`
+  Listagem, criação, edição e remoção administrativa de participantes por evento.
+- `views/admin/events/participants.ejs`
+  Criar tela de listagem, filtros e ações rápidas.
+- `views/admin/events/participant-form.ejs`
+  Criar formulário de edição manual da participação.
+
+Critério de pronto:
+
+- admin consegue abrir um evento e gerir os participantes sem depender do fluxo público.
+
+#### Épico 2: modelagem e lançamento de presença
+
+Objetivo: sair de `inscrito` para `presente`.
+
+Entrega incremental 2:
+
+- criar presença por evento como primeira versão;
+- permitir lançamento manual de presença;
+- consolidar total de presenças por participante.
+
+Estado: implementado para presença simples por evento.
+
+Sugestão inicial de entidades:
+
+- `event_activities`
+- `attendance_records`
+- `certificate_rules`
+
+Tarefas técnicas por arquivo:
+
+- `db.js`
+  Criadas as tabelas `attendance_records`, `event_activities`, `activity_attendance_records` e `activity_certificate_rules`; regras avançadas de certificado por atividade permanecem para a evolução posterior.
+- `routes/events.js`
+  Expor resumo de presença por evento no painel administrativo.
+- `routes/events.js`
+  Rotas para registrar, remover e listar presenças simples por evento.
+- `views/admin/events/attendance.ejs`
+  Painel de presença por evento com lançamento manual em linha.
+- `views/admin/dashboard.ejs`
+  Exibir indicadores resumidos de presença quando o módulo estiver ativo.
+
+Critério de pronto:
+
+- admin consegue registrar presença e consultar quem esteve presente em cada evento.
+
+#### Épico 3: presença por atividade, dia ou minicurso
+
+Objetivo: evoluir da presença simples por evento para um controle mais preciso.
+
+Estado: parcialmente implementado. Já há cadastro de atividades e lançamento manual de presença por atividade; faltam a consolidação de carga horária, os filtros operacionais e a integração da emissão de certificados por atividade.
+
+Entrega incremental 3:
+
+- cadastrar atividades internas do evento;
+- vincular presença por atividade;
+- consolidar carga horária por participante.
+
+Tarefas técnicas por arquivo:
+
+- `db.js`
+  Evoluir `event_activities` com data, horário, carga horária e tipo da atividade.
+- `routes/attendance.js`
+  Adicionar presença por atividade e consolidação por participante.
+- `routes/events.js`
+  Incluir gestão administrativa de atividades do evento.
+- `views/admin/events/activities.ejs`
+  Criar tela de cadastro e edição de atividades.
+- `views/admin/events/attendance.ejs`
+  Adicionar filtros por atividade, dia e participante.
+
+Critério de pronto:
+
+- o sistema calcula presença e carga horária com base nas atividades reais do evento.
+
+#### Épico 4: elegibilidade e emissão de certificados de participação
+
+Objetivo: transformar a janela de certificados em emissão real.
+
+Entrega incremental 4:
+
+- definir regra de elegibilidade;
+- gerar certificado em PDF;
+- permitir download pelo participante.
+
+Tarefas técnicas por arquivo:
+
+- `db.js`
+  Criar estrutura para regras, emissões e auditoria de certificados.
+- `routes/public.js`
+  Criar rota do participante para listar e baixar certificados.
+- `routes/certificates.js`
+  Criar rotas de emissão, reemissão, bloqueio e consulta administrativa.
+- `routes/events.js`
+  Integrar regra de elegibilidade por evento.
+- `views/public/author-dashboard.ejs`
+  Exibir card ou seção de certificados disponíveis.
+- `views/public/certificates.ejs`
+  Criar tela de consulta e download.
+- `views/admin/events/certificates.ejs`
+  Criar painel administrativo de emissão e reemissão.
+- serviço de geração PDF
+  Implementar template e renderização do certificado.
+
+Critério de pronto:
+
+- participante elegível consegue baixar o certificado dentro da janela válida.
+
+#### Épico 5: auditoria e operação de certificados
+
+Objetivo: permitir operação administrativa segura do módulo de certificados.
+
+Entrega incremental 5:
+
+- reemitir certificado;
+- bloquear emissão indevida;
+- registrar histórico de emissão.
+
+Tarefas técnicas por arquivo:
+
+- `db.js`
+  Criar tabela de histórico de emissão, reemissão e bloqueio.
+- `routes/certificates.js`
+  Registrar cada emissão com usuário, data, motivo e versão do certificado.
+- `views/admin/events/certificates.ejs`
+  Exibir histórico e ações administrativas.
+
+Critério de pronto:
+
+- administração consegue auditar quem emitiu, reemitiu ou bloqueou cada certificado.
+
+#### Épico 6: refinamentos do módulo de artigos
+
+Objetivo: completar o fluxo de artigos com recursos operacionais ainda pendentes.
+
+Entrega incremental 6:
+
+- download em lote de artigos;
+- filtros por trilha e modalidade;
+- histórico de deliberação final administrativa.
+
+Estado: parcialmente implementado. Filtros por trilha/modalidade/status e download ZIP dos PDFs por evento já estão disponíveis; permanece o histórico de deliberação.
+
+Tarefas técnicas por arquivo:
+
+- `db.js`
+  Criar estrutura de auditoria para deliberação final, se a decisão precisar de histórico persistente.
+- `routes/articles.js`
+  Filtros por trilha, modalidade e status, além do download ZIP dos PDFs por evento.
+- `routes/reports.js`
+  Registrar justificativa e histórico de deliberação final administrativa.
+- `views/admin/articles/list.ejs`
+  Filtros, destaques de trilha/modalidade e ação de download em lote.
+- `views/admin/articles/detail.ejs`
+  Exibir histórico administrativo do artigo.
+- `views/admin/reports/list.ejs`
+  Exibir justificativas e trilha de decisão.
+
+Critério de pronto:
+
+- administração consegue deliberar, filtrar e exportar artigos com rastreabilidade.
+
+### Ordem recomendada
+
+1. Épico 3: presença por atividade, dia ou minicurso.
+2. Épico 4: elegibilidade e emissão de certificados de participação.
+3. Épico 5: auditoria e operação de certificados.
+4. Concluir o histórico de deliberação final administrativa.
+5. Financeiro, se entrar no escopo do produto.
+
+### Backlog técnico priorizado
+
+#### Alta prioridade
+
+1. Regra de elegibilidade para certificado.
+2. Geração de certificado em PDF.
+3. Área do participante para download.
+4. Presença por atividade e consolidação de carga horária.
+5. Histórico de deliberação final administrativa.
+
+#### Média prioridade
+
+1. Épico 3 completo.
+2. Reemissão e auditoria de certificados.
+3. Filtros avançados de artigos.
+4. Histórico de deliberação final administrativa.
+
+#### Baixa prioridade
+
+1. QR code para presença.
+2. Certificados com verificação pública.
+3. Módulo financeiro.
+4. Notificações e automações.
+
 
 ### Observações editoriais e backlog
 
 1. Ampliar o dashboard com contadores para total de eventos realizados, eventos publicados, inscritos totais e inscritos em eventos futuros. Também vale decidir se eventos encerrados continuam visíveis na área pública.
 2. Implementar controle de pagamento. Em uma primeira versão, basta informar cobranças, tabela de valores, pedido de isenção, cupom de desconto e upload de comprovante.
-3. Exibir na tela do revisor a trilha do artigo. Avaliar também se o revisor poderá sugerir mudança de modalidade `oral/poster` e de trilha.
-4. Destacar na listagem de artigos a trilha e a modalidade `oral/poster`.
-5. Implementar uma opção para baixar todos os artigos de um evento.
+3. Criar uma página única com a listagem dos relatórios possíveis.

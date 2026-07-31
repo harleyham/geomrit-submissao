@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1440px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 1440px; margin: 0 auto; padding: 2rem; }
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f8fafc; }
+    .page-header p { color: #94a3b8; margin-top: 0.4rem; }
+    .header-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 1.2rem; }
+    .stat-value { font-size: 1.85rem; font-weight: 700; color: #f8fafc; }
+    .stat-label { color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.74rem; margin-top: 0.25rem; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; }
+    .alert { margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 10px; font-size: 0.9rem; }
+    .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.22); color: #86efac; }
+    .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.24); color: #fca5a5; }
+    .filters { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(148,163,184,0.1); display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: end; background: rgba(15,23,42,0.2); }
+    .filter-group { min-width: 180px; flex: 1; }
+    .filter-group label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.45rem; }
+    .filter-group input, .filter-group select { width: 100%; padding: 0.7rem 0.9rem; border-radius: 10px; border: 1px solid rgba(148,163,184,0.16); background: rgba(2,6,23,0.45); color: #f8fafc; font-family: 'Inter', sans-serif; }
+    .filter-group input:focus, .filter-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.85rem 1.25rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.24); }
+    td { padding: 0.9rem 1.25rem; font-size: 0.875rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.06); vertical-align: top; }
+    tr:hover td { background: rgba(148,163,184,0.03); }
+    .name-cell strong { display: block; color: #f8fafc; margin-bottom: 0.25rem; }
+    .name-cell small, .muted { color: #94a3b8; }
+    .badge { display: inline-flex; align-items: center; padding: 0.24rem 0.65rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+    .badge-author { background: rgba(59,130,246,0.14); color: #93c5fd; }
+    .badge-listener { background: rgba(148,163,184,0.16); color: #cbd5e1; }
+    .badge-approved { background: rgba(34,197,94,0.16); color: #86efac; }
+    .badge-subsidy { background: rgba(251,191,36,0.14); color: #fcd34d; }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.55rem 0.9rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; text-decoration: none; border: 1px solid transparent; cursor: pointer; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-ghost { background: transparent; color: #94a3b8; border-color: rgba(148,163,184,0.18); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .empty-state { padding: 2rem 1.25rem; color: #94a3b8; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    @media (max-width: 960px) {
+      .page-header { flex-direction: column; }
+      .filters { flex-direction: column; align-items: stretch; }
+      .filter-group { width: 100%; }
+      .section { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events" class="active">Eventos</a>
+        <a href="/admin/users">Usuários</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline"><button type="submit" class="btn btn-ghost">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>Participantes do Evento</h1>
+        <p><strong>Evento:</strong> <%= event.name %></p>
+        <p><strong>Áreas:</strong> <%= event.area_display %></p>
+      </div>
+      <div class="header-actions">
+        <a href="/admin/events/<%= event.id %>/participants/new" class="btn btn-primary">+ Adicionar participante</a>
+        <a href="/admin/events/<%= event.id %>/attendance" class="btn btn-ghost">Presença</a>
+        <a href="/admin/events" class="btn btn-ghost">Voltar aos Eventos</a>
+        <a href="/admin/reports?eventId=<%= event.id %>" class="btn btn-ghost">Relatórios</a>
+        <a href="/admin/articles?eventId=<%= event.id %>" class="btn btn-ghost">Artigos</a>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value"><%= summary.total %></div><div class="stat-label">Inscritos</div></div>
+      <div class="stat-card"><div class="stat-value"><%= summary.authors %></div><div class="stat-label">Com Artigo</div></div>
+      <div class="stat-card"><div class="stat-value"><%= summary.listeners %></div><div class="stat-label">Participantes</div></div>
+      <div class="stat-card"><div class="stat-value"><%= summary.approvedPresenters %></div><div class="stat-label">Artigos Aprovados</div></div>
+      <div class="stat-card"><div class="stat-value"><%= summary.subsidyRequests %></div><div class="stat-label">Pedidos de Subsídio</div></div>
+    </div>
+
+    <% if (success) { %>
+      <div class="alert alert-success"><%= success %></div>
+    <% } %>
+    <% if (error) { %>
+      <div class="alert alert-error"><%= error %></div>
+    <% } %>
+
+    <section class="section">
+      <form method="GET" class="filters">
+        <div class="filter-group">
+          <label for="q">Buscar participante</label>
+          <input id="q" type="text" name="q" value="<%= filters.query %>" placeholder="Nome, e-mail ou instituição">
+        </div>
+        <div class="filter-group" style="max-width:220px;">
+          <label for="type">Tipo de participação</label>
+          <select id="type" name="type">
+            <option value="all" <%= filters.type === 'all' ? 'selected' : '' %>>Todos</option>
+            <option value="author" <%= filters.type === 'author' ? 'selected' : '' %>>Com artigo</option>
+            <option value="listener" <%= filters.type === 'listener' ? 'selected' : '' %>>Participantes</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Aplicar Filtros</button>
+          <a href="/admin/events/<%= event.id %>/participants" class="btn btn-ghost">Limpar</a>
+        </div>
+      </form>
+
+      <% if (!participants.length) { %>
+        <div class="empty-state">Nenhum participante encontrado para os filtros informados.</div>
+      <% } else { %>
+        <table>
+          <thead>
+            <tr>
+              <th>Participante</th>
+              <th>Tipo</th>
+              <th>Situação</th>
+              <th>Artigos</th>
+              <th>Subsídio</th>
+              <th>Conta</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% participants.forEach((participant) => { %>
+              <tr>
+                <td class="name-cell">
+                  <strong><%= participant.name %></strong>
+                  <small><%= participant.email %></small><br>
+                  <small><%= participant.institution || 'Instituição não informada' %></small>
+                </td>
+                <td>
+                  <span class="badge badge-<%= participant.registration_type === 'author' ? 'author' : 'listener' %>">
+                    <%= participant.registration_type === 'author' ? 'Com artigo' : 'Participante' %>
+                  </span>
+                </td>
+                <td>
+                  <div><%= participant.participation_label %></div>
+                  <% if (participant.approved_articles > 0) { %>
+                    <div class="muted"><%= participant.approved_articles %> artigo(s) aprovado(s)</div>
+                  <% } %>
+                </td>
+                <td>
+                  <strong><%= participant.submitted_articles %></strong>
+                  <div class="muted">submetido(s)</div>
+                </td>
+                <td>
+                  <% if (participant.subsidy_requested) { %>
+                    <span class="badge badge-subsidy">
+                      <%= participant.subsidy_status === 'approved' ? 'Subsídio aprovado' : participant.subsidy_status === 'rejected' ? 'Subsídio reprovado' : 'Subsídio pendente' %>
+                    </span>
+                  <% } else { %>
+                    <span class="muted">Sem pedido</span>
+                  <% } %>
+                </td>
+                <td>
+                  <% if (participant.user_id) { %>
+                    <a href="/admin/users/<%= participant.user_id %>/participant" class="btn btn-ghost">Abrir área</a>
+                  <% } else { %>
+                    <span class="muted">Sem vínculo de conta</span>
+                  <% } %>
+                  <div style="margin-top:0.5rem;">
+                    <a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/edit" class="btn btn-ghost">Editar</a>
+                    <% if (participant.submitted_articles === 0) { %>
+                      <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= participant.id %>" style="display:inline" onsubmit="return confirm('Remover a inscrição de <%= participant.name.replace(/'/g, "\\'") %>?');">
+                        <input type="hidden" name="_method" value="DELETE">
+                        <button type="submit" class="btn btn-ghost" style="color:#fca5a5; border-color:rgba(248,113,113,0.32);">Remover</button>
+                      </form>
+                    <% } %>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+</body>
+</html>

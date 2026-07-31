@@ -115,7 +115,7 @@ router.get('/', requireAuth, (req, res) => {
       COALESCE(aa.approved_articles, 0) as approved_articles,
       CASE
         WHEN COALESCE(aa.approved_articles, 0) > 0 THEN 'Artigo aprovado'
-        WHEN er.registration_type = 'listener' THEN 'Ouvinte'
+        WHEN er.registration_type = 'listener' THEN 'Participante'
         ELSE 'Inscrito com artigo'
       END as participation_label
     FROM event_registrations er

@@ -18,7 +18,12 @@
     .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
     .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
     .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+    .page-header-copy p { margin-top: 0.4rem; color: #94a3b8; font-size: 0.92rem; }
     .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; }
+    .filters { display: flex; gap: 0.75rem; align-items: end; padding: 1rem 1.25rem; border-bottom: 1px solid rgba(148,163,184,0.1); background: rgba(15,23,42,0.2); flex-wrap: wrap; }
+    .filter-group label { display: block; margin-bottom: 0.4rem; color: #94a3b8; font-size: 0.8rem; }
+    .filter-group select, .filter-group input { min-width: 220px; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(148,163,184,0.2); background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.85rem; }
+    .filters-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
     table { width: 100%; border-collapse: collapse; }
     th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
     td { padding: 0.75rem 1.5rem; font-size: 0.875rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.05); }
@@ -30,6 +35,8 @@
     .badge-rejected { background: rgba(248,113,113,0.15); color: #f87171; }
     .badge-oral { background: rgba(167,139,250,0.15); color: #a78bfa; }
     .badge-poster { background: rgba(56,189,248,0.15); color: #38bdf8; }
+    .badge-area { background: rgba(96,165,250,0.14); color: #93c5fd; }
+    .badge-missing-area { background: rgba(248,113,113,0.14); color: #fda4af; border: 1px solid rgba(248,113,113,0.22); }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.3rem 0.7rem; border-radius: 8px; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
     .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
     .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
@@ -63,21 +70,85 @@
 
   <main class="main-content">
     <div class="page-header">
-      <h1>Artigos - <%= event.name %></h1>
-      <a href="/admin/events" class="btn btn-ghost btn-sm">← Voltar</a>
+      <div class="page-header-copy">
+        <h1>Artigos - <%= event.name %></h1>
+        <p>Mostrando <strong><%= filteredCount %></strong> de <strong><%= totalArticles %></strong> artigo(s).</p>
+      </div>
+      <div class="actions">
+        <a href="/admin/articles/download-all?eventId=<%= event.id %>" class="btn btn-primary btn-sm">⇩ Baixar todos os PDFs</a>
+        <a href="/admin/events" class="btn btn-ghost btn-sm">← Voltar</a>
+      </div>
     </div>
 
     <div class="section">
+      <form method="GET" class="filters">
+        <input type="hidden" name="eventId" value="<%= event.id %>">
+        <div class="filter-group">
+          <label for="area">Filtrar por Área / Trilha</label>
+          <select id="area" name="area" onchange="this.form.submit()">
+            <option value="all" <%= !filters || filters.area === 'all' ? 'selected' : '' %>>Todas as áreas</option>
+            <% availableAreas.forEach(function(area) { %>
+              <option value="<%= area %>" <%= filters && filters.area === area ? 'selected' : '' %>><%= area %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="type">Filtrar por Modalidade</label>
+          <select id="type" name="type" onchange="this.form.submit()">
+            <option value="all" <%= !filters || filters.type === 'all' ? 'selected' : '' %>>Todas as modalidades</option>
+            <option value="oral" <%= filters && filters.type === 'oral' ? 'selected' : '' %>>Oral</option>
+            <option value="poster" <%= filters && filters.type === 'poster' ? 'selected' : '' %>>Poster</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="status">Filtrar por Status</label>
+          <select id="status" name="status" onchange="this.form.submit()">
+            <option value="all" <%= !filters || filters.status === 'all' ? 'selected' : '' %>>Todos os status</option>
+            <option value="pending" <%= filters && filters.status === 'pending' ? 'selected' : '' %>>Pendente</option>
+            <option value="in_review" <%= filters && filters.status === 'in_review' ? 'selected' : '' %>>Em análise</option>
+            <option value="approved" <%= filters && filters.status === 'approved' ? 'selected' : '' %>>Aprovado</option>
+            <option value="rejected" <%= filters && filters.status === 'rejected' ? 'selected' : '' %>>Rejeitado</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="q">Buscar por Título</label>
+          <input id="q" name="q" type="text" value="<%= filters ? filters.q : '' %>" placeholder="Digite parte do título">
+        </div>
+        <div class="filter-group">
+          <label for="sort">Ordenar por</label>
+          <select id="sort" name="sort" onchange="this.form.submit()">
+            <option value="date_desc" <%= filters && filters.sort === 'date_desc' ? 'selected' : '' %>>Data mais recente</option>
+            <option value="date_asc" <%= filters && filters.sort === 'date_asc' ? 'selected' : '' %>>Data mais antiga</option>
+            <option value="title_asc" <%= filters && filters.sort === 'title_asc' ? 'selected' : '' %>>Título A-Z</option>
+            <option value="title_desc" <%= filters && filters.sort === 'title_desc' ? 'selected' : '' %>>Título Z-A</option>
+            <option value="area_asc" <%= filters && filters.sort === 'area_asc' ? 'selected' : '' %>>Área A-Z</option>
+            <option value="area_desc" <%= filters && filters.sort === 'area_desc' ? 'selected' : '' %>>Área Z-A</option>
+          </select>
+        </div>
+        <div class="filters-actions">
+          <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+          <% if (filters && (filters.area !== 'all' || filters.type !== 'all' || filters.status !== 'all' || filters.q || filters.sort !== 'date_desc')) { %>
+            <a href="/admin/articles?eventId=<%= event.id %>" class="btn btn-ghost btn-sm">Limpar filtros</a>
+          <% } %>
+        </div>
+      </form>
       <table>
         <thead>
-          <tr><th>Título</th><th>Tipo</th><th>Status</th><th>Data</th><th>Ações</th></tr>
+          <tr><th>Título</th><th>Área / Trilha</th><th>Tipo</th><th>Status</th><th>Data</th><th>Ações</th></tr>
         </thead>
         <tbody>
           <% articles.forEach(a => { %>
           <tr>
             <td><a href="/admin/articles/<%= a.id %>?eventId=<%= event.id %>"><%= a.title %></a></td>
+            <td>
+              <% if (a.area && a.area.trim()) { %>
+                <span class="badge badge-area"><%= a.area %></span>
+              <% } else { %>
+                <span class="badge badge-missing-area">Sem área informada</span>
+              <% } %>
+            </td>
             <td><span class="badge badge-<%= a.type %>"><%= a.type === 'oral' ? 'Oral' : 'Poster' %></span></td>
-            <td><span class="badge badge-<%= a.status %>"><%= a.status %></span></td>
+            <td><span class="badge badge-<%= a.status %>"><%= a.status_label %></span></td>
             <td><%= new Date(a.created_at).toLocaleDateString('pt-BR') %></td>
             <td class="actions">
               <select class="status-select" onchange="changeStatus(<%= a.id %>, this.value)">
@@ -91,6 +162,11 @@
             </td>
           </tr>
           <% }) %>
+          <% if (!articles.length) { %>
+          <tr>
+            <td colspan="6" style="color:#94a3b8;">Nenhum artigo encontrado para o filtro selecionado.</td>
+          </tr>
+          <% } %>
         </tbody>
       </table>
     </div>

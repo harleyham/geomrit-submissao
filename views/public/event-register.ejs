@@ -73,9 +73,9 @@
 
   <main class="main-content">
     <div class="card">
-      <span class="event-badge">Inscrição de Ouvinte</span>
+      <span class="event-badge">Inscrição de Participante</span>
       <h1><%= event.name %></h1>
-      <p class="lead">Todos os participantes do evento devem estar cadastrados no sistema. Esta inscrição registra sua participação como ouvinte.</p>
+      <p class="lead">Todos os participantes do evento devem estar cadastrados no sistema. Esta inscrição registra sua participação no evento.</p>
 
       <div class="event-meta">
         <strong>Áreas:</strong> <%= event.area_display %><br>
@@ -95,7 +95,7 @@
           <% if (registrationType === 'author') { %>
             Sua participação neste evento já está registrada como <strong>apresentador</strong>.
           <% } else { %>
-            Sua participação neste evento já está registrada como <strong>ouvinte</strong>.
+            Sua participação neste evento já está registrada como <strong>participante</strong>.
           <% } %>
         </div>
       <% } %>

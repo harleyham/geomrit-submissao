@@ -312,7 +312,7 @@ router.get('/:id/participant', requireAuth, (req, res) => {
       CASE
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
         WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
-        ELSE 'Ouvinte inscrito'
+        ELSE 'Participante inscrito'
       END as participation_label
     FROM event_registrations er
     JOIN events e ON e.id = er.event_id

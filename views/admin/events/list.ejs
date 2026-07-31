@@ -19,7 +19,7 @@
     .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
     .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
     .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
-    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow-x: auto; }
     .section-body { padding: 0; }
     table { width: 100%; border-collapse: collapse; }
     th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
@@ -29,7 +29,7 @@
     .badge-published { background: rgba(52,211,153,0.15); color: #34d399; }
     .badge-draft { background: rgba(100,116,139,0.2); color: #94a3b8; }
     .badge-oral { background: rgba(167,139,250,0.15); color: #a78bfa; }
-    .actions { display: flex; gap: 0.375rem; }
+    .actions { display: flex; gap: 0.375rem; flex-wrap: wrap; min-width: 250px; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.4rem 0.75rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
     .btn-primary { background: #3b82f6; color: white; }
     .btn-primary:hover { background: #2563eb; }
@@ -85,7 +85,7 @@
               </td>
               <td>
                 <strong><%= e.registered_count %></strong><br>
-                <small style="color:#64748b">Autores: <%= e.author_registered_count %> · Ouvintes: <%= e.listener_registered_count %></small>
+                <small style="color:#64748b">Autores: <%= e.author_registered_count %> · Participantes: <%= e.listener_registered_count %></small>
               </td>
               <td>
                 <% if (e.offers_subsidy) { %>
@@ -98,6 +98,10 @@
               <td><span class="badge badge-<%= e.status %>"><%= e.status === 'published' ? 'Publicado' : 'Rascunho' %></span></td>
               <td class="actions">
                 <a href="/admin/events/<%= e.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
+                <a href="/admin/events/<%= e.id %>/participants" class="btn btn-ghost btn-sm">Participantes</a>
+                <a href="/admin/events/<%= e.id %>/attendance" class="btn btn-ghost btn-sm">Presença</a>
+                <a href="/admin/events/<%= e.id %>/activities" class="btn btn-ghost btn-sm">Atividades</a>
+                <a href="/admin/events/<%= e.id %>/certificates" class="btn btn-ghost btn-sm">Certificados</a>
                 <% if (e.offers_subsidy) { %>
                   <a href="/admin/events/<%= e.id %>/subsidies" class="btn btn-ghost btn-sm">Subsídios</a>
                 <% } %>

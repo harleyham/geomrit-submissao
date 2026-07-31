@@ -143,7 +143,7 @@
           <div class="stat-value"><%= authorRegistrations %></div>
         </div>
         <div class="stat-card articles">
-          <div class="stat-label">Inscritos Ouvintes</div>
+          <div class="stat-label">Inscritos Participantes</div>
           <div class="stat-value"><%= listenerRegistrations %></div>
         </div>
       </div>
@@ -284,7 +284,7 @@
                 <small style="color:#64748b;"><%= request.email %></small>
               </td>
               <td><%= request.event_name %></td>
-              <td><span class="badge badge-pending"><%= request.registration_type === 'author' ? 'Autor' : 'Ouvinte' %></span></td>
+              <td><span class="badge badge-pending"><%= request.registration_type === 'author' ? 'Autor' : 'Participante' %></span></td>
               <td><%= request.institution || '-' %></td>
               <td><%= new Date(request.created_at).toLocaleDateString('pt-BR') %></td>
             </tr>

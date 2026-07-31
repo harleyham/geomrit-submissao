@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-const { db, getArticlesByEvent } = require('../db');
+const { ZipArchive } = require('archiver');
+const { db, getArticlesByEvent, recordParticipantAudit } = require('../db');
 
 function parseAreaList(areaValue) {
   return String(areaValue || '')
@@ -19,6 +20,17 @@ function normalizeArea(value) {
     .toLowerCase();
 }
 
+function mapArticleStatusLabel(status) {
+  const labels = {
+    pending: 'Pendente',
+    in_review: 'Em análise',
+    approved: 'Aprovado',
+    rejected: 'Rejeitado',
+    draft: 'Rascunho'
+  };
+  return labels[status] || status;
+}
+
 // Middleware de autenticação admin
 function requireAuth(req, res, next) {
   if (!req.session.isAdmin) {
@@ -33,8 +45,118 @@ router.get('/', requireAuth, (req, res) => {
   if (!eventId) return res.redirect('/admin');
   const event = db.prepare('SELECT * FROM events WHERE id = ?').bind(eventId).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const articles = getArticlesByEvent(eventId);
-  res.render('admin/articles/list', { event, articles, title: 'Artigos - ' + event.name });
+  const filters = {
+    area: String(req.query.area || 'all').trim(),
+    type: ['all', 'oral', 'poster'].includes(String(req.query.type || 'all').trim()) ? String(req.query.type || 'all').trim() : 'all',
+    status: ['all', 'pending', 'in_review', 'approved', 'rejected'].includes(String(req.query.status || 'all').trim()) ? String(req.query.status || 'all').trim() : 'all',
+    q: String(req.query.q || '').trim(),
+    sort: ['date_desc', 'date_asc', 'title_asc', 'title_desc', 'area_asc', 'area_desc'].includes(String(req.query.sort || 'date_desc').trim()) ? String(req.query.sort || 'date_desc').trim() : 'date_desc'
+  };
+  const allArticles = getArticlesByEvent(eventId);
+  const availableAreas = Array.from(new Set(
+    allArticles
+      .map((article) => String(article.area || '').trim())
+      .filter(Boolean)
+  )).sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  const normalizedQuery = filters.q.toLowerCase();
+  const articles = allArticles.filter((article) => {
+    if (filters.area !== 'all' && String(article.area || '').trim() !== filters.area) return false;
+    if (filters.type !== 'all' && article.type !== filters.type) return false;
+    if (filters.status !== 'all' && article.status !== filters.status) return false;
+    if (normalizedQuery && !String(article.title || '').toLowerCase().includes(normalizedQuery)) return false;
+    return true;
+  }).map((article) => ({
+    ...article,
+    status_label: mapArticleStatusLabel(article.status)
+  }));
+
+  articles.sort((left, right) => {
+    switch (filters.sort) {
+      case 'date_asc':
+        return String(left.created_at || '').localeCompare(String(right.created_at || ''));
+      case 'title_asc':
+        return String(left.title || '').localeCompare(String(right.title || ''), 'pt-BR');
+      case 'title_desc':
+        return String(right.title || '').localeCompare(String(left.title || ''), 'pt-BR');
+      case 'area_asc':
+        return String(left.area || 'ZZZ').localeCompare(String(right.area || 'ZZZ'), 'pt-BR');
+      case 'area_desc':
+        return String(right.area || '').localeCompare(String(left.area || ''), 'pt-BR');
+      case 'date_desc':
+      default:
+        return String(right.created_at || '').localeCompare(String(left.created_at || ''));
+    }
+  });
+
+  res.render('admin/articles/list', {
+    event,
+    articles,
+    availableAreas,
+    filters,
+    totalArticles: allArticles.length,
+    filteredCount: articles.length,
+    title: 'Artigos - ' + event.name
+  });
+});
+
+function safeArchiveFileName(value, fallback) {
+  const normalized = String(value || fallback)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._ -]+/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized || fallback;
+}
+
+// Baixar todos os PDFs submetidos de um evento em um único arquivo ZIP.
+router.get('/download-all', requireAuth, (req, res, next) => {
+  const eventId = parseInt(req.query.eventId, 10);
+  if (!eventId) return res.redirect('/admin/events');
+
+  const event = db.prepare('SELECT id, name, short_name FROM events WHERE id = ?').get(eventId);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  const articles = db.prepare(`
+    SELECT id, title, pdf_path, file_original_name
+    FROM articles
+    WHERE event_id = ?
+      AND status != 'draft'
+      AND pdf_path IS NOT NULL
+      AND TRIM(pdf_path) != ''
+    ORDER BY title COLLATE NOCASE, id
+  `).all(eventId).filter((article) => {
+    const fileName = path.basename(article.pdf_path);
+    return fileName === article.pdf_path && fs.existsSync(path.join(__dirname, '..', 'uploads', fileName));
+  });
+
+  if (!articles.length) {
+    return res.status(404).render('error', {
+      title: 'Nenhum arquivo disponível',
+      message: 'Este evento não possui artigos submetidos com PDF disponível para download.'
+    });
+  }
+
+  const archiveName = `${safeArchiveFileName(event.short_name || event.name, 'evento')}-artigos.zip`;
+  res.attachment(archiveName);
+
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+  archive.on('warning', (error) => {
+    if (error.code !== 'ENOENT') next(error);
+  });
+  archive.on('error', next);
+  archive.pipe(res);
+
+  articles.forEach((article, index) => {
+    const sourcePath = path.join(__dirname, '..', 'uploads', article.pdf_path);
+    const extension = path.extname(article.file_original_name || article.pdf_path) || '.pdf';
+    const baseName = safeArchiveFileName(article.title, `artigo-${article.id}`);
+    archive.file(sourcePath, {
+      name: `${String(index + 1).padStart(3, '0')} - ${baseName}${extension.toLowerCase()}`
+    });
+  });
+
+  archive.finalize();
 });
 
 // Detalhe do artigo
@@ -148,12 +270,74 @@ router.get('/:id/download', requireAuth, (req, res) => {
 
 // Deletar artigo
 router.delete('/:id', requireAuth, (req, res) => {
-  const article = db.prepare('SELECT pdf_path FROM articles WHERE id = ?').bind(req.params.id).get();
-  if (article && article.pdf_path) {
+  const article = db.prepare(`
+    SELECT id, event_id, pdf_path, submitter_user_id, email_submission, status
+    FROM articles WHERE id = ?
+  `).bind(req.params.id).get();
+  if (!article) return res.status(404).render('error', { title: 'Artigo não encontrado' });
+
+  const deleteArticle = db.transaction(() => {
+    db.prepare('DELETE FROM articles WHERE id = ?').run(article.id);
+
+    // Rascunhos não promovem inscrições para author; removê-los não altera a participação.
+    if (article.status === 'draft') return;
+
+    const remainingArticles = db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM articles
+      WHERE event_id = ?
+        AND status != 'draft'
+        AND (
+          (submitter_user_id IS NOT NULL AND submitter_user_id = ?)
+          OR LOWER(TRIM(COALESCE(email_submission, ''))) = LOWER(TRIM(?))
+        )
+    `).get(article.event_id, article.submitter_user_id, article.email_submission || '').count;
+
+    const registration = db.prepare(`
+      SELECT id, registration_type
+      FROM event_registrations
+      WHERE event_id = ?
+        AND (
+          (user_id IS NOT NULL AND user_id = ?)
+          OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+        )
+      ORDER BY CASE WHEN user_id = ? THEN 0 ELSE 1 END, id
+      LIMIT 1
+    `).get(article.event_id, article.submitter_user_id, article.email_submission || '', article.submitter_user_id);
+
+    if (!registration) return;
+    if (remainingArticles > 0) {
+      recordParticipantAudit({
+        eventId: article.event_id,
+        registrationId: registration.id,
+        actorUserId: req.session.userId,
+        action: 'article_deleted_registration_preserved',
+        details: { article_id: article.id, remaining_submitted_articles: remainingArticles }
+      });
+      return;
+    }
+
+    if (registration.registration_type === 'author') {
+      db.prepare(`
+        UPDATE event_registrations
+        SET registration_type = 'listener', updated_at = datetime('now', '-3 hours')
+        WHERE id = ?
+      `).run(registration.id);
+    }
+    recordParticipantAudit({
+      eventId: article.event_id,
+      registrationId: registration.id,
+      actorUserId: req.session.userId,
+      action: 'article_deleted_registration_demoted_to_listener',
+      details: { article_id: article.id, remaining_submitted_articles: 0 }
+    });
+  });
+
+  deleteArticle();
+  if (article.pdf_path) {
     const filePath = path.join(__dirname, '..', 'uploads', article.pdf_path);
     try { fs.unlinkSync(filePath); } catch (e) {}
   }
-  db.prepare('DELETE FROM articles WHERE id = ?').bind(req.params.id).run();
   const wantsJson = (req.get('accept') || '').includes('application/json') || req.xhr;
   if (wantsJson) {
     return res.json({ success: true, deletedId: Number(req.params.id) });
