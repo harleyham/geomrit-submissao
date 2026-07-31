@@ -70,15 +70,6 @@ function requireReviewer(req, res, next) {
   next();
 }
 
-// Login redirect para página unificada
-router.get('/login', (req, res) => {
-  return res.redirect('/login');
-});
-
-router.post('/login', (req, res) => {
-  return res.redirect('/login');
-});
-
 // Logout
 router.post('/logout', (req, res) => {
   req.session.destroy(() => {

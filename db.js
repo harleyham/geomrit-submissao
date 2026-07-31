@@ -1,5 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
 const DB_PATH = path.join(__dirname, 'artigos.db');
@@ -84,11 +85,6 @@ db.exec(`
     ethics_confirmed INTEGER DEFAULT 0,
     publication_authorized INTEGER DEFAULT 0,
     presentation_needs TEXT DEFAULT '',
-    reviewer_id INTEGER,
-    reviewer_name TEXT,
-    reviewer_area TEXT,
-    review_notes TEXT,
-    rejection_reason TEXT,
     date_submitted DATETIME,
     created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
     updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
@@ -248,6 +244,45 @@ db.exec(`
     WHERE user_id IS NOT NULL;
 `);
 
+// Fundos distribuídos com o sistema permanecem em assets/Fundos. Eles são
+// registrados automaticamente na biblioteca para que possam ser selecionados
+// como qualquer outro fundo, sem misturá-los aos uploads administrativos.
+function registerDefaultCertificateBackgrounds() {
+  const defaultBackgroundDir = path.join(__dirname, 'assets', 'Fundos');
+  if (!fs.existsSync(defaultBackgroundDir)) return;
+
+  const insertBackground = db.prepare(`
+    INSERT INTO certificate_backgrounds (name, file_path, original_name, mime_type, created_at)
+    VALUES (?, ?, ?, ?, datetime('now', '-3 hours'))
+  `);
+  const findBackground = db.prepare('SELECT id FROM certificate_backgrounds WHERE file_path = ?');
+  const supportedExtensions = new Map([
+    ['.png', 'image/png'],
+    ['.jpg', 'image/jpeg'],
+    ['.jpeg', 'image/jpeg']
+  ]);
+
+  fs.readdirSync(defaultBackgroundDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .forEach((entry) => {
+      const extension = path.extname(entry.name).toLowerCase();
+      const mimeType = supportedExtensions.get(extension);
+      if (!mimeType) return;
+
+      const relativePath = path.posix.join('assets', 'Fundos', entry.name);
+      if (findBackground.get(relativePath)) return;
+
+      insertBackground.run(
+        path.basename(entry.name, extension).replace(/[_-]+/g, ' '),
+        relativePath,
+        entry.name,
+        mimeType
+      );
+    });
+}
+
+registerDefaultCertificateBackgrounds();
+
 // Migrate existing data: drop admins, merge reviewers into users
 try {
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
@@ -326,6 +361,18 @@ try {
   if (!articleColumns.includes('presentation_needs')) db.exec("ALTER TABLE articles ADD COLUMN presentation_needs TEXT DEFAULT ''");
 } catch(e) {
   console.warn('Migration articles columns:', e.message);
+}
+
+// A revisão agora é integralmente normalizada em assignments e reports. As
+// colunas antigas em articles não possuem mais consumidores na aplicação.
+try {
+  const deprecatedArticleColumns = ['reviewer_id', 'reviewer_name', 'reviewer_area', 'review_notes', 'rejection_reason'];
+  const articleColumns = db.prepare("PRAGMA table_info(articles)").all().map(c => c.name);
+  deprecatedArticleColumns
+    .filter((column) => articleColumns.includes(column))
+    .forEach((column) => db.exec(`ALTER TABLE articles DROP COLUMN ${column}`));
+} catch(e) {
+  console.warn('Cleanup legacy article columns:', e.message);
 }
 
 try {

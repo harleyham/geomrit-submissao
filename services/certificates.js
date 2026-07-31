@@ -8,9 +8,15 @@ function getBackgroundPath(filePath) {
   if (!filePath) return null;
   const safePath = String(filePath).replace(/\\/g, '/');
   if (safePath.startsWith('certificate-backgrounds/')) {
-    return path.join(rootDir, 'uploads', safePath);
+    const filename = safePath.slice('certificate-backgrounds/'.length);
+    if (filename !== path.posix.basename(filename)) return null;
+    return path.join(rootDir, 'uploads', 'certificate-backgrounds', filename);
   }
-  if (safePath.startsWith('assets/')) return path.join(rootDir, safePath);
+  if (safePath.startsWith('assets/Fundos/')) {
+    const filename = safePath.slice('assets/Fundos/'.length);
+    if (filename !== path.posix.basename(filename)) return null;
+    return path.join(rootDir, 'assets', 'Fundos', filename);
+  }
   return null;
 }
 

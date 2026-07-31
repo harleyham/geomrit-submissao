@@ -31,6 +31,7 @@ O sistema deve permitir:
 | Sessão | `express-session` |
 | Segurança | `helmet`, `bcryptjs` |
 | Upload | `multer` |
+| Certificados em PDF | `pdfkit` |
 | Infra complementar | `compression`, `method-override`, `archiver` |
 
 ## Escopo Funcional Implementado
@@ -193,8 +194,6 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `ethics_confirmed`
 - `publication_authorized`
 - `presentation_needs`
-- `review_notes`
-- `rejection_reason`
 - `date_submitted`
 - `created_at`
 - `updated_at`
@@ -272,13 +271,51 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `min_attendance`
 - `background_id`
 
+### `certificate_backgrounds`
+
+- `id`
+- `name`
+- `file_path`
+- `original_name`
+- `mime_type`
+- `created_by`
+- `created_at`
+
+Os fundos padrão distribuídos pelo sistema ficam em `assets/Fundos` e são registrados automaticamente na biblioteca quando a aplicação inicia. Fundos enviados pela administração ficam separadamente em `uploads/certificate-backgrounds`. No seletor da regra de certificado, ambas as origens ficam disponíveis e são exibidas em grupos distintos.
+
+### `certificate_rules`
+
+- `event_id`
+- `min_attendance`
+- `background_id`
+- `updated_by`
+- `created_at`
+- `updated_at`
+
+### `certificate_emissions`
+
+- `id`
+- `event_id`
+- `registration_id`
+- `background_id`
+- `certificate_code`
+- `version`
+- `attendance_count`
+- `participant_name`
+- `event_name`
+- `event_date_start`
+- `event_date_end`
+- `status`
+- `issued_at`
+- `issued_by`
+- `reissued_from_id`
+- `activity_id`
+
 ### `assignments`
 
 - `id`
 - `article_id`
 - `reviewer_id`
-- `reviewer_name`
-- `reviewer_area`
 - `status`
 - `reviewed_at`
 - `created_at`
@@ -578,13 +615,16 @@ Observações operacionais:
 - Navegação cruzada entre área do participante, painel do revisor e dashboard administrativo para usuários com múltiplos perfis.
 - Gestão manual de participantes por evento, com criação de conta ou seleção de conta ativa existente, edição, remoção condicionada e auditoria.
 - Controle administrativo de presença simples por evento, com lançamento manual, remoção e total por participante.
+- Cadastro de atividades internas e lançamento manual de presença por atividade.
+- Certificados de participação com regra de elegibilidade por presença, fundos PNG/JPEG, emissão e reemissão versionadas, geração de PDF e download autenticado pelo participante dentro da janela do evento.
 - Seleção individual das seções incluídas na impressão do relatório em PDF.
 - Download em lote dos PDFs submetidos por evento em arquivo ZIP.
+- Enxugamento técnico: remoção de rotas individuais legadas de perfis, redirecionamentos de login do revisor, fallback duplicado de eventos, dependência direta não utilizada e colunas antigas de revisão em `articles`.
 
 ### Parcial ou pendente de validação
 
 - Decisão final administrativa precisa de validação funcional ponta a ponta.
-- O fluxo de certificados de participação ainda não possui área dedicada; a janela já é controlada, mas a emissão e a consulta ainda precisam ser implementadas.
+- A presença por atividade ainda não consolida carga horária por participante nem influencia a elegibilidade de certificados.
 
 ### Fora do escopo atual
 
@@ -595,16 +635,15 @@ Observações operacionais:
 
 ## Riscos e Gaps Conhecidos
 
-1. Ainda não existe uma área dedicada de emissão ou download de certificados de participação, embora a janela de certificados já esteja modelada.
-2. Ainda há endpoints legados de toggle individual de perfis no backend, embora a interface principal já utilize salvamento em lote.
-3. O fluxo completo de deliberação final administrativa ainda requer validação integrada.
+1. A elegibilidade atual do certificado considera a presença simples por evento; regras específicas por atividade ainda não estão conectadas à emissão.
+2. O fluxo completo de deliberação final administrativa ainda requer validação integrada.
 
 ## Próximos Passos Recomendados
 
 ### Alta prioridade
 
-1. Implementar a área dedicada de certificados de participação para participantes dentro da janela válida.
-2. Validar o fluxo completo de evento, submissão, atribuição, parecer e deliberação final administrativa.
+1. Validar o fluxo completo de evento, submissão, atribuição, parecer e deliberação final administrativa.
+2. Consolidar carga horária e presença por atividade para evoluir a elegibilidade de certificados.
 3. Reforçar validações server-side e client-side nos formulários principais.
 4. Revisar proteção contra CSRF e endurecimento geral de segurança.
 
@@ -612,7 +651,7 @@ Observações operacionais:
 
 1. Melhorar busca e filtros de artigos.
 2. Implementar notificações para atribuição e mudança de status.
-3. Adicionar histórico de revisão e trilha de auditoria.
+3. Adicionar histórico de deliberação final e trilha de auditoria de artigos.
 
 ### Baixa prioridade
 
@@ -637,20 +676,20 @@ Observações operacionais:
 
 3. `Gerenciar lista de presença nos eventos`
    Status atual: parcialmente implementado.
-   Base existente: `event_registrations` e `attendance_records` permitem lançamento manual de uma presença por participante em cada evento.
-   Principais lacunas: atividades internas, presença por atividade/dia, carga horária e indicadores de frequência.
+   Base existente: `event_registrations`, `attendance_records`, `event_activities` e `activity_attendance_records` permitem lançamentos manuais por evento e por atividade.
+   Principais lacunas: consolidação de carga horária, filtros operacionais e indicadores de frequência.
 
 4. `Gerenciar e emitir certificados de participação`
-   Status atual: parcial.
-   Base existente: janela de certificados de participação configurável no evento e refletida no cronograma público.
-   Principais lacunas: regra de elegibilidade, geração real de certificado, área de download do participante, reemissão administrativa e auditoria de emissão.
+   Status atual: implementado em nível operacional.
+   Base existente: regra de presença por evento, biblioteca de fundos, emissão e reemissão versionadas, geração em PDF, download administrativo e área autenticada do participante.
+   Principais lacunas: integrar regras por atividade, verificação pública e refinamentos de auditoria operacional.
 
 ### Leitura executiva
 
 - `Eventos`: pronto para uso, com algumas lacunas administrativas.
 - `Artigos`: pronto para uso, com filtros e download ZIP por evento.
 - `Presença`: implementada por evento e por atividade.
-- `Certificados`: modelado no calendário, mas sem emissão real.
+- `Certificados`: emissão real em PDF, reemissão e download autenticado já disponíveis; faltam evoluções por atividade e verificação pública.
 
 ### Épicos e execução incremental
 
@@ -736,81 +775,23 @@ Entrega incremental 3:
 Tarefas técnicas por arquivo:
 
 - `db.js`
-  Evoluir `event_activities` com data, horário, carga horária e tipo da atividade.
-- `routes/attendance.js`
-  Adicionar presença por atividade e consolidação por participante.
+  Adicionar os índices e as consultas de consolidação de carga horária por participante, quando necessários.
 - `routes/events.js`
-  Incluir gestão administrativa de atividades do evento.
+  Consolidar presença e carga horária por participante e conectar, opcionalmente, as regras de certificado por atividade.
 - `views/admin/events/activities.ejs`
-  Criar tela de cadastro e edição de atividades.
-- `views/admin/events/attendance.ejs`
-  Adicionar filtros por atividade, dia e participante.
+  Ampliar a gestão de atividades com edição e filtros operacionais.
+- `views/admin/events/activity-attendance.ejs`
+  Exibir totais e filtros por participante e atividade.
 
 Critério de pronto:
 
 - o sistema calcula presença e carga horária com base nas atividades reais do evento.
 
-#### Épico 4: elegibilidade e emissão de certificados de participação
-
-Objetivo: transformar a janela de certificados em emissão real.
-
-Entrega incremental 4:
-
-- definir regra de elegibilidade;
-- gerar certificado em PDF;
-- permitir download pelo participante.
-
-Tarefas técnicas por arquivo:
-
-- `db.js`
-  Criar estrutura para regras, emissões e auditoria de certificados.
-- `routes/public.js`
-  Criar rota do participante para listar e baixar certificados.
-- `routes/certificates.js`
-  Criar rotas de emissão, reemissão, bloqueio e consulta administrativa.
-- `routes/events.js`
-  Integrar regra de elegibilidade por evento.
-- `views/public/author-dashboard.ejs`
-  Exibir card ou seção de certificados disponíveis.
-- `views/public/certificates.ejs`
-  Criar tela de consulta e download.
-- `views/admin/events/certificates.ejs`
-  Criar painel administrativo de emissão e reemissão.
-- serviço de geração PDF
-  Implementar template e renderização do certificado.
-
-Critério de pronto:
-
-- participante elegível consegue baixar o certificado dentro da janela válida.
-
-#### Épico 5: auditoria e operação de certificados
-
-Objetivo: permitir operação administrativa segura do módulo de certificados.
-
-Entrega incremental 5:
-
-- reemitir certificado;
-- bloquear emissão indevida;
-- registrar histórico de emissão.
-
-Tarefas técnicas por arquivo:
-
-- `db.js`
-  Criar tabela de histórico de emissão, reemissão e bloqueio.
-- `routes/certificates.js`
-  Registrar cada emissão com usuário, data, motivo e versão do certificado.
-- `views/admin/events/certificates.ejs`
-  Exibir histórico e ações administrativas.
-
-Critério de pronto:
-
-- administração consegue auditar quem emitiu, reemitiu ou bloqueou cada certificado.
-
-#### Épico 6: refinamentos do módulo de artigos
+#### Épico 4: refinamentos do módulo de artigos
 
 Objetivo: completar o fluxo de artigos com recursos operacionais ainda pendentes.
 
-Entrega incremental 6:
+Entrega incremental 4:
 
 - download em lote de artigos;
 - filtros por trilha e modalidade;
@@ -840,34 +821,30 @@ Critério de pronto:
 ### Ordem recomendada
 
 1. Épico 3: presença por atividade, dia ou minicurso.
-2. Épico 4: elegibilidade e emissão de certificados de participação.
-3. Épico 5: auditoria e operação de certificados.
-4. Concluir o histórico de deliberação final administrativa.
-5. Financeiro, se entrar no escopo do produto.
+2. Concluir o histórico de deliberação final administrativa.
+3. Evoluir certificados com regras por atividade e verificação pública, se necessário.
+4. Financeiro, se entrar no escopo do produto.
 
 ### Backlog técnico priorizado
 
 #### Alta prioridade
 
-1. Regra de elegibilidade para certificado.
-2. Geração de certificado em PDF.
-3. Área do participante para download.
-4. Presença por atividade e consolidação de carga horária.
-5. Histórico de deliberação final administrativa.
+1. Presença por atividade e consolidação de carga horária.
+2. Histórico de deliberação final administrativa.
+3. Validação integrada do fluxo de submissão e deliberação.
+4. Proteções CSRF e endurecimento geral de segurança.
 
 #### Média prioridade
 
 1. Épico 3 completo.
-2. Reemissão e auditoria de certificados.
-3. Filtros avançados de artigos.
-4. Histórico de deliberação final administrativa.
+2. Filtros avançados de artigos.
+3. Auditoria operacional e verificação pública de certificados.
 
 #### Baixa prioridade
 
 1. QR code para presença.
-2. Certificados com verificação pública.
-3. Módulo financeiro.
-4. Notificações e automações.
+2. Módulo financeiro.
+3. Notificações e automações.
 
 
 ### Observações editoriais e backlog
@@ -875,3 +852,4 @@ Critério de pronto:
 1. Ampliar o dashboard com contadores para total de eventos realizados, eventos publicados, inscritos totais e inscritos em eventos futuros. Também vale decidir se eventos encerrados continuam visíveis na área pública.
 2. Implementar controle de pagamento. Em uma primeira versão, basta informar cobranças, tabela de valores, pedido de isenção, cupom de desconto e upload de comprovante.
 3. Criar uma página única com a listagem dos relatórios possíveis.
+Programada

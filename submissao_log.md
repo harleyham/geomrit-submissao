@@ -36,6 +36,13 @@ Versão atual registrada: **V0.1**.
 - Presença por atividade implementada em `activity_attendance_records`, permitindo registrar a participação da mesma pessoa em várias atividades do evento.
 - Base `activity_certificate_rules` adicionada para suportar regras e fundos específicos por atividade; a conexão da emissão de certificados a essa seleção permanece como próxima etapa.
 
+### Enxugamento técnico
+
+- Removidos os endpoints individuais legados de atualização de perfis de usuários; a atualização em lote permanece como fluxo único.
+- Removidos os redirecionamentos legados de login do revisor e o fallback duplicado de atualização de eventos.
+- A revisão passou a usar exclusivamente `assignments` e `reports`; colunas antigas e sem consumidores foram removidas de `articles` por migração compatível.
+- Dependência direta não utilizada `body-parser` e o arquivo vazio `database.sqlite` removidos.
+
 ## 2026-07-30
 
 ### Documentação
