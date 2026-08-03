@@ -4,6 +4,60 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-03
+
+### Certificados: prévia inline, cor da fonte e seleção de fundos em miniatura
+
+#### Implementações
+
+- **Cor da fonte configurável:** adição da coluna `text_color` (TEXT DEFAULT `#0f172a`) nas tabelas `certificate_rules` e `certificate_emissions` via migration. Seletor de cor (`input type="color"`) no formulário de regra de elegibilidade. Toda a fonte do certificado em PDF agora utiliza a cor selecionada (título, corpo, nome do participante, datas e código de verificação).
+- **Prévia inline do certificado:** nova rota `GET /admin/events/:id/certificates/preview` que gera um PDF de prévia com fundo e cor da fonte selecionados via parâmetros `?background_id=X&text_color=Y`. A prévia reflete as configurações atuais do formulário antes de salvar, não os valores persistidos no banco. Exibida em iframe inline na própria página com botão alternável "Visualizar prévia do certificado" / "Ocultar prévia".
+- **Seleção de fundos em miniatura:** remoção do combobox de fundos e substituição por grade de miniaturas clicáveis organizadas em dois grupos (Fundos padrão de `assets/Fundos/` e Fundos enviados de `uploads/certificate-backgrounds/`). Clique na miniatura atualiza o campo oculto `background_id` e a prévia em tempo real.
+- **Rota para servir fundos enviados:** `GET /admin/events/:id/certificates/backgrounds/:backgroundId/view` serve a imagem do fundo com o MIME type correto, lendo o caminho relativo da tabela `certificate_backgrounds` e resolvendo o caminho absoluto.
+- **Reorganização do layout:** campos de regra (presenças mínimas + cor da fonte) em linha no topo do card; grade de fundos abaixo; botão "Salvar regra" posicionado após a seleção de fundos.
+
+#### Correções
+
+- Corrigido erro de caminho de arquivos para fundos enviados: o `file_path` armazenado em `certificate_backgrounds` agora é salvo com prefixo `uploads/certificate-backgrounds/` (antes `certificate-backgrounds/`), garantindo que os arquivos sejam encontrados corretamente.
+- Corrigido erro "18 values for 17 columns" na emissão de certificados: `INSERT INTO certificate_emissions` estava com número incorreto de placeholders no `VALUES`.
+- Corrigido erro "16 values for 17 columns" na emissão de certificados: `INSERT INTO certificate_emissions` com `datetime('now','-3 hours')` literal no `VALUES` contava como valor adicional. Data/hora agora é calculada em JavaScript com o mesmo fuso horário UTC-3 usado em todo o código.
+- Corrigido erro "6 values for 7 columns" na atualização de regra de certificado: `INSERT INTO certificate_rules` tinha número incorreto de placeholders para a coluna `updated_by`.
+
+#### Documentação
+
+- `submissao.md` atualizado: descrição de certificados de participação ampliada com cor da fonte configurável, prévia inline e seleção de fundos em miniatura.
+- `submissao_log.md` atualizado com registro destas mudanças.
+
+---
+
+### Épico 3: presença por atividade, dia ou minicurso — implementado
+
+#### Implementações
+
+- **Consolidação de carga horária por participante:** helper `getWorkloadSummaryByEvent` no `db.js` calcula total de atividades frequentadas e carga horária consolidada por participante com base em `activity_attendance_records` e `event_activities` (somente atividades com `certificate_enabled = 1`).
+- **Conexão de regras de atividade à elegibilidade de certificados:** `getCertificateParticipants` reescrita para consultar presenças por atividade e calcular elegibilidade com base em `activity_certificate_rules` (quando disponíveis) ou `attendance_records` (fallback por presença simples).
+- **Emissão de certificado com informações de atividades:** `issueCertificate` atualizada para popular colunas `activity_id`, `activities_attended` e `total_workload_hours` no registro de `certificate_emissions`.
+- **PDF do certificado atualizado:** `services/certificates.js` agora exibe linha com "X atividades · Carga horária total: Yh" quando o participante frequentou atividades.
+- **Nova rota de regra de certificado por atividade:** `POST /admin/events/:id/activities/:activityId/certificate-rule` permite salvar mínimo de presenças e fundo específico por atividade.
+- **Colunas adicionais em `certificate_emissions`:** migration adiciona `activities_attended` (INTEGER DEFAULT 0) e `total_workload_hours` (REAL DEFAULT 0).
+
+#### Views
+
+- `views/admin/events/activities.ejs` reescrito com topbar, grid de cards, badges por tipo de atividade (Palestra/Seminário/Mesa redonda/Minicurso/Outra), contagem de presenças por atividade e link para gerenciar presença.
+- `views/admin/events/activity-attendance.ejs` reescrito com topbar, stats cards (presentes/ausentes/total), formulário de regra de certificado (mínimo de presenças + seletor de fundo com grupos "Fundos padrão" e "Fundos enviados"), lista de participantes com botão presente/ausente.
+- `views/admin/events/certificates.ejs` reescrito com topbar, colunas de atividades frequentadas e carga horária por participante, tags das atividades, badges de elegibilidade.
+
+#### Correções
+
+- Corrigido erro "18 values for 16 columns" na emissão de certificados: `INSERT INTO certificate_emissions` estava com número incorreto de placeholders no `VALUES`.
+
+#### Documentação
+
+- `submissao.md` atualizado: Épico 3 marcado como implementado; riscos e gaps relacionados a carga horária e regras por atividade removidos; ordem recomendada ajustada; backlog técnico atualizado.
+- `submissao_log.md` atualizado com registro desta entrega.
+
+---
+
 ## 2026-07-31
 
 ### Implementações

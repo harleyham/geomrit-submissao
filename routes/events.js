@@ -596,7 +596,7 @@ router.post('/:id/attendance/:registrationId', (req, res) => {
 });
 
 function getCertificateParticipants(eventId, minAttendance) {
-  return db.prepare(`
+  const participants = db.prepare(`
     SELECT er.id, er.name, er.email, er.registration_type,
       COUNT(ar.id) AS attendance_count,
       (SELECT MAX(version) FROM certificate_emissions ce WHERE ce.event_id = er.event_id AND ce.registration_id = er.id) AS latest_version,
@@ -606,7 +606,85 @@ function getCertificateParticipants(eventId, minAttendance) {
     WHERE er.event_id = ?
     GROUP BY er.id
     ORDER BY er.name COLLATE NOCASE
-  `).all(eventId).map((participant) => ({ ...participant, eligible: participant.attendance_count >= minAttendance }));
+  `).all(eventId);
+
+  const rule = db.prepare('SELECT text_color FROM certificate_rules WHERE event_id = ?').get(eventId) || { text_color: '#0f172a' };
+  const textColor = rule.text_color || '#0f172a';
+
+  const workloadSummary = db.prepare(`
+    SELECT
+      er.id AS registration_id,
+      COUNT(aar.id) AS activities_attended,
+      COALESCE(SUM(ea.workload_hours), 0) AS total_workload_hours
+    FROM event_registrations er
+    LEFT JOIN activity_attendance_records aar
+      ON aar.registration_id = er.id
+      AND aar.activity_id IN (SELECT id FROM event_activities WHERE event_id = ? AND certificate_enabled = 1)
+    LEFT JOIN event_activities ea
+      ON ea.id = aar.activity_id
+    WHERE er.event_id = ?
+    GROUP BY er.id
+  `).bind(eventId, eventId).all();
+
+  const workloadByRegistration = new Map(workloadSummary.map((row) => [row.registration_id, { activities_attended: row.activities_attended, total_workload_hours: row.total_workload_hours }]));
+
+  const activityRules = db.prepare(`
+    SELECT acr.activity_id, ea.name AS activity_name, ea.workload_hours, acr.min_attendance
+    FROM activity_certificate_rules acr
+    JOIN event_activities ea ON ea.id = acr.activity_id
+    WHERE ea.event_id = ?
+    ORDER BY ea.activity_date, ea.name
+  `).all(eventId);
+
+  const hasActivityRules = activityRules.length > 0;
+  const activityMinAttendance = hasActivityRules ? activityRules[0].min_attendance : 1;
+
+  const attendedActivitiesByRegistration = new Map();
+  const allActivityIds = db.prepare(`
+    SELECT id FROM event_activities WHERE event_id = ? AND certificate_enabled = 1
+  `).all(eventId).map((a) => a.id);
+
+  if (allActivityIds.length > 0) {
+    const placeholders = allActivityIds.map(() => '?').join(',');
+    const attendedActivities = db.prepare(`
+      SELECT aar.registration_id, ea.id AS activity_id, ea.name AS activity_name, ea.activity_type, ea.workload_hours, ea.activity_date
+      FROM activity_attendance_records aar
+      JOIN event_activities ea ON ea.id = aar.activity_id
+      WHERE aar.registration_id IN (
+        SELECT er.id FROM event_registrations er WHERE er.event_id = ?
+      )
+        AND ea.id IN (${placeholders})
+      ORDER BY ea.activity_date, ea.name
+    `).bind(eventId, ...allActivityIds).all();
+
+    attendedActivities.forEach((row) => {
+      if (!attendedActivitiesByRegistration.has(row.registration_id)) {
+        attendedActivitiesByRegistration.set(row.registration_id, []);
+      }
+      attendedActivitiesByRegistration.get(row.registration_id).push(row);
+    });
+  }
+
+  return participants.map((participant) => {
+    const workload = workloadByRegistration.get(participant.id) || { activities_attended: 0, total_workload_hours: 0 };
+    const attendedActivities = attendedActivitiesByRegistration.get(participant.id) || [];
+    let eligible;
+    if (hasActivityRules) {
+      eligible = workload.activities_attended >= activityMinAttendance;
+    } else {
+      eligible = participant.attendance_count >= minAttendance;
+    }
+    return {
+      ...participant,
+      activities_attended: workload.activities_attended,
+      total_workload_hours: workload.total_workload_hours,
+      eligible,
+      has_activity_rules: hasActivityRules,
+      activity_rules: hasActivityRules ? activityRules : [],
+      attended_activities: attendedActivities,
+      text_color: textColor
+    };
+  });
 }
 
 router.get('/:id/certificates', (req, res) => {
@@ -625,23 +703,123 @@ router.get('/:id/certificates', (req, res) => {
   });
 });
 
-router.get('/:id/activities', (req,res)=>{const event=db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);if(!event)return res.status(404).render('error',{title:'Evento não encontrado'});const activities=db.prepare('SELECT * FROM event_activities WHERE event_id=? ORDER BY activity_date,name').all(event.id);res.render('admin/events/activities',{title:`Atividades - ${event.name}`,event,activities});});
+router.get('/:id/certificates/backgrounds/:backgroundId/view', (req, res) => {
+  const bg = db.prepare('SELECT * FROM certificate_backgrounds WHERE id = ?').get(req.params.backgroundId);
+  if (!bg) return res.status(404).render('error', { title: 'Fundo não encontrado' });
+  const filePath = bg.file_path.startsWith('certificate-backgrounds/')
+    ? path.join(__dirname, '..', 'uploads', bg.file_path)
+    : path.join(__dirname, '..', bg.file_path);
+  if (!fs.existsSync(filePath)) return res.status(404).render('error', { title: 'Arquivo do fundo não encontrado' });
+  res.type(bg.mime_type);
+  res.sendFile(filePath);
+});
+
+router.get('/:id/certificates/preview', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const rule = db.prepare('SELECT * FROM certificate_rules WHERE event_id = ?').get(event.id) || { min_attendance: 1, background_id: null };
+
+  const selectedBackgroundId = req.query.background_id;
+  const selectedTextColor = req.query.text_color;
+
+  let backgroundId = selectedBackgroundId || rule.background_id;
+  let textColor = selectedTextColor || (rule.text_color || '#0f172a');
+
+  if (!backgroundId) {
+    return res.status(400).render('error', { title: 'Configure o fundo do certificado antes de visualizar a prévia.' });
+  }
+
+  const background = db.prepare('SELECT * FROM certificate_backgrounds WHERE id = ?').get(backgroundId);
+  if (!background) {
+    return res.status(400).render('error', { title: 'Fundo de certificado não encontrado.' });
+  }
+
+  const preview = {
+    participant_name: 'Nome do Participante',
+    event_name: event.name,
+    event_date_start: event.date_start || 'DD/MM/YYYY',
+    event_date_end: event.date_end || 'DD/MM/YYYY',
+    certificate_code: 'PREVIEW-CODE',
+    issued_at: new Date(Date.now() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ''),
+    text_color: textColor,
+    background_path: background.file_path,
+    activities_attended: 0,
+    total_workload_hours: 0
+  };
+  res.type('application/pdf');
+  res.setHeader('Content-Disposition', 'inline');
+  renderCertificatePdf(res, preview);
+});
+
+router.get('/:id/activities', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activities = db.prepare(`
+    SELECT ea.*,
+      COUNT(aar.id) AS attendees_count,
+      COALESCE(SUM(ea.workload_hours), 0) AS workload_hours
+    FROM event_activities ea
+    LEFT JOIN activity_attendance_records aar ON aar.activity_id = ea.id
+    WHERE ea.event_id = ?
+    GROUP BY ea.id
+    ORDER BY ea.activity_date, ea.name
+  `).bind(req.params.id).all();
+  res.render('admin/events/activities', {
+    title: `Atividades - ${event.name}`,
+    event, activities
+  });
+});
 router.post('/:id/activities',(req,res)=>{const event=db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);if(!event)return res.status(404).render('error',{title:'Evento não encontrado'});const name=String(req.body.name||'').trim();if(!name)return res.redirect(`/admin/events/${event.id}/activities`);db.prepare("INSERT INTO event_activities(event_id,name,activity_type,activity_date,workload_hours,certificate_enabled) VALUES(?,?,?,?,?,?)").run(event.id,name,String(req.body.activity_type||'other'),req.body.activity_date||null,Number(req.body.workload_hours)||0,req.body.certificate_enabled?1:0);res.redirect(`/admin/events/${event.id}/activities`);});
-router.get('/:id/activities/:activityId/attendance',(req,res)=>{const activity=db.prepare('SELECT a.*,e.name event_name FROM event_activities a JOIN events e ON e.id=a.event_id WHERE a.id=? AND a.event_id=?').get(req.params.activityId,req.params.id);if(!activity)return res.status(404).render('error',{title:'Atividade não encontrada'});const participants=db.prepare('SELECT er.*,CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END present FROM event_registrations er LEFT JOIN activity_attendance_records aar ON aar.registration_id=er.id AND aar.activity_id=? WHERE er.event_id=? ORDER BY er.name').all(activity.id,activity.event_id);res.render('admin/events/activity-attendance',{title:`Presença - ${activity.name}`,activity,participants});});
+router.get('/:id/activities/:activityId/attendance', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT a.*, e.name AS event_name FROM event_activities a JOIN events e ON e.id = a.event_id WHERE a.id = ? AND a.event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const participants = db.prepare(`
+    SELECT er.id, er.name, er.email, er.institution, er.registration_type,
+      CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present
+    FROM event_registrations er
+    LEFT JOIN activity_attendance_records aar ON aar.registration_id = er.id AND aar.activity_id = ?
+    WHERE er.event_id = ?
+    ORDER BY er.name COLLATE NOCASE
+  `).bind(activity.id, activity.event_id).all();
+  const activityRule = db.prepare('SELECT acr.*, cb.file_path AS background_path, cb.name AS background_name FROM activity_certificate_rules acr LEFT JOIN certificate_backgrounds cb ON cb.id = acr.background_id WHERE acr.activity_id = ?').get(activity.id);
+  const backgrounds = db.prepare('SELECT * FROM certificate_backgrounds ORDER BY created_at DESC').all();
+  res.render('admin/events/activity-attendance', {
+    title: `Presença - ${activity.name}`,
+    event, activity, participants, activityRule, backgrounds,
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+});
 router.post('/:id/activities/:activityId/attendance/:registrationId',(req,res)=>{const activity=db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId,req.params.id);if(!activity)return res.status(404).render('error',{title:'Atividade não encontrada'});if(req.body.action==='absent')db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND registration_id=?').run(activity.id,req.params.registrationId);else db.prepare("INSERT INTO activity_attendance_records(activity_id,registration_id,marked_by) VALUES(?,?,?) ON CONFLICT(activity_id,registration_id) DO UPDATE SET marked_by=excluded.marked_by,attended_at=datetime('now','-3 hours')").run(activity.id,req.params.registrationId,req.session.userId);res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);});
+
+router.post('/:id/activities/:activityId/certificate-rule', (req, res) => {
+  const activity = db.prepare('SELECT id, event_id FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.redirect(`/admin/events/${req.params.id}/activities`);
+  const minAttendance = Math.max(1, parseInt(req.body.min_attendance, 10) || 1);
+  const backgroundId = req.body.background_id && req.body.background_id !== '' ? parseInt(req.body.background_id, 10) : null;
+  db.prepare(`INSERT INTO activity_certificate_rules (activity_id, min_attendance, background_id)
+    VALUES (?, ?, ?)
+    ON CONFLICT(activity_id) DO UPDATE SET min_attendance = excluded.min_attendance, background_id = excluded.background_id
+  `).run(activity.id, minAttendance, backgroundId);
+  res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?success=${encodeURIComponent('Regra de certificado da atividade salva.')}`);
+});
 
 router.post('/:id/certificates/rule', (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const minAttendance = Math.max(1, parseInt(req.body.min_attendance, 10) || 1);
   const backgroundId = req.body.background_id ? parseInt(req.body.background_id, 10) : null;
+  const textColor = String(req.body.text_color || '#0f172a').trim();
+  const normalizedTextColor = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#0f172a';
   if (!backgroundId || !db.prepare('SELECT id FROM certificate_backgrounds WHERE id = ?').get(backgroundId)) {
     return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado válido.')}`);
   }
-  db.prepare(`INSERT INTO certificate_rules (event_id,min_attendance,background_id,updated_by,created_at,updated_at)
-    VALUES (?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))
-    ON CONFLICT(event_id) DO UPDATE SET min_attendance=excluded.min_attendance,background_id=excluded.background_id,updated_by=excluded.updated_by,updated_at=datetime('now','-3 hours')
-  `).run(event.id, minAttendance, backgroundId, req.session.userId);
+  db.prepare(`INSERT INTO certificate_rules (event_id,min_attendance,background_id,text_color,updated_by,created_at,updated_at)
+    VALUES (?,?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))
+    ON CONFLICT(event_id) DO UPDATE SET min_attendance=excluded.min_attendance,background_id=excluded.background_id,text_color=excluded.text_color,updated_by=excluded.updated_by,updated_at=datetime('now','-3 hours')
+  `).run(event.id, minAttendance, backgroundId, normalizedTextColor, req.session.userId);
   res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Regra de elegibilidade salva.')}`);
 });
 
@@ -653,7 +831,7 @@ router.post('/:id/certificates/backgrounds', (req, res) => {
       return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent(message)}`);
     }
     db.prepare(`INSERT INTO certificate_backgrounds (name,file_path,original_name,mime_type,created_by,created_at) VALUES (?,?,?,?,?,datetime('now','-3 hours'))`)
-      .run(String(req.body.name).trim(), `certificate-backgrounds/${req.file.filename}`, req.file.originalname, req.file.mimetype, req.session.userId);
+      .run(String(req.body.name).trim(), `uploads/certificate-backgrounds/${req.file.filename}`, req.file.originalname, req.file.mimetype, req.session.userId);
     return res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Fundo enviado para a biblioteca.')}`);
   });
 });
@@ -663,10 +841,31 @@ function issueCertificate(event, registrationId, actorUserId, reissuedFromId = n
   if (!rule || !rule.background_id) throw new Error('Configure a regra e o fundo do certificado antes da emissão.');
   const participant = getCertificateParticipants(event.id, rule.min_attendance).find((item) => Number(item.id) === Number(registrationId));
   if (!participant || !participant.eligible) throw new Error('Participante não elegível pela regra de presença.');
+
+  const attendedActivities = db.prepare(`
+    SELECT ea.id, ea.name, ea.activity_type, ea.workload_hours
+    FROM activity_attendance_records aar
+    JOIN event_activities ea ON ea.id = aar.activity_id
+    WHERE aar.registration_id = ?
+      AND ea.event_id = ?
+      AND ea.certificate_enabled = 1
+    ORDER BY ea.activity_date, ea.name
+  `).bind(registrationId, event.id).all();
+
+  const totalActivities = participant.activities_attended || attendedActivities.length;
+  const mainActivityId = attendedActivities.length > 0 ? attendedActivities[0].id : null;
+  const textColor = participant.text_color || rule.text_color || '#0f172a';
+
   const version = (participant.latest_version || 0) + 1;
   const code = `CERT-${event.id}-${registrationId}-V${version}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-  return db.prepare(`INSERT INTO certificate_emissions (event_id,registration_id,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,issued_by,reissued_from_id,issued_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','-3 hours'))`).run(event.id, registrationId, rule.background_id, code, version, participant.attendance_count, participant.name, event.name, event.date_start, event.date_end, actorUserId, reissuedFromId).lastInsertRowid;
+  const issuedAt = new Date(Date.now() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+  return db.prepare(`INSERT INTO certificate_emissions (event_id,registration_id,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,issued_by,reissued_from_id,issued_at,activity_id,activities_attended,total_workload_hours,text_color)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      event.id, registrationId, rule.background_id, code, version,
+      participant.attendance_count, participant.name, event.name,
+      event.date_start, event.date_end, actorUserId, reissuedFromId,
+      issuedAt, mainActivityId, totalActivities, participant.total_workload_hours, textColor
+    ).lastInsertRowid;
 }
 
 router.post('/:id/certificates/:registrationId/issue', (req, res) => {

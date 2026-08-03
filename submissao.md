@@ -616,7 +616,7 @@ Observações operacionais:
 - Gestão manual de participantes por evento, com criação de conta ou seleção de conta ativa existente, edição, remoção condicionada e auditoria.
 - Controle administrativo de presença simples por evento, com lançamento manual, remoção e total por participante.
 - Cadastro de atividades internas e lançamento manual de presença por atividade.
-- Certificados de participação com regra de elegibilidade por presença, fundos PNG/JPEG, emissão e reemissão versionadas, geração de PDF e download autenticado pelo participante dentro da janela do evento.
+- Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura, cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
 - Seleção individual das seções incluídas na impressão do relatório em PDF.
 - Download em lote dos PDFs submetidos por evento em arquivo ZIP.
 - Enxugamento técnico: remoção de rotas individuais legadas de perfis, redirecionamentos de login do revisor, fallback duplicado de eventos, dependência direta não utilizada e colunas antigas de revisão em `articles`.
@@ -624,7 +624,6 @@ Observações operacionais:
 ### Parcial ou pendente de validação
 
 - Decisão final administrativa precisa de validação funcional ponta a ponta.
-- A presença por atividade ainda não consolida carga horária por participante nem influencia a elegibilidade de certificados.
 
 ### Fora do escopo atual
 
@@ -635,17 +634,15 @@ Observações operacionais:
 
 ## Riscos e Gaps Conhecidos
 
-1. A elegibilidade atual do certificado considera a presença simples por evento; regras específicas por atividade ainda não estão conectadas à emissão.
-2. O fluxo completo de deliberação final administrativa ainda requer validação integrada.
+1. O fluxo completo de deliberação final administrativa ainda requer validação integrada.
 
 ## Próximos Passos Recomendados
 
 ### Alta prioridade
 
 1. Validar o fluxo completo de evento, submissão, atribuição, parecer e deliberação final administrativa.
-2. Consolidar carga horária e presença por atividade para evoluir a elegibilidade de certificados.
-3. Reforçar validações server-side e client-side nos formulários principais.
-4. Revisar proteção contra CSRF e endurecimento geral de segurança.
+2. Reforçar validações server-side e client-side nos formulários principais.
+3. Revisar proteção contra CSRF e endurecimento geral de segurança.
 
 ### Média prioridade
 
@@ -675,21 +672,21 @@ Observações operacionais:
    Principais lacunas: trilha de auditoria da deliberação final e filtros operacionais mais fortes por trilha e modalidade.
 
 3. `Gerenciar lista de presença nos eventos`
-   Status atual: parcialmente implementado.
+   Status atual: implementado em nível operacional.
    Base existente: `event_registrations`, `attendance_records`, `event_activities` e `activity_attendance_records` permitem lançamentos manuais por evento e por atividade.
-   Principais lacunas: consolidação de carga horária, filtros operacionais e indicadores de frequência.
+   Principais lacunas: filtros operacionais mais fortes e indicadores de frequência detalhados.
 
 4. `Gerenciar e emitir certificados de participação`
    Status atual: implementado em nível operacional.
-   Base existente: regra de presença por evento, biblioteca de fundos, emissão e reemissão versionadas, geração em PDF, download administrativo e área autenticada do participante.
-   Principais lacunas: integrar regras por atividade, verificação pública e refinamentos de auditoria operacional.
+   Base existente: regra de presença por evento, regras por atividade com mínimo de presenças e fundo específico, consolidação de carga horária, emissão e reemissão versionadas, geração em PDF com listagem de atividades, download administrativo e área autenticada do participante.
+   Principais lacunas: verificação pública e refinamentos de auditoria operacional.
 
 ### Leitura executiva
 
 - `Eventos`: pronto para uso, com algumas lacunas administrativas.
 - `Artigos`: pronto para uso, com filtros e download ZIP por evento.
-- `Presença`: implementada por evento e por atividade.
-- `Certificados`: emissão real em PDF, reemissão e download autenticado já disponíveis; faltam evoluções por atividade e verificação pública.
+- `Presença`: implementada por evento e por atividade, com consolidação de carga horária.
+- `Certificados`: emissão real em PDF com listagem de atividades e carga horária, regras por atividade (mínimo de presenças + fundo específico), reemissão e download autenticado já disponíveis; faltam verificação pública.
 
 ### Épicos e execução incremental
 
@@ -764,28 +761,35 @@ Critério de pronto:
 
 Objetivo: evoluir da presença simples por evento para um controle mais preciso.
 
-Estado: parcialmente implementado. Já há cadastro de atividades e lançamento manual de presença por atividade; faltam a consolidação de carga horária, os filtros operacionais e a integração da emissão de certificados por atividade.
+Estado: implementado. O sistema calcula presença e carga horária com base nas atividades reais do evento.
 
 Entrega incremental 3:
 
 - cadastrar atividades internas do evento;
 - vincular presença por atividade;
-- consolidar carga horária por participante.
+- consolidar carga horária por participante;
+- conectar presença por atividade à elegibilidade de certificados;
+- permitir regras de certificado por atividade com mínimo de presenças e fundo específico;
+- incluir listagem de atividades e carga horária no PDF do certificado.
 
 Tarefas técnicas por arquivo:
 
 - `db.js`
-  Adicionar os índices e as consultas de consolidação de carga horária por participante, quando necessários.
+  Adicionar colunas `activities_attended` e `total_workload_hours` em `certificate_emissions` via migration; adicionar helper `getWorkloadSummaryByEvent` para consultas de carga horária.
 - `routes/events.js`
-  Consolidar presença e carga horária por participante e conectar, opcionalmente, as regras de certificado por atividade.
+  Reescrever `getCertificateParticipants` para consultar presenças por atividade e calcular elegibilidade com base em `activity_certificate_rules` (quando disponíveis) ou `attendance_records` (fallback); atualizar `issueCertificate` para popular informações de atividades no registro de emissão; reformular rota `GET /activities` com contagem de presenças; ampliar rota de presença por atividade para carregar regra de certificado e fundos; adicionar nova rota `POST /activities/:id/certificate-rule` para salvar regra de mínimo de presenças + fundo por atividade.
+- `services/certificates.js`
+  Atualizar geração de PDF para incluir linha com "X atividades · Carga horária total: Yh" quando o participante frequentou atividades.
 - `views/admin/events/activities.ejs`
-  Ampliar a gestão de atividades com edição e filtros operacionais.
+  Reescrever com topbar, grid de cards, badges por tipo de atividade, contagem de presenças e link para gerenciar presença.
 - `views/admin/events/activity-attendance.ejs`
-  Exibir totais e filtros por participante e atividade.
+  Reescrever com topbar, stats cards (presentes/ausentes/total), formulário de regra de certificado (mínimo + fundo), lista de participantes com botão presente/ausente.
+- `views/admin/events/certificates.ejs`
+  Reescrever com topbar, colunas de atividades e carga horária, tags das atividades frequentadas pelo participante, badges de elegibilidade.
 
 Critério de pronto:
 
-- o sistema calcula presença e carga horária com base nas atividades reais do evento.
+- admin cadastra atividades, define regras de certificado por atividade, marca presença, verifica elegibilidade consolidada (atividades + carga horária) e emite certificado com informações de atividades no PDF.
 
 #### Épico 4: refinamentos do módulo de artigos
 
@@ -820,25 +824,24 @@ Critério de pronto:
 
 ### Ordem recomendada
 
-1. Épico 3: presença por atividade, dia ou minicurso.
-2. Concluir o histórico de deliberação final administrativa.
-3. Evoluir certificados com regras por atividade e verificação pública, se necessário.
+1. Concluir o histórico de deliberação final administrativa.
+2. Evoluir certificados com verificação pública, se necessário.
+3. Reforçar validações server-side e client-side nos formulários principais.
 4. Financeiro, se entrar no escopo do produto.
 
 ### Backlog técnico priorizado
 
 #### Alta prioridade
 
-1. Presença por atividade e consolidação de carga horária.
-2. Histórico de deliberação final administrativa.
-3. Validação integrada do fluxo de submissão e deliberação.
+1. Histórico de deliberação final administrativa.
+2. Validação integrada do fluxo de submissão e deliberação.
+3. Reforçar validações server-side e client-side nos formulários principais.
 4. Proteções CSRF e endurecimento geral de segurança.
 
 #### Média prioridade
 
-1. Épico 3 completo.
-2. Filtros avançados de artigos.
-3. Auditoria operacional e verificação pública de certificados.
+1. Filtros avançados de artigos.
+2. Auditoria operacional e verificação pública de certificados.
 
 #### Baixa prioridade
 

@@ -225,6 +225,16 @@ db.exec(`
 `);
 
 try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){ console.warn('Migration certificates:',e.message); }
+try {
+  const emissionCols = db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c => c.name);
+  if (!emissionCols.includes('activities_attended')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activities_attended INTEGER DEFAULT 0');
+  if (!emissionCols.includes('total_workload_hours')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN total_workload_hours REAL DEFAULT 0');
+  if (!emissionCols.includes('text_color')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
+} catch(e) { console.warn('Migration emissions text_color:', e.message); }
+try {
+  const ruleCols = db.prepare("PRAGMA table_info(certificate_rules)").all().map(c => c.name);
+  if (!ruleCols.includes('text_color')) db.exec('ALTER TABLE certificate_rules ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
+} catch(e) { console.warn('Migration certificate_rules text_color:', e.message); }
 
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id ON event_registrations(event_id);
@@ -607,5 +617,68 @@ module.exports = {
       WHERE ass.reviewer_id = ?
       ORDER BY a.date_submitted DESC
     `).bind(reviewerUserId).all();
+  },
+
+  getWorkloadSummaryByEvent: (eventId) => {
+    return db.prepare(`
+      SELECT
+        er.id AS registration_id,
+        COUNT(aar.id) AS activities_attended,
+        COALESCE(SUM(ea.workload_hours), 0) AS total_workload_hours
+      FROM event_registrations er
+      LEFT JOIN activity_attendance_records aar
+        ON aar.registration_id = er.id
+        AND aar.activity_id IN (SELECT id FROM event_activities WHERE event_id = ? AND certificate_enabled = 1)
+      LEFT JOIN event_activities ea
+        ON ea.id = aar.activity_id
+      WHERE er.event_id = ?
+      GROUP BY er.id
+      ORDER BY er.name COLLATE NOCASE
+    `).bind(eventId, eventId).all();
+  },
+
+  getActivityAttendanceSummary: (activityId, eventId) => {
+    return db.prepare(`
+      SELECT
+        er.id,
+        er.name,
+        er.email,
+        er.institution,
+        er.registration_type,
+        CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present,
+        COALESCE(SUM(ea.workload_hours) FILTER (WHERE aar.id IS NOT NULL), 0) AS workload
+      FROM event_registrations er
+      LEFT JOIN activity_attendance_records aar
+        ON aar.registration_id = er.id
+        AND aar.activity_id = ?
+      LEFT JOIN event_activities ea
+        ON ea.id = ?
+      WHERE er.event_id = ?
+      GROUP BY er.id
+      ORDER BY er.name COLLATE NOCASE
+    `).bind(activityId, activityId, eventId).all();
+  },
+
+  getActivitiesByEvent: (eventId) => {
+    return db.prepare(`
+      SELECT ea.*,
+        COUNT(aar.id) AS attendees_count,
+        COALESCE(SUM(ea.workload_hours * 1), 0) AS workload_hours
+      FROM event_activities ea
+      LEFT JOIN activity_attendance_records aar
+        ON aar.activity_id = ea.id
+      WHERE ea.event_id = ?
+      GROUP BY ea.id
+      ORDER BY ea.activity_date, ea.name
+    `).bind(eventId).all();
+  },
+
+  getActivityCertificateRules: (activityId) => {
+    return db.prepare(`
+      SELECT acr.*, cb.file_path AS background_path, cb.name AS background_name
+      FROM activity_certificate_rules acr
+      LEFT JOIN certificate_backgrounds cb ON cb.id = acr.background_id
+      WHERE acr.activity_id = ?
+    `).bind(activityId).get();
   }
 };
