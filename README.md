@@ -1,5 +1,9 @@
 # Geomrit-Submissão — Sistema de Gestão de Eventos, Artigos, Presença e Certificados
 
+## Versão atual
+V0.1
+
+
 Aplicação web para gestão de eventos acadêmicos e científicos, com inscrição de participantes, submissão de artigos, revisão por pares, controle de presença e emissão de certificados de participação.
 
 ## Funcionalidades
