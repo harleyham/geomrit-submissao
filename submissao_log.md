@@ -20,6 +20,8 @@ Versão atual registrada: **V0.1**.
 
 - O PDF e a área autenticada de certificados passaram a apresentar a carga horária consolidada em `hora-aula` ou `horas-aula` apenas quando o total das atividades do certificado for maior que zero.
 - Os registros de `certificate_emissions` foram limpos no ambiente de testes, preservando eventos, regras, fundos, atividades, inscrições e presenças para permitir novas emissões.
+- A emissão passou a consolidar a carga horária pelas presenças da pessoa em atividades habilitadas para certificado, independentemente do papel do certificado.
+- O painel `/admin/events/:id/attendance` foi reorganizado como entrada para as chamadas por atividade; a presença geral deixou de ser apresentada como ação de certificação.
 
 ### Consolidação de perfis e atividades por evento
 

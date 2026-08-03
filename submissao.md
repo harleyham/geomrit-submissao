@@ -461,6 +461,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - A presença por atividade é registrada separadamente e permite que o mesmo participante esteja presente em várias atividades do mesmo evento.
 - A presença simples por evento é identificada por pessoa (`user_id`) e não somente por inscrição: inclui participantes, revisores atribuídos, palestrantes, professores e apresentadores vinculados ao evento, sem duplicar a pessoa que acumula papéis.
 - Cada atividade representa uma parte do evento e informa os perfis elegíveis e o perfil de certificado que habilita. A presença é lançada por pessoa dentro de cada atividade.
+- A rota administrativa `/admin/events/:id/attendance` é o painel de chamadas: ela lista as atividades e direciona para a marcação de presença de cada uma. A presença geral não é usada para calcular carga horária nem elegibilidade de certificados.
 
 ### Autenticação e senha
 
@@ -530,7 +531,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/admin/events` | Gestão de eventos |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
-| `/admin/events/:id/attendance` | Controle de presença simples do evento |
+| `/admin/events/:id/attendance` | Painel de chamadas por atividade do evento |
 | `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
 | `/admin/events/:id/activities/:activityId/attendance` | Controle de presença da atividade |
 | `/admin/events/:id/certificates` | Regras, fundos, emissão e reemissão de certificados |
@@ -631,8 +632,8 @@ Observações operacionais:
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 - Navegação cruzada entre área do participante, painel do revisor e dashboard administrativo para usuários com múltiplos perfis.
 - Gestão manual de participantes por evento, com criação de conta ou seleção de conta ativa existente, edição, remoção condicionada e auditoria.
-- Controle administrativo de presença simples por evento, com lançamento manual, remoção e total por participante.
-- Cadastro de atividades internas e lançamento manual de presença por atividade.
+- Painel administrativo de presença organizado por atividade, com acesso direto à chamada de cada parte do evento.
+- Cadastro de atividades internas e lançamento manual de presença por atividade; são essas presenças que compõem a carga horária do certificado.
 - Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura, cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
 - Certificados distintos por papel no evento: Participante, Revisor, Palestrante, Professor, Apresentador Oral e Apresentador Pôster, cada um com fundo, cor, título, texto, elegibilidade, emissão e reemissão próprios. A prévia dinâmica usa o fundo e a cor atualmente selecionados no formulário, sem exigir salvamento prévio.
 - O PDF informa a carga horária consolidada em `hora-aula` ou `horas-aula` somente quando as atividades vinculadas ao certificado totalizam valor maior que zero.

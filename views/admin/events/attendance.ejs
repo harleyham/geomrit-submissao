@@ -1,1 +1,64 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title><%=title%></title><style>body{font-family:Arial;background:#0a0f1a;color:#e2e8f0;margin:0}.top,main{padding:22px 6%}.top{background:#0f172a}.top a,a{color:#93c5fd;margin-right:14px}.card{background:#1e293b;border-radius:10px;padding:18px;margin:16px 0}.activities{display:flex;gap:10px;flex-wrap:wrap}.activity{display:block;padding:12px;border:1px solid #475569;border-radius:8px;text-decoration:none;color:#e2e8f0}table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #334155;text-align:left}button,input{padding:8px;background:#0f172a;color:#fff;border:1px solid #475569}button{background:#2563eb}.ok{color:#86efac}.no{color:#cbd5e1}</style></head><body><header class="top"><a href="/admin/dashboard">Dashboard</a><a href="/admin/events">Eventos</a><a href="/admin/events/<%=event.id%>/activities">Atividades</a></header><main><h1>Controle de presença — <%=event.name%></h1><section class="card"><h2>Presença por parte do evento</h2><p>Selecione uma atividade para marcar presença e calcular a elegibilidade do certificado correspondente.</p><div class="activities"><% if(!activities.length){%><span>Nenhuma atividade cadastrada.</span><%}%><%activities.forEach(a=>{%><a class="activity" href="/admin/events/<%=event.id%>/activities/<%=a.id%>/attendance"><strong><%=a.name%></strong><br><small><%=a.activity_date||'Data a definir'%> · <%=a.workload_hours%>h<br>Perfis: <%=a.eligible_roles%></small></a><%})%></div></section><section class="card"><h2>Resumo geral</h2><p><strong><%=summary.registered%></strong> pessoas vinculadas · <strong><%=summary.present%></strong> presentes · <strong><%=summary.absent%></strong> sem presença</p></section><section class="card"><h2>Presença geral do evento</h2><table><tr><th>Pessoa</th><th>Perfis</th><th>Situação</th><th></th></tr><%participants.forEach(p=>{%><tr><td><strong><%=p.name%></strong><br><small><%=p.email%></small></td><td><%=p.roles%></td><td class="<%=p.attendance_total?'ok':'no'%>"><%=p.attendance_total?'Presente':'Ausente'%></td><td><form method="post" action="/admin/events/<%=event.id%>/attendance/<%=p.user_id%>"><button name="action" value="<%=p.attendance_total?'mark_absent':'mark_present'%>"><%=p.attendance_total?'Remover':'Marcar presente'%></button></form></td></tr><%})%></table></section></main></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %></title>
+  <style>
+    *{box-sizing:border-box} body{font-family:Arial,sans-serif;background:#0a0f1a;color:#e2e8f0;margin:0}
+    .top{background:#0f172a;padding:14px 6%;display:flex;gap:16px;align-items:center}.top a{color:#93c5fd;text-decoration:none}
+    main{max-width:1180px;margin:auto;padding:32px 6%}.hint{color:#94a3b8;line-height:1.5}.card{background:#172033;border:1px solid #334155;border-radius:12px;padding:22px;margin:18px 0}
+    .activities{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px}.activity{display:flex;min-height:180px;flex-direction:column;justify-content:space-between;padding:18px;border:1px solid #475569;border-radius:10px;background:#111827}
+    .activity h3{margin:0 0 10px}.meta{color:#cbd5e1;font-size:14px;line-height:1.6}.btn{display:inline-block;text-align:center;background:#2563eb;color:white;text-decoration:none;border-radius:7px;padding:10px 12px;margin-top:16px}.empty{padding:18px;border:1px dashed #475569;border-radius:8px;color:#94a3b8}
+    .summary{display:flex;gap:12px;flex-wrap:wrap}.stat{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px 16px;min-width:150px}.stat strong{display:block;font-size:22px;color:#bfdbfe}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <a href="/admin/dashboard">Dashboard</a>
+    <a href="/admin/events">Eventos</a>
+    <a href="/admin/events/<%= event.id %>/activities">Atividades</a>
+    <a href="/admin/events/<%= event.id %>/participants">Participantes</a>
+  </header>
+  <main>
+    <p><a href="/admin/events/<%= event.id %>">← Voltar ao evento</a></p>
+    <h1>Controle de presença — <%= event.name %></h1>
+    <p class="hint">A presença é registrada separadamente em cada parte do evento. Essa informação é usada para calcular a elegibilidade e a carga horária do certificado.</p>
+
+    <% if (success) { %><section class="card"><%= success %></section><% } %>
+    <% if (error) { %><section class="card"><%= error %></section><% } %>
+
+    <section class="card">
+      <h2>Marcar presença por atividade</h2>
+      <p class="hint">Escolha uma atividade para abrir a chamada e marcar ou remover a presença de cada pessoa elegível.</p>
+      <div class="activities">
+        <% if (!activities.length) { %>
+          <div class="empty">Ainda não há atividades cadastradas. <a href="/admin/events/<%= event.id %>/activities">Cadastrar atividade</a></div>
+        <% } %>
+        <% activities.forEach((activity) => { %>
+          <article class="activity">
+            <div>
+              <h3><%= activity.name %></h3>
+              <div class="meta">
+                <div><%= activity.activity_date || 'Data a definir' %></div>
+                <div><%= Number(activity.workload_hours) > 0 ? `${activity.workload_hours} hora(s)-aula` : 'Sem carga horária' %></div>
+                <div>Perfis: <%= activity.eligible_roles || 'participant' %></div>
+              </div>
+            </div>
+            <a class="btn" href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Fazer chamada desta atividade</a>
+          </article>
+        <% }) %>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Resumo do evento</h2>
+      <div class="summary">
+        <div class="stat"><strong><%= summary.registered %></strong>Pessoas vinculadas</div>
+        <div class="stat"><strong><%= activities.length %></strong>Atividades cadastradas</div>
+      </div>
+      <p class="hint">O lançamento de presença geral não é usado nesta tela. Faça a chamada em cada atividade para que o certificado reflita corretamente a participação e a carga horária.</p>
+    </section>
+  </main>
+</body>
+</html>

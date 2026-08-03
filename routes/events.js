@@ -846,7 +846,7 @@ router.get('/:id/activities', (req, res) => {
     event, activities
   });
 });
-router.post('/:id/activities',(req,res)=>{const event=db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);if(!event)return res.status(404).render('error',{title:'Evento não encontrado'});const name=String(req.body.name||'').trim();if(!name)return res.redirect(`/admin/events/${event.id}/activities`);const roles=Array.isArray(req.body.eligible_roles)?req.body.eligible_roles:[req.body.eligible_roles];const eligibleRoles=roles.filter(Boolean).join(',')||'participant,reviewer,speaker,teacher,oral_presenter,poster_presenter';db.prepare("INSERT INTO event_activities(event_id,name,activity_type,activity_date,workload_hours,certificate_enabled,eligible_roles,certificate_role) VALUES(?,?,?,?,?,?,?,?)").run(event.id,name,String(req.body.activity_type||'other'),req.body.activity_date||null,Number(req.body.workload_hours)||0,req.body.certificate_enabled?1:0,eligibleRoles,String(req.body.certificate_role||'participant'));res.redirect(`/admin/events/${event.id}/activities`);});
+router.post('/:id/activities',(req,res)=>{const event=db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);if(!event)return res.status(404).render('error',{title:'Evento não encontrado'});const name=String(req.body.name||'').trim();if(!name)return res.redirect(`/admin/events/${event.id}/activities`);const roles=Array.isArray(req.body.eligible_roles)?req.body.eligible_roles:[req.body.eligible_roles];const eligibleRoles=roles.filter(Boolean).join(',')||'participant,reviewer,speaker,teacher,oral_presenter,poster_presenter';const certificateEnabled=req.body.certificate_enabled==='0'?0:1;db.prepare("INSERT INTO event_activities(event_id,name,activity_type,activity_date,workload_hours,certificate_enabled,eligible_roles,certificate_role) VALUES(?,?,?,?,?,?,?,?)").run(event.id,name,String(req.body.activity_type||'other'),req.body.activity_date||null,Number(req.body.workload_hours)||0,certificateEnabled,eligibleRoles,String(req.body.certificate_role||'participant'));res.redirect(`/admin/events/${event.id}/activities`);});
 router.get('/:id/activities/:activityId/attendance', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -928,13 +928,14 @@ function issueCertificate(event, role, userId, actorUserId, reissuedFromId = nul
     SELECT ea.id, ea.name, ea.activity_type, ea.workload_hours
     FROM activity_attendance_records aar
     JOIN event_activities ea ON ea.id = aar.activity_id
-    WHERE aar.registration_id = ?
+    WHERE aar.user_id = ?
       AND ea.event_id = ?
       AND ea.certificate_enabled = 1
     ORDER BY ea.activity_date, ea.name
-  `).bind(participant.registration_id || -1, event.id).all();
+  `).bind(userId, event.id).all();
 
-  const totalActivities = participant.activities_attended || attendedActivities.length;
+  const totalActivities = attendedActivities.length;
+  const totalWorkloadHours = attendedActivities.reduce((total, activity) => total + (Number(activity.workload_hours) || 0), 0);
   const mainActivityId = attendedActivities.length > 0 ? attendedActivities[0].id : null;
   const textColor = participant.text_color || rule.text_color || '#0f172a';
 
@@ -946,7 +947,7 @@ function issueCertificate(event, role, userId, actorUserId, reissuedFromId = nul
       event.id, participant.registration_id || null, userId, role, rule.background_id, code, version,
       participant.attendance_count, participant.name, event.name,
       event.date_start, event.date_end, actorUserId, reissuedFromId,
-      issuedAt, mainActivityId, totalActivities, participant.total_workload_hours, textColor,
+      issuedAt, mainActivityId, totalActivities, totalWorkloadHours, textColor,
       certificateText(rule.title || certificateRoleMeta(role).title, event.name), certificateText(rule.body_text || certificateRoleMeta(role).body, event.name)
     ).lastInsertRowid;
 }
