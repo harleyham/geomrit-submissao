@@ -460,7 +460,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - O evento também pode conter atividades internas, como palestras, seminários, mesas-redondas e minicursos, com carga horária e presença próprias.
 - A presença por atividade é registrada separadamente e permite que o mesmo participante esteja presente em várias atividades do mesmo evento.
 - A presença simples por evento é identificada por pessoa (`user_id`) e não somente por inscrição: inclui participantes, revisores atribuídos, palestrantes, professores e apresentadores vinculados ao evento, sem duplicar a pessoa que acumula papéis.
-- Cada atividade representa uma parte do evento e informa os perfis elegíveis e o perfil de certificado que habilita. A presença é lançada por pessoa dentro de cada atividade.
+- Cada atividade representa uma parte do evento e informa os perfis elegíveis e o perfil de certificado que habilita. A presença é lançada por pessoa dentro de cada atividade, com papel específico vinculado (participante, professor, palestrante, apresentador oral, apresentador pôster), propagado automaticamente para `event_user_roles`.
 - A rota administrativa `/admin/events/:id/attendance` é o painel de chamadas: ela lista as atividades e direciona para a marcação de presença de cada uma. A presença geral não é usada para calcular carga horária nem elegibilidade de certificados.
 
 ### Autenticação e senha
@@ -644,6 +644,9 @@ Observações operacionais:
 - Exibição do status do subsídio na página do participante (`/author`): coluna condicional "Subsídio" com badge colorido indicando `Pendente`, `Aprovado` ou `Rejeitado` na tabela de participações, aparecendo apenas quando o usuário possui solicitações de subsídio vinculadas.
 - Topbar unificada na página de certificados de participante (`/evento/:id/certificates`): exibe o e-mail da conta logada e o botão "Sair" em vermelho, seguindo o mesmo padrão das demais páginas públicas autenticadas.
 - Correção de renderização na visualização administrativa da área do participante (`/admin/users/:id/participant`): prop `showSubsidyStatus` agora é passada ao template, eliminando erro de renderização EJS.
+- Vinculação de papéis por atividade no controle de presença: dropdown para selecionar o papel de cada pessoa em cada atividade (participante, professor, palestrante, apresentador oral, apresentador pôster) na página `/admin/events/:id/activities/:activityId/attendance`, com propagação automática do papel selecionado para `event_user_roles`.
+- Reescrita da página de presença por atividade com layout topbar/Inter, stats cards (presentes/ausentes/total), tabela com perfis no evento e role na atividade, e validação server-side dos papéis aceitos.
+- Correção de coluna ambígua na query de presença por atividade: alias `person_user_id` eliminou erro "ambiguous column name: user_id" causado pela junção de `event_registrations`, `event_user_roles` e `activity_attendance_records`.
 
 ### Parcial ou pendente de validação
 
@@ -790,7 +793,7 @@ Estado: implementado. O sistema calcula presença e carga horária com base nas 
 Entrega incremental 3:
 
 - cadastrar atividades internas do evento;
-- vincular presença por atividade;
+- vincular presença por atividade com papel específico (participante, professor, palestrante, apresentador oral/pôster), propagado automaticamente para `event_user_roles`;
 - consolidar carga horária por participante;
 - conectar presença por atividade à elegibilidade de certificados;
 - permitir regras de certificado por atividade com mínimo de presenças e fundo específico;

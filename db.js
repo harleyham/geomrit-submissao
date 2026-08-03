@@ -343,6 +343,41 @@ try {
   db.exec('UPDATE activity_attendance_records SET user_id=(SELECT user_id FROM event_registrations er WHERE er.id=activity_attendance_records.registration_id) WHERE user_id IS NULL');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_user ON activity_attendance_records(activity_id,user_id) WHERE user_id IS NOT NULL');
 } catch (e) { console.warn('Migration activity attendance by user:', e.message); }
+try {
+  const aaColumns = db.prepare('PRAGMA table_info(activity_attendance_records)').all().map((c) => c.name);
+  if (!aaColumns.includes('role')) {
+    db.exec("ALTER TABLE activity_attendance_records ADD COLUMN role TEXT DEFAULT 'participant'");
+    db.prepare("UPDATE activity_attendance_records SET role = 'participant' WHERE role IS NULL").run();
+  }
+} catch (e) { console.warn('Migration activity attendance role:', e.message); }
+try {
+  // Torna registration_id opcional para atividades sem inscrição (ex: palestrante sem registro)
+  const aaCols = db.prepare('PRAGMA table_info(activity_attendance_records)').all();
+  const regCol = aaCols.find((c) => c.name === 'registration_id');
+  if (regCol && regCol.notnull) {
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`CREATE TABLE activity_attendance_records_backup AS SELECT * FROM activity_attendance_records`);
+      db.exec(`DROP TABLE activity_attendance_records`);
+      db.exec(`CREATE TABLE activity_attendance_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        activity_id INTEGER NOT NULL,
+        registration_id INTEGER,
+        marked_by INTEGER,
+        attended_at DATETIME DEFAULT (datetime('now','-3 hours')),
+        user_id INTEGER,
+        role TEXT DEFAULT 'participant',
+        UNIQUE(activity_id,registration_id),
+        FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+        FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE SET NULL
+      )`);
+      db.exec(`INSERT INTO activity_attendance_records(id, activity_id, registration_id, marked_by, attended_at, user_id, role)
+        SELECT id, activity_id, registration_id, marked_by, attended_at, user_id, role FROM activity_attendance_records_backup`);
+      db.exec(`DROP TABLE activity_attendance_records_backup`);
+    })();
+    db.pragma('foreign_keys = ON');
+  }
+} catch (e) { console.warn('Migration activity attendance registration optional:', e.message); }
 
 // A emissão antiga era limitada a uma inscrição por versão. A nova estrutura
 // permite diversos certificados para a mesma pessoa no mesmo evento, um por papel.

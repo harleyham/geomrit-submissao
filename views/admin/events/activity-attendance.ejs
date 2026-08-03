@@ -1,1 +1,205 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title><%=title%></title><style>body{font-family:Arial;background:#0a0f1a;color:#e2e8f0;padding:30px}.card{background:#1e293b;padding:20px;border-radius:10px;margin:15px 0}table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #334155;text-align:left}button,input,select{padding:8px;background:#0f172a;color:#fff;border:1px solid #475569}button{background:#2563eb}.present{color:#86efac}.absent{color:#cbd5e1}a{color:#93c5fd}</style></head><body><a href="/admin/events/<%=event.id%>/activities">← Atividades</a><h1>Presença — <%=activity.name%></h1><p><%=activity.workload_hours%>h · Perfis elegíveis: <%=activity.eligible_roles||'participant'%></p><section class="card"><h2>Regra de certificado desta atividade</h2><form method="post" action="/admin/events/<%=event.id%>/activities/<%=activity.id%>/certificate-rule"><input name="min_attendance" type="number" min="1" value="<%=(activityRule&&activityRule.min_attendance)||1%>"><select name="background_id"><option value="">Fundo do evento</option><% backgrounds.forEach(b=>{%><option value="<%=b.id%>" <%=activityRule&&Number(activityRule.background_id)===Number(b.id)?'selected':''%>><%=b.name%></option><%})%></select><button>Salvar regra</button></form></section><section class="card"><h2>Pessoas elegíveis</h2><table><tr><th>Pessoa</th><th>Perfis no evento</th><th>Presença</th><th></th></tr><%participants.forEach(p=>{%><tr><td><strong><%=p.name%></strong><br><small><%=p.email%></small></td><td><%=p.roles||'Participante'%></td><td class="<%=p.present?'present':'absent'%>"><%=p.present?'Presente':'Ausente'%></td><td><form method="post" action="/admin/events/<%=event.id%>/activities/<%=activity.id%>/attendance/<%=p.user_id%>"><button name="action" value="<%=p.present?'absent':'present'%>"><%=p.present?'Remover':'Marcar presente'%></button></form></td></tr><%})%></table></section></body></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1440px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 1440px; margin: 0 auto; padding: 2rem; }
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f8fafc; }
+    .page-header p { color: #94a3b8; margin-top: 0.4rem; font-size: 0.9rem; }
+    .header-back { color: #93c5fd; text-decoration: none; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 0.4rem; margin-bottom: 0.75rem; }
+    .header-back:hover { color: #bfdbfe; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 1.2rem; }
+    .stat-value { font-size: 1.85rem; font-weight: 700; color: #f8fafc; }
+    .stat-label { color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.74rem; margin-top: 0.25rem; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
+    .section-header { padding: 1.2rem 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .section-header h2 { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+    .section-body { padding: 1.5rem; }
+    .alert { margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 10px; font-size: 0.9rem; }
+    .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.22); color: #86efac; }
+    .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.24); color: #fca5a5; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.85rem 1rem; font-size: 0.76rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; border-bottom: 1px solid rgba(148,163,184,0.15); }
+    td { padding: 0.85rem 1rem; border-bottom: 1px solid rgba(148,163,184,0.07); vertical-align: middle; font-size: 0.9rem; }
+    tr:last-child td { border-bottom: none; }
+    input, select, button { padding: 0.5rem 0.75rem; background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; font-size: 0.875rem; font-family: 'Inter', sans-serif; }
+    input:focus, select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.15); }
+    button { cursor: pointer; font-weight: 500; transition: all 0.15s ease; }
+    .btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-success { background: #16a34a; border-color: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-ghost { background: transparent; border-color: #334155; color: #94a3b8; }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+    .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-present { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.25); }
+    .badge-absent { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.25); }
+    .badge-role { background: rgba(96,165,250,0.15); color: #93c5fd; border: 1px solid rgba(96,165,250,0.25); }
+    .badge-role-teacher { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.25); }
+    .badge-role-speaker { background: rgba(251,146,60,0.15); color: #fdba74; border: 1px solid rgba(251,146,60,0.25); }
+    .badge-role-oral { background: rgba(56,189,248,0.15); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.25); }
+    .badge-role-poster { background: rgba(192,132,252,0.15); color: #d8b4fe; border: 1px solid rgba(192,132,252,0.25); }
+    .form-inline { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .form-inline input[type="number"] { width: 90px; }
+    .person-name { font-weight: 600; color: #f1f5f9; }
+    .person-email { color: #64748b; font-size: 0.8rem; margin-top: 0.15rem; }
+    .roles-tags { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .empty-state { text-align: center; padding: 2rem; color: #64748b; }
+    @media (max-width: 768px) {
+      .main-content { padding: 1rem; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .section-body { padding: 1rem; overflow-x: auto; }
+      table { min-width: 700px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <nav class="topbar-nav">
+        <a href="/admin/dashboard" class="logo"><span class="logo-icon">◆</span> Geomrit</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/events/<%= event.id %>/activities">Atividades</a>
+        <a href="/admin/events/<%= event.id %>/participants" class="active">Presença</a>
+      </nav>
+      <div>
+        <% if (userEmail) { %>
+          <span style="color:#64748b;font-size:0.85rem;margin-right:0.75rem"><%= userEmail %></span>
+          <form method="post" action="/admin/logout" style="display:inline"><button type="submit" class="btn-ghost btn-sm">Sair</button></form>
+        <% } %>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <a href="/admin/events/<%= event.id %>/activities" class="header-back">← Voltar às atividades</a>
+
+    <div class="page-header">
+      <div>
+        <h1>Presença — <%= activity.name %></h1>
+        <p><%= activity.workload_hours || 0 %>h carga horária · Perfis elegíveis: <%= activity.eligible_roles || 'participant' %></p>
+      </div>
+    </div>
+
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value"><%= participants.filter(p => p.present).length %></div>
+        <div class="stat-label">Presentes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value"><%= participants.filter(p => !p.present).length %></div>
+        <div class="stat-label">Ausentes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value"><%= participants.length %></div>
+        <div class="stat-label">Total elegível</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>Regra de certificado desta atividade</h2>
+      </div>
+      <div class="section-body">
+        <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/certificate-rule" class="form-inline">
+          <input name="min_attendance" type="number" min="1" value="<%=(activityRule && activityRule.min_attendance) || 1%>" placeholder="Mín. presenças">
+          <select name="background_id">
+            <option value="">Fundo do evento</option>
+            <% backgrounds.forEach(b => { %>
+              <option value="<%= b.id %>" <%= (activityRule && Number(activityRule.background_id) === Number(b.id)) ? 'selected' : '' %>><%= b.name %></option>
+            <% }) %>
+          </select>
+          <button type="submit" class="btn-primary">Salvar regra</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>Vincular participantes e papéis</h2>
+      </div>
+      <div class="section-body" style="padding:0">
+        <% if (participants.length === 0) { %>
+          <div class="empty-state">Nenhuma pessoa elegível encontrada para esta atividade.</div>
+        <% } else { %>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:35%">Pessoa</th>
+                <th style="width:25%">Perfis no evento</th>
+                <th style="width:25%">Role na atividade</th>
+                <th style="width:15%">Presença</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% participants.forEach(p => { %>
+                <tr>
+                  <td>
+                    <div class="person-name"><%= p.name %></div>
+                    <div class="person-email"><%= p.email %></div>
+                  </td>
+                  <td>
+                    <div class="roles-tags">
+                      <% String(p.roles || '').split(',').forEach(r => {
+                        const role = r.trim();
+                        if (!role) return;
+                        let cls = 'badge-role';
+                        if (role === 'teacher') cls = 'badge-role-teacher';
+                        else if (role === 'speaker') cls = 'badge-role-speaker';
+                        else if (role === 'oral_presenter') cls = 'badge-role-oral';
+                        else if (role === 'poster_presenter') cls = 'badge-role-poster';
+                        else if (role === 'participant') cls = 'badge-role';
+                        const labels = {participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresent. Oral',poster_presenter:'Apresent. Pôster'};
+                      %><span class="badge <%= cls %>"><%= labels[role] || role %></span>
+                      <% }); %>
+                    </div>
+                  </td>
+                  <td>
+                    <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance/<%= p.user_id %>">
+                      <select name="role" onchange="this.form.requestSubmit()" style="min-width:170px">
+                        <option value="">— selecionar —</option>
+                        <option value="participant" <%= p.activity_role === 'participant' ? 'selected' : '' %>>Participante</option>
+                        <option value="teacher" <%= p.activity_role === 'teacher' ? 'selected' : '' %>>Professor</option>
+                        <option value="speaker" <%= p.activity_role === 'speaker' ? 'selected' : '' %>>Palestrante</option>
+                        <option value="oral_presenter" <%= p.activity_role === 'oral_presenter' ? 'selected' : '' %>>Apresentador Oral</option>
+                        <option value="poster_presenter" <%= p.activity_role === 'poster_presenter' ? 'selected' : '' %>>Apresentador Pôster</option>
+                      </select>
+                    </form>
+                  </td>
+                  <td>
+                    <% if (p.present && p.activity_role) { %>
+                      <span class="badge badge-present">Presente</span>
+                    <% } else { %>
+                      <span class="badge badge-absent">—</span>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

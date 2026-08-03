@@ -854,12 +854,14 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const allowedRoles = String(activity.eligible_roles || 'participant').split(',').map((role) => role.trim());
   const people = db.prepare(`WITH event_people AS (
-      SELECT er.user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role FROM event_registrations er WHERE er.event_id=? AND er.user_id IS NOT NULL
-      UNION ALL SELECT eur.user_id,u.name,u.email,u.institution,NULL,eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
-    ) SELECT user_id,MAX(name) AS name,MAX(email) AS email,MAX(institution) AS institution,MAX(registration_id) AS registration_id,GROUP_CONCAT(DISTINCT role) AS roles,
-      CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present FROM event_people ep
-    LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.user_id
-    GROUP BY ep.user_id ORDER BY name COLLATE NOCASE`).all(activity.event_id, activity.event_id, activity.id)
+      SELECT er.user_id AS person_user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role FROM event_registrations er WHERE er.event_id=? AND er.user_id IS NOT NULL
+      UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
+    ) SELECT ep.person_user_id AS user_id, MAX(ep.name) AS name, MAX(ep.email) AS email, MAX(ep.institution) AS institution, MAX(ep.registration_id) AS registration_id, GROUP_CONCAT(DISTINCT ep.role) AS roles,
+      CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present,
+      COALESCE(aar.role, '') AS activity_role
+    FROM event_people ep
+    LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id
+    GROUP BY ep.person_user_id ORDER BY name COLLATE NOCASE`).all(activity.event_id, activity.event_id, activity.id)
     .filter((person) => String(person.roles).split(',').some((role) => allowedRoles.includes(role)));
   const activityRule = db.prepare('SELECT acr.*, cb.file_path AS background_path, cb.name AS background_name FROM activity_certificate_rules acr LEFT JOIN certificate_backgrounds cb ON cb.id = acr.background_id WHERE acr.activity_id = ?').get(activity.id);
   const backgrounds = db.prepare('SELECT * FROM certificate_backgrounds ORDER BY created_at DESC').all();
@@ -870,7 +872,33 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
     error: req.query.error || null
   });
 });
-router.post('/:id/activities/:activityId/attendance/:userId',(req,res)=>{const activity=db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId,req.params.id);if(!activity)return res.status(404).render('error',{title:'Atividade não encontrada'});const registration=db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id,req.params.userId);if(req.body.action==='absent')db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=?').run(activity.id,req.params.userId);else {const existing=db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=?').get(activity.id,req.params.userId);if(existing)db.prepare("UPDATE activity_attendance_records SET marked_by=?,attended_at=datetime('now','-3 hours') WHERE id=?").run(req.session.userId,existing.id);else db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,marked_by) VALUES(?,?,?,?)').run(activity.id,registration&&registration.id||null,req.params.userId,req.session.userId);}res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);});
+router.post('/:id/activities/:activityId/attendance/:userId', (req, res) => {
+  const activity = db.prepare('SELECT id, event_id FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const userId = Number(req.params.userId);
+  const role = String(req.body.role || 'participant').trim();
+  const validRoles = ['participant', 'teacher', 'speaker', 'oral_presenter', 'poster_presenter'];
+  const finalRole = validRoles.includes(role) ? role : 'participant';
+
+  if (req.body.action === 'absent' || !finalRole) {
+    db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=?').run(activity.id, userId);
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);
+  }
+
+  const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
+
+  const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=?').get(activity.id, userId);
+  if (existing) {
+    db.prepare("UPDATE activity_attendance_records SET role=?,marked_by=?,attended_at=datetime('now','-3 hours') WHERE id=?").run(finalRole, req.session.userId, existing.id);
+  } else {
+    db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by) VALUES(?,?,?,?,?)').run(activity.id, registration && registration.id || null, userId, finalRole, req.session.userId);
+  }
+
+  db.prepare(`INSERT INTO event_user_roles(event_id,user_id,role,assigned_by) VALUES(?,?,?,?)
+    ON CONFLICT(event_id,user_id,role) DO UPDATE SET assigned_by=excluded.assigned_by,updated_at=datetime('now','-3 hours')`).run(activity.event_id, userId, finalRole, req.session.userId);
+
+  res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);
+});
 
 router.post('/:id/activities/:activityId/certificate-rule', (req, res) => {
   const activity = db.prepare('SELECT id, event_id FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);

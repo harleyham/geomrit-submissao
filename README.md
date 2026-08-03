@@ -14,6 +14,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 - **Participantes e papéis**: conta única por pessoa, com papéis independentes por evento (administrador, participante, revisor, palestrante, professor e apresentador)
 - **Presença**: atividades/partes configuráveis do evento, com perfis elegíveis, certificado relacionado e registro manual por pessoa em cada atividade
 - **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo, texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável e reemissão versionados
+- **Vínculo de papéis por atividade**: seleção do papel que cada pessoa exerce em cada atividade (participante, professor, palestrante, apresentador oral/pôster) diretamente no controle de presença, com propagação automática para `event_user_roles`
 
 ## Stack
 

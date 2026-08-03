@@ -29,6 +29,15 @@ Versão atual registrada: **V0.1**.
 - Cadastro de atividades reformulado para representar partes do evento, com seleção de perfis elegíveis e do perfil de certificado que cada atividade habilita.
 - Controle de presença por atividade ajustado para marcar pessoas elegíveis, independentemente de possuírem apenas inscrição ou outro papel no evento.
 
+### Vinculação de papéis por atividade no controle de presença
+
+- Adição da coluna `role` (TEXT DEFAULT 'participant') em `activity_attendance_records` para registrar o papel específico que cada pessoa exerce em cada atividade.
+- Rota `POST /admin/events/:id/activities/:activityId/attendance/:userId` atualizada para aceitar `role` do formulário; ao selecionar um papel, o registro de presença é atualizado e o papel é propagado automaticamente para `event_user_roles` via `INSERT OR REPLACE`.
+- Selecionar papel vazio ("— selecionar —") remove o registro de presença e o papel vinculado àquela atividade.
+- Rota `GET /admin/events/:id/activities/:activityId/attendance` ajustada para retornar `activity_role` de cada pessoa, com query corrigida para eliminar erro "ambiguous column name: user_id" causado pela junção de `event_registrations`, `event_user_roles` e `activity_attendance_records` (alias `person_user_id`).
+- View `views/admin/events/activity-attendance.ejs` reescrita com layout topbar/Inter, stats cards (presentes/ausentes/total), tabela com colunas de pessoa, perfis no evento (badges), role na atividade (dropdown com seleção automática via `onchange`) e status de presença.
+- Papéis aceitos no dropdown: participante, professor, palestrante, apresentador oral e apresentador pôster.
+
 ---
 
 ### Certificados por papel no evento
@@ -311,3 +320,8 @@ Versão atual registrada: **V0.1**.
 - Ainda falta implementar um fluxo administrativo dedicado para gestão manual de participantes inscritos em eventos.
 - Ainda pode ser útil expor na interface pública o status detalhado da inscrição no evento para o participante.
 - Há rotas e estruturas legadas no projeto que ainda precisam ser enxugadas.
+
+### Minhas observações
+- Testando o link enre atividades e usuários
+- Testando a efetivação de presença entre diferentes atividades
+- Testando a emissão de Certificados, quando o usuário tem a presença
