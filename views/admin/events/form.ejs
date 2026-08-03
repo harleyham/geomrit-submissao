@@ -76,10 +76,6 @@
     <% } %>
 
     <form method="POST" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>">
-      <% if (event) { %>
-        <input type="hidden" name="_method" value="PUT">
-      <% } %>
-
       <div class="section">
         <% if (error) { %>
           <div class="alert alert-error"><%= error %></div>

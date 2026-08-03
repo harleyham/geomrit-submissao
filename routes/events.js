@@ -353,9 +353,10 @@ router.get('/:id/edit', (req, res) => {
   renderEventForm(res, { event, title: 'Editar Evento' });
 });
 
-// Atualizar evento (via PUT from method-override or fetch API)
-router.put('/:id', (req, res) => {
+// Atualizar evento (POST direto)
+router.post('/:id', (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
+  const normalizedStatus = status || 'draft';
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
@@ -411,7 +412,7 @@ router.put('/:id', (req, res) => {
   db.prepare(`
     UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.params.id).run();
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.params.id).run();
   res.redirect('/admin/events');
 });
 
