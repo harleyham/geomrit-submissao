@@ -857,18 +857,6 @@ router.get('/evento/:id', (req, res) => {
 router.get('/evento/:id/certificates', requireNonAdminAuthorAccess, (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const registration = db.prepare(`
-    SELECT id, registration_type
-    FROM event_registrations
-    WHERE event_id = ?
-      AND (
-        user_id = ?
-        OR LOWER(TRIM(email)) = LOWER(TRIM(?))
-      )
-    ORDER BY id
-    LIMIT 1
-  `).get(req.params.id, req.session.userId, req.session.userEmail || '');
-  if (!registration) return res.status(404).render('error', { title: 'Certificados indisponíveis', message: 'Você não possui inscrição neste evento.' });
   const certificatesWindow = getCertificatesWindow(event);
   if (!certificatesWindow.isOpen) {
     return res.render('public/event-certificates', {
@@ -883,14 +871,13 @@ router.get('/evento/:id/certificates', requireNonAdminAuthorAccess, (req, res) =
   const certificates = db.prepare(`
     SELECT ce.*, e.certificates_start, e.certificates_end, cb.file_path AS background_path
     FROM certificate_emissions ce
-    JOIN event_registrations er ON er.id = ce.registration_id
     JOIN events e ON e.id = ce.event_id
     LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
     WHERE ce.status = 'issued'
       AND ce.event_id = ?
-      AND (er.user_id = ? OR LOWER(TRIM(er.email)) = LOWER(TRIM(?)))
+      AND (ce.user_id = ? OR EXISTS (SELECT 1 FROM event_registrations er WHERE er.id=ce.registration_id AND (er.user_id = ? OR LOWER(TRIM(er.email)) = LOWER(TRIM(?)))))
     ORDER BY ce.issued_at DESC
-  `).all(req.params.id, req.session.userId, req.session.userEmail || '').map((certificate) => ({ ...certificate, window: getCertificatesWindow(certificate) }));
+  `).all(req.params.id, req.session.userId, req.session.userId, req.session.userEmail || '').map((certificate) => ({ ...certificate, window: getCertificatesWindow(certificate) }));
   res.render('public/event-certificates', {
     title: `Certificados - ${event.name}`,
     event,
@@ -1109,8 +1096,9 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_pdf_path : '',
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
   );
+  db.prepare("UPDATE users SET is_participant=1, updated_at=datetime('now','-3 hours') WHERE id=?").run(req.session.userId);
 
-    return renderListenerRegistrationForm(res, event, {
+  return renderListenerRegistrationForm(res, event, {
     success: 'Inscrição realizada com sucesso.',
       formData: {
         ...formData,
@@ -1477,12 +1465,11 @@ router.get('/author/certificates/:id/download', requireNonAdminAuthorAccess, (re
   const certificate = db.prepare(`
     SELECT ce.*, e.certificates_start, e.certificates_end, cb.file_path AS background_path
     FROM certificate_emissions ce
-    JOIN event_registrations er ON er.id = ce.registration_id
     JOIN events e ON e.id = ce.event_id
     LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
     WHERE ce.id = ? AND ce.status = 'issued'
-      AND (er.user_id = ? OR LOWER(TRIM(er.email)) = LOWER(TRIM(?)))
-  `).get(req.params.id, req.session.userId, req.session.userEmail || '');
+      AND (ce.user_id = ? OR EXISTS (SELECT 1 FROM event_registrations er WHERE er.id=ce.registration_id AND (er.user_id = ? OR LOWER(TRIM(er.email)) = LOWER(TRIM(?)))))
+  `).get(req.params.id, req.session.userId, req.session.userId, req.session.userEmail || '');
   if (!certificate) return res.status(404).render('error', { title: 'Certificado não encontrado' });
   if (!getCertificatesWindow(certificate).isOpen) return res.status(403).render('error', { title: 'Certificado indisponível', message: getCertificatesWindow(certificate).message });
   res.type('application/pdf'); res.attachment(`certificado-${certificate.certificate_code}.pdf`); renderCertificatePdf(res, certificate);

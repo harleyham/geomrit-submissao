@@ -32,26 +32,31 @@ function renderCertificatePdf(res, certificate) {
   }
 
   const textColor = certificate.text_color || '#0f172a';
-  document.fillColor(textColor).font('Helvetica-Bold').fontSize(30).text('CERTIFICADO DE PARTICIPAÇÃO', 55, 105, { width: width - 110, align: 'center' });
+  const certificateTitle = certificate.certificate_title || 'CERTIFICADO DE PARTICIPAÇÃO';
+  const certificateBody = certificate.certificate_body || `participou do evento ${certificate.event_name}.`;
+  document.fillColor(textColor).font('Helvetica-Bold').fontSize(30).text(certificateTitle, 55, 105, { width: width - 110, align: 'center' });
   document.fillColor(textColor).font('Helvetica').fontSize(16).text('Certificamos que', 80, 205, { width: width - 160, align: 'center' });
   document.fillColor(textColor).font('Helvetica-Bold').fontSize(27).text(certificate.participant_name, 80, 240, { width: width - 160, align: 'center' });
 
-  let bodyText = `participou do evento ${certificate.event_name}.`;
-  document.fillColor(textColor).font('Helvetica').fontSize(15).text(bodyText, 80, 300, { width: width - 160, align: 'center' });
+  document.fillColor(textColor).font('Helvetica').fontSize(15).text(certificateBody, 80, 300, { width: width - 160, align: 'center' });
 
   const dateLabel = certificate.event_date_end && certificate.event_date_end !== certificate.event_date_start
     ? `Realizado de ${certificate.event_date_start} a ${certificate.event_date_end}.`
     : certificate.event_date_start ? `Realizado em ${certificate.event_date_start}.` : '';
   document.fontSize(12).fillColor(textColor).text(dateLabel, 80, 335, { width: width - 160, align: 'center' });
 
-  if (certificate.activities_attended && Number(certificate.activities_attended) > 0) {
-    let activitiesText = '';
-    if (Number(certificate.activities_attended) > 1) {
-      activitiesText = `${certificate.activities_attended} atividades · Carga horária total: ${certificate.total_workload_hours || 0}h`;
-    } else {
-      activitiesText = `${certificate.activities_attended} atividade · Carga horária total: ${certificate.total_workload_hours || 0}h`;
-    }
-    document.fillColor(textColor).font('Helvetica').fontSize(10).text(activitiesText, 80, 360, { width: width - 160, align: 'center' });
+  const workloadHours = Number(certificate.total_workload_hours);
+  if (Number.isFinite(workloadHours) && workloadHours > 0) {
+    const formattedHours = Number.isInteger(workloadHours)
+      ? String(workloadHours)
+      : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    const hourLabel = workloadHours === 1 ? 'hora-aula' : 'horas-aula';
+    document.fillColor(textColor).font('Helvetica').fontSize(10).text(
+      `Carga horária: ${formattedHours} ${hourLabel}.`,
+      80,
+      360,
+      { width: width - 160, align: 'center' }
+    );
   }
 
   document.fontSize(10).fillColor(textColor).text(`Código de verificação: ${certificate.certificate_code} · Emissão: ${certificate.issued_at}`, 80, height - 75, { width: width - 160, align: 'center' });

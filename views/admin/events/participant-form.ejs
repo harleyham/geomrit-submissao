@@ -35,6 +35,8 @@
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.05rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
     .btn-secondary { background: transparent; color: #cbd5e1; border-color: rgba(148,163,184,0.2); }
+    .event-role-option { display:flex !important; align-items:center; gap:.6rem; margin:.6rem 0 !important; cursor:pointer; }
+    .event-role-option input[type="checkbox"] { width:auto !important; min-width:16px; height:16px; margin:0; accent-color:#f97316; }
     footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
     @media (max-width: 720px) { .meta-grid { grid-template-columns: 1fr; } }
   </style>
@@ -90,7 +92,6 @@
       <% } %>
 
       <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>">
-        <% if (registration) { %><input type="hidden" name="_method" value="PUT"><% } %>
 
         <% if (!registration) { %>
           <div class="form-group">
@@ -162,6 +163,8 @@
             <div class="help-text">Use esta opção para corrigir registros administrativos quando a participação estiver classificada incorretamente.</div>
           <% } %>
         </div>
+
+        <% if (registration && registration.user_id) { %><p class="help-text">Os papéis da pessoa neste evento são administrados em <a href="/admin/users/<%= registration.user_id %>/edit?event_id=<%= event.id %>">Perfis por evento</a>.</p><% } %>
 
         <div class="actions">
           <a href="/admin/events/<%= event.id %>/participants" class="btn btn-secondary">Cancelar</a>

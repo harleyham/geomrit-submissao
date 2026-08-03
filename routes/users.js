@@ -15,6 +15,16 @@ function parseToggleValue(value) {
   return value === '1' || value === 1 || value === true || value === 'true' ? 1 : 0;
 }
 
+function getCertificateProfileFlags(body) {
+  return {
+    is_participant: body.is_participant ? 1 : 0,
+    is_speaker: body.is_speaker ? 1 : 0,
+    is_teacher: body.is_teacher ? 1 : 0,
+    is_oral_presenter: body.is_oral_presenter ? 1 : 0,
+    is_poster_presenter: body.is_poster_presenter ? 1 : 0
+  };
+}
+
 function getActiveAdminCount() {
   return db.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1 AND is_public = 1').get().count;
 }
@@ -141,7 +151,7 @@ function mapArticleStatus(status) {
 router.get('/', requireAuth, (req, res) => {
   const users = db.prepare(`
     SELECT id, name, email, cpf, passport, country, institution,
-           is_admin, is_reviewer, is_public, approval_status, approved_at,
+           is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at,
            password_changed, created_at
     FROM users
     ORDER BY CASE WHEN approval_status = 'pending' THEN 0 ELSE 1 END, name
@@ -168,11 +178,12 @@ router.get('/new', requireAuth, (req, res) => {
 
 router.post('/', requireAuth, (req, res) => {
   const { name, email, password, cpf, passport, country, institution, reviewer_areas, is_admin, is_reviewer } = req.body;
+  const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
 
   if (!email || !password) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer },
+      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'E-mail e senha são obrigatórios.'
@@ -182,7 +193,7 @@ router.post('/', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(email).get();
   if (existing) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer },
+      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'Já existe um usuário com o e-mail ' + email
@@ -191,7 +202,7 @@ router.post('/', requireAuth, (req, res) => {
 
   if (!isValidCPF(cpf)) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer },
+      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'O CPF informado é inválido.'
@@ -201,8 +212,8 @@ router.post('/', requireAuth, (req, res) => {
   const hash = bcrypt.hashSync(password, 10);
   db.prepare(`
     INSERT INTO users (name, email, password, cpf, passport, country, institution, reviewer_areas,
-      is_admin, is_reviewer, is_public, approval_status, approved_at, password_changed, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+      is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at, password_changed, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).bind(
     name || email,
     email,
@@ -212,8 +223,9 @@ router.post('/', requireAuth, (req, res) => {
     country || null,
     institution || null,
     normalizedReviewerAreas || null,
-    is_admin ? 1 : 0,
-    is_reviewer ? 1 : 0
+    is_admin ? 1 : 0, is_reviewer ? 1 : 0,
+    certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher,
+    certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter
   ).run();
 
   res.redirect('/admin/users?success=Usuário criado com sucesso');
@@ -222,11 +234,32 @@ router.post('/', requireAuth, (req, res) => {
 router.get('/:id/edit', requireAuth, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').bind(req.params.id).get();
   if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
+  const managedEvents = db.prepare(`SELECT e.id,e.name,e.date_start FROM events e JOIN event_user_roles eur ON eur.event_id=e.id WHERE eur.user_id=? AND eur.role='admin' ORDER BY e.date_start DESC,e.name`).all(req.session.userId);
+  const selectedEventId = managedEvents.some((event) => event.id === Number(req.query.event_id)) ? Number(req.query.event_id) : (managedEvents[0] && managedEvents[0].id);
+  const eventRoles = selectedEventId ? db.prepare('SELECT role,article_id FROM event_user_roles WHERE event_id=? AND user_id=?').all(selectedEventId, user.id) : [];
+  const approvedArticles = selectedEventId ? db.prepare("SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title").all(selectedEventId) : [];
   res.render('admin/users/form', {
     user,
+    managedEvents, selectedEventId, eventRoles, approvedArticles,
     title: 'Editar Usuário',
-    year: new Date().getFullYear()
+    year: new Date().getFullYear(),
+    success: req.query.success || null,
+    error: req.query.error || null
   });
+});
+
+router.post('/:id/event-roles', requireAuth, (req, res) => {
+  const userId = Number(req.params.id), eventId = Number(req.body.event_id);
+  const allowed = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId, req.session.userId);
+  if (!allowed) return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não administra este evento.' });
+  const roles = Array.isArray(req.body.roles) ? req.body.roles : [req.body.roles];
+  const valid = ['admin','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter'];
+  const selected = valid.filter((role) => roles.includes(role));
+  const currentAdmins = db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(eventId).count;
+  const removingSelfAdmin = !selected.includes('admin') && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId,userId);
+  if (removingSelfAdmin && currentAdmins <= 1) return res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&error=${encodeURIComponent('O evento precisa manter ao menos um administrador.')}`);
+  db.transaction(() => { db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=?').run(eventId,userId); const insert=db.prepare('INSERT INTO event_user_roles(event_id,user_id,role,article_id,assigned_by) VALUES(?,?,?,?,?)'); selected.forEach((role)=>{const articleId=role==='oral_presenter'?Number(req.body.oral_article_id)||null:role==='poster_presenter'?Number(req.body.poster_article_id)||null:null; insert.run(eventId,userId,role,articleId,req.session.userId);}); })();
+  res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&success=${encodeURIComponent('Perfis do evento atualizados.')}`);
 });
 
 router.get('/:id/participant', requireAuth, (req, res) => {
@@ -349,9 +382,10 @@ router.get('/:id/participant', requireAuth, (req, res) => {
   });
 });
 
-router.put('/:id', requireAuth, (req, res) => {
+function updateUser(req, res) {
   const id = parseInt(req.params.id, 10);
   const { name, email, password, cpf, passport, country, institution, reviewer_areas, is_admin, is_reviewer } = req.body;
+  const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
   const user = db.prepare('SELECT id, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
 
@@ -366,7 +400,7 @@ router.put('/:id', requireAuth, (req, res) => {
 
   if (!isValidCPF(cpf)) {
     return res.render('admin/users/form', {
-      user: { id, name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer },
+      user: { id, name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
       title: 'Editar Usuário',
       year: new Date().getFullYear(),
       error: 'O CPF informado é inválido.'
@@ -377,27 +411,32 @@ router.put('/:id', requireAuth, (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     db.prepare(`
       UPDATE users SET name=?, email=?, password=?, cpf=?, passport=?, country=?, institution=?, reviewer_areas=?,
-        is_admin=?, is_reviewer=?, password_changed=0, updated_at=datetime('now', '-3 hours')
+        is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, password_changed=0, updated_at=datetime('now', '-3 hours')
       WHERE id=?
     `).bind(
       name, email, hash,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, normalizedReviewerAreas || null,
-      nextIsAdmin, is_reviewer ? 1 : 0, id
+      nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter, id
     ).run();
   } else {
     db.prepare(`
       UPDATE users SET name=?, email=?, cpf=?, passport=?, country=?, institution=?, reviewer_areas=?,
-        is_admin=?, is_reviewer=?, updated_at=datetime('now', '-3 hours')
+        is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, updated_at=datetime('now', '-3 hours')
       WHERE id=?
     `).bind(
       name, email,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, normalizedReviewerAreas || null,
-      nextIsAdmin, is_reviewer ? 1 : 0, id
+      nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter, id
     ).run();
   }
 
   res.redirect('/admin/users?success=Usuário atualizado');
-});
+}
+
+// Formulários HTML enviam POST. Mantemos PUT também para integrações que já
+// utilizavam method-override, sem depender dele para a interface administrativa.
+router.post('/:id(\\d+)', requireAuth, updateUser);
+router.put('/:id(\\d+)', requireAuth, updateUser);
 
 router.delete('/:id', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);

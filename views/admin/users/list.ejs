@@ -236,7 +236,12 @@
                 <% if (u.is_reviewer) { %><span class="badge badge-reviewer">Revisor</span><% } else { %><span class="badge badge-inactive">Revisor</span><% } %>
               </div>
               <div style="margin-top: 0.45rem; color:#64748b; font-size:0.72rem;">
-                Admin e Revisor são papéis independentes.
+                <% if (u.is_participant) { %><span class="badge badge-active">Participante</span><% } %>
+                <% if (u.is_speaker) { %><span class="badge badge-active">Palestrante</span><% } %>
+                <% if (u.is_teacher) { %><span class="badge badge-active">Professor</span><% } %>
+                <% if (u.is_oral_presenter) { %><span class="badge badge-active">Apresentador Oral</span><% } %>
+                <% if (u.is_poster_presenter) { %><span class="badge badge-active">Apresentador Pôster</span><% } %>
+                <% if (!u.is_participant && !u.is_speaker && !u.is_teacher && !u.is_oral_presenter && !u.is_poster_presenter) { %>Admin e Revisor são papéis de acesso; os demais perfis ainda não foram definidos.<% } %>
               </div>
             </td>
             <td>

@@ -6,6 +6,38 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-03
 
+### Papéis por evento, certificados por papel e presença unificada
+
+- O gerenciamento de usuários foi consolidado no modelo de conta única: papéis são atribuídos por evento em `event_user_roles`, incluindo Administrador, Participante, Revisor, Palestrante, Professor, Apresentador Oral e Apresentador Pôster.
+- Administração migrada para o escopo do evento: cada administrador vê e administra apenas os eventos atribuídos; administradores legados foram associados aos eventos existentes; o criador de um novo evento passa a ser administrador dele automaticamente.
+- Página de papéis do evento ampliada para atribuir e remover administradores do evento.
+- Certificados evoluídos para emissão por papel, permitindo vários certificados independentes para a mesma pessoa em um evento; configuração individual de fundo, cor, título e texto; emissão em lote de certificados elegíveis pendentes.
+- Seleção de fundos de certificado passou a usar miniaturas. A prévia dinâmica usa as escolhas atuais de fundo e cor do formulário antes de salvar a configuração.
+- Presença simples passou a ser registrada por pessoa e evento, incluindo todas as pessoas vinculadas (participantes, revisores, palestrantes, professores e apresentadores) sem duplicidade por acúmulo de papéis.
+- Edição administrativa de participante ficou restrita aos dados da inscrição; a atribuição de papéis e a vinculação de artigos aprovados para apresentações são feitas na edição do usuário, após escolher o evento.
+
+### Carga horária no certificado e preparação de testes
+
+- O PDF e a área autenticada de certificados passaram a apresentar a carga horária consolidada em `hora-aula` ou `horas-aula` apenas quando o total das atividades do certificado for maior que zero.
+- Os registros de `certificate_emissions` foram limpos no ambiente de testes, preservando eventos, regras, fundos, atividades, inscrições e presenças para permitir novas emissões.
+
+### Consolidação de perfis e atividades por evento
+
+- Atribuição de perfis foi centralizada na edição do usuário com evento selecionado; a edição de participante voltou a tratar exclusivamente da inscrição e aponta para o fluxo de perfis por evento.
+- Cadastro de atividades reformulado para representar partes do evento, com seleção de perfis elegíveis e do perfil de certificado que cada atividade habilita.
+- Controle de presença por atividade ajustado para marcar pessoas elegíveis, independentemente de possuírem apenas inscrição ou outro papel no evento.
+
+---
+
+### Certificados por papel no evento
+
+- Separadas permissões globais (`Administrador` e `Revisor`) dos papéis certificados por evento: Participante, Revisor, Palestrante, Professor, Apresentador Oral e Apresentador Pôster.
+- Criadas as tabelas `event_user_roles` e `event_certificate_rules` para atribuição de papéis e configuração individual de fundo, cor, título e texto de cada certificado.
+- Emissões migradas para identificar pessoa e papel, permitindo múltiplos certificados e reemissões independentes para a mesma pessoa no mesmo evento.
+- Administração ganhou a página de papéis do evento e a emissão agrupada por tipo de certificado; PDFs e área autenticada identificam o papel certificado.
+
+---
+
 ### Participante: exibição do status do subsídio e topbar unificada em certificados
 
 #### Implementações
@@ -62,7 +94,7 @@ Versão atual registrada: **V0.1**.
 - **Consolidação de carga horária por participante:** helper `getWorkloadSummaryByEvent` no `db.js` calcula total de atividades frequentadas e carga horária consolidada por participante com base em `activity_attendance_records` e `event_activities` (somente atividades com `certificate_enabled = 1`).
 - **Conexão de regras de atividade à elegibilidade de certificados:** `getCertificateParticipants` reescrita para consultar presenças por atividade e calcular elegibilidade com base em `activity_certificate_rules` (quando disponíveis) ou `attendance_records` (fallback por presença simples).
 - **Emissão de certificado com informações de atividades:** `issueCertificate` atualizada para popular colunas `activity_id`, `activities_attended` e `total_workload_hours` no registro de `certificate_emissions`.
-- **PDF do certificado atualizado:** `services/certificates.js` agora exibe linha com "X atividades · Carga horária total: Yh" quando o participante frequentou atividades.
+- **PDF do certificado atualizado:** `services/certificates.js` exibe a carga horária consolidada em horas-aula apenas quando houver total maior que zero.
 - **Nova rota de regra de certificado por atividade:** `POST /admin/events/:id/activities/:activityId/certificate-rule` permite salvar mínimo de presenças e fundo específico por atividade.
 - **Colunas adicionais em `certificate_emissions`:** migration adiciona `activities_attended` (INTEGER DEFAULT 0) e `total_workload_hours` (REAL DEFAULT 0).
 

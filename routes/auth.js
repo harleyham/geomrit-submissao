@@ -26,9 +26,12 @@ function getListenerRegistrationCountWhere(whereClause = '', bindParams = []) {
 
 // Middleware de autenticação admin
 function requireAuth(req, res, next) {
-  if (!req.session.isAdmin) {
+  const hasEventAdminRole = req.session && req.session.userId && db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(req.session.userId);
+  const canBootstrap = req.session && req.session.userId && db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0 && db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId)?.is_admin;
+  if (!req.session.isAdmin && !hasEventAdminRole && !canBootstrap) {
     return res.redirect('/login');
   }
+  req.session.isAdmin = true;
   next();
 }
 
@@ -268,7 +271,8 @@ router.post('/', (req, res) => {
   req.session.isReviewer = false;
   req.session.isPublic = false;
   
-  if (user.is_admin) {
+  const hasEventAdminRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(user.id);
+  if (hasEventAdminRole || (user.is_admin && db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0)) {
     req.session.isAdmin = true;
     req.session.userRoles.push('admin');
   }

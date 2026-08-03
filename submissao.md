@@ -60,7 +60,7 @@ O sistema deve permitir:
 - Gestão administrativa de participantes por evento, com criação de conta, inscrição, edição e remoção condicionada.
 - Controle de presença simples por evento, com lançamento e remoção manuais.
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
-- Configuração de certificados por evento, com elegibilidade por presença, emissão, reemissão versionada e download autenticado em PDF.
+- Configuração de certificados por evento e por papel, com elegibilidade por presença, parecer ou atribuição administrativa, emissão, reemissão versionada e download autenticado em PDF.
 - Biblioteca administrativa de fundos PNG/JPEG para certificados, com seleção de fundo existente ou upload de novo arquivo.
 
 ### Revisão
@@ -91,7 +91,7 @@ O sistema deve permitir:
 
 Todos os usuários estão na tabela `users`. Um mesmo registro pode acumular mais de um perfil.
 
-Flags de permissão:
+Flags legadas de permissão no cadastro global:
 
 - `is_admin`
 - `is_reviewer`
@@ -99,6 +99,8 @@ Flags de permissão:
 - `approval_status`
 - `approved_at`
 - `approved_by`
+
+O usuário possui um único cadastro e login. Os papéis de atuação são contextuais ao evento e ficam em `event_user_roles`: `admin`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter`. O administrador só visualiza e administra os eventos em que recebeu o papel `admin`; ao criar um evento, recebe esse papel automaticamente. As flags históricas `is_admin` e `is_reviewer` são preservadas apenas para compatibilidade e migração da base existente.
 
 ### Regras de acesso
 
@@ -310,6 +312,18 @@ Os fundos padrão distribuídos pelo sistema ficam em `assets/Fundos` e são reg
 - `issued_by`
 - `reissued_from_id`
 - `activity_id`
+- `user_id`
+- `certificate_role`
+- `certificate_title`
+- `certificate_body`
+
+### `event_user_roles`
+
+Registra os papéis de administrador, participante, revisor, palestrante, professor e apresentador (oral ou pôster) de uma pessoa em um evento, com artigo opcionalmente vinculado. É a fonte de verdade para autorização administrativa por evento e para papéis manuais de certificado.
+
+### `event_certificate_rules`
+
+Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de certificado em cada evento.
 
 ### `assignments`
 
@@ -434,6 +448,7 @@ Os fundos padrão distribuídos pelo sistema ficam em `assets/Fundos` e são reg
 - Há unicidade por evento para e-mail normalizado e, quando informado, para a conta de usuário vinculada.
 - Ao excluir administrativamente o último artigo submetido de uma pessoa no evento, a inscrição é preservada e reclassificada de `author` para `listener`; se ainda houver outro artigo submetido, ela permanece como `author`.
 - Criações, edições, remoções manuais e a reconciliação decorrente da exclusão de artigo são gravadas em `participant_audit_logs`.
+- A edição da participação administra somente dados da inscrição. Papéis são atribuídos exclusivamente na edição do usuário, após a seleção do evento.
 
 ### Presença
 
@@ -444,6 +459,8 @@ Os fundos padrão distribuídos pelo sistema ficam em `assets/Fundos` e são reg
 - O painel administrativo consolida inscritos, presentes, sem presença e o total individual de presenças no evento.
 - O evento também pode conter atividades internas, como palestras, seminários, mesas-redondas e minicursos, com carga horária e presença próprias.
 - A presença por atividade é registrada separadamente e permite que o mesmo participante esteja presente em várias atividades do mesmo evento.
+- A presença simples por evento é identificada por pessoa (`user_id`) e não somente por inscrição: inclui participantes, revisores atribuídos, palestrantes, professores e apresentadores vinculados ao evento, sem duplicar a pessoa que acumula papéis.
+- Cada atividade representa uma parte do evento e informa os perfis elegíveis e o perfil de certificado que habilita. A presença é lançada por pessoa dentro de cada atividade.
 
 ### Autenticação e senha
 
@@ -617,6 +634,9 @@ Observações operacionais:
 - Controle administrativo de presença simples por evento, com lançamento manual, remoção e total por participante.
 - Cadastro de atividades internas e lançamento manual de presença por atividade.
 - Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura, cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
+- Certificados distintos por papel no evento: Participante, Revisor, Palestrante, Professor, Apresentador Oral e Apresentador Pôster, cada um com fundo, cor, título, texto, elegibilidade, emissão e reemissão próprios. A prévia dinâmica usa o fundo e a cor atualmente selecionados no formulário, sem exigir salvamento prévio.
+- O PDF informa a carga horária consolidada em `hora-aula` ou `horas-aula` somente quando as atividades vinculadas ao certificado totalizam valor maior que zero.
+- Emissão em lote dos certificados elegíveis ainda não emitidos.
 - Seleção individual das seções incluídas na impressão do relatório em PDF.
 - Download em lote dos PDFs submetidos por evento em arquivo ZIP.
 - Enxugamento técnico: remoção de rotas individuais legadas de perfis, redirecionamentos de login do revisor, fallback duplicado de eventos, dependência direta não utilizada e colunas antigas de revisão em `articles`.
@@ -782,7 +802,7 @@ Tarefas técnicas por arquivo:
 - `routes/events.js`
   Reescrever `getCertificateParticipants` para consultar presenças por atividade e calcular elegibilidade com base em `activity_certificate_rules` (quando disponíveis) ou `attendance_records` (fallback); atualizar `issueCertificate` para popular informações de atividades no registro de emissão; reformular rota `GET /activities` com contagem de presenças; ampliar rota de presença por atividade para carregar regra de certificado e fundos; adicionar nova rota `POST /activities/:id/certificate-rule` para salvar regra de mínimo de presenças + fundo por atividade.
 - `services/certificates.js`
-  Atualizar geração de PDF para incluir linha com "X atividades · Carga horária total: Yh" quando o participante frequentou atividades.
+  A geração de PDF inclui a carga horária consolidada em horas-aula somente quando o total das atividades frequentadas for maior que zero.
 - `views/admin/events/activities.ejs`
   Reescrever com topbar, grid de cards, badges por tipo de atividade, contagem de presenças e link para gerenciar presença.
 - `views/admin/events/activity-attendance.ejs`

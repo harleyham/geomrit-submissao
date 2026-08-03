@@ -8,12 +8,12 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 
 ## Funcionalidades
 
-- **Gestão de eventos**: CRUD de eventos, cronograma público, janelas de inscrição/submissão/certificados
+- **Gestão de eventos**: CRUD de eventos, cronograma público, janelas de inscrição/submissão/certificados e administração restrita aos eventos atribuídos ao usuário
 - **Submissão de artigos**: formulário público, rascunhos, múltiplos revisores, parecer individual, deliberação final administrativa
 - **Revisão**: painel do revisor com artigos pendentes, envio de parecer e recomendação
-- **Participantes**: gestão manual por evento, promoção automática `listener` → `author`, auditoria
-- **Presença**: registro manual por evento e por atividade (palestras, minicursos, etc.) com consolidação de carga horária
-- **Certificados**: emissão em PDF com fundo configurável, cor da fonte, prévia inline e reemissão versionada
+- **Participantes e papéis**: conta única por pessoa, com papéis independentes por evento (administrador, participante, revisor, palestrante, professor e apresentador)
+- **Presença**: atividades/partes configuráveis do evento, com perfis elegíveis, certificado relacionado e registro manual por pessoa em cada atividade
+- **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo, texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável e reemissão versionados
 
 ## Stack
 

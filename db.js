@@ -24,6 +24,11 @@ db.exec(`
     reviewer_areas TEXT,
     is_admin INTEGER DEFAULT 0,
     is_reviewer INTEGER DEFAULT 0,
+    is_participant INTEGER DEFAULT 0,
+    is_speaker INTEGER DEFAULT 0,
+    is_teacher INTEGER DEFAULT 0,
+    is_oral_presenter INTEGER DEFAULT 0,
+    is_poster_presenter INTEGER DEFAULT 0,
     is_public INTEGER DEFAULT 1,
     approval_status TEXT DEFAULT 'approved',
     approved_at DATETIME,
@@ -159,7 +164,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS attendance_records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL,
-    registration_id INTEGER NOT NULL,
+    registration_id INTEGER,
+    user_id INTEGER,
     marked_by INTEGER,
     attended_at DATETIME NOT NULL DEFAULT (datetime('now', '-3 hours')),
     notes TEXT DEFAULT '',
@@ -167,6 +173,7 @@ db.exec(`
     updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (marked_by) REFERENCES users(id) ON DELETE SET NULL,
     UNIQUE(event_id, registration_id)
   );
@@ -197,7 +204,9 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS certificate_emissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL,
-    registration_id INTEGER NOT NULL,
+    registration_id INTEGER,
+    user_id INTEGER,
+    certificate_role TEXT NOT NULL DEFAULT 'participant',
     background_id INTEGER,
     certificate_code TEXT NOT NULL UNIQUE,
     version INTEGER NOT NULL DEFAULT 1,
@@ -211,16 +220,51 @@ db.exec(`
     issued_by INTEGER,
     reissued_from_id INTEGER,
     activity_id INTEGER,
+    certificate_title TEXT,
+    certificate_body TEXT,
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-    FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+    FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL,
     FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (reissued_from_id) REFERENCES certificate_emissions(id) ON DELETE SET NULL,
-    UNIQUE(event_id, registration_id, version)
+    UNIQUE(event_id, user_id, certificate_role, version)
   );
 
-  CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
-  CREATE TABLE IF NOT EXISTS activity_attendance_records (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,registration_id INTEGER NOT NULL,marked_by INTEGER,attended_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,registration_id),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE);
+  CREATE TABLE IF NOT EXISTS event_user_roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('admin', 'participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter')),
+    article_id INTEGER,
+    assigned_by INTEGER,
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    UNIQUE(event_id, user_id, role),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE SET NULL,
+    FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS event_certificate_rules (
+    event_id INTEGER NOT NULL,
+    certificate_role TEXT NOT NULL CHECK(certificate_role IN ('reviewer', 'participant', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter')),
+    min_attendance INTEGER NOT NULL DEFAULT 1 CHECK(min_attendance >= 0),
+    background_id INTEGER,
+    text_color TEXT DEFAULT '#0f172a',
+    title TEXT,
+    body_text TEXT,
+    updated_by INTEGER,
+    created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+    PRIMARY KEY (event_id, certificate_role),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
+  CREATE TABLE IF NOT EXISTS activity_attendance_records (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,registration_id INTEGER,user_id INTEGER,marked_by INTEGER,attended_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,registration_id),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
   CREATE TABLE IF NOT EXISTS activity_certificate_rules (activity_id INTEGER PRIMARY KEY,min_attendance INTEGER NOT NULL DEFAULT 1,background_id INTEGER,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL);
 `);
 
@@ -235,6 +279,111 @@ try {
   const ruleCols = db.prepare("PRAGMA table_info(certificate_rules)").all().map(c => c.name);
   if (!ruleCols.includes('text_color')) db.exec('ALTER TABLE certificate_rules ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
 } catch(e) { console.warn('Migration certificate_rules text_color:', e.message); }
+try {
+  const userColumns = db.prepare('PRAGMA table_info(users)').all().map((column) => column.name);
+  for (const column of ['is_participant', 'is_speaker', 'is_teacher', 'is_oral_presenter', 'is_poster_presenter']) {
+    if (!userColumns.includes(column)) db.exec(`ALTER TABLE users ADD COLUMN ${column} INTEGER DEFAULT 0`);
+  }
+  db.exec(`UPDATE users SET is_participant = 1 WHERE id IN (SELECT user_id FROM event_registrations WHERE user_id IS NOT NULL)`);
+} catch (e) { console.warn('Migration user certificate profiles:', e.message); }
+try {
+  const attendanceInfo = db.prepare('PRAGMA table_info(attendance_records)').all();
+  const attendanceColumns = attendanceInfo.map((column) => column.name);
+  if (!attendanceColumns.includes('user_id')) db.exec('ALTER TABLE attendance_records ADD COLUMN user_id INTEGER');
+  db.exec(`UPDATE attendance_records SET user_id=(SELECT user_id FROM event_registrations er WHERE er.id=attendance_records.registration_id)
+    WHERE user_id IS NULL AND registration_id IS NOT NULL`);
+  if (attendanceInfo.find((column) => column.name === 'registration_id')?.notnull) {
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`CREATE TABLE attendance_records_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL, registration_id INTEGER, user_id INTEGER,
+        marked_by INTEGER, attended_at DATETIME NOT NULL DEFAULT (datetime('now','-3 hours')), notes TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now','-3 hours')), updated_at DATETIME DEFAULT (datetime('now','-3 hours')),
+        FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+        FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY(marked_by) REFERENCES users(id) ON DELETE SET NULL,
+        UNIQUE(event_id, registration_id)
+      );
+      INSERT INTO attendance_records_new (id,event_id,registration_id,user_id,marked_by,attended_at,notes,created_at,updated_at)
+      SELECT id,event_id,registration_id,user_id,marked_by,attended_at,notes,created_at,updated_at FROM attendance_records;`);
+      db.exec('DROP TABLE attendance_records');
+      db.exec('ALTER TABLE attendance_records_new RENAME TO attendance_records');
+    })();
+    db.pragma('foreign_keys = ON');
+  }
+} catch (e) { console.warn('Migration attendance by user:', e.message); }
+try {
+  const rolesSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_user_roles'").get()?.sql || '';
+  if (!rolesSql.includes("'admin'")) {
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`CREATE TABLE event_user_roles_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,user_id INTEGER NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('admin','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter')),
+        article_id INTEGER,assigned_by INTEGER,created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+        UNIQUE(event_id,user_id,role),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,FOREIGN KEY(article_id) REFERENCES articles(id) ON DELETE SET NULL,
+        FOREIGN KEY(assigned_by) REFERENCES users(id) ON DELETE SET NULL);
+        INSERT INTO event_user_roles_new SELECT * FROM event_user_roles;
+        DROP TABLE event_user_roles; ALTER TABLE event_user_roles_new RENAME TO event_user_roles;`);
+    })();
+    db.pragma('foreign_keys = ON');
+  }
+  // Administradores legados continuam com acesso aos eventos já existentes.
+  db.exec(`INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by)
+    SELECT e.id,u.id,'admin',u.id FROM events e JOIN users u ON u.is_admin=1`);
+} catch (e) { console.warn('Migration event roles:', e.message); try { db.pragma('foreign_keys = ON'); } catch (_) {} }
+try {
+  const activityColumns = db.prepare('PRAGMA table_info(event_activities)').all().map((column) => column.name);
+  if (!activityColumns.includes('eligible_roles')) db.exec("ALTER TABLE event_activities ADD COLUMN eligible_roles TEXT DEFAULT 'participant'");
+  if (!activityColumns.includes('certificate_role')) db.exec("ALTER TABLE event_activities ADD COLUMN certificate_role TEXT DEFAULT 'participant'");
+  const activityAttendanceColumns = db.prepare('PRAGMA table_info(activity_attendance_records)').all().map((column) => column.name);
+  if (!activityAttendanceColumns.includes('user_id')) db.exec('ALTER TABLE activity_attendance_records ADD COLUMN user_id INTEGER');
+  db.exec('UPDATE activity_attendance_records SET user_id=(SELECT user_id FROM event_registrations er WHERE er.id=activity_attendance_records.registration_id) WHERE user_id IS NULL');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_user ON activity_attendance_records(activity_id,user_id) WHERE user_id IS NOT NULL');
+} catch (e) { console.warn('Migration activity attendance by user:', e.message); }
+
+// A emissão antiga era limitada a uma inscrição por versão. A nova estrutura
+// permite diversos certificados para a mesma pessoa no mesmo evento, um por papel.
+try {
+  const emissionColumns = db.prepare('PRAGMA table_info(certificate_emissions)').all().map((column) => column.name);
+  if (!emissionColumns.includes('certificate_role') || !emissionColumns.includes('user_id')) {
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`CREATE TABLE certificate_emissions_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL, registration_id INTEGER,
+        user_id INTEGER, certificate_role TEXT NOT NULL DEFAULT 'participant', background_id INTEGER,
+        certificate_code TEXT NOT NULL UNIQUE, version INTEGER NOT NULL DEFAULT 1, attendance_count INTEGER NOT NULL,
+        participant_name TEXT NOT NULL, event_name TEXT NOT NULL, event_date_start DATE, event_date_end DATE,
+        status TEXT NOT NULL DEFAULT 'issued', issued_at DATETIME, issued_by INTEGER, reissued_from_id INTEGER,
+        activity_id INTEGER, activities_attended INTEGER DEFAULT 0, total_workload_hours REAL DEFAULT 0,
+        text_color TEXT DEFAULT '#0f172a', certificate_title TEXT, certificate_body TEXT,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+        FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE SET NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL,
+        FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (reissued_from_id) REFERENCES certificate_emissions_new(id) ON DELETE SET NULL,
+        UNIQUE(event_id, user_id, certificate_role, version)
+      );`);
+      db.exec(`INSERT INTO certificate_emissions_new
+        (id,event_id,registration_id,user_id,certificate_role,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,status,issued_at,issued_by,reissued_from_id,activity_id,activities_attended,total_workload_hours,text_color)
+        SELECT ce.id,ce.event_id,ce.registration_id,er.user_id,'participant',ce.background_id,ce.certificate_code,ce.version,ce.attendance_count,ce.participant_name,ce.event_name,ce.event_date_start,ce.event_date_end,ce.status,ce.issued_at,ce.issued_by,ce.reissued_from_id,ce.activity_id,COALESCE(ce.activities_attended,0),COALESCE(ce.total_workload_hours,0),COALESCE(ce.text_color,'#0f172a')
+        FROM certificate_emissions ce LEFT JOIN event_registrations er ON er.id=ce.registration_id;`);
+      db.exec('DROP TABLE certificate_emissions');
+      db.exec('ALTER TABLE certificate_emissions_new RENAME TO certificate_emissions');
+    })();
+    db.pragma('foreign_keys = ON');
+  }
+} catch (e) { console.warn('Migration certificate emissions by role:', e.message); try { db.pragma('foreign_keys = ON'); } catch (_) {} }
+
+// Preserva a configuração atual como a regra do certificado de participante.
+try {
+  db.prepare(`INSERT OR IGNORE INTO event_certificate_rules
+    (event_id,certificate_role,min_attendance,background_id,text_color,updated_by,created_at,updated_at)
+    SELECT event_id,'participant',min_attendance,background_id,COALESCE(text_color,'#0f172a'),updated_by,created_at,updated_at FROM certificate_rules`).run();
+} catch (e) { console.warn('Migration participant certificate rule:', e.message); }
 
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id ON event_registrations(event_id);
@@ -245,7 +394,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_participant_audit_registration_id ON participant_audit_logs(registration_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_attendance_records_event_id ON attendance_records(event_id, attended_at DESC);
   CREATE INDEX IF NOT EXISTS idx_attendance_records_registration_id ON attendance_records(registration_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_attendance_event_user ON attendance_records(event_id, user_id) WHERE user_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_certificate_emissions_registration_id ON certificate_emissions(registration_id, status);
+  CREATE INDEX IF NOT EXISTS idx_certificate_emissions_user_role ON certificate_emissions(event_id, user_id, certificate_role, status);
+  CREATE INDEX IF NOT EXISTS idx_event_user_roles_event ON event_user_roles(event_id, role);
   CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_email
     ON event_registrations(event_id, LOWER(TRIM(email)))
     WHERE TRIM(email) != '';

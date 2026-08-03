@@ -81,14 +81,15 @@
     <% } else { %>
       <% certificates.forEach(function(certificate) { %>
         <div class="card">
-          <h2><%= certificate.event_name %></h2>
+          <h2><%= certificate.certificate_title || certificate.event_name %></h2>
           <p>
+            <span style="display:inline-block;background:rgba(99,102,241,.2);color:#c7d2fe;padding:0.2rem 0.55rem;border-radius:999px;margin-bottom:0.45rem;"><%= ({participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresentador Oral',poster_presenter:'Apresentador Pôster'})[certificate.certificate_role] || 'Participante' %></span><br>
             Versão <%= certificate.version %> · Código: <code><%= certificate.certificate_code %></code><br>
             Emissão: <%= certificate.issued_at %>
           </p>
-          <% if (certificate.activities_attended && Number(certificate.activities_attended) > 0) { %>
+          <% if (Number(certificate.total_workload_hours) > 0) { const workloadHours = Number(certificate.total_workload_hours); const formattedHours = Number.isInteger(workloadHours) ? String(workloadHours) : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 }); %>
             <p style="margin-top:0.5rem;color:#94a3b8;">
-              Participou de <strong style="color:#e2e8f0;"><%= certificate.activities_attended %> atividade(s)</strong> · Carga horária total: <strong style="color:#fbbf24;"><%= certificate.total_workload_hours %>h</strong>
+              Carga horária: <strong style="color:#fbbf24;"><%= formattedHours %> <%= workloadHours === 1 ? 'hora-aula' : 'horas-aula' %></strong>
             </p>
           <% } %>
           <% if (certificate.window.isOpen) { %>
