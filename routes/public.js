@@ -385,8 +385,8 @@ function buildEventTimeline(event, options = {}) {
     if (item.label === 'Certificados' && session && session.userId && hasRegistration && certificatesWindow.isOpen) {
       return {
         ...item,
-        actionLabel: 'Área do participante',
-        actionHref: '/author',
+        actionLabel: 'Meus certificados',
+        actionHref: `/evento/${event.id}/certificates`,
         actionTone: 'ghost'
       };
     }
@@ -851,6 +851,53 @@ router.get('/evento/:id', (req, res) => {
       registration,
       session: req.session
     })
+  });
+});
+
+router.get('/evento/:id/certificates', requireNonAdminAuthorAccess, (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const registration = db.prepare(`
+    SELECT id, registration_type
+    FROM event_registrations
+    WHERE event_id = ?
+      AND (
+        user_id = ?
+        OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+      )
+    ORDER BY id
+    LIMIT 1
+  `).get(req.params.id, req.session.userId, req.session.userEmail || '');
+  if (!registration) return res.status(404).render('error', { title: 'Certificados indisponíveis', message: 'Você não possui inscrição neste evento.' });
+  const certificatesWindow = getCertificatesWindow(event);
+  if (!certificatesWindow.isOpen) {
+    return res.render('public/event-certificates', {
+      title: `Certificados - ${event.name}`,
+      event,
+      certificates: [],
+      certificatesWindow,
+      success: null,
+      error: null
+    });
+  }
+  const certificates = db.prepare(`
+    SELECT ce.*, e.certificates_start, e.certificates_end, cb.file_path AS background_path
+    FROM certificate_emissions ce
+    JOIN event_registrations er ON er.id = ce.registration_id
+    JOIN events e ON e.id = ce.event_id
+    LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
+    WHERE ce.status = 'issued'
+      AND ce.event_id = ?
+      AND (er.user_id = ? OR LOWER(TRIM(er.email)) = LOWER(TRIM(?)))
+    ORDER BY ce.issued_at DESC
+  `).all(req.params.id, req.session.userId, req.session.userEmail || '').map((certificate) => ({ ...certificate, window: getCertificatesWindow(certificate) }));
+  res.render('public/event-certificates', {
+    title: `Certificados - ${event.name}`,
+    event,
+    certificates,
+    certificatesWindow,
+    success: req.query.success || null,
+    error: req.query.error || null
   });
 });
 
@@ -1420,16 +1467,7 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
 });
 
 router.get('/author/certificates', requireNonAdminAuthorAccess, (req, res) => {
-  const certificates = db.prepare(`
-    SELECT ce.*, e.certificates_start, e.certificates_end, cb.file_path AS background_path
-    FROM certificate_emissions ce
-    JOIN event_registrations er ON er.id = ce.registration_id
-    JOIN events e ON e.id = ce.event_id
-    LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
-    WHERE ce.status = 'issued' AND (er.user_id = ? OR LOWER(TRIM(er.email)) = LOWER(TRIM(?)))
-    ORDER BY ce.issued_at DESC
-  `).all(req.session.userId, req.session.userEmail || '').map((certificate) => ({ ...certificate, window: getCertificatesWindow(certificate) }));
-  res.render('public/certificates', { title: 'Meus Certificados', certificates });
+  return res.redirect('/author');
 });
 
 router.get('/author/certificates/:id/download', requireNonAdminAuthorAccess, (req, res) => {

@@ -94,7 +94,6 @@
   </header>
 
   <main class="main-content">
-    <div style="margin-bottom:1rem;"><a href="/author/certificates" class="btn btn-ghost">Meus Certificados</a></div>
     <% const draftSubmissions = submissions.filter(function(article) { return article.status === 'draft'; }); %>
     <% const submittedSubmissions = submissions.filter(function(article) { return article.status !== 'draft'; }); %>
     <% if (success) { %>
