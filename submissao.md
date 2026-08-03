@@ -620,6 +620,9 @@ Observações operacionais:
 - Seleção individual das seções incluídas na impressão do relatório em PDF.
 - Download em lote dos PDFs submetidos por evento em arquivo ZIP.
 - Enxugamento técnico: remoção de rotas individuais legadas de perfis, redirecionamentos de login do revisor, fallback duplicado de eventos, dependência direta não utilizada e colunas antigas de revisão em `articles`.
+- Exibição do status do subsídio na página do participante (`/author`): coluna condicional "Subsídio" com badge colorido indicando `Pendente`, `Aprovado` ou `Rejeitado` na tabela de participações, aparecendo apenas quando o usuário possui solicitações de subsídio vinculadas.
+- Topbar unificada na página de certificados de participante (`/evento/:id/certificates`): exibe o e-mail da conta logada e o botão "Sair" em vermelho, seguindo o mesmo padrão das demais páginas públicas autenticadas.
+- Correção de renderização na visualização administrativa da área do participante (`/admin/users/:id/participant`): prop `showSubsidyStatus` agora é passada ao template, eliminando erro de renderização EJS.
 
 ### Parcial ou pendente de validação
 

@@ -251,6 +251,9 @@
               <th>Período</th>
               <th>Local</th>
               <th>Participação</th>
+              <% if (showSubsidyStatus) { %>
+                <th>Subsídio</th>
+              <% } %>
               <th>Ações</th>
             </tr>
           </thead>
@@ -268,6 +271,17 @@
                     <%= participation.participation_label %>
                   </span>
                 </td>
+                <% if (showSubsidyStatus) { %>
+                  <td>
+                    <% if (participation.subsidy_requested) { %>
+                      <span class="badge <%= participation.subsidy_status === 'pending' ? 'badge-pending' : participation.subsidy_status === 'approved' ? 'badge-approved' : participation.subsidy_status === 'rejected' ? 'badge-rejected' : 'badge-draft' %>">
+                        <%= participation.subsidy_status === 'pending' ? 'Pendente' : participation.subsidy_status === 'approved' ? 'Aprovado' : participation.subsidy_status === 'rejected' ? 'Rejeitado' : 'Não solicitado' %>
+                      </span>
+                    <% } else { %>
+                      <span style="color:#64748b;font-size:0.8rem;">—</span>
+                    <% } %>
+                  </td>
+                <% } %>
                 <td>
                   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                     <a href="/evento/<%= participation.event_id %>" class="btn btn-secondary">Detalhes</a>

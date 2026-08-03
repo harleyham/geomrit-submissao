@@ -826,7 +826,7 @@ router.get('/', (req, res) => {
 // Detalhes do evento
 router.get('/evento/:id', (req, res) => {
   const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não existe ou não está publicado.' });
 
   let registration = null;
   if (req.session && req.session.userId) {
@@ -1445,6 +1445,8 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
     can_cancel: participation.registration_type === 'listener' && canCancelEventRegistration(participation.date_start)
   }));
 
+  const showSubsidyStatus = participationsWithMeta.some((p) => !!p.subsidy_requested);
+
   const stats = {
     total: submissions.length,
     drafts: submissions.filter((item) => item.status === 'draft').length,
@@ -1461,6 +1463,7 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
     stats,
     previewMode: false,
     previewUser: null,
+    showSubsidyStatus: showSubsidyStatus,
     success: req.query.success || null,
     error: req.query.error || null
   });

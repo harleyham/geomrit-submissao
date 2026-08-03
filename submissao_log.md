@@ -6,6 +6,31 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-03
 
+### Participante: exibição do status do subsídio e topbar unificada em certificados
+
+#### Implementações
+
+- **Status do subsídio no painel do participante:** adição da coluna condicional "Subsídio" na tabela "Minhas Participações" da página `/author`. O badge exibe `Pendente` (amarelo), `Aprovado` (verde) ou `Rejeitado` (vermelho) conforme o valor de `subsidy_status` em `event_registrations`. A coluna só aparece quando pelo menos um dos registros de participação do usuário possui `subsidy_requested = 1`.
+- **Topbar unificada em certificados de participante:** a página `/evento/:id/certificates` passou a exibir, quando autenticado, o e-mail da conta em badge e o botão "Sair" em vermelho, seguindo o padrão já adotado por `event.ejs`, `submit.ejs` e demais páginas públicas autenticadas.
+
+#### Correções
+
+- **Erro de renderização EJS em `/admin/users/:id/participant`:** o prop `showSubsidyStatus` não estava sendo passado ao template quando o admin acessa a área de participante de um usuário via botão "Área do Participante". A rota em `routes/users.js` agora calcula e repassa a flag, eliminando o erro de template.
+
+#### Arquivos alterados
+
+- `routes/public.js` — variável `showSubsidyStatus` calculada a partir de `participations` e passada ao template em `/author`.
+- `routes/users.js` — prop `showSubsidyStatus` adicionada ao `res.render` na rota `/:id/participant`.
+- `views/public/author-dashboard.ejs` — coluna condicional "Subsídio" na tabela "Minhas Participações" com badge colorido por status.
+- `views/public/event-certificates.ejs` — topbar ampliada com `session-pill` (e-mail) e botão "Sair" vermelho, condicionais a `userEmail`, `isAdmin` e `isReviewer`.
+
+#### Documentação
+
+- `submissao.md` atualizado: novos itens em "Implementado" referenciando status do subsídio e topbar unificada em certificados.
+- `submissao_log.md` atualizado com registro destas mudanças.
+
+---
+
 ### Certificados: prévia inline, cor da fonte e seleção de fundos em miniatura
 
 #### Implementações

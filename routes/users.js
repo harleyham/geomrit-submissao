@@ -238,7 +238,7 @@ router.get('/:id/participant', requireAuth, (req, res) => {
   `).bind(userId).get();
 
   if (!previewUser) {
-    return res.status(404).render('error', { title: 'Usuário não encontrado' });
+    return res.status(404).render('error', { title: 'Usuário não encontrado', message: 'O usuário solicitado não foi encontrado.' });
   }
 
   const today = new Date();
@@ -322,6 +322,8 @@ router.get('/:id/participant', requireAuth, (req, res) => {
     can_cancel: false
   }));
 
+  const showSubsidyStatus = participations.some((p) => !!p.subsidy_requested);
+
   const stats = {
     total: submissions.length,
     drafts: submissions.filter((item) => item.status === 'draft').length,
@@ -340,6 +342,7 @@ router.get('/:id/participant', requireAuth, (req, res) => {
     error: null,
     previewMode: true,
     previewUser,
+    showSubsidyStatus: showSubsidyStatus,
     userName: previewUser.name,
     userEmail: previewUser.email,
     year: new Date().getFullYear()

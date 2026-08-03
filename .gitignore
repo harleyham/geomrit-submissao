@@ -1,0 +1,33 @@
+# Banco de dados
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+artigos.db
+artigos.db.*
+
+# Uploads
+uploads/
+
+# Certificados e fundos gerados
+uploads/certificate-backgrounds/
+
+# Dependências
+node_modules/
+
+# Ambiente
+.env
+.env.local
+
+# Logs
+*.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
