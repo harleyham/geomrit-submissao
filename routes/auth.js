@@ -50,6 +50,175 @@ router.get('/', (req, res) => {
   });
 });
 
+// Dashboard admin
+router.get('/dashboard', requireAuth, (req, res) => {
+  const totalEvents = db.prepare('SELECT COUNT(*) as count FROM events').get().count;
+  const publishedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'published'").get().count;
+  const totalArticles = db.prepare("SELECT COUNT(*) as count FROM articles WHERE status != 'draft'").get().count;
+  const articlesWithoutReviewer = db.prepare(`
+    SELECT COUNT(DISTINCT a.id) as count
+    FROM articles a
+    LEFT JOIN assignments ass ON ass.article_id = a.id
+    WHERE a.status NOT IN ('draft', 'approved', 'rejected')
+      AND ass.id IS NULL
+  `).get().count;
+  const articlesUnderReview = db.prepare(`
+    SELECT COUNT(DISTINCT a.id) as count
+    FROM articles a
+    JOIN assignments ass ON ass.article_id = a.id
+    LEFT JOIN reports rp ON rp.assignment_id = ass.id
+    WHERE a.status NOT IN ('draft', 'approved', 'rejected')
+      AND ass.status != 'declined'
+      AND rp.id IS NULL
+  `).get().count;
+  const articlesReadyForDecision = db.prepare(`
+    SELECT COUNT(DISTINCT a.id) as count
+    FROM articles a
+    WHERE a.status NOT IN ('draft', 'approved', 'rejected')
+      AND EXISTS (
+        SELECT 1
+        FROM assignments ass
+        WHERE ass.article_id = a.id
+          AND ass.status != 'declined'
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM assignments ass
+        LEFT JOIN reports rp ON rp.assignment_id = ass.id
+        WHERE ass.article_id = a.id
+          AND ass.status != 'declined'
+          AND rp.id IS NULL
+      )
+  `).get().count;
+  const pendingArticles = articlesWithoutReviewer + articlesUnderReview + articlesReadyForDecision;
+  const authorRegistrations = getAuthorRegistrationCountWhere();
+  const listenerRegistrations = getListenerRegistrationCountWhere();
+  const totalRegisteredParticipants = authorRegistrations + listenerRegistrations;
+  const activeReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 1').get().count;
+  const inactiveReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 0').get().count;
+  const pendingUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
+  const pendingReviewAssignmentArticles = db.prepare(`
+    SELECT
+      a.id,
+      a.event_id,
+      a.title,
+      a.type,
+      a.status,
+      a.created_at,
+      e.name as event_name
+    FROM articles a
+    JOIN events e ON e.id = a.event_id
+    LEFT JOIN assignments ass ON ass.article_id = a.id
+    WHERE a.status != 'draft'
+      AND ass.id IS NULL
+    ORDER BY COALESCE(a.date_submitted, a.created_at) DESC, a.created_at DESC
+    LIMIT 10
+  `).all();
+  const inReviewArticles = db.prepare(`
+    SELECT DISTINCT
+      a.id,
+      a.event_id,
+      a.title,
+      a.type,
+      a.status,
+      a.created_at,
+      e.name as event_name
+    FROM articles a
+    JOIN events e ON e.id = a.event_id
+    JOIN assignments ass ON ass.article_id = a.id
+    LEFT JOIN reports rp ON rp.assignment_id = ass.id
+    WHERE a.status NOT IN ('draft', 'approved', 'rejected')
+      AND ass.status != 'declined'
+      AND rp.id IS NULL
+    ORDER BY COALESCE(a.date_submitted, a.created_at) DESC, a.created_at DESC
+    LIMIT 10
+  `).all();
+  const readyForDecisionArticles = db.prepare(`
+    SELECT DISTINCT
+      a.id,
+      a.event_id,
+      a.title,
+      a.type,
+      a.status,
+      a.created_at,
+      e.name as event_name
+    FROM articles a
+    JOIN events e ON e.id = a.event_id
+    WHERE a.status NOT IN ('draft', 'approved', 'rejected')
+      AND EXISTS (
+        SELECT 1
+        FROM assignments ass
+        WHERE ass.article_id = a.id
+          AND ass.status != 'declined'
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM assignments ass
+        LEFT JOIN reports rp ON rp.assignment_id = ass.id
+        WHERE ass.article_id = a.id
+          AND ass.status != 'declined'
+          AND rp.id IS NULL
+      )
+    ORDER BY COALESCE(a.date_submitted, a.created_at) DESC, a.created_at DESC
+    LIMIT 10
+  `).all();
+  const pendingSubsidyRequests = db.prepare(`
+    SELECT
+      er.id,
+      er.event_id,
+      er.name,
+      er.email,
+      er.institution,
+      er.registration_type,
+      er.created_at,
+      e.name as event_name
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    WHERE er.subsidy_requested = 1
+      AND COALESCE(er.subsidy_status, 'pending') = 'pending'
+    ORDER BY er.created_at DESC
+    LIMIT 10
+  `).all();
+  const pendingRegistrationRequests = db.prepare(`
+    SELECT
+      id,
+      name,
+      email,
+      institution,
+      country,
+      cpf,
+      passport,
+      created_at
+    FROM users
+    WHERE approval_status = 'pending'
+    ORDER BY created_at DESC
+    LIMIT 10
+  `).all();
+  
+  res.render('admin/dashboard', {
+    title: 'Dashboard',
+    totalEvents,
+    publishedEvents,
+    totalArticles,
+    pendingArticles,
+    articlesWithoutReviewer,
+    articlesUnderReview,
+    articlesReadyForDecision,
+    totalRegisteredParticipants,
+    authorRegistrations,
+    listenerRegistrations,
+    activeReviewers,
+    inactiveReviewers,
+    pendingUsers,
+    pendingReviewAssignmentArticles,
+    inReviewArticles,
+    readyForDecisionArticles,
+    pendingSubsidyRequests,
+    pendingRegistrationRequests,
+    year: new Date().getFullYear()
+  });
+});
+
 router.post('/', loginLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.login);
 }, (req, res) => {
