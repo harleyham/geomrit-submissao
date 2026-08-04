@@ -71,14 +71,14 @@
     </div>
 
     <% if (event) { %>
-      <form id="delete-event-form" method="POST" action="/admin/events/<%= event.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">" onsubmit="return confirm('Tem certeza que deseja apagar o evento <%= event.name %>? Esta ação não poderá ser desfeita.');">
+      <form id="delete-event-form" method="POST" action="/admin/events/<%= event.id %>" onsubmit="return confirm('Tem certeza que deseja apagar o evento <%= event.name %>? Esta ação não poderá ser desfeita.');">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="_method" value="DELETE">
       </form>
     <% } %>
 
-    <form method="POST" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">">
+    <form method="POST" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="section">
         <% if (error) { %>
           <div class="alert alert-error"><%= error %></div>
