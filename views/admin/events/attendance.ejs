@@ -4,32 +4,49 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><%= title %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    *{box-sizing:border-box} body{font-family:Arial,sans-serif;background:#0a0f1a;color:#e2e8f0;margin:0}
-    .top{background:#0f172a;padding:14px 6%;display:flex;gap:16px;align-items:center}.top a{color:#93c5fd;text-decoration:none}
-    main{max-width:1180px;margin:auto;padding:32px 6%}.hint{color:#94a3b8;line-height:1.5}.card{background:#172033;border:1px solid #334155;border-radius:12px;padding:22px;margin:18px 0}
-    .activities{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px}.activity{display:flex;min-height:180px;flex-direction:column;justify-content:space-between;padding:18px;border:1px solid #475569;border-radius:10px;background:#111827}
-    .activity h3{margin:0 0 10px}.meta{color:#cbd5e1;font-size:14px;line-height:1.6}.btn{display:inline-block;text-align:center;background:#2563eb;color:white;text-decoration:none;border-radius:7px;padding:10px 12px;margin-top:16px}.empty{padding:18px;border:1px dashed #475569;border-radius:8px;color:#94a3b8}
-    .summary{display:flex;gap:12px;flex-wrap:wrap}.stat{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px 16px;min-width:150px}.stat strong{display:block;font-size:22px;color:#bfdbfe}
+    *{box-sizing:border-box} body{font-family:'Inter',sans-serif;background:#0a0f1a;color:#e2e8f0;margin:0}
+    .topbar{background:rgba(15,23,42,0.8);border-bottom:1px solid rgba(148,163,184,0.1);backdrop-filter:blur(20px);padding:0 2rem;height:64px;display:flex;align-items:center;position:sticky;top:0;z-index:100}.topbar-inner{width:100%;max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}.logo{font-size:1.25rem;font-weight:700;color:#e2e8f0;text-decoration:none}.logo-icon{color:#60a5fa}.topbar-nav{display:flex;gap:0.25rem;align-items:center}.topbar-nav a{color:#94a3b8;padding:0.5rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.875rem;font-weight:500;transition:all 0.15s}.topbar-nav a:hover,.topbar-nav a.active{color:#e2e8f0;background:rgba(148,163,184,0.1)}.main-content{max-width:1400px;margin:0 auto;padding:2rem}
+    .hint{color:#94a3b8;line-height:1.5}.card{background:rgba(30,41,59,0.6);border:1px solid rgba(148,163,184,0.1);border-radius:12px;padding:22px;margin:18px 0}
+    .activities{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px}.activity{display:flex;min-height:180px;flex-direction:column;justify-content:space-between;padding:18px;border:1px solid rgba(148,163,184,0.1);border-radius:10px;background:rgba(30,41,59,0.6)}
+    .activity h3{margin:0 0 10px;color:#f1f5f9}.meta{color:#cbd5e1;font-size:14px;line-height:1.6}
+    .btn{display:inline-block;text-align:center;background:#3b82f6;color:white;text-decoration:none;border-radius:7px;padding:10px 12px;margin-top:16px;transition:background 0.15s}.btn:hover{background:#2563eb}
+    .btn-ghost{background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);font-size:0.875rem;padding:0.5rem 1rem}.btn-ghost:hover{background:rgba(148,163,184,0.1);color:#e2e8f0}
+    .empty{padding:18px;border:1px dashed rgba(148,163,184,0.2);border-radius:8px;color:#94a3b8}
+    .summary{display:flex;gap:12px;flex-wrap:wrap}.stat{background:rgba(15,23,42,0.35);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:12px 16px;min-width:150px}.stat strong{display:block;font-size:22px;color:#bfdbfe}
+    .btn-primary{background:#3b82f6;color:white;padding:0.625rem 1.25rem;border-radius:8px;font-size:0.875rem;font-weight:500;cursor:pointer;border:none;text-decoration:none}
+    .btn-primary:hover{background:#2563eb}
+    footer{text-align:center;padding:2rem;color:#475569;font-size:0.75rem}
   </style>
 </head>
 <body>
-  <header class="top">
-    <a href="/admin/dashboard">Dashboard</a>
-    <a href="/admin/events">Eventos</a>
-    <a href="/admin/events/<%= event.id %>/activities">Atividades</a>
-    <a href="/admin/events/<%= event.id %>/participants">Participantes</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/users">Usuários</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost" style="padding:0.3rem 0.5rem">Sair</button></form>
+      </nav>
+    </div>
   </header>
-  <main>
-    <p><a href="/admin/events/<%= event.id %>">← Voltar ao evento</a></p>
-    <h1>Controle de presença — <%= event.name %></h1>
+  <main class="main-content">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem">
+      <h1 style="font-size:1.75rem;font-weight:700;color:#f1f5f9">Controle de presença — <%= event.name %></h1>
+      <a href="/admin/events/<%= event.id %>" class="btn btn-ghost">← Voltar ao evento</a>
+    </div>
+
     <p class="hint">A presença é registrada separadamente em cada parte do evento. Essa informação é usada para calcular a elegibilidade e a carga horária do certificado.</p>
 
     <% if (success) { %><section class="card"><%= success %></section><% } %>
     <% if (error) { %><section class="card"><%= error %></section><% } %>
 
     <section class="card">
-      <h2>Marcar presença por atividade</h2>
+      <h2 style="font-size:1.125rem;font-weight:600;color:#f1f5f9;margin-bottom:0.5rem">Marcar presença por atividade</h2>
       <p class="hint">Escolha uma atividade para abrir a chamada e marcar ou remover a presença de cada pessoa elegível.</p>
       <div class="activities">
         <% if (!activities.length) { %>
@@ -51,15 +68,17 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2>Resumo do evento</h2>
+    <section class="card" style="margin-top:1.5rem">
+      <h2 style="font-size:1.125rem;font-weight:600;color:#f1f5f9;margin-bottom:0.5rem">Resumo do evento</h2>
       <div class="summary">
         <div class="stat"><strong><%= summary.registered %></strong>Pessoas vinculadas</div>
         <div class="stat"><strong><%= activities.length %></strong>Atividades cadastradas</div>
       </div>
-      <p class="hint">O lançamento de presença geral não é usado nesta tela. Faça a chamada em cada atividade para que o certificado reflita corretamente a participação e a carga horária.</p>
+      <p class="hint" style="margin-top:1rem">O lançamento de presença geral não é usado nesta tela. Faça a chamada em cada atividade para que o certificado reflita corretamente a participação e a carga horária.</p>
     </section>
   </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 <%- include("../../partials/csrf-inject") %>
   </body>
 </html>

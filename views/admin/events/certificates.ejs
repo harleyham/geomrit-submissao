@@ -7,8 +7,20 @@
   </style>
 </head>
 <body>
-<header class="top"><nav><a href="/admin/dashboard">Dashboard</a><a href="/admin/events">Eventos</a><a href="/admin/events/<%= event.id %>/participants">Participantes</a><a href="/admin/events/<%= event.id %>/activities">Atividades</a><a href="/admin/events/<%= event.id %>/roles">Papéis no evento</a></nav><div class="top-actions"><% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><form method="post" action="/admin/logout"><button type="submit" class="logout-btn">Sair</button></form><% } %></div></header>
-<main class="main">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/users">Usuários</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost" style="padding:0.3rem 0.5rem">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+  <main class="main-content">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap"><div><h1>Certificados — <%= event.name %></h1><p class="hint">Cada presença é contabilizada somente no papel exercido na atividade. A mesma pessoa pode receber certificados diferentes, com atividades e cargas horárias independentes.</p></div><form method="post" action="/admin/events/<%= event.id %>/certificates/issue-all"><button type="submit">Emitir todos os elegíveis</button></form></div>
   <% if (success) { %><p class="alert success"><%= success %></p><% } %><% if (error) { %><p class="alert error"><%= error %></p><% } %>
   <section class="card"><h2>Biblioteca de fundos</h2><form method="post" enctype="multipart/form-data" action="/admin/events/<%= event.id %>/certificates/backgrounds"><input name="name" required placeholder="Nome do fundo"><br><br><input type="file" name="background_file" accept="image/png,image/jpeg" required><br><br><button>Enviar fundo PNG/JPEG</button></form></section>

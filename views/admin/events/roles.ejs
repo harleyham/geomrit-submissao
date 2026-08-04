@@ -1,2 +1,127 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title><%= title %></title><style>body{font-family:Arial;background:#0a0f1a;color:#e2e8f0;margin:0}.top,.main{padding:20px 5%}.top{background:#0f172a}.top a{color:#93c5fd;margin-right:16px}.card{background:#1e293b;border-radius:9px;padding:20px;margin:18px 0}select,button{padding:9px;margin:4px;background:#0f172a;color:#fff;border:1px solid #475569}button{background:#2563eb}table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #334155;text-align:left}.hint{color:#94a3b8}.danger{background:#991b1b}</style></head><body><header class="top"><a href="/admin/events">Eventos</a><a href="/admin/events/<%= event.id %>/certificates">Certificados</a></header><main class="main"><h1>Papéis no evento — <%= event.name %></h1><p class="hint">Administrador controla somente este evento. Participante e Revisor são atribuídos pela inscrição e pelos artigos.</p><% if(success){ %><p><%= success %></p><% } %><% if(error){ %><p><%= error %></p><% } %><section class="card"><h2>Atribuir papel</h2><form method="post"><select name="user_id" required><option value="">Pessoa</option><% users.forEach(u=>{ %><option value="<%=u.id%>"><%=u.name%> — <%=u.email%></option><% }) %></select><select name="role" id="role"><option value="admin">Administrador do evento</option><option value="speaker">Palestrante</option><option value="teacher">Professor</option><option value="oral_presenter">Apresentador Oral</option><option value="poster_presenter">Apresentador Pôster</option></select><span id="article"><select name="article_id"><option value="">Artigo aprovado</option><% articles.forEach(a=>{ %><option value="<%=a.id%>"><%=a.title%> — <%=a.type%></option><% }) %></select></span><button>Atribuir</button></form></section><section class="card"><h2>Papéis atribuídos</h2><table><tr><th>Pessoa</th><th>Papel</th><th>Artigo</th><th></th></tr><% assignments.forEach(a=>{ %><tr><td><%=a.user_name%><br><small><%=a.user_email%></small></td><td><%=roleMeta[a.role].label%></td><td><%=a.article_title||'—'%></td><td><form method="post" action="/admin/events/<%=event.id%>/roles/<%=a.role%>/<%=a.user_id%>/delete"><button class="danger">Remover</button></form></td></tr><% }) %></table></section></main><script>const r=document.getElementById('role'),a=document.getElementById('article');function s(){a.style.display=['oral_presenter','poster_presenter'].includes(r.value)?'inline':'none'}r.onchange=s;s()</script><%- include("../../partials/csrf-inject") %>
-  </body></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+    .section-title { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 1rem; }
+    .hint { color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem; line-height: 1.6; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.375rem; }
+    .form-group select { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.75rem 1rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
+    td { padding: 0.75rem 1rem; font-size: 0.8125rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.05); }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.65rem; font-weight: 600; }
+    .badge-admin { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .badge-reviewer { background: rgba(52,211,153,0.15); color: #34d399; }
+    .badge-participant { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .badge-speaker { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .badge-teacher { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .badge-oral { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .badge-poster { background: rgba(56,189,248,0.15); color: #38bdf8; }
+    .alert { padding: 0.875rem 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem; }
+    .alert-success { background: rgba(52,211,153,0.1); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
+    .alert-error { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/users">Usuários</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost" style="padding:0.3rem 0.5rem">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+    <section class="section">
+      <h2 class="section-title">Atribuir papel</h2>
+      <p class="hint">Administrador controla somente este evento. Participante e Revisor são atribuídos pela inscrição e pelos artigos.</p>
+      <form method="POST" action="/admin/events/<%= event.id %>/roles">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="user_id">Pessoa</label>
+          <select name="user_id" id="user_id" required>
+            <option value="">Selecione</option>
+            <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.name %> — <%= u.email %></option><% }) %>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="role">Papel</label>
+          <select name="role" id="role">
+            <option value="admin">Administrador do evento</option>
+            <option value="speaker">Palestrante</option>
+            <option value="teacher">Professor</option>
+            <option value="oral_presenter">Apresentador Oral</option>
+            <option value="poster_presenter">Apresentador Pôster</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="article_id">Artigo aprovado (opcional)</label>
+          <select name="article_id" id="article_id">
+            <option value="">Nenhum</option>
+            <% articles.forEach(a => { %><option value="<%= a.id %>"><%= a.title %> — <%= a.type %></option><% }) %>
+          </select>
+        </div>
+        <div class="form-actions" style="margin-top:1.5rem">
+          <button type="submit" class="btn btn-primary">Atribuir</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Papéis atribuídos</h2>
+      <table>
+        <thead><tr><th>Pessoa</th><th>Papel</th><th>Artigo</th><th></th></tr></thead>
+        <tbody>
+          <% assignments.forEach(a => { %><tr>
+            <td><%= a.user_name %><br><small style="color:#64748b"><%= a.user_email %></small></td>
+            <td><span class="badge badge-<%= a.role === 'admin' ? 'admin' : a.role === 'reviewer' ? 'reviewer' : a.role === 'speaker' ? 'speaker' : a.role === 'teacher' ? 'teacher' : a.role === 'oral_presenter' ? 'oral' : 'poster' %>"><%= roleLabels[a.role] || a.role %></span></td>
+            <td><%= a.article_title || '—' %></td>
+            <td>
+              <form method="POST" action="/admin/events/<%= event.id %>/roles/<%= a.role %>/<%= a.user_id %>/delete">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn btn-danger btn-sm">Remover</button>
+              </form>
+            </td>
+          </tr><% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+</body>
+</html>

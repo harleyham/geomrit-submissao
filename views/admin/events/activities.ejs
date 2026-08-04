@@ -9,11 +9,20 @@
   </style>
 </head>
 <body>
-  <header class="top">
-    <nav><a href="/admin/dashboard">Dashboard</a><a href="/admin/events">Eventos</a><a href="/admin/events/<%= event.id %>/participants">Participantes</a><a href="/admin/events/<%= event.id %>/attendance">Presença</a></nav>
-    <div><% if (userEmail) { %><span class="session"><%= userEmail %></span><form method="post" action="/admin/logout" style="display:inline"><button class="logout">Sair</button></form><% } %></div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/users">Usuários</a>
+        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost" style="padding:0.3rem 0.5rem">Sair</button></form>
+      </nav>
+    </div>
   </header>
-  <main>
+  <main class="main-content">
     <h1>Atividades — <%= event.name %></h1>
     <p class="hint">Os papéis elegíveis definem quem pode atuar na atividade. Inscrições de participantes são vinculadas ao criar ou <a href="/admin/events/<%= event.id %>/participants">editar participantes</a>; depois, a chamada registra a presença efetiva e o papel exercido.</p>
     <% if (success) { %><p class="alert success"><%= success %></p><% } %>
