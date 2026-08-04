@@ -56,6 +56,7 @@
         <a href="/reviewer">← Voltar</a>
         <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
         <form method="POST" action="/reviewer/logout" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem; color:#f87171;">Sair</button>
         </form>
       </nav>
@@ -101,7 +102,8 @@
     <div class="review-section">
       <h2>Parecer do Revisor</h2>
       <p style="margin-bottom: 1rem; color: #94a3b8;">Seu envio registra uma recomendação individual. A decisão final do artigo continua sob responsabilidade administrativa.</p>
-      <form method="POST" action="/reviewer/articles/<%= article.id %>/review">
+      <form method="POST" action="/reviewer/articles/<%= article.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/review">
         <div class="form-group">
           <label for="recommendation">Recomendação *</label>
           <select id="recommendation" name="recommendation" required>

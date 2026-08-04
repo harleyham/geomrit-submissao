@@ -1,0 +1,32 @@
+<script>
+(function() {
+  var token = '<%- csrfToken %>';
+  if (!token) return;
+  document.addEventListener('DOMContentLoaded', function() {
+    var forms = document.querySelectorAll('form[method="POST"], form[method="post"]');
+    forms.forEach(function(form) {
+      var existing = form.querySelector('input[name="_csrf"]');
+      if (!existing) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = '_csrf';
+        input.value = token;
+        form.insertBefore(input, form.firstChild);
+      }
+    });
+  });
+  if (document.readyState !== 'loading') {
+    var forms = document.querySelectorAll('form[method="POST"], form[method="post"]');
+    forms.forEach(function(form) {
+      var existing = form.querySelector('input[name="_csrf"]');
+      if (!existing) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = '_csrf';
+        input.value = token;
+        form.insertBefore(input, form.firstChild);
+      }
+    });
+  }
+})();
+</script>

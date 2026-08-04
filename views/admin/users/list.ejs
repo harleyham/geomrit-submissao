@@ -76,6 +76,7 @@
         <a href="/admin/users" class="active">Usuários</a>
         <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
         <form method="POST" action="/admin/logout" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem; color:#f87171;">Sair</button>
         </form>
       </nav>
@@ -102,6 +103,7 @@
       <div class="section-title">Minha Senha</div>
       <div class="section-desc">Altere a senha de acesso ao painel administrativo</div>
       <form method="POST" action="/admin/users/change-password" style="max-width: 400px;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
           <label for="current_password">Senha Atual *</label>
           <div class="password-field">
@@ -168,11 +170,13 @@
             <td class="actions-cell">
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
-              <form method="POST" action="/admin/users/<%= u.id %>/approve" style="display:inline" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
+              <form method="POST" action="/admin/users/<%= u.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/approve" style="display:inline" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
                 <button type="submit" class="btn btn-primary btn-sm">Aprovar Cadastro</button>
               </form>
               <% if (u.id !== currentUser.id && u.email !== 'admin@admin.com') { %>
-              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir solicitação de cadastro de <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+              <form method="POST" action="/admin/users/<%= u.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">" style="display:inline" onsubmit="return confirm('Excluir solicitação de cadastro de <%= u.email %>?\nEsta ação não pode ser desfeita.')">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
               </form>
@@ -265,11 +269,13 @@
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
               <% if (u.id !== currentUser.id) { %>
-              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
+              <form method="POST" action="/admin/users/<%= u.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/reset-password" style="display:inline" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
                 <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
               </form>
               <% if (u.email !== 'admin@admin.com') { %>
-              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir usuário <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+              <form method="POST" action="/admin/users/<%= u.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">" style="display:inline" onsubmit="return confirm('Excluir usuário <%= u.email %>?\nEsta ação não pode ser desfeita.')">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
               </form>
@@ -290,7 +296,8 @@
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 
-  <form id="bulk-flags-form" method="POST" action="/admin/users/bulk-update-flags" style="display:none;"></form>
+  <form id="bulk-flags-form" method="POST" action="/admin/users/bulk-update-flags" style="display:none;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
   <script>
     document.querySelectorAll('.toggle-password').forEach(function(button) {
       button.addEventListener('click', function() {

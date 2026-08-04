@@ -48,4 +48,5 @@
 <script>
 document.querySelectorAll('.certificate-rule-form').forEach((form)=>{const input=form.querySelector('.selected-background-id');const color=form.querySelector('.text-color');const preview=form.querySelector('.preview');const iframe=preview.querySelector('iframe');const error=form.querySelector('.preview-error');const button=form.querySelector('.preview-button');const buildPreview=()=>{if(!input.value){error.style.display='block';preview.style.display='none';return}error.style.display='none';const params=new URLSearchParams({role:form.dataset.role,background_id:input.value,text_color:color.value});iframe.src='/admin/events/<%= event.id %>/certificates/preview?'+params.toString();preview.style.display='block';button.textContent='Atualizar prévia'};form.querySelectorAll('.background-card').forEach((card)=>card.addEventListener('click',()=>{form.querySelectorAll('.background-card').forEach((item)=>item.classList.remove('selected'));card.classList.add('selected');input.value=card.dataset.backgroundId;if(preview.style.display==='block')buildPreview()}));color.addEventListener('input',()=>{if(preview.style.display==='block')buildPreview()});button.addEventListener('click',buildPreview)});
 </script>
-</body></html>
+<%- include("../partials/csrf-inject") %>
+  </body></html>

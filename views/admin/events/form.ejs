@@ -59,7 +59,8 @@
         <a href="/admin/events">Eventos</a>
         <a href="/admin/users">Usuários</a>
         <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
-        <form method="POST" action="/admin/logout" style="display:inline"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
+        <form method="POST" action="/admin/logout" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
       </nav>
     </div>
   </header>
@@ -70,12 +71,14 @@
     </div>
 
     <% if (event) { %>
-      <form id="delete-event-form" method="POST" action="/admin/events/<%= event.id %>" onsubmit="return confirm('Tem certeza que deseja apagar o evento <%= event.name %>? Esta ação não poderá ser desfeita.');">
+      <form id="delete-event-form" method="POST" action="/admin/events/<%= event.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">" onsubmit="return confirm('Tem certeza que deseja apagar o evento <%= event.name %>? Esta ação não poderá ser desfeita.');">
         <input type="hidden" name="_method" value="DELETE">
       </form>
     <% } %>
 
-    <form method="POST" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>">
+    <form method="POST" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">">
       <div class="section">
         <% if (error) { %>
           <div class="alert alert-error"><%= error %></div>

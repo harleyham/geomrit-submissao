@@ -94,6 +94,7 @@
           <a href="/author" class="btn btn-secondary">Área do Participante</a>
           <span class="session-pill"><%= userEmail %></span>
           <form method="POST" action="/login/logout" style="display:inline;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="btn btn-logout">Sair</button>
           </form>
         <% } %>

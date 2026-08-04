@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const { db, recordParticipantAudit } = require('../db');
 const { renderCertificatePdf } = require('../services/certificates');
+const { strictLimiter } = require('../security/rate-limits');
 
 const CERTIFICATE_ROLES = {
   participant: { label: 'Participante', title: 'CERTIFICADO DE PARTICIPAÇÃO', body: 'participou do evento {event}.', attendance: true },
@@ -313,7 +314,7 @@ router.get('/new', (req, res) => {
 });
 
 // Criar evento
-router.post('/', (req, res) => {
+router.post('/', strictLimiter, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
@@ -382,7 +383,7 @@ router.get('/:id/edit', (req, res) => {
 });
 
 // Atualizar evento (POST direto)
-router.post('/:id', (req, res) => {
+router.post('/:id', strictLimiter, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
   const normalizedStatus = status || 'draft';
   const normalizedArea = normalizeAreaList(area);
@@ -583,7 +584,7 @@ router.get('/:id/attendance', (req, res) => {
   });
 });
 
-router.post('/:id/attendance/:userId', (req, res) => {
+router.post('/:id/attendance/:userId', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const person = db.prepare(`SELECT u.id AS user_id, u.name, u.email,
@@ -806,7 +807,7 @@ router.get('/:id/activities', (req, res) => {
     error: req.query.error || null
   });
 });
-router.post('/:id/activities', (req, res) => {
+router.post('/:id/activities', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const name = String(req.body.name || '').trim();
@@ -828,7 +829,7 @@ router.post('/:id/activities', (req, res) => {
   );
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
 });
-router.post('/:id/activities/:activityId', (req, res) => {
+router.post('/:id/activities/:activityId', strictLimiter, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const name = String(req.body.name || '').trim();
@@ -892,7 +893,7 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
     error: req.query.error || null
   });
 });
-router.post('/:id/activities/:activityId/attendance/:userId', (req, res) => {
+router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (req, res) => {
   const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const userId = Number(req.params.userId);
@@ -942,7 +943,7 @@ router.post('/:id/activities/:activityId/certificate-rule', (req, res) => {
   return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent('As regras de certificado agora são configuradas por papel no evento.')}`);
 });
 
-router.post('/:id/certificates/rule', (req, res) => {
+router.post('/:id/certificates/rule', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const role = CERTIFICATE_ROLES[req.body.certificate_role] ? req.body.certificate_role : 'participant';
@@ -963,7 +964,7 @@ router.post('/:id/certificates/rule', (req, res) => {
   res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Regra de elegibilidade salva.')}`);
 });
 
-router.post('/:id/certificates/backgrounds', (req, res) => {
+router.post('/:id/certificates/backgrounds', strictLimiter, (req, res) => {
   certificateBackgroundUpload.single('background_file')(req, res, (error) => {
     if (error || !req.file || !String(req.body.name || '').trim()) {
       if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
@@ -1003,7 +1004,7 @@ function issueCertificate(event, role, userId, actorUserId, reissuedFromId = nul
     ).lastInsertRowid;
 }
 
-router.post('/:id/certificates/:role/:userId/issue', (req, res) => {
+router.post('/:id/certificates/:role/:userId/issue', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   const role = CERTIFICATE_ROLES[req.params.role] ? req.params.role : null;
   if (!event || !role) return res.status(404).render('error', { title: 'Certificado não encontrado' });
@@ -1012,7 +1013,7 @@ router.post('/:id/certificates/:role/:userId/issue', (req, res) => {
   res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Certificado emitido com sucesso.')}`);
 });
 
-router.post('/:id/certificates/issue-all', (req, res) => {
+router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
 
@@ -1049,7 +1050,7 @@ router.post('/:id/certificates/issue-all', (req, res) => {
   res.redirect(`/admin/events/${event.id}/certificates?${key}=${encodeURIComponent(message)}`);
 });
 
-router.post('/:id/certificates/:role/:userId/reissue', (req, res) => {
+router.post('/:id/certificates/:role/:userId/reissue', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   const role = CERTIFICATE_ROLES[req.params.role] ? req.params.role : null;
   if (!event || !role) return res.status(404).render('error', { title: 'Certificado não encontrado' });
@@ -1077,7 +1078,7 @@ router.get('/:id/roles', (req, res) => {
   res.render('admin/events/roles', { title: `Papéis do evento - ${event.name}`, event, assignments, users, articles, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' } }, success: req.query.success || null, error: req.query.error || null });
 });
 
-router.post('/:id/roles', (req, res) => {
+router.post('/:id/roles', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   const role = ['admin', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(req.body.role) ? req.body.role : null;
   const userId = parseInt(req.body.user_id, 10);
@@ -1099,7 +1100,7 @@ router.post('/:id/roles', (req, res) => {
   res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent('Papel atribuído com sucesso.')}`);
 });
 
-router.post('/:id/roles/:role/:userId/delete', (req, res) => {
+router.post('/:id/roles/:role/:userId/delete', strictLimiter, (req, res) => {
   const role = ['admin', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(req.params.role) ? req.params.role : null;
   if (role) db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').run(req.params.id, req.params.userId, role);
   res.redirect(`/admin/events/${req.params.id}/roles?success=${encodeURIComponent('Papel removido.')}`);
@@ -1232,7 +1233,7 @@ function validateParticipantForm(formData) {
   return null;
 }
 
-router.post('/:id/participants', (req, res) => {
+router.post('/:id/participants', strictLimiter, (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
@@ -1464,7 +1465,7 @@ router.get('/:id/subsidies/:registrationId/document/:documentType', (req, res) =
   return res.sendFile(path.join(__dirname, '..', 'uploads', fileName));
 });
 
-router.post('/:id/subsidies/:registrationId/decision', (req, res) => {
+router.post('/:id/subsidies/:registrationId/decision', strictLimiter, (req, res) => {
   const { subsidy_status, subsidy_review_notes } = req.body;
   const normalizedStatus = subsidy_status === 'approved' ? 'approved' : subsidy_status === 'rejected' ? 'rejected' : null;
 
@@ -1500,7 +1501,7 @@ router.post('/:id/subsidies/:registrationId/decision', (req, res) => {
 });
 
 // Publicar evento
-router.post('/:id/publish', (req, res) => {
+router.post('/:id/publish', strictLimiter, (req, res) => {
   db.prepare("UPDATE events SET status = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?").bind('published', req.params.id).run();
   res.redirect('/admin/events');
 });

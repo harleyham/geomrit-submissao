@@ -51,7 +51,8 @@
         <a href="/admin/events" class="active">Eventos</a>
         <a href="/admin/users">Usuários</a>
         <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
-        <form method="POST" action="/admin/logout" style="display:inline"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
+        <form method="POST" action="/admin/logout" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
       </nav>
     </div>
   </header>
@@ -108,7 +109,8 @@
                 <a href="/admin/reports?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Relatórios</a>
                 <a href="/admin/articles?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Artigos</a>
                 <% if (e.status !== 'published') { %>
-                  <form method="POST" action="/admin/events/<%= e.id %>/publish" style="display:inline" onsubmit="return confirm('Publicar o evento <%= e.name %>?')">
+                  <form method="POST" action="/admin/events/<%= e.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/publish" style="display:inline" onsubmit="return confirm('Publicar o evento <%= e.name %>?')">
                     <button type="submit" class="btn btn-primary btn-sm">Publicar</button>
                   </form>
                 <% } %>
@@ -122,5 +124,6 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
-</body>
+<%- include("../partials/csrf-inject") %>
+  </body>
 </html>

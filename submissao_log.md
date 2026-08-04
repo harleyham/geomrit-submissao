@@ -6,6 +6,18 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-04
 
+### Endurecimento de segurança, CSRF, rate limiting e validação server-side
+
+- Instalado `express-validator` e criados módulos em `security/`: `csrf.js`, `rate-limits.js` e `validation.js`.
+- Proteção CSRF implementada com token gerado por sessão, validação `timingSafeEqual` e rejeição 403 para requisições POST/PUT/DELETE sem token ou com token inválido. Campo `_csrf` injetado automaticamente em todos os formulários via partial `views/partials/csrf-inject.ejs`.
+- Rate limiting configurado: 10 tentativas/15 min no login, 5/hora no cadastro público e inscrições, 30/min em ações administrativas sensíveis, 200/15 min como teto global.
+- express-validator aplicado nas rotas de login, troca de senha, cadastro público, revisão e decisão final, com mensagens de erro localizadas.
+- `server.js` atualizado: secret de sessão via `SESSION_SECRET` ou `crypto.randomBytes(32)`, cookie `secure` ativado em produção, CSP com `objectSrc: none`, `baseUri` e `formAction` restritos, `referrerPolicy` configurado, limit de payload em 1 MB e cabeçalhos de cache removidos.
+- Todos os endpoints POST administrativos recebem `strictLimiter` para prevenir abuso de operações sensíveis.
+- `package.json` atualizado com a nova dependência `express-validator`.
+
+## 2026-08-04
+
 ### Correção do vínculo Atividade–Pessoa–Presença–Certificado
 
 - Separado o papel atribuído no evento (`event_user_roles`) da atuação efetiva registrada na presença (`activity_attendance_records.role`). Marcar ou remover presença não altera mais os papéis da pessoa no evento.

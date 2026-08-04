@@ -56,7 +56,8 @@
         <a href="/admin/events" class="active">Eventos</a>
         <a href="/admin/users">Usuários</a>
         <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
-        <form method="POST" action="/admin/logout" style="display:inline"><button type="submit" class="btn btn-secondary" style="padding:0.45rem 0.75rem;">Sair</button></form>
+        <form method="POST" action="/admin/logout" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-secondary" style="padding:0.45rem 0.75rem;">Sair</button></form>
       </nav>
     </div>
   </header>
@@ -97,7 +98,8 @@
         <p class="help-text" style="margin-bottom:1.5rem;">Toda inscrição administrativa possui uma conta vinculada. Crie uma conta com senha temporária ou selecione uma conta existente.</p>
       <% } %>
 
-      <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>">
+      <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">">
 
         <% if (!registration) { %>
           <div class="form-group">

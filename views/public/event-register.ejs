@@ -70,6 +70,7 @@
           <% } %>
           <span class="session-pill"><%= userEmail %></span>
           <form method="POST" action="/login/logout" style="display:inline;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="btn btn-logout" style="padding:0.55rem 0.85rem;">Sair</button>
           </form>
         <% } %>
@@ -106,7 +107,8 @@
         </div>
       <% } %>
 
-      <form method="POST" action="/evento/<%= event.id %>/inscricao" enctype="multipart/form-data">
+      <form method="POST" action="/evento/<%= event.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/inscricao" enctype="multipart/form-data">
         <div class="form-group">
           <label for="name">Nome completo *</label>
           <input type="text" id="name" name="name" required value="<%= formData.name || '' %>">

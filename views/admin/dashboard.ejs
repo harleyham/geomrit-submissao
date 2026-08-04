@@ -338,5 +338,6 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
-</body>
+<%- include("../partials/csrf-inject") %>
+  </body>
 </html>

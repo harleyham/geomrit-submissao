@@ -4,10 +4,17 @@ const session = require('express-session');
 const helmet = require('helmet');
 const compression = require('compression');
 const methodOverride = require('method-override');
+const crypto = require('crypto');
+
+const { csrfProtection } = require('./security/csrf');
+const { defaultLimiter, adminLimiter } = require('./security/rate-limits');
+const { handleValidationErrors } = require('./security/validation');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const APP_VERSION = 'V0.1';
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Segurança e performance
 app.use(helmet({
@@ -18,8 +25,15 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "blob:"],
-    },
+      connectSrc: ["'self'"],
+      frameSrc: isProduction ? [] : ["'self'", 'blob:'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"]
+    }
   },
+  crossOriginEmbedderPolicy: false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 app.use(compression());
 
@@ -27,24 +41,31 @@ app.use(compression());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Rate limiting global
+app.use(defaultLimiter);
+
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(methodOverride('_method'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
+// Sessão
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'edigemia-ligem-secret-2027',
+  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
+    secure: isProduction,
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 horas
+    maxAge: isProduction ? 4 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
     sameSite: 'lax',
   },
 }));
+
+// CSRF
+app.use(csrfProtection);
 
 // Dados globais para templates
 app.use((req, res, next) => {
@@ -58,6 +79,7 @@ app.use((req, res, next) => {
   res.locals.url = req.originalUrl;
   res.locals.year = new Date().getFullYear();
   res.locals.appVersion = APP_VERSION;
+  res.locals.csrfToken = req.session && req.session.csrfToken;
   next();
 });
 
@@ -78,6 +100,7 @@ app.use('/', publicRouter);
 
 // Rotas admin
 app.use('/admin', authRouter);
+app.use('/admin', adminLimiter);
 app.use('/admin/events', requireAuth, eventsRouter);
 app.use('/admin/articles', requireAuth, articlesRouter);
 app.use('/admin/users', requireAuth, usersRouter);
@@ -93,6 +116,9 @@ app.use((req, res) => {
 
 // Erro
 app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).render('error', { title: 'Conteúdo muito grande', message: 'O conteúdo enviado excede o limite permitido.' });
+  }
   console.error(err.stack);
   res.status(500).render('error', { title: 'Erro interno do servidor', message: 'Ocorreu um erro inesperado.' });
 });

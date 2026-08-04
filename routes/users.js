@@ -3,6 +3,8 @@ const router = express.Router();
 const { db } = require('../db');
 const bcrypt = require('bcryptjs');
 const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
+const { strictLimiter } = require('../security/rate-limits');
+const { validators: v, validateAndHandle } = require('../security/validation');
 
 function requireAuth(req, res, next) {
   if (!req.session.isAdmin) {
@@ -176,7 +178,7 @@ router.get('/new', requireAuth, (req, res) => {
   });
 });
 
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, strictLimiter, (req, res) => {
   const { name, email, password, cpf, passport, country, institution, reviewer_areas, is_admin, is_reviewer } = req.body;
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
@@ -458,7 +460,7 @@ router.delete('/:id', requireAuth, (req, res) => {
 });
 
 // Alterar senha do admin logado
-router.post('/change-password', requireAuth, (req, res) => {
+router.post('/change-password', requireAuth, strictLimiter, (req, res) => {
   const { current_password, new_password, confirm_password } = req.body;
 
   if (!current_password || !new_password || !confirm_password) {

@@ -1,5 +1,7 @@
 const express = require('express');
 const { db } = require('../db');
+const { strictLimiter } = require('../security/rate-limits');
+const { validators: v, validateAndHandle } = require('../security/validation');
 
 const router = express.Router();
 
@@ -132,7 +134,9 @@ router.get('/articles/:id', requireReviewer, (req, res) => {
 });
 
 // Submeter revisão
-router.post('/articles/:id/review', requireReviewer, (req, res) => {
+router.post('/articles/:id/review', requireReviewer, strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.reviewerForm);
+}, (req, res) => {
   const articleId = req.params.id;
   const { recommendation, review_notes, rejection_reason } = req.body;
   const reviewerId = req.session.userId;

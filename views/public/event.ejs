@@ -63,7 +63,8 @@
         <% if (userEmail) { %>
           <a href="<%= isAdmin ? '/admin/dashboard' : isReviewer ? '/reviewer' : '/author' %>" class="btn btn-ghost"><%= isAdmin ? 'Dashboard' : isReviewer ? 'Revisor' : 'Área do Participante' %></a>
           <span class="session-pill"><%= userEmail %></span>
-          <form method="POST" action="<%= isAdmin ? '/admin/logout' : isReviewer ? '/reviewer/logout' : '/login/logout' %>" style="display:inline;">
+          <form method="POST" action="<%= isAdmin ? '/admin/logout' : isReviewer ? '/reviewer/logout' : '/login/logout' %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">" style="display:inline;">
             <button type="submit" class="btn logout-btn">Sair</button>
           </form>
         <% } %>
@@ -136,5 +137,6 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
-</body>
+<%- include("../partials/csrf-inject") %>
+  </body>
 </html>

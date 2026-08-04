@@ -45,7 +45,8 @@
       <nav class="nav">
         <a href="/evento/<%= event.id %>">Evento</a>
         <a href="/author">Área do Participante</a>
-        <form method="POST" action="/login/logout"><button class="btn logout" type="submit">Sair</button></form>
+        <form method="POST" action="/login/logout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn logout" type="submit">Sair</button></form>
       </nav>
     </div>
   </header>
@@ -61,7 +62,8 @@
       <% if (!activities.length) { %>
         <div class="empty">Este evento ainda não possui atividades abertas para participantes.</div>
       <% } else { %>
-        <form method="POST" action="/evento/<%= event.id %>/atividades">
+        <form method="POST" action="/evento/<%= event.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/atividades">
           <div class="activities">
             <% activities.forEach((activity) => { %>
               <label class="activity">

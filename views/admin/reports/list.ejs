@@ -90,7 +90,8 @@
         <a href="/admin">Dashboard</a>
         <a href="/admin/events" class="active">Eventos</a>
         <a href="/admin/users">Usuários</a>
-        <form method="POST" action="/admin/logout" style="display:inline"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
+        <form method="POST" action="/admin/logout" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
       </nav>
     </div>
   </header>
@@ -490,7 +491,8 @@
                 <span class="badge badge-<%= dec.article.status %>"><%= dec.article.status %></span>
               </td>
               <td class="actions">
-                <form method="POST" action="/admin/reports/<%= dec.article.id %>/decide" class="form-inline">
+                <form method="POST" action="/admin/reports/<%= dec.article.id %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/decide" class="form-inline">
                   <input type="hidden" name="eventId" value="<%= event.id %>">
                   <select name="final_status" class="decision-select">
                     <option value="pending" <%= dec.article.status === 'pending' ? 'selected' : '' %>>Pendente</option>

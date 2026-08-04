@@ -55,6 +55,7 @@
         <% } %>
         <span class="pill"><%= userEmail %></span>
         <form method="POST" action="/login/logout" style="display:inline;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="btn btn-logout" style="padding:0.55rem 0.85rem;">Sair</button>
         </form>
       </div>
@@ -80,6 +81,7 @@
       <% } %>
 
       <form method="POST" action="/author/profile">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
           <label for="name">Nome completo *</label>
           <input type="text" id="name" name="name" required value="<%= formData.name || '' %>">

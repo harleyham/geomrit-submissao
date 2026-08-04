@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { ZipArchive } = require('archiver');
 const { db, getArticlesByEvent, recordParticipantAudit } = require('../db');
+const { strictLimiter } = require('../security/rate-limits');
 
 function parseAreaList(areaValue) {
   return String(areaValue || '')
@@ -225,7 +226,7 @@ router.get('/:id', requireAuth, (req, res) => {
   });
 });
 
-router.post('/:id/final-decision', requireAuth, (req, res) => {
+router.post('/:id/final-decision', requireAuth, strictLimiter, (req, res) => {
   const articleId = parseInt(req.params.id, 10);
   const eventId = parseInt(req.body.eventId, 10);
   const finalStatus = String(req.body.final_status || '').trim();
@@ -346,7 +347,7 @@ router.delete('/:id', requireAuth, (req, res) => {
 });
 
 // Atribuir revisor a artigo
-router.post('/:id/assign', requireAuth, (req, res) => {
+router.post('/:id/assign', requireAuth, strictLimiter, (req, res) => {
   const { reviewer_id, action, eventId } = req.body;
   const article = db.prepare('SELECT status FROM articles WHERE id = ?').bind(req.params.id).get();
   if (!article) {

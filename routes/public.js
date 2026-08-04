@@ -6,6 +6,9 @@ const multer = require('multer');
 const { db, recordParticipantAudit } = require('../db');
 const bcrypt = require('bcryptjs');
 const { renderCertificatePdf } = require('../services/certificates');
+const { registrationLimiter } = require('../security/rate-limits');
+const { validators: v, validateAndHandle } = require('../security/validation');
+const { body } = require('express-validator');
 
 const ABSTRACT_LIMIT = 2500;
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -976,7 +979,7 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
   });
 });
 
-router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistrationUpload, (req, res) => {
+router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorAccess, runRegistrationUpload, (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
@@ -1182,7 +1185,7 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
   });
 });
 
-router.post('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => {
+router.post('/evento/:id/atividades', registrationLimiter, requireNonAdminAuthorAccess, (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id=? AND status='published'").get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const registration = getOwnedEventRegistration(event.id, req);
@@ -1258,7 +1261,7 @@ router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
 });
 
 // Processar submissão de artigo
-router.post('/submeter/:eventId', requireNonAdminAuthorAccess, runUpload, (req, res) => {
+router.post('/submeter/:eventId', registrationLimiter, requireNonAdminAuthorAccess, runUpload, (req, res) => {
   try {
     const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get());
     if (!event) {
@@ -1572,7 +1575,7 @@ router.get('/author/certificates/:id/download', requireNonAdminAuthorAccess, (re
   res.type('application/pdf'); res.attachment(`certificado-${certificate.certificate_code}.pdf`); renderCertificatePdf(res, certificate);
 });
 
-router.post('/author/drafts/:id/delete', requireNonAdminAuthorAccess, (req, res) => {
+router.post('/author/drafts/:id/delete', registrationLimiter, requireNonAdminAuthorAccess, (req, res) => {
   const draft = db.prepare(`
     SELECT id, pdf_path
     FROM articles
@@ -1610,7 +1613,7 @@ router.post('/author/drafts/:id/delete', requireNonAdminAuthorAccess, (req, res)
   return res.redirect('/author?success=Rascunho apagado com sucesso.');
 });
 
-router.post('/evento/:id/inscricao/cancelar', requireNonAdminAuthorAccess, (req, res) => {
+router.post('/evento/:id/inscricao/cancelar', registrationLimiter, requireNonAdminAuthorAccess, (req, res) => {
   const event = db.prepare(`
     SELECT id, name, date_start
     FROM events
@@ -1673,7 +1676,7 @@ router.get('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
   });
 });
 
-router.post('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
+router.post('/author/profile', registrationLimiter, requireNonAdminAuthorAccess, (req, res) => {
   const formData = normalizeParticipantProfileForm(req.body);
 
   if (!formData.name || !formData.email) {
@@ -1792,7 +1795,17 @@ router.get('/cadastro', (req, res) => {
   });
 });
 
-router.post('/cadastro', (req, res) => {
+router.post('/cadastro', registrationLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, [
+    v.registration,
+    body('password').isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
+    body('password').matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('A senha deve conter maiúscula, minúscula e número.'),
+    body('confirm_password').custom((value, { req: r }) => {
+      if (value !== r.body.password) throw new Error('As senhas não conferem.');
+      return true;
+    })
+  ]);
+}, (req, res) => {
   const { name, email, password, confirm_password, cpf, passport, country, institution } = req.body;
   const formData = {
     name: name || '',
