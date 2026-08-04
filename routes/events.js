@@ -776,11 +776,20 @@ router.get('/:id/certificates', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const rules = Object.keys(CERTIFICATE_ROLES).map((role) => getCertificateRule(event.id, role));
+  const rolesIssued = db.prepare(`
+    SELECT certificate_role, COUNT(*) as issued_count
+    FROM certificate_emissions
+    WHERE event_id = ? AND status = 'issued'
+    GROUP BY certificate_role
+  `).bind(event.id).all();
+  const issuedByRole = {};
+  rolesIssued.forEach((row) => { issuedByRole[row.certificate_role] = row.issued_count; });
   const certificatesByRole = rules.map((rule) => ({
     ...rule,
     role: rule.certificate_role,
     meta: certificateRoleMeta(rule.certificate_role),
-    candidates: getCertificateCandidates(event.id, rule.certificate_role, rule)
+    candidates: getCertificateCandidates(event.id, rule.certificate_role, rule),
+    certificatesIssued: issuedByRole[rule.certificate_role] || 0
   }));
   const backgrounds = db.prepare('SELECT * FROM certificate_backgrounds ORDER BY created_at DESC').all();
   res.render('admin/events/certificates', {

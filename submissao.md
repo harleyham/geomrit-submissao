@@ -677,6 +677,11 @@ Observações operacionais:
 - Botão "Visualizar original" na página de certificados do admin renderiza a prévia com as configurações salvas no banco sem modificar os campos do formulário, permitindo comparar o estado persistente com as edições não-salvas.
 - Exportação em lote dos certificados emitidos em arquivo ZIP via botão laranja "Exportar todos os certificados emitidos" na página de certificados, com cada certificado como PDF individual nomeado por versão, participante e papel.
 - Botão "Baixar" padronizado como `<button>` (classe `secondary`) na coluna de ações da tabela de certificados, sem sublinhado.
+- Cores personalizadas para status de elegibilidade e emissão: "Elegível" em `#8AAD34` e "Emitido" em `#329542` (verde escuro) na coluna de elegibilidade dos certificados.
+- Contador de certificados emitidos exibido ao lado do rótulo de cada papel de certificado (Participante, Revisor, Palestrante, Professor, Apresentador Oral, Apresentador Pôster).
+- Estatística de certificados emitidos incluída no card "Estatísticas do Evento" da página de relatórios do administrador (`/admin/reports?eventId=:id`).
+- Padronização da topbar nas views públicas (`event.ejs`, `event-certificates.ejs`): classes `btn-secondary` e `btn-logout` unificadas com `submit.ejs`, CSS `.topbar-nav` com `gap:0.4rem; align-items:center; flex-wrap:wrap` e hover com fundo sutil.
+- Botões "Editar" e "Presença" (antes "Fazer chamada") na listagem de atividades (`/admin/events/:id/activities`), estilizados como botões sem sublinhado.
 - O PDF informa a carga horária consolidada em `hora-aula` ou `horas-aula` somente quando as atividades vinculadas ao certificado totalizam valor maior que zero.
 - Emissão em lote dos certificados elegíveis ainda não emitidos.
 - Seleção individual das seções incluídas na impressão do relatório em PDF.

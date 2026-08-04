@@ -53,6 +53,11 @@ router.get('/', requireAuth, (req, res) => {
     FROM event_registrations
     WHERE event_id = ? AND registration_type = 'listener'
   `).bind(eventId).get().count || 0;
+  const certificatesIssued = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM certificate_emissions
+    WHERE event_id = ? AND status = 'issued'
+  `).bind(eventId).get().count || 0;
 
   // Artigos aprovados separados por tipo
   const articlesOral = db.prepare(`
@@ -184,6 +189,7 @@ router.get('/', requireAuth, (req, res) => {
     posterRejected,
     authorRegistrations,
     listenerRegistrations,
+    certificatesIssued,
     articlesOral,
     articlesPoster,
     articlesOralRejected,

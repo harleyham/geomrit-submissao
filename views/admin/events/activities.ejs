@@ -65,7 +65,10 @@
               </td>
               <td><%= activity.enrolled_count %></td>
               <td><%= activity.attendees_count %></td>
-              <td><a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>">Editar</a><br><a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Fazer chamada</a></td>
+              <td style="display:flex;flex-direction:column;gap:6px;align-items:stretch">
+                <a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>" style="display:block;text-align:center;text-decoration:none;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:500">Editar</a>
+                <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance" style="display:block;text-align:center;text-decoration:none;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:500">Presença</a>
+              </td>
             </tr>
           <% }) %>
         </tbody>

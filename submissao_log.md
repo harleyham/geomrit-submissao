@@ -40,6 +40,26 @@ Versão atual registrada: **V0.1**.
 
 - Alterado o link "Baixar" de `<a>` para `<button class="secondary">` em `views/admin/events/certificates.ejs`, eliminando o sublinhado e padronizando visualmente com os botões "Emitir" e "Reemitir".
 
+### Cores personalizadas para status de elegibilidade e emissão
+
+- Na coluna "Elegibilidade" da página de certificados (`views/admin/events/certificates.ejs`), o status "Elegível" agora usa a cor `#8AAD34` e o status "Emitido" usa a cor `#329542` (verde escuro), substituindo as cores padrão `.ok`/`.no` do CSS.
+
+### Contador de certificados emitidos por papel nos cards de certificados
+
+- Cada card de certificado ("Participante", "Revisor", "Palestrante", "Professor", "Apresentador Oral", "Apresentador Pôster") agora exibe a quantidade de certificados emitidos ao lado do rótulo, formatada como `(<N> emitido<em>s</em>)`. A contagem vem de query SQL agrupada por `certificate_role` com filtro `status = 'issued'`.
+
+### Estatística de certificados emitidos no relatório do evento
+
+- Adicionada a query de contagem de certificados emitidos (`status = 'issued'`) em `routes/reports.js` e a variável `certificatesIssued` passada ao template `views/admin/reports/list.ejs`. Novo card verde na seção "Estatísticas do Evento" exibe o total de certificados emitidos pelo evento.
+
+### Padronização da topbar nas views públicas
+
+- Views `views/public/event.ejs` e `views/public/event-certificates.ejs` atualizadas para usar as mesmas classes CSS e estrutura de navegação da view `submit.ejs`: `btn-secondary` (antes `btn-ghost`) para links de Dashboard/Área do Participante e `btn-logout` (antes `logout-btn`) para o botão "Sair". CSS `.topbar-nav` unificado com `display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap` e hover com fundo sutil.
+
+### Botões "Editar" e "Presença" na listagem de atividades
+
+- Na página `/admin/events/:id/activities`, as células de ação da tabela de atividades cadastradas foram atualizadas: o link "Fazer chamada" foi renomeado para "Presença" e ambos os elementos agora são `<a>` estilizados como botões (fundo `#334155`, `border-radius:6px`, `display:block`, `text-align:center`), eliminando o sublinhado e padronizando visualmente com os demais botões do sistema.
+
 ### Inscrição explícita de participantes nas atividades
 
 - Criada a tabela `participant_activity_enrollments` para separar inscrição na atividade de presença efetiva.
@@ -381,7 +401,13 @@ Versão atual registrada: **V0.1**.
 - Auditoria de deliberação final com histórico persistente.
 - Verificação pública de certificados ainda não implementada.
 
-### Minhas observações
+### Minhas observações do a fazer
 
-- Segurança reforçada: CSRF, rate limiting, express-validator e hardened security em produção.
-- Testando o fluxo completo de atividades, presença e emissão de certificados.
+- Importação de CSV com dados dos participantes
+- Nos dados dos participantes incluir número do telefone com formato internacional
+- http://localhost:3000/admin/events/2/activities, http://localhost:3000/admin/reports?eventId=2, http://localhost:3000/admin/articles?eventId=2, estão com o menu superior fora do padrão
+- No certificado de quem ministrou um curso, deve ter "ministrou" e horas-aula
+
+
+
+
