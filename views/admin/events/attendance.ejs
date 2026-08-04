@@ -59,7 +59,7 @@
               <div class="meta">
                 <div><%= activity.activity_date || 'Data a definir' %></div>
                 <div><%= Number(activity.workload_hours) > 0 ? `${activity.workload_hours} hora(s)-aula` : 'Sem carga horária' %></div>
-                <div>Perfis: <%= activity.eligible_roles || 'participant' %></div>
+                <div>Perfis: <% var roles=String(activity.eligible_roles||'participant').split(',').map(function(r){return r.trim()}); var labels={participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresentador Oral',poster_presenter:'Apresentador Pôster'}; roles.forEach(function(role,i){%><span class="badge" style="display:inline-block;padding:2px 6px;border-radius:999px;background:#334155;font-size:11px;margin:2px;color:#cbd5e1"><%= labels[role]||role %></span><% }); %></div>
               </div>
             </div>
             <a class="btn" href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Fazer chamada desta atividade</a>
