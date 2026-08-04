@@ -6,18 +6,6 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-04
 
-### Endurecimento de segurança, CSRF, rate limiting e validação server-side
-
-- Instalado `express-validator` e criados módulos em `security/`: `csrf.js`, `rate-limits.js` e `validation.js`.
-- Proteção CSRF implementada com token gerado por sessão, validação `timingSafeEqual` e rejeição 403 para requisições POST/PUT/DELETE sem token ou com token inválido. Campo `_csrf` injetado automaticamente em todos os formulários via partial `views/partials/csrf-inject.ejs`.
-- Rate limiting configurado: 10 tentativas/15 min no login, 5/hora no cadastro público e inscrições, 30/min em ações administrativas sensíveis, 200/15 min como teto global.
-- express-validator aplicado nas rotas de login, troca de senha, cadastro público, revisão e decisão final, com mensagens de erro localizadas.
-- `server.js` atualizado: secret de sessão via `SESSION_SECRET` ou `crypto.randomBytes(32)`, cookie `secure` ativado em produção, CSP com `objectSrc: none`, `baseUri` e `formAction` restritos, `referrerPolicy` configurado, limit de payload em 1 MB e cabeçalhos de cache removidos.
-- Todos os endpoints POST administrativos recebem `strictLimiter` para prevenir abuso de operações sensíveis.
-- `package.json` atualizado com a nova dependência `express-validator`.
-
-## 2026-08-04
-
 ### Correção do vínculo Atividade–Pessoa–Presença–Certificado
 
 - Separado o papel atribuído no evento (`event_user_roles`) da atuação efetiva registrada na presença (`activity_attendance_records.role`). Marcar ou remover presença não altera mais os papéis da pessoa no evento.
@@ -46,6 +34,16 @@ Versão atual registrada: **V0.1**.
 - A elegibilidade do certificado de participante exige simultaneamente inscrição e presença em cada atividade certificável.
 - A chamada por atividade passou a exibir botões explícitos para marcar, atualizar e remover presença; o papel selecionado permanece independente da ação, evitando que a coluna de presença mostre apenas “—” sem controle operacional.
 - `README.md` e `submissao.md` foram consolidados com o fluxo operacional Evento → Atividades → Inscrição → Presença → Certificados e com as rotas utilizadas por participante e administrador.
+
+### Endurecimento de segurança, CSRF, rate limiting e validação server-side
+
+- Instalado `express-validator` e criados módulos em `security/`: `csrf.js`, `rate-limits.js` e `validation.js`.
+- Proteção CSRF implementada com token gerado por sessão, validação `timingSafeEqual` e rejeição 403 para requisições POST/PUT/DELETE sem token ou com token inválido. Campo `_csrf` injetado automaticamente em todos os formulários via partial `views/partials/csrf-inject.ejs`.
+- Rate limiting configurado: 10 tentativas/15 min no login, 5/hora no cadastro público e inscrições, 30/min em ações administrativas sensíveis, 200/15 min como teto global.
+- express-validator aplicado nas rotas de login, troca de senha, cadastro público, revisão e decisão final, com mensagens de erro localizadas.
+- `server.js` atualizado: secret de sessão via `SESSION_SECRET` ou `crypto.randomBytes(32)`, cookie `secure` ativado em produção, CSP com `objectSrc: none`, `baseUri` e `formAction` restritos, `referrerPolicy` configurado, payload limit de 1 MB.
+- Todos os endpoints POST administrativos recebem `strictLimiter` para prevenir abuso de operações sensíveis.
+- `package.json` atualizado com a nova dependência `express-validator`.
 
 ## 2026-08-03
 
@@ -360,11 +358,10 @@ Versão atual registrada: **V0.1**.
 
 ### Pendências Conhecidas
 
-- Ainda falta implementar um fluxo administrativo dedicado para gestão manual de participantes inscritos em eventos.
-- Ainda pode ser útil expor na interface pública o status detalhado da inscrição no evento para o participante.
-- Há rotas e estruturas legadas no projeto que ainda precisam ser enxugadas.
+- Auditoria de deliberação final com histórico persistente.
+- Verificação pública de certificados ainda não implementada.
 
 ### Minhas observações
-- Testando o link enre atividades e usuários
-- Testando a efetivação de presença entre diferentes atividades
-- Testando a emissão de Certificados, quando o usuário tem a presença
+
+- Segurança reforçada: CSRF, rate limiting, express-validator e hardened security em produção.
+- Testando o fluxo completo de atividades, presença e emissão de certificados.

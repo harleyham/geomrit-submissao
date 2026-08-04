@@ -35,10 +35,11 @@ Uma atividade com presença registrada não pode ser removida da inscrição. A 
 | Banco de dados | SQLite (`better-sqlite3`) |
 | Templates | EJS |
 | Sessão | `express-session` |
-| Segurança | `helmet` + `bcryptjs` |
+| Segurança | `helmet` + `bcryptjs` + `express-rate-limit` + `express-validator` |
 | Upload | `multer` |
 | Certificados PDF | `pdfkit` |
 | Compactação | `compression` |
+| Download ZIP | `archiver` |
 
 ## Estrutura
 
@@ -47,6 +48,7 @@ artigos/
 ├── server.js            # Ponto de entrada do Express
 ├── db.js                # Schema SQLite e helpers de consulta
 ├── package.json         # Dependências
+├── security/            # Módulos de segurança (CSRF, rate limiting, validação)
 ├── uploads/             # Arquivos enviados (certificados, artigos)
 ├── assets/Fundos/       # Fundos padrão de certificado
 ├── routes/              # Rotas da API
@@ -57,6 +59,7 @@ artigos/
 │   ├── reports.js
 │   ├── reviewer.js
 │   └── public.js
+├── services/            # Serviços (ex: geração de PDF de certificados)
 └── views/               # Templates EJS
 ```
 

@@ -676,11 +676,6 @@ Observações operacionais:
 - Certificados distintos por papel no evento: Participante, Revisor, Palestrante, Professor, Apresentador Oral e Apresentador Pôster, cada um com fundo, cor, título, texto, elegibilidade, emissão e reemissão próprios. A prévia dinâmica usa o fundo e a cor atualmente selecionados no formulário, sem exigir salvamento prévio.
 - O PDF informa a carga horária consolidada em `hora-aula` ou `horas-aula` somente quando as atividades vinculadas ao certificado totalizam valor maior que zero.
 - Emissão em lote dos certificados elegíveis ainda não emitidos.
-- Proteção CSRF em todos os formulários POST, com token gerado por sessão, validação timing-safe e rejeição 403 para requisições sem token ou com token inválido.
-- Rate limiting por rota: 10 tentativas/15min no login, 5/hora no cadastro público e inscrições, 30/min em ações administrativas sensíveis e 200/15min como teto global.
-- express-validator integrado nas rotas de login, troca de senha, cadastro público, revisão e decisão final, com mensagens de erro localizadas e sanitização de entrada.
-- hardened security: secret de sessão via `SESSION_SECRET` ou `crypto.randomBytes(32)`, cookie `secure` ativado em produção, CSP com `objectSrc: none`, `baseUri` e `formAction` restritos, `referrerPolicy` configurado, limit de payload em 1 MB e cabeçalhos `noCache` aplicados.
-- Script global de injeção CSRF em `views/partials/csrf-inject.ejs` garante que formulários sem campo `_csrf` explícito recebam o token automaticamente no DOM.
 - Seleção individual das seções incluídas na impressão do relatório em PDF.
 - Download em lote dos PDFs submetidos por evento em arquivo ZIP.
 - Enxugamento técnico: remoção de rotas individuais legadas de perfis, redirecionamentos de login do revisor, fallback duplicado de eventos, dependência direta não utilizada e colunas antigas de revisão em `articles`.
@@ -690,6 +685,13 @@ Observações operacionais:
 - Vinculação de atuação por atividade no controle de presença: o dropdown apresenta apenas papéis elegíveis que a pessoa já possui no evento, enquanto botões separados marcam, atualizam ou removem a presença; a operação não altera `event_user_roles`.
 - Reescrita da página de presença por atividade com layout topbar/Inter, stats cards (presentes/ausentes/total), tabela com perfis no evento e role na atividade, e validação server-side dos papéis aceitos.
 - Correção de coluna ambígua na query de presença por atividade: alias `person_user_id` eliminou erro "ambiguous column name: user_id" causado pela junção de `event_registrations`, `event_user_roles` e `activity_attendance_records`.
+
+### Segurança reforçada (V0.1)
+
+- Proteção CSRF em todos os formulários POST: token gerado por sessão, validação `timingSafeEqual`, rejeição 403 para requisições sem token ou inválido. Injeção automática via partial `views/partials/csrf-inject.ejs`.
+- Rate limiting por rota: login (10/15min), cadastro/inscrição (5/hora), admin sensível (30/min), global (200/15min).
+- `express-validator` integrado nas rotas de login, troca de senha, cadastro público, revisão e decisão final, com mensagens de erro localizadas.
+- Hardened security: secret de sessão via `SESSION_SECRET` ou `crypto.randomBytes(32)`, cookie `secure` ativado em produção, CSP com `objectSrc: none`, `baseUri` e `formAction` restritos, `referrerPolicy` configurado, payload limit de 1 MB, `noCache` headers.
 
 ### Parcial ou pendente de validação
 
@@ -711,8 +713,8 @@ Observações operacionais:
 ### Alta prioridade
 
 1. Validar o fluxo completo de evento, submissão, atribuição, parecer e deliberação final administrativa.
-2. Reforçar validações server-side e client-side nos formulários principais.
-3. Revisar proteção contra CSRF e endurecimento geral de segurança.
+2. Auditoria de deliberação final com histórico persistente.
+3. Filtros avançados de artigos por trilha e modalidade.
 
 ### Média prioridade
 
