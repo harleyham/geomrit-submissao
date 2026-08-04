@@ -133,8 +133,8 @@
                 </section>
               </div>
 
-              <form method="POST" action="/admin/events/<%= event.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/subsidies/<%= request.id %>/decision" class="analysis-form">
+              <form method="POST" action="/admin/events/<%= event.id %>/subsidies/<%= request.id %>/decision" class="analysis-form">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <textarea name="subsidy_review_notes" placeholder="Registre observações da análise, critérios usados, pendências ou justificativa da decisão."><%= request.subsidy_review_notes || '' %></textarea>
                 <div class="analysis-actions">
                   <button type="submit" name="subsidy_status" value="approved" class="btn btn-success">Aprovar Pedido</button>

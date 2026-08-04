@@ -62,8 +62,8 @@
       <% if (!activities.length) { %>
         <div class="empty">Este evento ainda não possui atividades abertas para participantes.</div>
       <% } else { %>
-        <form method="POST" action="/evento/<%= event.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/atividades">
+        <form method="POST" action="/evento/<%= event.id %>/atividades">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="activities">
             <% activities.forEach((activity) => { %>
               <label class="activity">

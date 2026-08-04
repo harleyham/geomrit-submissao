@@ -109,8 +109,8 @@
                 <a href="/admin/reports?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Relatórios</a>
                 <a href="/admin/articles?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Artigos</a>
                 <% if (e.status !== 'published') { %>
-                  <form method="POST" action="/admin/events/<%= e.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/publish" style="display:inline" onsubmit="return confirm('Publicar o evento <%= e.name %>?')">
+                  <form method="POST" action="/admin/events/<%= e.id %>/publish" style="display:inline" onsubmit="return confirm('Publicar o evento <%= e.name %>?')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="btn btn-primary btn-sm">Publicar</button>
                   </form>
                 <% } %>

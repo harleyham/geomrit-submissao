@@ -98,8 +98,8 @@
         <p class="help-text" style="margin-bottom:1.5rem;">Toda inscrição administrativa possui uma conta vinculada. Crie uma conta com senha temporária ou selecione uma conta existente.</p>
       <% } %>
 
-      <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">">
+      <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
         <% if (!registration) { %>
           <div class="form-group">

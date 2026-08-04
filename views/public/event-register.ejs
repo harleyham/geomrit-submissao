@@ -107,8 +107,8 @@
         </div>
       <% } %>
 
-      <form method="POST" action="/evento/<%= event.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/inscricao" enctype="multipart/form-data">
+      <form method="POST" action="/evento/<%= event.id %>/inscricao" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
           <label for="name">Nome completo *</label>
           <input type="text" id="name" name="name" required value="<%= formData.name || '' %>">
