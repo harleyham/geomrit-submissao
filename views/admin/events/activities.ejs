@@ -1,1 +1,67 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title><%=title%></title><style>body{font-family:Arial;background:#0a0f1a;color:#e2e8f0;margin:0}.top{background:#0f172a;padding:14px 6%;display:flex;justify-content:space-between;align-items:center}.top a{color:#93c5fd;margin-right:14px}.session{border:1px solid #475569;border-radius:999px;padding:7px 10px;color:#cbd5e1;font-size:13px}.logout{background:transparent!important;color:#f87171;border-color:#7f1d1d}main{padding:30px 6%}.card{background:#1e293b;padding:20px;border-radius:10px;margin:15px 0}input,select,button{padding:8px;margin:4px;background:#0f172a;color:#fff;border:1px solid #475569}button{background:#2563eb}label{display:inline-block;margin:6px}a{color:#93c5fd}table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #334155;text-align:left}</style></head><body><header class="top"><nav><a href="/admin/dashboard">Dashboard</a><a href="/admin/events">Eventos</a><a href="/admin/events/<%=event.id%>/participants">Participantes</a><a href="/admin/events/<%=event.id%>/attendance">Presença</a></nav><div><%if(userEmail){%><span class="session"><%=userEmail%></span><form method="post" action="/admin/logout" style="display:inline"><button class="logout">Sair</button></form><%}%></div></header><main><h1>Partes do evento — <%=event.name%></h1><section class="card"><h2>Cadastrar parte/atividade</h2><form method="post"><input name="name" required placeholder="Nome da atividade"><select name="activity_type"><option value="lecture">Palestra</option><option value="seminar">Seminário</option><option value="roundtable">Mesa</option><option value="course">Minicurso</option><option value="other">Outra</option></select><input name="activity_date" type="date"><input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária"><h3>Perfis elegíveis</h3><% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach(r=>{%><label><input type="checkbox" name="eligible_roles" value="<%=r[0]%>" checked> <%=r[1]%></label><%})%><p>Certificado que esta atividade habilita: <select name="certificate_role"><%roles.forEach(r=>{%><option value="<%=r[0]%>"><%=r[1]%></option><%})%></select><button>Cadastrar atividade</button></p></form></section><section class="card"><h2>Atividades cadastradas</h2><table><tr><th>Atividade</th><th>Perfis</th><th>Certificado</th><th>Presença</th></tr><%activities.forEach(a=>{%><tr><td><strong><%=a.name%></strong><br><small><%=a.activity_date||'Data a definir'%> · <%=a.workload_hours%>h</small></td><td><%=a.eligible_roles%></td><td><%=a.certificate_role%></td><td><a href="/admin/events/<%=event.id%>/activities/<%=a.id%>/attendance">Marcar presença</a></td></tr><%})%></table></section></main></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %></title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#0a0f1a;color:#e2e8f0;margin:0}.top{background:#0f172a;padding:14px 6%;display:flex;justify-content:space-between;align-items:center}.top a{color:#93c5fd;margin-right:14px}.session{border:1px solid #475569;border-radius:999px;padding:7px 10px;color:#cbd5e1;font-size:13px}.logout{background:transparent!important;color:#f87171;border-color:#7f1d1d}main{padding:30px 6%;max-width:1300px;margin:auto}.card{background:#1e293b;padding:20px;border-radius:10px;margin:15px 0}input,select,button{padding:8px;margin:4px;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:6px}button{background:#2563eb;cursor:pointer}label{display:inline-block;margin:6px}a{color:#93c5fd}table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #334155;text-align:left;vertical-align:top}.hint{color:#94a3b8;font-size:13px}.alert{padding:10px;border-radius:6px}.success{background:#14532d}.error{background:#7f1d1d}.badge{display:inline-block;padding:3px 7px;margin:2px;border-radius:999px;background:#334155;font-size:12px}.disabled{color:#94a3b8}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <nav><a href="/admin/dashboard">Dashboard</a><a href="/admin/events">Eventos</a><a href="/admin/events/<%= event.id %>/participants">Participantes</a><a href="/admin/events/<%= event.id %>/attendance">Presença</a></nav>
+    <div><% if (userEmail) { %><span class="session"><%= userEmail %></span><form method="post" action="/admin/logout" style="display:inline"><button class="logout">Sair</button></form><% } %></div>
+  </header>
+  <main>
+    <h1>Atividades — <%= event.name %></h1>
+    <p class="hint">Os papéis elegíveis definem quem pode atuar na atividade. Inscrições de participantes são vinculadas ao criar ou <a href="/admin/events/<%= event.id %>/participants">editar participantes</a>; depois, a chamada registra a presença efetiva e o papel exercido.</p>
+    <% if (success) { %><p class="alert success"><%= success %></p><% } %>
+    <% if (error) { %><p class="alert error"><%= error %></p><% } %>
+    <% const activityForm = editingActivity || {}; const selectedRoles = String(activityForm.eligible_roles || 'participant,reviewer,speaker,teacher,oral_presenter,poster_presenter').split(','); %>
+    <section class="card">
+      <h2><%= editingActivity ? 'Editar atividade' : 'Cadastrar atividade' %></h2>
+      <form method="post" action="<%= editingActivity ? `/admin/events/${event.id}/activities/${editingActivity.id}` : `/admin/events/${event.id}/activities` %>">
+        <input name="name" required placeholder="Nome da atividade" value="<%= activityForm.name || '' %>">
+        <select name="activity_type">
+          <% [['lecture','Palestra'],['seminar','Seminário'],['roundtable','Mesa-redonda'],['course','Minicurso'],['oral_presentation','Apresentação oral'],['poster_presentation','Apresentação pôster'],['other','Outra']].forEach((type) => { %><option value="<%= type[0] %>" <%= activityForm.activity_type === type[0] ? 'selected' : '' %>><%= type[1] %></option><% }) %>
+        </select>
+        <input name="activity_date" type="date" value="<%= activityForm.activity_date || '' %>">
+        <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária" value="<%= activityForm.workload_hours ?? '' %>">
+        <h3>Papéis elegíveis na chamada</h3>
+        <% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach((role) => { %>
+          <label><input type="checkbox" name="eligible_roles" value="<%= role[0] %>" <%= selectedRoles.includes(role[0]) ? 'checked' : '' %>> <%= role[1] %></label>
+        <% }) %>
+        <p><label><input type="checkbox" name="certificate_enabled" value="1" <%= !editingActivity || activityForm.certificate_enabled ? 'checked' : '' %>> Contabilizar esta atividade para certificados e carga horária</label></p>
+        <button type="submit"><%= editingActivity ? 'Salvar atividade' : 'Cadastrar atividade' %></button>
+        <% if (editingActivity) { %><a href="/admin/events/<%= event.id %>/activities">Cancelar edição</a><% } %>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Atividades cadastradas</h2>
+      <table>
+        <thead><tr><th>Atividade</th><th>Papéis elegíveis</th><th>Certificação</th><th>Inscritos</th><th>Presentes</th><th>Ação</th></tr></thead>
+        <tbody>
+          <% if (!activities.length) { %><tr><td colspan="6" class="hint">Nenhuma atividade cadastrada.</td></tr><% } %>
+          <% activities.forEach((activity) => { %>
+            <tr>
+              <td><strong><%= activity.name %></strong><br><small><%= activity.activity_date || 'Data a definir' %> · <%= activity.workload_hours %>h</small></td>
+              <td><% String(activity.eligible_roles || '').split(',').filter(Boolean).forEach((role) => { %><span class="badge"><%= Object.fromEntries(roles)[role] || role %></span><% }) %></td>
+              <td class="<%= activity.certificate_enabled ? '' : 'disabled' %>">
+                <%= activity.certificate_enabled ? 'Conta no certificado conforme o papel da presença' : 'Não contabiliza' %>
+                <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/certificate-enabled">
+                  <input type="hidden" name="enabled" value="<%= activity.certificate_enabled ? 0 : 1 %>">
+                  <button type="submit"><%= activity.certificate_enabled ? 'Desativar' : 'Ativar' %></button>
+                </form>
+              </td>
+              <td><%= activity.enrolled_count %></td>
+              <td><%= activity.attendees_count %></td>
+              <td><a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>">Editar</a><br><a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Fazer chamada</a></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

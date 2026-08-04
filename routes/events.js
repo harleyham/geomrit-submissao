@@ -11,10 +11,10 @@ const { renderCertificatePdf } = require('../services/certificates');
 const CERTIFICATE_ROLES = {
   participant: { label: 'Participante', title: 'CERTIFICADO DE PARTICIPAÇÃO', body: 'participou do evento {event}.', attendance: true },
   reviewer: { label: 'Revisor', title: 'CERTIFICADO DE REVISÃO', body: 'atuou como revisor(a) de trabalhos científicos no evento {event}.', attendance: false },
-  speaker: { label: 'Palestrante', title: 'CERTIFICADO DE PALESTRANTE', body: 'participou como palestrante do evento {event}.', attendance: false },
-  teacher: { label: 'Professor', title: 'CERTIFICADO DE PROFESSOR(A)', body: 'atuou como professor(a) no evento {event}.', attendance: false },
-  oral_presenter: { label: 'Apresentador Oral', title: 'CERTIFICADO DE APRESENTAÇÃO ORAL', body: 'realizou apresentação oral no evento {event}.', attendance: false },
-  poster_presenter: { label: 'Apresentador Pôster', title: 'CERTIFICADO DE APRESENTAÇÃO DE PÔSTER', body: 'realizou apresentação de pôster no evento {event}.', attendance: false }
+  speaker: { label: 'Palestrante', title: 'CERTIFICADO DE PALESTRANTE', body: 'participou como palestrante do evento {event}.', attendance: true },
+  teacher: { label: 'Professor', title: 'CERTIFICADO DE PROFESSOR(A)', body: 'atuou como professor(a) no evento {event}.', attendance: true },
+  oral_presenter: { label: 'Apresentador Oral', title: 'CERTIFICADO DE APRESENTAÇÃO ORAL', body: 'realizou apresentação oral no evento {event}.', attendance: true },
+  poster_presenter: { label: 'Apresentador Pôster', title: 'CERTIFICADO DE APRESENTAÇÃO DE PÔSTER', body: 'realizou apresentação de pôster no evento {event}.', attendance: true }
 };
 
 function certificateRoleMeta(role) { return CERTIFICATE_ROLES[role] || CERTIFICATE_ROLES.participant; }
@@ -204,6 +204,9 @@ function getEventParticipantSummary(eventId, filters = {}) {
       u.is_reviewer as linked_user_is_reviewer,
       COALESCE(sa.submitted_count, 0) as submitted_articles,
       COALESCE(aa.approved_count, 0) as approved_articles,
+      (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.registration_id=er.id) AS enrolled_activities,
+      (SELECT GROUP_CONCAT(ea.name, ' · ') FROM participant_activity_enrollments pae
+        JOIN event_activities ea ON ea.id=pae.activity_id WHERE pae.registration_id=er.id) AS activity_names,
       CASE
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
         WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
@@ -623,96 +626,27 @@ router.post('/:id/attendance/:userId', (req, res) => {
   return res.redirect(`/admin/events/${event.id}/attendance?success=${encodeURIComponent('Presença registrada com sucesso.')}`);
 });
 
-function getCertificateParticipants(eventId, minAttendance, textColorOverride = null) {
-  const participants = db.prepare(`
-    SELECT er.id, er.name, er.email, er.registration_type,
-      COUNT(ar.id) AS attendance_count,
-      (SELECT MAX(version) FROM certificate_emissions ce WHERE ce.event_id = er.event_id AND ce.registration_id = er.id AND ce.certificate_role = 'participant') AS latest_version,
-      (SELECT id FROM certificate_emissions ce WHERE ce.event_id = er.event_id AND ce.registration_id = er.id AND ce.certificate_role = 'participant' AND ce.status = 'issued' ORDER BY version DESC LIMIT 1) AS active_emission_id
-    FROM event_registrations er
-    LEFT JOIN attendance_records ar ON ar.event_id = er.event_id AND ar.registration_id = er.id
-    WHERE er.event_id = ?
-    GROUP BY er.id
-    ORDER BY er.name COLLATE NOCASE
-  `).all(eventId);
-
-  const rule = db.prepare('SELECT text_color FROM certificate_rules WHERE event_id = ?').get(eventId) || { text_color: '#0f172a' };
-  const textColor = textColorOverride || rule.text_color || '#0f172a';
-
-  const workloadSummary = db.prepare(`
-    SELECT
-      er.id AS registration_id,
-      COUNT(aar.id) AS activities_attended,
-      COALESCE(SUM(ea.workload_hours), 0) AS total_workload_hours
-    FROM event_registrations er
-    LEFT JOIN activity_attendance_records aar
-      ON aar.registration_id = er.id
-      AND aar.activity_id IN (SELECT id FROM event_activities WHERE event_id = ? AND certificate_enabled = 1)
-    LEFT JOIN event_activities ea
-      ON ea.id = aar.activity_id
-    WHERE er.event_id = ?
-    GROUP BY er.id
-  `).bind(eventId, eventId).all();
-
-  const workloadByRegistration = new Map(workloadSummary.map((row) => [row.registration_id, { activities_attended: row.activities_attended, total_workload_hours: row.total_workload_hours }]));
-
-  const activityRules = db.prepare(`
-    SELECT acr.activity_id, ea.name AS activity_name, ea.workload_hours, acr.min_attendance
-    FROM activity_certificate_rules acr
-    JOIN event_activities ea ON ea.id = acr.activity_id
-    WHERE ea.event_id = ?
+function getRoleActivityAttendance(eventId, userId, role) {
+  const activities = db.prepare(`
+    SELECT ea.id AS activity_id, ea.name AS activity_name, ea.activity_type,
+      ea.activity_date, COALESCE(ea.workload_hours, 0) AS workload_hours
+    FROM activity_attendance_records aar
+    JOIN event_activities ea ON ea.id = aar.activity_id
+    WHERE ea.event_id = ? AND aar.user_id = ? AND aar.role = ?
+      AND ea.certificate_enabled = 1
+      AND (? <> 'participant' OR EXISTS (
+        SELECT 1
+        FROM participant_activity_enrollments pae
+        WHERE pae.activity_id = aar.activity_id AND pae.user_id = aar.user_id
+      ))
     ORDER BY ea.activity_date, ea.name
-  `).all(eventId);
-
-  const hasActivityRules = activityRules.length > 0;
-  const activityMinAttendance = hasActivityRules ? activityRules[0].min_attendance : 1;
-
-  const attendedActivitiesByRegistration = new Map();
-  const allActivityIds = db.prepare(`
-    SELECT id FROM event_activities WHERE event_id = ? AND certificate_enabled = 1
-  `).all(eventId).map((a) => a.id);
-
-  if (allActivityIds.length > 0) {
-    const placeholders = allActivityIds.map(() => '?').join(',');
-    const attendedActivities = db.prepare(`
-      SELECT aar.registration_id, ea.id AS activity_id, ea.name AS activity_name, ea.activity_type, ea.workload_hours, ea.activity_date
-      FROM activity_attendance_records aar
-      JOIN event_activities ea ON ea.id = aar.activity_id
-      WHERE aar.registration_id IN (
-        SELECT er.id FROM event_registrations er WHERE er.event_id = ?
-      )
-        AND ea.id IN (${placeholders})
-      ORDER BY ea.activity_date, ea.name
-    `).bind(eventId, ...allActivityIds).all();
-
-    attendedActivities.forEach((row) => {
-      if (!attendedActivitiesByRegistration.has(row.registration_id)) {
-        attendedActivitiesByRegistration.set(row.registration_id, []);
-      }
-      attendedActivitiesByRegistration.get(row.registration_id).push(row);
-    });
-  }
-
-  return participants.map((participant) => {
-    const workload = workloadByRegistration.get(participant.id) || { activities_attended: 0, total_workload_hours: 0 };
-    const attendedActivities = attendedActivitiesByRegistration.get(participant.id) || [];
-    let eligible;
-    if (hasActivityRules) {
-      eligible = workload.activities_attended >= activityMinAttendance;
-    } else {
-      eligible = participant.attendance_count >= minAttendance;
-    }
-    return {
-      ...participant,
-      activities_attended: workload.activities_attended,
-      total_workload_hours: workload.total_workload_hours,
-      eligible,
-      has_activity_rules: hasActivityRules,
-      activity_rules: hasActivityRules ? activityRules : [],
-      attended_activities: attendedActivities,
-      text_color: textColor
-    };
-  });
+  `).all(eventId, userId, role, role);
+  return {
+    attended_activities: activities,
+    activities_attended: activities.length,
+    attendance_count: activities.length,
+    total_workload_hours: activities.reduce((sum, activity) => sum + (Number(activity.workload_hours) || 0), 0)
+  };
 }
 
 function getCertificateRule(eventId, role) {
@@ -730,24 +664,47 @@ function enrichCertificateCandidate(eventId, role, candidate) {
 }
 
 function getCertificateCandidates(eventId, role, rule) {
+  const minAttendance = role === 'reviewer' ? 0 : Math.max(1, Number(rule.min_attendance) || 1);
   if (role === 'participant') {
-    return getCertificateParticipants(eventId, rule.min_attendance, rule.text_color).map((item) => enrichCertificateCandidate(eventId, role, {
-      ...item, user_id: db.prepare('SELECT user_id FROM event_registrations WHERE id=?').get(item.id)?.user_id,
-      registration_id: item.id, eligible: item.eligible
-    })).filter((item) => item.user_id);
+    return db.prepare(`SELECT er.id AS registration_id, er.user_id, er.name, er.email, er.registration_type
+      FROM event_registrations er WHERE er.event_id=? AND er.user_id IS NOT NULL
+      ORDER BY er.name COLLATE NOCASE`).all(eventId).map((item) => {
+        const attendance = getRoleActivityAttendance(eventId, item.user_id, role);
+        return enrichCertificateCandidate(eventId, role, {
+          ...item, ...attendance, text_color: rule.text_color,
+          eligible: attendance.attendance_count >= minAttendance
+        });
+      });
   }
   if (role === 'reviewer') {
-    return db.prepare(`SELECT DISTINCT u.id AS user_id, u.name, u.email, NULL AS registration_id,
-      COUNT(r.id) AS report_count
-      FROM reports r JOIN assignments a ON a.id=r.assignment_id JOIN articles ar ON ar.id=a.article_id
-      JOIN users u ON u.id=a.reviewer_id WHERE ar.event_id=? GROUP BY u.id ORDER BY u.name COLLATE NOCASE`).all(eventId)
-      .map((item) => enrichCertificateCandidate(eventId, role, { ...item, attendance_count: 0, activities_attended: 0, total_workload_hours: 0, eligible: item.report_count > 0 }));
+    return db.prepare(`WITH reviewers AS (
+        SELECT a.reviewer_id AS user_id FROM assignments a JOIN articles ar ON ar.id=a.article_id WHERE ar.event_id=?
+        UNION SELECT user_id FROM event_user_roles WHERE event_id=? AND role='reviewer'
+      ) SELECT u.id AS user_id, u.name, u.email,
+        (SELECT er.id FROM event_registrations er WHERE er.event_id=? AND er.user_id=u.id LIMIT 1) AS registration_id,
+        (SELECT COUNT(*) FROM reports r JOIN assignments a ON a.id=r.assignment_id
+          JOIN articles ar ON ar.id=a.article_id WHERE ar.event_id=? AND a.reviewer_id=u.id) AS report_count
+      FROM reviewers rv JOIN users u ON u.id=rv.user_id ORDER BY u.name COLLATE NOCASE
+    `).all(eventId, eventId, eventId, eventId).map((item) => {
+      const attendance = getRoleActivityAttendance(eventId, item.user_id, role);
+      return enrichCertificateCandidate(eventId, role, {
+        ...item, ...attendance, text_color: rule.text_color,
+        eligible: item.report_count > 0
+      });
+    });
   }
   return db.prepare(`SELECT eur.user_id, u.name, u.email, eur.article_id, ar.title AS article_title, NULL AS registration_id
     FROM event_user_roles eur JOIN users u ON u.id=eur.user_id
     LEFT JOIN articles ar ON ar.id=eur.article_id
     WHERE eur.event_id=? AND eur.role=? ORDER BY u.name COLLATE NOCASE`).all(eventId, role)
-    .map((item) => enrichCertificateCandidate(eventId, role, { ...item, attendance_count: 0, activities_attended: 0, total_workload_hours: 0, eligible: true }));
+    .map((item) => {
+      const attendance = getRoleActivityAttendance(eventId, item.user_id, role);
+      const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(eventId, item.user_id);
+      return enrichCertificateCandidate(eventId, role, {
+        ...item, ...attendance, registration_id: registration ? registration.id : null,
+        text_color: rule.text_color, eligible: attendance.attendance_count >= minAttendance
+      });
+    });
 }
 
 router.get('/:id/certificates', (req, res) => {
@@ -833,20 +790,76 @@ router.get('/:id/activities', (req, res) => {
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const activities = db.prepare(`
     SELECT ea.*,
-      COUNT(aar.id) AS attendees_count,
-      COALESCE(SUM(ea.workload_hours), 0) AS workload_hours
+      (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
+      (SELECT COUNT(*) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count
     FROM event_activities ea
-    LEFT JOIN activity_attendance_records aar ON aar.activity_id = ea.id
     WHERE ea.event_id = ?
-    GROUP BY ea.id
     ORDER BY ea.activity_date, ea.name
   `).bind(req.params.id).all();
+  const editingActivity = req.query.edit_activity_id
+    ? activities.find((activity) => Number(activity.id) === Number(req.query.edit_activity_id)) || null
+    : null;
   res.render('admin/events/activities', {
     title: `Atividades - ${event.name}`,
-    event, activities
+    event, activities, editingActivity,
+    success: req.query.success || null,
+    error: req.query.error || null
   });
 });
-router.post('/:id/activities',(req,res)=>{const event=db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);if(!event)return res.status(404).render('error',{title:'Evento não encontrado'});const name=String(req.body.name||'').trim();if(!name)return res.redirect(`/admin/events/${event.id}/activities`);const roles=Array.isArray(req.body.eligible_roles)?req.body.eligible_roles:[req.body.eligible_roles];const eligibleRoles=roles.filter(Boolean).join(',')||'participant,reviewer,speaker,teacher,oral_presenter,poster_presenter';const certificateEnabled=req.body.certificate_enabled==='0'?0:1;db.prepare("INSERT INTO event_activities(event_id,name,activity_type,activity_date,workload_hours,certificate_enabled,eligible_roles,certificate_role) VALUES(?,?,?,?,?,?,?,?)").run(event.id,name,String(req.body.activity_type||'other'),req.body.activity_date||null,Number(req.body.workload_hours)||0,certificateEnabled,eligibleRoles,String(req.body.certificate_role||'participant'));res.redirect(`/admin/events/${event.id}/activities`);});
+router.post('/:id/activities', (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const name = String(req.body.name || '').trim();
+  const validRoles = Object.keys(CERTIFICATE_ROLES);
+  const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : [req.body.eligible_roles];
+  const eligibleRoles = [...new Set(submittedRoles.filter((role) => validRoles.includes(role)))];
+  if (!name || eligibleRoles.length === 0) {
+    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Informe o nome e ao menos um papel elegível para a atividade.')}`);
+  }
+  const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
+  const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
+  const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
+  db.prepare(`INSERT INTO event_activities
+    (event_id,name,activity_type,activity_date,workload_hours,certificate_enabled,eligible_roles,certificate_role)
+    VALUES(?,?,?,?,?,?,?,?)`).run(
+    event.id, name, activityType, req.body.activity_date || null, workloadHours,
+    certificateEnabled, eligibleRoles.join(','), eligibleRoles[0]
+  );
+  return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
+});
+router.post('/:id/activities/:activityId', (req, res) => {
+  const activity = db.prepare('SELECT * FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const name = String(req.body.name || '').trim();
+  const validRoles = Object.keys(CERTIFICATE_ROLES);
+  const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : [req.body.eligible_roles];
+  const eligibleRoles = [...new Set(submittedRoles.filter((role) => validRoles.includes(role)))];
+  if (!name || eligibleRoles.length === 0) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Informe o nome e ao menos um papel elegível.')}`);
+  }
+  const enrolledCount = db.prepare('SELECT COUNT(*) AS count FROM participant_activity_enrollments WHERE activity_id=?').get(activity.id).count;
+  if (enrolledCount > 0 && !eligibleRoles.includes('participant')) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Não é possível retirar o papel Participante enquanto houver pessoas inscritas nesta atividade.')}`);
+  }
+  const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
+  const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
+  const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
+  db.prepare(`UPDATE event_activities SET name=?,activity_type=?,activity_date=?,workload_hours=?,
+    certificate_enabled=?,eligible_roles=?,certificate_role=? WHERE id=?`).run(
+    name, activityType, req.body.activity_date || null, workloadHours, certificateEnabled,
+    eligibleRoles.join(','), eligibleRoles[0], activity.id
+  );
+  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade atualizada.')}`);
+});
+router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
+  const activity = db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const enabled = req.body.enabled === '1' ? 1 : 0;
+  db.prepare('UPDATE event_activities SET certificate_enabled=? WHERE id=?').run(enabled, activity.id);
+  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(enabled ? 'Atividade incluída no cálculo dos certificados.' : 'Atividade retirada do cálculo dos certificados.')}`);
+});
 router.get('/:id/activities/:activityId/attendance', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -854,69 +867,86 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const allowedRoles = String(activity.eligible_roles || 'participant').split(',').map((role) => role.trim());
   const people = db.prepare(`WITH event_people AS (
-      SELECT er.user_id AS person_user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role FROM event_registrations er WHERE er.event_id=? AND er.user_id IS NOT NULL
+      SELECT er.user_id AS person_user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role
+        FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
+        WHERE er.event_id=? AND er.user_id IS NOT NULL
       UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
+      UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, u.institution, NULL, 'reviewer'
+        FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
     ) SELECT ep.person_user_id AS user_id, MAX(ep.name) AS name, MAX(ep.email) AS email, MAX(ep.institution) AS institution, MAX(ep.registration_id) AS registration_id, GROUP_CONCAT(DISTINCT ep.role) AS roles,
       CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present,
       COALESCE(aar.role, '') AS activity_role
     FROM event_people ep
     LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id
-    GROUP BY ep.person_user_id ORDER BY name COLLATE NOCASE`).all(activity.event_id, activity.event_id, activity.id)
+    GROUP BY ep.person_user_id ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.event_id, activity.id)
     .filter((person) => String(person.roles).split(',').some((role) => allowedRoles.includes(role)));
-  const activityRule = db.prepare('SELECT acr.*, cb.file_path AS background_path, cb.name AS background_name FROM activity_certificate_rules acr LEFT JOIN certificate_backgrounds cb ON cb.id = acr.background_id WHERE acr.activity_id = ?').get(activity.id);
-  const backgrounds = db.prepare('SELECT * FROM certificate_backgrounds ORDER BY created_at DESC').all();
+  const roleLabels = Object.fromEntries(Object.entries(CERTIFICATE_ROLES).map(([role, meta]) => [role, meta.label]));
+  people.forEach((person) => {
+    const assignedRoles = String(person.roles || '').split(',').map((role) => role.trim()).filter(Boolean);
+    person.available_activity_roles = allowedRoles.filter((role) => assignedRoles.includes(role));
+  });
   res.render('admin/events/activity-attendance', {
-    title: `Presença - ${activity.name}`,
-    event, activity, participants: people, activityRule, backgrounds,
+    title: `Presença - ${activity.name}`, event, activity, participants: people,
+    roleLabels,
     success: req.query.success || null,
     error: req.query.error || null
   });
 });
 router.post('/:id/activities/:activityId/attendance/:userId', (req, res) => {
-  const activity = db.prepare('SELECT id, event_id FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const userId = Number(req.params.userId);
-  const role = String(req.body.role || 'participant').trim();
-  const validRoles = ['participant', 'teacher', 'speaker', 'oral_presenter', 'poster_presenter'];
-  const finalRole = validRoles.includes(role) ? role : 'participant';
+  const role = String(req.body.role || '').trim();
 
-  if (req.body.action === 'absent' || !finalRole) {
-    db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=?').run(activity.id, userId);
+  if (req.body.action === 'absent' || !role) {
+    const existing = db.prepare('SELECT registration_id,role FROM activity_attendance_records WHERE activity_id=? AND user_id=?').get(activity.id, userId);
+    const removed = db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=?').run(activity.id, userId);
+    if (removed.changes) recordParticipantAudit({
+      eventId: activity.event_id, registrationId: existing && existing.registration_id,
+      actorUserId: req.session.userId, action: 'activity_attendance_removed',
+      details: { activity_id: activity.id, user_id: userId, role: existing && existing.role }
+    });
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);
   }
 
   const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
+  const participantEnrollment = registration && role === 'participant' && db.prepare(`SELECT 1 FROM participant_activity_enrollments
+    WHERE activity_id=? AND registration_id=? AND user_id=?`).get(activity.id, registration.id, userId);
+  const eventRole = db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').get(activity.event_id, userId, role);
+  const reviewerAssignment = role === 'reviewer' && db.prepare(`SELECT 1 FROM assignments ass
+    JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, userId);
+  const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
+  const hasRoleInEvent = role === 'participant' ? Boolean(participantEnrollment) : Boolean(eventRole || reviewerAssignment);
+  if (!CERTIFICATE_ROLES[role] || !allowedRoles.includes(role) || !hasRoleInEvent) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?error=${encodeURIComponent('A pessoa não possui este papel no evento ou o papel não é elegível para a atividade.')}`);
+  }
 
   const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=?').get(activity.id, userId);
   if (existing) {
-    db.prepare("UPDATE activity_attendance_records SET role=?,marked_by=?,attended_at=datetime('now','-3 hours') WHERE id=?").run(finalRole, req.session.userId, existing.id);
+    db.prepare("UPDATE activity_attendance_records SET role=?,registration_id=?,marked_by=?,attended_at=datetime('now','-3 hours') WHERE id=?")
+      .run(role, registration ? registration.id : null, req.session.userId, existing.id);
   } else {
-    db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by) VALUES(?,?,?,?,?)').run(activity.id, registration && registration.id || null, userId, finalRole, req.session.userId);
+    db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by) VALUES(?,?,?,?,?)')
+      .run(activity.id, registration ? registration.id : null, userId, role, req.session.userId);
   }
-
-  db.prepare(`INSERT INTO event_user_roles(event_id,user_id,role,assigned_by) VALUES(?,?,?,?)
-    ON CONFLICT(event_id,user_id,role) DO UPDATE SET assigned_by=excluded.assigned_by,updated_at=datetime('now','-3 hours')`).run(activity.event_id, userId, finalRole, req.session.userId);
+  recordParticipantAudit({
+    eventId: activity.event_id, registrationId: registration ? registration.id : null,
+    actorUserId: req.session.userId, action: 'activity_attendance_marked',
+    details: { activity_id: activity.id, user_id: userId, role }
+  });
 
   res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);
 });
 
 router.post('/:id/activities/:activityId/certificate-rule', (req, res) => {
-  const activity = db.prepare('SELECT id, event_id FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.redirect(`/admin/events/${req.params.id}/activities`);
-  const minAttendance = Math.max(1, parseInt(req.body.min_attendance, 10) || 1);
-  const backgroundId = req.body.background_id && req.body.background_id !== '' ? parseInt(req.body.background_id, 10) : null;
-  db.prepare(`INSERT INTO activity_certificate_rules (activity_id, min_attendance, background_id)
-    VALUES (?, ?, ?)
-    ON CONFLICT(activity_id) DO UPDATE SET min_attendance = excluded.min_attendance, background_id = excluded.background_id
-  `).run(activity.id, minAttendance, backgroundId);
-  res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?success=${encodeURIComponent('Regra de certificado da atividade salva.')}`);
+  return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent('As regras de certificado agora são configuradas por papel no evento.')}`);
 });
 
 router.post('/:id/certificates/rule', (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const role = CERTIFICATE_ROLES[req.body.certificate_role] ? req.body.certificate_role : 'participant';
-  const minAttendance = Math.max(0, parseInt(req.body.min_attendance, 10) || 0);
+  const minAttendance = role === 'reviewer' ? 0 : Math.max(1, parseInt(req.body.min_attendance, 10) || 1);
   const backgroundId = req.body.background_id ? parseInt(req.body.background_id, 10) : null;
   const textColor = String(req.body.text_color || '#0f172a').trim();
   const normalizedTextColor = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#0f172a';
@@ -952,30 +982,23 @@ function issueCertificate(event, role, userId, actorUserId, reissuedFromId = nul
   const participant = getCertificateCandidates(event.id, role, rule).find((item) => Number(item.user_id) === Number(userId));
   if (!participant || !participant.eligible) throw new Error('Participante não elegível pela regra de presença.');
 
-  const attendedActivities = db.prepare(`
-    SELECT ea.id, ea.name, ea.activity_type, ea.workload_hours
-    FROM activity_attendance_records aar
-    JOIN event_activities ea ON ea.id = aar.activity_id
-    WHERE aar.user_id = ?
-      AND ea.event_id = ?
-      AND ea.certificate_enabled = 1
-    ORDER BY ea.activity_date, ea.name
-  `).bind(userId, event.id).all();
+  const attendedActivities = participant.attended_activities || getRoleActivityAttendance(event.id, userId, role).attended_activities;
 
   const totalActivities = attendedActivities.length;
   const totalWorkloadHours = attendedActivities.reduce((total, activity) => total + (Number(activity.workload_hours) || 0), 0);
-  const mainActivityId = attendedActivities.length > 0 ? attendedActivities[0].id : null;
+  const mainActivityId = attendedActivities.length > 0 ? (attendedActivities[0].activity_id || attendedActivities[0].id) : null;
+  const activitiesSummary = attendedActivities.map((activity) => activity.activity_name || activity.name).filter(Boolean).join('; ');
   const textColor = participant.text_color || rule.text_color || '#0f172a';
 
   const version = (participant.latest_version || 0) + 1;
   const code = `CERT-${event.id}-${userId}-${role.toUpperCase()}-V${version}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   const issuedAt = new Date(Date.now() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
-  return db.prepare(`INSERT INTO certificate_emissions (event_id,registration_id,user_id,certificate_role,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,issued_by,reissued_from_id,issued_at,activity_id,activities_attended,total_workload_hours,text_color,certificate_title,certificate_body)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+  return db.prepare(`INSERT INTO certificate_emissions (event_id,registration_id,user_id,certificate_role,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,issued_by,reissued_from_id,issued_at,activity_id,activities_attended,total_workload_hours,activities_summary,text_color,certificate_title,certificate_body)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       event.id, participant.registration_id || null, userId, role, rule.background_id, code, version,
       participant.attendance_count, participant.name, event.name,
       event.date_start, event.date_end, actorUserId, reissuedFromId,
-      issuedAt, mainActivityId, totalActivities, totalWorkloadHours, textColor,
+      issuedAt, mainActivityId, totalActivities, totalWorkloadHours, activitiesSummary, textColor,
       certificateText(rule.title || certificateRoleMeta(role).title, event.name), certificateText(rule.body_text || certificateRoleMeta(role).body, event.name)
     ).lastInsertRowid;
 }
@@ -1090,8 +1113,9 @@ router.get('/:id/participants/new', (req, res) => {
     title: `Adicionar Participante - ${event.name}`,
     event,
     registration: null,
-    formData: { name: '', email: '', institution: '', registration_type: 'listener', account_mode: 'new', existing_user_id: '' },
+    formData: { name: '', email: '', institution: '', registration_type: 'listener', account_mode: 'new', existing_user_id: '', activity_ids: [] },
     availableUsers: getUsersForParticipantSelection(),
+    activities: getActivitiesForParticipantForm(event.id),
     error: null
   });
 });
@@ -1104,6 +1128,38 @@ function getUsersForParticipantSelection() {
       AND approval_status = 'approved'
     ORDER BY name COLLATE NOCASE, email COLLATE NOCASE
   `).all();
+}
+
+function getActivitiesForParticipantForm(eventId) {
+  return db.prepare(`SELECT id,name,activity_type,activity_date,workload_hours,certificate_enabled
+    FROM event_activities WHERE event_id=? ORDER BY activity_date,name COLLATE NOCASE`).all(eventId);
+}
+
+function normalizeActivityIds(value) {
+  const submitted = Array.isArray(value) ? value : [value];
+  return [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
+}
+
+function getParticipantActivityIds(registrationId) {
+  if (!registrationId) return [];
+  return db.prepare('SELECT activity_id FROM participant_activity_enrollments WHERE registration_id=? ORDER BY activity_id')
+    .all(registrationId).map((row) => Number(row.activity_id));
+}
+
+function validateParticipantActivities(eventId, activityIds) {
+  const available = getActivitiesForParticipantForm(eventId);
+  if (available.length > 0 && activityIds.length === 0) return 'Selecione ao menos uma atividade para o participante.';
+  const availableIds = new Set(available.map((activity) => Number(activity.id)));
+  if (activityIds.some((id) => !availableIds.has(id))) return 'Uma das atividades selecionadas não pertence a este evento.';
+  return null;
+}
+
+function saveParticipantActivities(registrationId, userId, activityIds, actorUserId) {
+  db.prepare('DELETE FROM participant_activity_enrollments WHERE registration_id=?').run(registrationId);
+  const insert = db.prepare(`INSERT INTO participant_activity_enrollments
+    (activity_id,registration_id,user_id,enrolled_by,created_at,updated_at)
+    VALUES(?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`);
+  activityIds.forEach((activityId) => insert.run(activityId, registrationId, userId, actorUserId));
 }
 
 function getParticipantEventRoles(eventId, userId) {
@@ -1151,6 +1207,7 @@ function renderParticipantFormError(res, event, registration, formData, error) {
     registration,
     formData,
     availableUsers: getUsersForParticipantSelection(),
+    activities: getActivitiesForParticipantForm(event.id),
     eventRoles: getParticipantEventRoles(event.id, registration && registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
     error
@@ -1164,7 +1221,8 @@ function normalizeParticipantForm(body = {}) {
     institution: String(body.institution || '').trim(),
     registration_type: body.registration_type === 'author' ? 'author' : 'listener',
     account_mode: body.account_mode === 'existing' ? 'existing' : 'new',
-    existing_user_id: String(body.existing_user_id || '').trim()
+    existing_user_id: String(body.existing_user_id || '').trim(),
+    activity_ids: normalizeActivityIds(body.activity_ids)
   };
 }
 
@@ -1201,6 +1259,8 @@ router.post('/:id/participants', (req, res) => {
 
   const validationError = validateParticipantForm(formData);
   if (validationError) return renderParticipantFormError(res, event, null, formData, validationError);
+  const activityValidationError = validateParticipantActivities(event.id, formData.activity_ids);
+  if (activityValidationError) return renderParticipantFormError(res, event, null, formData, activityValidationError);
 
   const temporaryPassword = String(req.body.temporary_password || '');
   const confirmTemporaryPassword = String(req.body.confirm_temporary_password || '');
@@ -1241,13 +1301,14 @@ router.post('/:id/participants', (req, res) => {
         ) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
       `).run(event.id, linkedUser.id, formData.name, formData.email, formData.institution, formData.registration_type);
       db.prepare("UPDATE users SET is_participant=1, updated_at=datetime('now','-3 hours') WHERE id=?").run(linkedUser.id);
+      saveParticipantActivities(result.lastInsertRowid, linkedUser.id, formData.activity_ids, req.session.userId);
 
       recordParticipantAudit({
         eventId: event.id,
         registrationId: result.lastInsertRowid,
         actorUserId: req.session.userId,
         action: formData.account_mode === 'new' ? 'participant_account_created_and_registered' : 'existing_account_registered_manually',
-        details: { ...formData, linked_user_id: linkedUser.id }
+        details: { ...formData, linked_user_id: linkedUser.id, activity_ids: formData.activity_ids }
       });
     });
     createParticipantAndRegistration();
@@ -1277,9 +1338,13 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
       email: registration.email || '',
       institution: registration.institution || '',
       registration_type: registration.registration_type || 'listener',
-      existing_user_id: registration.user_id || ''
+      existing_user_id: registration.user_id || '',
+      activity_ids: getParticipantActivityIds(registration.id)
     },
     availableUsers: getUsersForParticipantSelection(),
+    activities: getActivitiesForParticipantForm(event.id),
+    eventRoles: getParticipantEventRoles(event.id, registration.user_id),
+    approvedArticles: getApprovedEventArticles(event.id),
     error: null
   });
 });
@@ -1295,38 +1360,31 @@ function updateParticipant(req, res) {
 
   const validationError = validateParticipantForm(formData);
   if (validationError) return renderParticipantFormError(res, event, registration, formData, validationError);
+  const activityValidationError = validateParticipantActivities(event.id, formData.activity_ids);
+  if (activityValidationError) return renderParticipantFormError(res, event, registration, formData, activityValidationError);
 
   if (registration.submitted_articles > 0 && formData.registration_type !== 'author') {
-    return res.render('admin/events/participant-form', {
-      title: `Editar Participante - ${event.name}`,
-      event,
-      registration,
-      formData,
-      error: 'Participantes com artigo submetido não podem ser rebaixados para participante sem artigo.'
-    });
+    return renderParticipantFormError(res, event, registration, formData, 'Participantes com artigo submetido não podem ser rebaixados para participante sem artigo.');
   }
 
   try {
-    db.prepare(`
-      UPDATE event_registrations
-      SET name = ?, email = ?, institution = ?, registration_type = ?, updated_at = datetime('now', '-3 hours')
-      WHERE id = ?
-        AND event_id = ?
-    `).bind(
-      formData.name,
-      formData.email,
-      formData.institution,
-      formData.registration_type,
-      req.params.registrationId,
-      req.params.id
-    ).run();
-    recordParticipantAudit({
-      eventId: event.id,
-      registrationId: registration.id,
-      actorUserId: req.session.userId,
-      action: 'participant_updated_manually',
-      details: { previous: { name: registration.name, email: registration.email, institution: registration.institution, registration_type: registration.registration_type }, current: formData }
-    });
+    const previousActivityIds = getParticipantActivityIds(registration.id);
+    db.transaction(() => {
+      db.prepare(`UPDATE event_registrations
+        SET name=?,email=?,institution=?,registration_type=?,updated_at=datetime('now','-3 hours')
+        WHERE id=? AND event_id=?`).run(formData.name, formData.email, formData.institution,
+        formData.registration_type, req.params.registrationId, req.params.id);
+      saveParticipantActivities(registration.id, registration.user_id, formData.activity_ids, req.session.userId);
+      recordParticipantAudit({
+        eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+        action: 'participant_updated_manually',
+        details: {
+          previous: { name: registration.name, email: registration.email, institution: registration.institution,
+            registration_type: registration.registration_type, activity_ids: previousActivityIds },
+          current: formData
+        }
+      });
+    })();
   } catch (error) {
     if (error && String(error.message).includes('UNIQUE constraint failed')) {
       return renderParticipantFormError(res, event, registration, formData, 'Já existe uma inscrição para este e-mail ou conta neste evento.');

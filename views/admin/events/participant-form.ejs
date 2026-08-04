@@ -37,6 +37,12 @@
     .btn-secondary { background: transparent; color: #cbd5e1; border-color: rgba(148,163,184,0.2); }
     .event-role-option { display:flex !important; align-items:center; gap:.6rem; margin:.6rem 0 !important; cursor:pointer; }
     .event-role-option input[type="checkbox"] { width:auto !important; min-width:16px; height:16px; margin:0; accent-color:#f97316; }
+    .activity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.75rem; margin-top:.65rem; }
+    .activity-option { display:flex !important; align-items:flex-start; gap:.7rem; padding:.85rem; margin:0 !important; border:1px solid rgba(148,163,184,.16); border-radius:10px; background:rgba(2,6,23,.28); cursor:pointer; }
+    .activity-option:has(input:checked) { border-color:#3b82f6; background:rgba(37,99,235,.12); }
+    .activity-option input { width:auto !important; min-width:17px; height:17px; margin-top:.1rem; accent-color:#3b82f6; }
+    .activity-option strong { display:block; color:#f8fafc; font-size:.88rem; }
+    .activity-option small { display:block; color:#94a3b8; margin-top:.25rem; line-height:1.35; }
     footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
     @media (max-width: 720px) { .meta-grid { grid-template-columns: 1fr; } }
   </style>
@@ -58,7 +64,7 @@
   <main class="main-content">
     <div class="page-header">
       <h1><%= registration ? 'Editar Participante' : 'Adicionar Participante' %></h1>
-      <p>Evento: <strong><%= event.name %></strong>. Esta operação altera apenas o registro da participação no evento, sem modificar automaticamente a conta global do usuário.</p>
+      <p>Evento: <strong><%= event.name %></strong>. Cadastre a pessoa e selecione as atividades em que ela está inscrita. Essa seleção poderá ser alterada posteriormente.</p>
     </div>
 
     <div class="card">
@@ -161,6 +167,23 @@
             <div class="help-text">Este participante possui artigo submetido. Por isso, o tipo de participação permanece travado como participante com artigo.</div>
           <% } else { %>
             <div class="help-text">Use esta opção para corrigir registros administrativos quando a participação estiver classificada incorretamente.</div>
+          <% } %>
+        </div>
+
+        <div class="form-group">
+          <label>Atividades da inscrição</label>
+          <% if (!activities.length) { %>
+            <div class="help-text">Nenhuma atividade foi cadastrada neste evento. Cadastre atividades antes de vincular a programação do participante.</div>
+          <% } else { %>
+            <div class="activity-grid">
+              <% activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); %>
+                <label class="activity-option">
+                  <input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %>>
+                  <span><strong><%= activity.name %></strong><small><%= activity.activity_date || 'Data a definir' %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · contabiliza para certificado' : '' %></small></span>
+                </label>
+              <% }) %>
+            </div>
+            <div class="help-text">A inscrição habilita a pessoa para a chamada da atividade. A presença efetiva continua sendo registrada separadamente.</div>
           <% } %>
         </div>
 

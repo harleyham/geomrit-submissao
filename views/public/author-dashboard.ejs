@@ -285,6 +285,7 @@
                 <td>
                   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                     <a href="/evento/<%= participation.event_id %>" class="btn btn-secondary">Detalhes</a>
+                    <a href="/evento/<%= participation.event_id %>/atividades" class="btn btn-secondary">Minhas atividades</a>
                     <% if (participation.registration_type === 'listener') { %>
                       <a href="/evento/<%= participation.event_id %>/inscricao" class="btn btn-secondary">Ver Inscrição</a>
                       <% if (participation.can_cancel) { %>

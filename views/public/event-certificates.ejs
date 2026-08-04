@@ -92,6 +92,9 @@
               Carga horária: <strong style="color:#fbbf24;"><%= formattedHours %> <%= workloadHours === 1 ? 'hora-aula' : 'horas-aula' %></strong>
             </p>
           <% } %>
+          <% if (certificate.activities_summary) { %>
+            <p style="margin-top:0.5rem;color:#94a3b8;">Atividades consideradas: <strong><%= certificate.activities_summary %></strong></p>
+          <% } %>
           <% if (certificate.window.isOpen) { %>
             <div style="margin-top:1rem;">
               <a href="/author/certificates/<%= certificate.id %>/download" class="btn btn-primary">Baixar certificado em PDF</a>

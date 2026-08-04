@@ -4,6 +4,37 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-04
+
+### Correção do vínculo Atividade–Pessoa–Presença–Certificado
+
+- Separado o papel atribuído no evento (`event_user_roles`) da atuação efetiva registrada na presença (`activity_attendance_records.role`). Marcar ou remover presença não altera mais os papéis da pessoa no evento.
+- A chamada de cada atividade passou a oferecer somente papéis simultaneamente elegíveis para a atividade e já pertencentes à pessoa no evento; o papel `participant` decorre da inscrição.
+- Corrigida a remoção de presença ao selecionar “— selecionar —”, que antes era convertida indevidamente em presença como participante.
+- Marcações, alterações de papel e remoções de presença por atividade passaram a gerar registros em `participant_audit_logs`.
+- Removido o `UPSERT` que tentava atualizar a coluna inexistente `event_user_roles.updated_at`.
+- A elegibilidade de participante, palestrante, professor e apresentadores passou a exigir o mínimo configurado de presenças no papel correspondente. Revisores continuam elegíveis por parecer enviado.
+- A carga horária de cada certificado agora considera somente atividades habilitadas nas quais a pessoa esteve presente naquele mesmo papel.
+- A administração pode ativar ou desativar uma atividade no cálculo de certificados e carga horária diretamente na listagem de atividades.
+- A mesma pessoa pode receber certificados distintos por seus diferentes papéis no evento, com resumo e carga horária próprios das atividades de cada papel.
+- Adicionada a coluna `activities_summary` às emissões para preservar e exibir no PDF e na área do participante as atividades consideradas na emissão.
+- A antiga regra por atividade foi retirada do fluxo, pois comparava o total consolidado com apenas a primeira regra encontrada. Mínimo de presenças, fundo, cor e texto permanecem centralizados por papel de certificado.
+
+### Inscrição explícita de participantes nas atividades
+
+- Criada a tabela `participant_activity_enrollments` para separar inscrição na atividade de presença efetiva.
+- O formulário de inclusão administrativa de participante passou a exigir ao menos uma atividade quando o evento possui programação cadastrada.
+- O mesmo formulário, em modo de edição, permite adicionar ou remover atividades da inscrição posteriormente.
+- A listagem de participantes passou a mostrar quantidade e nomes das atividades vinculadas, com acesso direto à edição.
+- A listagem de atividades passou a mostrar separadamente inscritos e presentes e contém orientação para a página onde os vínculos são administrados.
+- As atividades cadastradas podem ser reabertas para edição de nome, tipo, data, carga horária, papéis elegíveis e participação no cálculo de certificados.
+- A chamada passou a listar participantes inscritos naquela atividade, preservando também pessoas elegíveis por papéis como revisor, palestrante, professor ou apresentador.
+- Na primeira migração, inscrições existentes são vinculadas às atividades atuais elegíveis para participante para preservar o histórico; novas inscrições exigem seleção explícita das atividades.
+- A inscrição pública passou a criar o vínculo participante–atividade e a área do participante ganhou `/evento/:id/atividades` para edição posterior. Atividades com presença registrada são preservadas.
+- A elegibilidade do certificado de participante exige simultaneamente inscrição e presença em cada atividade certificável.
+- A chamada por atividade passou a exibir botões explícitos para marcar, atualizar e remover presença; o papel selecionado permanece independente da ação, evitando que a coluna de presença mostre apenas “—” sem controle operacional.
+- `README.md` e `submissao.md` foram consolidados com o fluxo operacional Evento → Atividades → Inscrição → Presença → Certificados e com as rotas utilizadas por participante e administrador.
+
 ## 2026-08-03
 
 ### Papéis por evento, certificados por papel e presença unificada

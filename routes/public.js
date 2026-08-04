@@ -3,7 +3,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const { db } = require('../db');
+const { db, recordParticipantAudit } = require('../db');
 const bcrypt = require('bcryptjs');
 const { renderCertificatePdf } = require('../services/certificates');
 
@@ -648,6 +648,7 @@ function syncAuthorEventRegistration(eventId, session, formData) {
 
 function normalizeListenerRegistrationForm(body = {}, session = null) {
   const subsidyRequested = body.subsidy_requested === '1' || body.subsidy_requested === 'on';
+  const submittedActivities = Array.isArray(body.activity_ids) ? body.activity_ids : [body.activity_ids];
 
   return {
     name: String(body.name || (session && session.userName) || '').trim(),
@@ -658,8 +659,38 @@ function normalizeListenerRegistrationForm(body = {}, session = null) {
     student_course: String(body.student_course || '').trim(),
     student_institution_name: String(body.student_institution_name || '').trim(),
     student_institution_state: String(body.student_institution_state || '').trim(),
-    student_lattes_id: String(body.student_lattes_id || '').replace(/\D/g, '')
+    student_lattes_id: String(body.student_lattes_id || '').replace(/\D/g, ''),
+    activity_ids: [...new Set(submittedActivities.map((id) => Number(id)).filter(Number.isInteger))]
   };
+}
+
+function getPublicEventActivities(eventId) {
+  return db.prepare(`SELECT id,name,activity_type,activity_date,workload_hours,certificate_enabled
+    FROM event_activities WHERE event_id=?
+      AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
+    ORDER BY activity_date,name COLLATE NOCASE`).all(eventId);
+}
+
+function getRegistrationActivityIds(registrationId) {
+  if (!registrationId) return [];
+  return db.prepare('SELECT activity_id FROM participant_activity_enrollments WHERE registration_id=? ORDER BY activity_id')
+    .all(registrationId).map((row) => Number(row.activity_id));
+}
+
+function validateRegistrationActivities(eventId, activityIds) {
+  const activities = getPublicEventActivities(eventId);
+  if (activities.length && !activityIds.length) return 'Selecione ao menos uma atividade para concluir a inscrição.';
+  const allowed = new Set(activities.map((activity) => Number(activity.id)));
+  if (activityIds.some((id) => !allowed.has(id))) return 'Uma das atividades selecionadas não está disponível para inscrição.';
+  return null;
+}
+
+function saveRegistrationActivities(registrationId, userId, activityIds, actorUserId = userId) {
+  db.prepare('DELETE FROM participant_activity_enrollments WHERE registration_id=?').run(registrationId);
+  const insert = db.prepare(`INSERT INTO participant_activity_enrollments
+    (activity_id,registration_id,user_id,enrolled_by,created_at,updated_at)
+    VALUES(?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`);
+  activityIds.forEach((activityId) => insert.run(activityId, registrationId, userId, actorUserId));
 }
 
 function validateListenerRegistrationForm(formData, event, existingRegistration, uploadedFiles) {
@@ -676,6 +707,8 @@ function validateListenerRegistrationForm(formData, event, existingRegistration,
   if (!formData.name || !formData.email) {
     errors.push('Nome e e-mail são obrigatórios para a inscrição no evento.');
   }
+  const activityError = validateRegistrationActivities(event.id, formData.activity_ids || []);
+  if (activityError) errors.push(activityError);
 
   if (event.offers_subsidy && formData.subsidy_requested) {
     if (!formData.student_level) errors.push('Selecione o nível do estudante para solicitar o subsídio.');
@@ -744,6 +777,7 @@ function renderListenerRegistrationForm(res, event, options = {}) {
     formData: options.formData || {},
     alreadyRegistered: !!options.alreadyRegistered,
     registrationType: options.registrationType || null,
+    activities: getPublicEventActivities(event.id),
     registrationWindow: getRegistrationWindow(eventWithMeta)
   });
 }
@@ -928,7 +962,8 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
           student_lattes_id: existingRegistration.student_lattes_id || '',
           academic_history_original_name: existingRegistration.academic_history_original_name || '',
           motivation_letter_original_name: existingRegistration.motivation_letter_original_name || '',
-          recommendation_letter_original_name: existingRegistration.recommendation_letter_original_name || ''
+          recommendation_letter_original_name: existingRegistration.recommendation_letter_original_name || '',
+          activity_ids: getRegistrationActivityIds(existingRegistration.id)
         }
       : normalizeListenerRegistrationForm({}, req.session),
     alreadyRegistered: !!existingRegistration,
@@ -1050,6 +1085,11 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
       event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : '',
       existingRegistration.id
     );
+    saveRegistrationActivities(existingRegistration.id, req.session.userId, formData.activity_ids);
+    recordParticipantAudit({
+      eventId: event.id, registrationId: existingRegistration.id, actorUserId: req.session.userId,
+      action: 'participant_activities_updated_self_service', details: { activity_ids: formData.activity_ids }
+    });
 
     return renderListenerRegistrationForm(res, event, {
       success: nextType === 'author'
@@ -1066,7 +1106,7 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
     });
   }
 
-  db.prepare(`
+  const registrationResult = db.prepare(`
     INSERT INTO event_registrations (
       event_id, user_id, name, email, institution, registration_type, subsidy_requested, student_level,
       student_course, student_institution_name, student_institution_state, student_lattes_id, subsidy_status,
@@ -1094,8 +1134,13 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_pdf_path : '',
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.motivation_letter_original_name : '',
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_pdf_path : '',
-    event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
+      event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
   );
+  saveRegistrationActivities(registrationResult.lastInsertRowid, req.session.userId, formData.activity_ids);
+  recordParticipantAudit({
+    eventId: event.id, registrationId: registrationResult.lastInsertRowid, actorUserId: req.session.userId,
+    action: 'participant_activities_selected_on_registration', details: { activity_ids: formData.activity_ids }
+  });
   db.prepare("UPDATE users SET is_participant=1, updated_at=datetime('now','-3 hours') WHERE id=?").run(req.session.userId);
 
   return renderListenerRegistrationForm(res, event, {
@@ -1109,6 +1154,58 @@ router.post('/evento/:id/inscricao', requireNonAdminAuthorAccess, runRegistratio
     alreadyRegistered: true,
     registrationType: 'listener'
   });
+});
+
+function getOwnedEventRegistration(eventId, req) {
+  return db.prepare(`SELECT * FROM event_registrations WHERE event_id=?
+    AND (user_id=? OR LOWER(TRIM(email))=LOWER(TRIM(?))) ORDER BY id LIMIT 1`)
+    .get(eventId, req.session.userId, req.session.userEmail || '');
+}
+
+router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status='published'").get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const registration = getOwnedEventRegistration(event.id, req);
+  if (!registration) return res.redirect(`/evento/${event.id}/inscricao`);
+  const activities = db.prepare(`SELECT ea.*,
+      CASE WHEN pae.id IS NULL THEN 0 ELSE 1 END AS enrolled,
+      CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present
+    FROM event_activities ea
+    LEFT JOIN participant_activity_enrollments pae ON pae.activity_id=ea.id AND pae.registration_id=?
+    LEFT JOIN activity_attendance_records aar ON aar.activity_id=ea.id AND aar.user_id=? AND aar.role='participant'
+    WHERE ea.event_id=?
+      AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0
+    ORDER BY ea.activity_date,ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id);
+  return res.render('public/event-activities', {
+    title: `Minhas atividades - ${event.name}`, event: withAreaMeta(event), registration, activities,
+    success: req.query.success || null, error: req.query.error || null
+  });
+});
+
+router.post('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status='published'").get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const registration = getOwnedEventRegistration(event.id, req);
+  if (!registration) return res.redirect(`/evento/${event.id}/inscricao`);
+  const submitted = Array.isArray(req.body.activity_ids) ? req.body.activity_ids : [req.body.activity_ids];
+  const activityIds = [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
+  const validationError = validateRegistrationActivities(event.id, activityIds);
+  if (validationError) return res.redirect(`/evento/${event.id}/atividades?error=${encodeURIComponent(validationError)}`);
+  const attendedIds = db.prepare(`SELECT activity_id FROM activity_attendance_records
+    WHERE user_id=? AND role='participant' AND activity_id IN (SELECT id FROM event_activities WHERE event_id=?)`)
+    .all(req.session.userId, event.id).map((row) => Number(row.activity_id));
+  const removingAttended = attendedIds.some((id) => !activityIds.includes(id));
+  if (removingAttended) {
+    return res.redirect(`/evento/${event.id}/atividades?error=${encodeURIComponent('Não é possível remover uma atividade que já possui presença registrada.')}`);
+  }
+  db.transaction(() => {
+    saveRegistrationActivities(registration.id, req.session.userId, activityIds);
+    recordParticipantAudit({
+      eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+      action: 'participant_activities_updated_self_service', details: { activity_ids: activityIds }
+    });
+  })();
+  return res.redirect(`/evento/${event.id}/atividades?success=${encodeURIComponent('Inscrição nas atividades atualizada.')}`);
 });
 
 // Formulário de submissão

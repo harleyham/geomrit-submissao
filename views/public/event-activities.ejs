@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { min-height:100vh; background:#0a0f1a; color:#e2e8f0; font-family:'Inter',sans-serif; }
+    .topbar { min-height:64px; padding:.7rem 1.5rem; background:rgba(15,23,42,.88); border-bottom:1px solid rgba(148,163,184,.12); }
+    .topbar-inner { max-width:960px; margin:auto; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+    .logo,.nav a { color:#cbd5e1; text-decoration:none; }
+    .logo { font-size:1.2rem; font-weight:700; }
+    .logo span { color:#60a5fa; }
+    .nav { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+    .nav a,.btn { padding:.65rem .9rem; border:1px solid rgba(148,163,184,.22); border-radius:9px; font:600 .86rem 'Inter',sans-serif; }
+    .logout { color:#f87171; background:transparent; border-color:rgba(248,113,113,.28); cursor:pointer; }
+    main { max-width:800px; margin:0 auto; padding:2.5rem 1.25rem; }
+    .card { padding:2rem; border:1px solid rgba(148,163,184,.12); border-radius:18px; background:rgba(30,41,59,.58); }
+    .badge { display:inline-block; padding:.3rem .7rem; border-radius:999px; background:rgba(59,130,246,.13); color:#93c5fd; font-size:.75rem; font-weight:700; }
+    h1 { margin:.85rem 0 .65rem; color:#f8fafc; font-size:1.8rem; }
+    .lead,.help { color:#94a3b8; line-height:1.65; }
+    .lead { margin-bottom:1.4rem; }
+    .alert { margin-bottom:1rem; padding:.9rem 1rem; border-radius:10px; }
+    .success { color:#86efac; background:rgba(34,197,94,.1); border:1px solid rgba(74,222,128,.2); }
+    .error { color:#fca5a5; background:rgba(239,68,68,.1); border:1px solid rgba(248,113,113,.25); }
+    .activities { display:grid; gap:.8rem; margin:1.25rem 0; }
+    .activity { display:flex; gap:.85rem; align-items:flex-start; padding:1rem; border:1px solid rgba(148,163,184,.18); border-radius:12px; background:rgba(15,23,42,.32); cursor:pointer; }
+    .activity:has(input:checked) { border-color:#3b82f6; background:rgba(37,99,235,.11); }
+    .activity input[type=checkbox] { width:18px; height:18px; margin-top:.15rem; accent-color:#3b82f6; }
+    .activity strong { display:block; color:#f8fafc; }
+    .activity small { display:block; margin-top:.35rem; color:#94a3b8; line-height:1.45; }
+    .present { display:inline-block; margin-top:.5rem; padding:.2rem .5rem; border-radius:999px; color:#86efac; background:rgba(34,197,94,.12); font-size:.72rem; font-weight:700; }
+    .actions { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-top:1.35rem; flex-wrap:wrap; }
+    .btn { display:inline-flex; text-decoration:none; color:#cbd5e1; background:transparent; cursor:pointer; }
+    .primary { color:white; border:0; background:linear-gradient(135deg,#2563eb,#0ea5e9); }
+    .empty { margin:1.25rem 0; padding:1rem; color:#94a3b8; border:1px dashed rgba(148,163,184,.22); border-radius:12px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="logo" href="/"><span>◆</span> Artigos LIGEM</a>
+      <nav class="nav">
+        <a href="/evento/<%= event.id %>">Evento</a>
+        <a href="/author">Área do Participante</a>
+        <form method="POST" action="/login/logout"><button class="btn logout" type="submit">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <span class="badge">Inscrição nas atividades</span>
+      <h1>Minhas atividades</h1>
+      <p class="lead"><strong><%= event.name %></strong><br>Escolha as atividades das quais participará. A presença será registrada separadamente pela organização.</p>
+
+      <% if (success) { %><div class="alert success"><%= success %></div><% } %>
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+      <% if (!activities.length) { %>
+        <div class="empty">Este evento ainda não possui atividades abertas para participantes.</div>
+      <% } else { %>
+        <form method="POST" action="/evento/<%= event.id %>/atividades">
+          <div class="activities">
+            <% activities.forEach((activity) => { %>
+              <label class="activity">
+                <% if (activity.present) { %>
+                  <input type="hidden" name="activity_ids" value="<%= activity.id %>">
+                  <input type="checkbox" checked disabled aria-label="Atividade com presença registrada">
+                <% } else { %>
+                  <input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= activity.enrolled ? 'checked' : '' %>>
+                <% } %>
+                <span>
+                  <strong><%= activity.name %></strong>
+                  <small><%= activity.activity_date || 'Data a definir' %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small>
+                  <% if (activity.present) { %><span class="present">Presença registrada — inscrição preservada</span><% } %>
+                </span>
+              </label>
+            <% }) %>
+          </div>
+          <p class="help">O certificado considera somente atividades certificáveis nas quais você esteja inscrito e tenha presença registrada. Atividades já frequentadas não podem ser removidas.</p>
+          <div class="actions">
+            <a class="btn" href="/author">Cancelar</a>
+            <button class="btn primary" type="submit">Salvar atividades</button>
+          </div>
+        </form>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>

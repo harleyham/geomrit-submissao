@@ -118,24 +118,6 @@
 
     <section class="section">
       <div class="section-header">
-        <h2>Regra de certificado desta atividade</h2>
-      </div>
-      <div class="section-body">
-        <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/certificate-rule" class="form-inline">
-          <input name="min_attendance" type="number" min="1" value="<%=(activityRule && activityRule.min_attendance) || 1%>" placeholder="Mín. presenças">
-          <select name="background_id">
-            <option value="">Fundo do evento</option>
-            <% backgrounds.forEach(b => { %>
-              <option value="<%= b.id %>" <%= (activityRule && Number(activityRule.background_id) === Number(b.id)) ? 'selected' : '' %>><%= b.name %></option>
-            <% }) %>
-          </select>
-          <button type="submit" class="btn-primary">Salvar regra</button>
-        </form>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
         <h2>Vincular participantes e papéis</h2>
       </div>
       <div class="section-body" style="padding:0">
@@ -175,23 +157,25 @@
                     </div>
                   </td>
                   <td>
-                    <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance/<%= p.user_id %>">
-                      <select name="role" onchange="this.form.requestSubmit()" style="min-width:170px">
+                    <% const attendanceFormId = `attendance-form-${p.user_id}`;
+                       const defaultActivityRole = p.activity_role || (p.available_activity_roles.includes('participant') ? 'participant' : p.available_activity_roles[0]); %>
+                    <select name="role" form="<%= attendanceFormId %>" style="min-width:170px">
                         <option value="">— selecionar —</option>
-                        <option value="participant" <%= p.activity_role === 'participant' ? 'selected' : '' %>>Participante</option>
-                        <option value="teacher" <%= p.activity_role === 'teacher' ? 'selected' : '' %>>Professor</option>
-                        <option value="speaker" <%= p.activity_role === 'speaker' ? 'selected' : '' %>>Palestrante</option>
-                        <option value="oral_presenter" <%= p.activity_role === 'oral_presenter' ? 'selected' : '' %>>Apresentador Oral</option>
-                        <option value="poster_presenter" <%= p.activity_role === 'poster_presenter' ? 'selected' : '' %>>Apresentador Pôster</option>
+                        <% p.available_activity_roles.forEach((role) => { %>
+                          <option value="<%= role %>" <%= defaultActivityRole === role ? 'selected' : '' %>><%= roleLabels[role] || role %></option>
+                        <% }) %>
                       </select>
-                    </form>
                   </td>
                   <td>
+                    <form id="<%= attendanceFormId %>" method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance/<%= p.user_id %>" style="display:flex;gap:.45rem;align-items:center;flex-wrap:wrap">
                     <% if (p.present && p.activity_role) { %>
                       <span class="badge badge-present">Presente</span>
+                      <button type="submit" name="action" value="present" class="btn-primary btn-sm">Atualizar</button>
+                      <button type="submit" name="action" value="absent" class="btn-danger btn-sm">Remover</button>
                     <% } else { %>
-                      <span class="badge badge-absent">—</span>
+                      <button type="submit" name="action" value="present" class="btn-success btn-sm">Marcar presença</button>
                     <% } %>
+                    </form>
                   </td>
                 </tr>
               <% }) %>

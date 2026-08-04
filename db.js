@@ -9,6 +9,7 @@ const db = new Database(DB_PATH);
 // Habilitar WAL mode para melhor performance
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+const hadParticipantActivityEnrollments = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='participant_activity_enrollments'").get());
 
 // Criar novas tabelas com schema unificado de users
 db.exec(`
@@ -220,6 +221,10 @@ db.exec(`
     issued_by INTEGER,
     reissued_from_id INTEGER,
     activity_id INTEGER,
+    activities_attended INTEGER DEFAULT 0,
+    total_workload_hours REAL DEFAULT 0,
+    activities_summary TEXT DEFAULT '',
+    text_color TEXT DEFAULT '#0f172a',
     certificate_title TEXT,
     certificate_body TEXT,
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
@@ -264,15 +269,41 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
+  CREATE TABLE IF NOT EXISTS participant_activity_enrollments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity_id INTEGER NOT NULL,
+    registration_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    enrolled_by INTEGER,
+    created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+    updated_at DATETIME DEFAULT (datetime('now','-3 hours')),
+    UNIQUE(activity_id,user_id),
+    FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+    FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(enrolled_by) REFERENCES users(id) ON DELETE SET NULL
+  );
   CREATE TABLE IF NOT EXISTS activity_attendance_records (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,registration_id INTEGER,user_id INTEGER,marked_by INTEGER,attended_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,registration_id),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
   CREATE TABLE IF NOT EXISTS activity_certificate_rules (activity_id INTEGER PRIMARY KEY,min_attendance INTEGER NOT NULL DEFAULT 1,background_id INTEGER,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL);
 `);
+
+// Bases anteriores não possuíam inscrição por atividade. Na primeira migração,
+// preserva-se o comportamento existente vinculando cada participante às
+// atividades em que o papel de participante é elegível.
+if (!hadParticipantActivityEnrollments) {
+  db.exec(`INSERT OR IGNORE INTO participant_activity_enrollments (activity_id,registration_id,user_id)
+    SELECT ea.id,er.id,er.user_id
+    FROM event_registrations er JOIN event_activities ea ON ea.event_id=er.event_id
+    WHERE er.user_id IS NOT NULL
+      AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0`);
+}
 
 try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){ console.warn('Migration certificates:',e.message); }
 try {
   const emissionCols = db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c => c.name);
   if (!emissionCols.includes('activities_attended')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activities_attended INTEGER DEFAULT 0');
   if (!emissionCols.includes('total_workload_hours')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN total_workload_hours REAL DEFAULT 0');
+  if (!emissionCols.includes('activities_summary')) db.exec("ALTER TABLE certificate_emissions ADD COLUMN activities_summary TEXT DEFAULT ''");
   if (!emissionCols.includes('text_color')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
 } catch(e) { console.warn('Migration emissions text_color:', e.message); }
 try {
@@ -393,7 +424,7 @@ try {
         participant_name TEXT NOT NULL, event_name TEXT NOT NULL, event_date_start DATE, event_date_end DATE,
         status TEXT NOT NULL DEFAULT 'issued', issued_at DATETIME, issued_by INTEGER, reissued_from_id INTEGER,
         activity_id INTEGER, activities_attended INTEGER DEFAULT 0, total_workload_hours REAL DEFAULT 0,
-        text_color TEXT DEFAULT '#0f172a', certificate_title TEXT, certificate_body TEXT,
+        activities_summary TEXT DEFAULT '', text_color TEXT DEFAULT '#0f172a', certificate_title TEXT, certificate_body TEXT,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
         FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE SET NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
@@ -403,8 +434,8 @@ try {
         UNIQUE(event_id, user_id, certificate_role, version)
       );`);
       db.exec(`INSERT INTO certificate_emissions_new
-        (id,event_id,registration_id,user_id,certificate_role,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,status,issued_at,issued_by,reissued_from_id,activity_id,activities_attended,total_workload_hours,text_color)
-        SELECT ce.id,ce.event_id,ce.registration_id,er.user_id,'participant',ce.background_id,ce.certificate_code,ce.version,ce.attendance_count,ce.participant_name,ce.event_name,ce.event_date_start,ce.event_date_end,ce.status,ce.issued_at,ce.issued_by,ce.reissued_from_id,ce.activity_id,COALESCE(ce.activities_attended,0),COALESCE(ce.total_workload_hours,0),COALESCE(ce.text_color,'#0f172a')
+        (id,event_id,registration_id,user_id,certificate_role,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,status,issued_at,issued_by,reissued_from_id,activity_id,activities_attended,total_workload_hours,activities_summary,text_color)
+        SELECT ce.id,ce.event_id,ce.registration_id,er.user_id,'participant',ce.background_id,ce.certificate_code,ce.version,ce.attendance_count,ce.participant_name,ce.event_name,ce.event_date_start,ce.event_date_end,ce.status,ce.issued_at,ce.issued_by,ce.reissued_from_id,ce.activity_id,COALESCE(ce.activities_attended,0),COALESCE(ce.total_workload_hours,0),COALESCE(ce.activities_summary,''),COALESCE(ce.text_color,'#0f172a')
         FROM certificate_emissions ce LEFT JOIN event_registrations er ON er.id=ce.registration_id;`);
       db.exec('DROP TABLE certificate_emissions');
       db.exec('ALTER TABLE certificate_emissions_new RENAME TO certificate_emissions');
@@ -433,12 +464,24 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_certificate_emissions_registration_id ON certificate_emissions(registration_id, status);
   CREATE INDEX IF NOT EXISTS idx_certificate_emissions_user_role ON certificate_emissions(event_id, user_id, certificate_role, status);
   CREATE INDEX IF NOT EXISTS idx_event_user_roles_event ON event_user_roles(event_id, role);
+  CREATE INDEX IF NOT EXISTS idx_participant_activity_registration ON participant_activity_enrollments(registration_id, activity_id);
+  CREATE INDEX IF NOT EXISTS idx_participant_activity_user ON participant_activity_enrollments(user_id, activity_id);
   CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_email
     ON event_registrations(event_id, LOWER(TRIM(email)))
     WHERE TRIM(email) != '';
   CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_user
     ON event_registrations(event_id, user_id)
     WHERE user_id IS NOT NULL;
+
+  DROP TRIGGER IF EXISTS trg_enroll_new_event_registration_activities;
+
+  CREATE TRIGGER IF NOT EXISTS trg_sync_event_registration_activity_user
+  AFTER UPDATE OF user_id ON event_registrations
+  WHEN NEW.user_id IS NOT NULL
+  BEGIN
+    UPDATE participant_activity_enrollments SET user_id=NEW.user_id,updated_at=datetime('now','-3 hours')
+    WHERE registration_id=NEW.id;
+  END;
 `);
 
 // Fundos distribuídos com o sistema permanecem em assets/Fundos. Eles são

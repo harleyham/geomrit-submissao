@@ -38,6 +38,12 @@
     .subsidy-fields { display: none; }
     .subsidy-fields.visible { display: block; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .activity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.75rem; margin-top:.65rem; }
+    .activity-option { display:flex !important; align-items:flex-start; gap:.7rem; padding:.85rem; margin:0 !important; border:1px solid rgba(148,163,184,.18); border-radius:12px; background:rgba(15,23,42,.3); cursor:pointer; }
+    .activity-option:has(input:checked) { border-color:#3b82f6; background:rgba(37,99,235,.12); }
+    .activity-option input { width:auto !important; min-width:18px; height:18px; margin-top:.1rem; accent-color:#3b82f6; }
+    .activity-option strong { display:block; color:#f8fafc; }
+    .activity-option small { display:block; color:#94a3b8; margin-top:.3rem; line-height:1.4; }
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
@@ -114,6 +120,20 @@
         <div class="form-group">
           <label for="institution">Instituição</label>
           <input type="text" id="institution" name="institution" value="<%= formData.institution || '' %>">
+        </div>
+
+        <div class="form-group">
+          <label>Atividades em que deseja se inscrever *</label>
+          <% if (!activities.length) { %>
+            <p style="color:#94a3b8;line-height:1.5;">Este evento ainda não possui atividades abertas para participantes.</p>
+          <% } else { %>
+            <div class="activity-grid">
+              <% activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); %>
+                <label class="activity-option"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %>><span><strong><%= activity.name %></strong><small><%= activity.activity_date || 'Data a definir' %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small></span></label>
+              <% }) %>
+            </div>
+            <small style="display:block;color:#94a3b8;margin-top:.55rem;line-height:1.5;">Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas.</small>
+          <% } %>
         </div>
 
         <% if (event.offers_subsidy) { %>

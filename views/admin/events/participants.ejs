@@ -44,6 +44,7 @@
     .badge-listener { background: rgba(148,163,184,0.16); color: #cbd5e1; }
     .badge-approved { background: rgba(34,197,94,0.16); color: #86efac; }
     .badge-subsidy { background: rgba(251,191,36,0.14); color: #fcd34d; }
+    .activity-summary { max-width:260px; color:#cbd5e1; line-height:1.45; }
     .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.55rem 0.9rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; text-decoration: none; border: 1px solid transparent; cursor: pointer; }
     .btn-primary { background: #2563eb; color: white; }
@@ -132,6 +133,7 @@
             <tr>
               <th>Participante</th>
               <th>Tipo</th>
+              <th>Atividades inscritas</th>
               <th>Situação</th>
               <th>Artigos</th>
               <th>Subsídio</th>
@@ -150,6 +152,13 @@
                   <span class="badge badge-<%= participant.registration_type === 'author' ? 'author' : 'listener' %>">
                     <%= participant.registration_type === 'author' ? 'Com artigo' : 'Participante' %>
                   </span>
+                </td>
+                <td class="activity-summary">
+                  <% if (participant.enrolled_activities > 0) { %>
+                    <strong><%= participant.enrolled_activities %></strong> atividade(s)<br><small class="muted"><%= participant.activity_names %></small>
+                  <% } else { %>
+                    <span class="muted">Nenhuma atividade vinculada</span><br><a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/edit" class="btn btn-ghost" style="margin-top:.4rem">Vincular</a>
+                  <% } %>
                 </td>
                 <td>
                   <div><%= participant.participation_label %></div>

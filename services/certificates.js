@@ -12,6 +12,11 @@ function getBackgroundPath(filePath) {
     if (filename !== path.posix.basename(filename)) return null;
     return path.join(rootDir, 'uploads', 'certificate-backgrounds', filename);
   }
+  if (safePath.startsWith('uploads/certificate-backgrounds/')) {
+    const filename = safePath.slice('uploads/certificate-backgrounds/'.length);
+    if (filename !== path.posix.basename(filename)) return null;
+    return path.join(rootDir, 'uploads', 'certificate-backgrounds', filename);
+  }
   if (safePath.startsWith('assets/Fundos/')) {
     const filename = safePath.slice('assets/Fundos/'.length);
     if (filename !== path.posix.basename(filename)) return null;
@@ -56,6 +61,15 @@ function renderCertificatePdf(res, certificate) {
       80,
       360,
       { width: width - 160, align: 'center' }
+    );
+  }
+
+  if (certificate.activities_summary) {
+    document.fillColor(textColor).font('Helvetica').fontSize(9).text(
+      `Atividades: ${certificate.activities_summary}.`,
+      80,
+      382,
+      { width: width - 160, align: 'center', ellipsis: true }
     );
   }
 

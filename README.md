@@ -12,9 +12,20 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 - **Submissão de artigos**: formulário público, rascunhos, múltiplos revisores, parecer individual, deliberação final administrativa
 - **Revisão**: painel do revisor com artigos pendentes, envio de parecer e recomendação
 - **Participantes e papéis**: conta única por pessoa, com papéis independentes por evento (administrador, participante, revisor, palestrante, professor e apresentador)
-- **Presença**: atividades/partes configuráveis do evento, com perfis elegíveis, certificado relacionado e registro manual por pessoa em cada atividade
-- **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo, texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável e reemissão versionados
-- **Vínculo de papéis por atividade**: seleção do papel que cada pessoa exerce em cada atividade (participante, professor, palestrante, apresentador oral/pôster) diretamente no controle de presença, com propagação automática para `event_user_roles`
+- **Presença**: atividades/partes configuráveis do evento, com papéis elegíveis e ações explícitas para marcar, atualizar ou remover presença; participantes aparecem somente na chamada das atividades em que estão inscritos
+- **Inscrição por atividade**: seleção explícita na inscrição pública ou inclusão administrativa, edição posterior pelo participante ou administrador e contadores de inscritos por atividade
+- **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo, texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável e reemissão versionada; para participante, cada atividade contabilizada exige inscrição e presença
+- **Vínculo de papéis por atividade**: seleção do papel que cada pessoa efetivamente exerce em cada atividade, sem alterar seus papéis administrativos no evento; presenças e cargas horárias são consolidadas separadamente para cada certificado
+
+## Fluxo operacional de atividades e certificados
+
+1. O administrador cria o evento.
+2. Em `/admin/events/:id/activities`, cadastra as atividades do evento, como palestras, minicursos e apresentações.
+3. O participante seleciona suas atividades durante a inscrição pública ou posteriormente em `/evento/:id/atividades`. O administrador também pode fazer essa ligação na inclusão ou edição do participante.
+4. Em `/admin/events/:id/attendance`, o administrador abre a chamada de cada atividade, escolhe o papel exercido e usa os botões para marcar, atualizar ou remover a presença.
+5. Em `/admin/events/:id/certificates`, são emitidos os certificados elegíveis. Para participante, apenas atividades certificáveis com inscrição e presença entram no certificado e na carga horária.
+
+Uma atividade com presença registrada não pode ser removida da inscrição. A mesma pessoa pode receber certificados distintos pelos diferentes papéis exercidos no evento.
 
 ## Stack
 
@@ -35,7 +46,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 artigos/
 ├── server.js            # Ponto de entrada do Express
 ├── db.js                # Schema SQLite e helpers de consulta
-├── packages.json        # Dependências
+├── package.json         # Dependências
 ├── uploads/             # Arquivos enviados (certificados, artigos)
 ├── assets/Fundos/       # Fundos padrão de certificado
 ├── routes/              # Rotas da API
