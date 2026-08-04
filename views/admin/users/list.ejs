@@ -170,13 +170,14 @@
             <td class="actions-cell">
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
-              <form method="POST" action="/admin/users/<%= u.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/approve" style="display:inline" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
+              <form method="POST" action="/admin/users/<%= u.id %>/approve" style="display:inline" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-primary btn-sm">Aprovar Cadastro</button>
               </form>
               <% if (u.id !== currentUser.id && u.email !== 'admin@admin.com') { %>
-              <form method="POST" action="/admin/users/<%= u.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">" style="display:inline" onsubmit="return confirm('Excluir solicitação de cadastro de <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir solicitação de cadastro de <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="_method" value="DELETE">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
               </form>
@@ -269,13 +270,14 @@
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
               <% if (u.id !== currentUser.id) { %>
-              <form method="POST" action="/admin/users/<%= u.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">/reset-password" style="display:inline" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
+              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
               </form>
               <% if (u.email !== 'admin@admin.com') { %>
-              <form method="POST" action="/admin/users/<%= u.id %>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">" style="display:inline" onsubmit="return confirm('Excluir usuário <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir usuário <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="_method" value="DELETE">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
               </form>
