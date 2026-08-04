@@ -77,4 +77,4 @@ function renderCertificatePdf(res, certificate) {
   document.end();
 }
 
-module.exports = { renderCertificatePdf };
+module.exports = { getBackgroundPath, renderCertificatePdf };

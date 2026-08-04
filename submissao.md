@@ -674,6 +674,9 @@ Observações operacionais:
 - Cadastro de atividades internas e lançamento manual por atividade, com botões para marcar, atualizar e remover presença; para participante, inscrição e presença compõem conjuntamente a elegibilidade e a carga horária do certificado.
 - Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura, cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
 - Certificados distintos por papel no evento: Participante, Revisor, Palestrante, Professor, Apresentador Oral e Apresentador Pôster, cada um com fundo, cor, título, texto, elegibilidade, emissão e reemissão próprios. A prévia dinâmica usa o fundo e a cor atualmente selecionados no formulário, sem exigir salvamento prévio.
+- Botão "Visualizar original" na página de certificados do admin renderiza a prévia com as configurações salvas no banco sem modificar os campos do formulário, permitindo comparar o estado persistente com as edições não-salvas.
+- Exportação em lote dos certificados emitidos em arquivo ZIP via botão laranja "Exportar todos os certificados emitidos" na página de certificados, com cada certificado como PDF individual nomeado por versão, participante e papel.
+- Botão "Baixar" padronizado como `<button>` (classe `secondary`) na coluna de ações da tabela de certificados, sem sublinhado.
 - O PDF informa a carga horária consolidada em `hora-aula` ou `horas-aula` somente quando as atividades vinculadas ao certificado totalizam valor maior que zero.
 - Emissão em lote dos certificados elegíveis ainda não emitidos.
 - Seleção individual das seções incluídas na impressão do relatório em PDF.

@@ -5,9 +5,73 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const { ZipArchive } = require('archiver');
 const { db, recordParticipantAudit } = require('../db');
-const { renderCertificatePdf } = require('../services/certificates');
+const { renderCertificatePdf, getBackgroundPath } = require('../services/certificates');
 const { strictLimiter } = require('../security/rate-limits');
+
+function safeArchiveFileName(value, fallback) {
+  const normalized = String(value || fallback)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._ -]+/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized || fallback;
+}
+
+function roleLabel(role) {
+  const meta = CERTIFICATE_ROLES[role];
+  return meta ? meta.label : role;
+}
+
+function generateCertificateBuffer(certificate) {
+  return new Promise((resolve, reject) => {
+    try {
+      const PDFDocument = require('pdfkit');
+      const document = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0 });
+      const chunks = [];
+      document.on('data', (chunk) => chunks.push(chunk));
+      document.on('end', () => resolve(Buffer.concat(chunks)));
+      document.on('error', reject);
+      const { width, height } = document.page;
+      const backgroundPath = getBackgroundPath(certificate.background_path);
+      if (backgroundPath && fs.existsSync(backgroundPath)) {
+        document.image(backgroundPath, 0, 0, { width, height });
+      } else {
+        document.rect(0, 0, width, height).fill('#ffffff');
+      }
+      const textColor = certificate.text_color || '#0f172a';
+      const certificateTitle = certificate.certificate_title || 'CERTIFICADO DE PARTICIPAÇÃO';
+      const certificateBody = certificate.certificate_body || `participou do evento ${certificate.event_name}.`;
+      document.fillColor(textColor).font('Helvetica-Bold').fontSize(30).text(certificateTitle, 55, 105, { width: width - 110, align: 'center' });
+      document.fillColor(textColor).font('Helvetica').fontSize(16).text('Certificamos que', 80, 205, { width: width - 160, align: 'center' });
+      document.fillColor(textColor).font('Helvetica-Bold').fontSize(27).text(certificate.participant_name, 80, 240, { width: width - 160, align: 'center' });
+      document.fillColor(textColor).font('Helvetica').fontSize(15).text(certificateBody, 80, 300, { width: width - 160, align: 'center' });
+      const dateLabel = certificate.event_date_end && certificate.event_date_end !== certificate.event_date_start
+        ? `Realizado de ${certificate.event_date_start} a ${certificate.event_date_end}.`
+        : certificate.event_date_start ? `Realizado em ${certificate.event_date_start}.` : '';
+      document.fontSize(12).fillColor(textColor).text(dateLabel, 80, 335, { width: width - 160, align: 'center' });
+      const workloadHours = Number(certificate.total_workload_hours);
+      if (Number.isFinite(workloadHours) && workloadHours > 0) {
+        const formattedHours = Number.isInteger(workloadHours)
+          ? String(workloadHours)
+          : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+        const hourLabel = workloadHours === 1 ? 'hora-aula' : 'horas-aula';
+        document.fillColor(textColor).font('Helvetica').fontSize(10).text(
+          `Carga horária: ${formattedHours} ${hourLabel}.`, 80, 360, { width: width - 160, align: 'center' }
+        );
+      }
+      if (certificate.activities_summary) {
+        document.fillColor(textColor).font('Helvetica').fontSize(9).text(
+          `Atividades: ${certificate.activities_summary}.`, 80, 382, { width: width - 160, align: 'center', ellipsis: true }
+        );
+      }
+      document.fontSize(10).fillColor(textColor).text(`Código de verificação: ${certificate.certificate_code} · Emissão: ${certificate.issued_at}`, 80, height - 75, { width: width - 160, align: 'center' });
+      document.end();
+    } catch (error) { reject(error); }
+  });
+}
 
 const CERTIFICATE_ROLES = {
   participant: { label: 'Participante', title: 'CERTIFICADO DE PARTICIPAÇÃO', body: 'participou do evento {event}.', attendance: true },
@@ -741,6 +805,24 @@ router.get('/:id/certificates/backgrounds/:backgroundId/view', (req, res) => {
   res.sendFile(filePath);
 });
 
+router.get('/:id/certificates/rule/current', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Evento não encontrado' });
+  const roles = ['participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter', 'other'];
+  const result = {};
+  roles.forEach((role) => {
+    const rule = getCertificateRule(event.id, role);
+    result[role] = {
+      background_id: rule.background_id || '',
+      text_color: rule.text_color || '#0f172a',
+      title: rule.title || certificateRoleMeta(role).title,
+      body_text: rule.body_text || certificateRoleMeta(role).body,
+      min_attendance: rule.min_attendance ?? (role === 'reviewer' ? 0 : null)
+    };
+  });
+  res.json(result);
+});
+
 router.get('/:id/certificates/preview', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
@@ -775,8 +857,8 @@ router.get('/:id/certificates/preview', (req, res) => {
     certificate_code: 'PREVIEW-CODE',
     issued_at: new Date(Date.now() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ''),
     text_color: textColor,
-    certificate_title: certificateText(rule.title || certificateRoleMeta(role).title, event.name),
-    certificate_body: certificateText(rule.body_text || certificateRoleMeta(role).body, event.name),
+    certificate_title: certificateText(req.query.title || rule.title || certificateRoleMeta(role).title, event.name),
+    certificate_body: certificateText(req.query.body_text || rule.body_text || certificateRoleMeta(role).body, event.name),
     background_path: background.file_path,
     activities_attended: 0,
     total_workload_hours: 0
@@ -1065,6 +1147,63 @@ router.get('/:id/certificates/emissions/:emissionId/download', (req, res) => {
   const certificate = db.prepare(`SELECT ce.*, cb.file_path AS background_path FROM certificate_emissions ce LEFT JOIN certificate_backgrounds cb ON cb.id=ce.background_id WHERE ce.id=? AND ce.event_id=?`).get(req.params.emissionId, req.params.id);
   if (!certificate) return res.status(404).render('error', { title: 'Certificado não encontrado' });
   res.type('application/pdf'); res.attachment(`certificado-${certificate.certificate_code}.pdf`); renderCertificatePdf(res, certificate);
+});
+
+router.get('/:id/certificates/export-all', (req, res) => {
+  const event = db.prepare('SELECT id, name, short_name FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  const emissions = db.prepare(`
+    SELECT ce.*, cb.file_path AS background_path, u.name AS participant_name
+    FROM certificate_emissions ce
+    LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
+    LEFT JOIN users u ON u.id = ce.user_id
+    WHERE ce.event_id = ? AND ce.status = 'issued'
+    ORDER BY ce.certificate_role, u.name COLLATE NOCASE, ce.version
+  `).all(req.params.id);
+
+  if (!emissions.length) {
+    return res.status(404).render('error', { title: 'Nenhum certificado disponível', message: 'Este evento não possui certificados emitidos para exportação.' });
+  }
+
+  const archiveName = `${safeArchiveFileName(event.short_name || event.name, 'evento')}-certificados.zip`;
+  res.attachment(archiveName);
+
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+  archive.on('warning', (error) => {
+    if (error.code !== 'ENOENT') console.error('[export-all] warning:', error.message);
+  });
+  archive.on('error', (error) => {
+    console.error('[export-all] archive error:', error.message);
+    res.end();
+  });
+  archive.pipe(res);
+
+  let index = 0;
+  const processNext = () => {
+    if (index >= emissions.length) {
+      archive.finalize();
+      return;
+    }
+    const emission = emissions[index++];
+    const fileName = `certificado-${String(emission.version).padStart(2, '0')}-${safeArchiveFileName(emission.participant_name, `user-${emission.user_id}`)}-${roleLabel(emission.certificate_role).toLowerCase().replace(/\s+/g, '-').replace(/[()]/g, '')}-v${emission.version}.pdf`;
+    generateCertificateBuffer(emission)
+      .then((buffer) => {
+        if (!buffer || !buffer.length) {
+          console.error('[export-all] empty buffer for:', fileName);
+          archive.append(Buffer.from(''), { name: fileName });
+        } else {
+          archive.append(buffer, { name: fileName });
+        }
+        processNext();
+      })
+      .catch((error) => {
+        console.error('[export-all] generation error for', fileName + ':', error.message);
+        archive.append(Buffer.from(''), { name: fileName });
+        processNext();
+      });
+  };
+  processNext();
 });
 
 router.get('/:id/roles', (req, res) => {

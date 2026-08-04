@@ -20,6 +20,26 @@ Versão atual registrada: **V0.1**.
 - Adicionada a coluna `activities_summary` às emissões para preservar e exibir no PDF e na área do participante as atividades consideradas na emissão.
 - A antiga regra por atividade foi retirada do fluxo, pois comparava o total consolidado com apenas a primeira regra encontrada. Mínimo de presenças, fundo, cor e texto permanecem centralizados por papel de certificado.
 
+### Correção do botão "Visualizar original" na página de certificados do admin
+
+- Corrigida a função `resetToOriginal` em `views/admin/events/certificates.ejs`: ao clicar "Visualizar original", a prévia agora é renderizada diretamente com as configurações salvas (fundo, cor, título e texto) no banco, sem modificar os campos do formulário com valores antigos.
+- Adicionado helper `showPreview(params)` para centralizar a exibição da prévia em `buildPreview` e `resetToOriginal`, eliminando duplicação de código e garantindo comportamento consistente.
+- Adicionada a rota `GET /admin/events/:id/certificates/rule/current` em `routes/events.js` que retorna as configurações salvas de todas as regras de certificado por papel.
+- Corrigido o endpoint de prévia (`certificates/preview`) para aceitar parâmetros `title` e `body_text` via query string, permitindo renderizar a prévia com os valores atuais do formulário.
+
+### Exportação em lote dos certificados emitidos em ZIP
+
+- Adicionada a rota `GET /admin/events/:id/certificates/export-all` em `routes/events.js` que gera um arquivo ZIP com todos os certificados emitidos (`status = 'issued'`) do evento.
+- Cada certificado é renderizado em PDF via PDFKit e adicionado ao ZIP com nome formatado `certificado-VV-nome-participante-tipopapel-vN.pdf`. O arquivo ZIP usa o nome `{nome_evento}-certificados.zip`.
+- Função `generateCertificateBuffer` reutiliza a lógica de `renderCertificatePdf` para gerar buffers de PDF em memória, usando `getBackgroundPath` para resolução de caminhos de fundos.
+- Corrigido erro `Class constructor PDFDocument cannot be invoked without 'new'`: `require('pdfkit')` retorna a classe `PDFDocument`, que exige `new` para instânciação.
+- Botão "Exportar todos os certificados emitidos" adicionado em `views/admin/events/certificates.ejs` com cor laranja (`#ea580c`), linkando para a rota de exportação.
+- `services/certificates.js` passou a exportar `getBackgroundPath` para ser reutilizada pelo gerador de buffer.
+
+### Botão "Baixar" nos certificados emitidos
+
+- Alterado o link "Baixar" de `<a>` para `<button class="secondary">` em `views/admin/events/certificates.ejs`, eliminando o sublinhado e padronizando visualmente com os botões "Emitir" e "Reemitir".
+
 ### Inscrição explícita de participantes nas atividades
 
 - Criada a tabela `participant_activity_enrollments` para separar inscrição na atividade de presença efetiva.
