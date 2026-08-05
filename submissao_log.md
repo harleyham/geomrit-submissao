@@ -69,6 +69,39 @@ Versão atual registrada: **V0.1**.
 
 - Todos os formulários de logout passam a conter o campo oculto `_csrf` com o token CSRF da sessão, evitando falha de autenticação ao clicar "Sair".
 
+### Corrigido botão "Baixar" nos certificados emitidos
+
+- Botão "Baixar" na página de certificados administrativos (`views/admin/events/certificates.ejs`) alterado de `<button>` para `<a>` tag com classe `secondary`, resolvendo problema de navegação e download do PDF.
+- CSS da classe `.secondary` expandido para incluir estilos completos (background, color, border, padding, border-radius, font-weight, cursor, text-decoration) e estado `:hover`, garantindo aparência padronizada com os botões "Reemitir" e "Emitir".
+
+### Botão "Gerenciar atividades" na página de certificados
+
+- Link "Gerenciar atividades →" na seção "Atividades do evento" da página de certificados (`views/admin/events/certificates.ejs`) convertido em botão com classe `btn-secondary`, sem seta no rótulo.
+
+### Seção "Atividades do evento" na página de certificados
+
+- Adicionada seção "Atividades do evento" na página de certificados administrativos com:
+  - Três cards de estatísticas: total de atividades, inscrições vinculadas, presenças registradas.
+  - Cards separados por tipo de atividade (Palestra, Seminário, Mesa-redonda, Minicurso, Apresentação oral, Apresentação pôster, Outra), com badges de cor distintos.
+  - Cada atividade exibe nome, data, carga horária, badges dos papéis elegíveis, contadores de inscritos/presentes e status de certificação.
+  - Ordenação alfabética por nome dentro de cada grupo.
+  - Link "Gerenciar atividades" como botão ao final da seção.
+- Dados de atividades carregados no controller (`routes/events.js`) e passados ao template.
+
+### Atividade listadas em cards por tipo na página de atividades
+
+- Reescrita da listagem de atividades em `views/admin/events/activities.ejs`: substituída a tabela por cards separados por tipo de atividade.
+- Cada tipo possui card com título e badge de cor distinto.
+- Atividades dentro de cada card ordenadas alfabeticamente por nome.
+- Cada card de atividade inclui nome, data, carga horária, badges dos papéis elegíveis, botões "Editar" e "Presença", contadores de inscritos/presentes e botão de ativar certificação quando desativada.
+
+### Corpo do certificado de Professor aceita nome da atividade
+
+- Texto padrão do certificado de Professor alterado de `"atuou como professor(a) no evento {event}."` para `"ministrou {atividade} no {event}."`.
+- Função `certificateText` em `routes/events.js` atualizada para aceitar e substituir `{atividade}` pelo nome da atividade ministrada.
+- `issueCertificate` passa a extrair o nome da primeira atividade frequentada e repassá-lo à função de texto.
+- Prévia do certificado mantém `null` para `{atividade}` quando não há atividade real associada.
+
 ## 2026-08-04
 
 ### Correção do vínculo Atividade–Pessoa–Presença–Certificado
@@ -469,8 +502,6 @@ Versão atual registrada: **V0.1**.
 ### Minhas observações do a fazer
 
 - Importação de CSV com dados dos participantes
-- Nos dados dos participantes incluir número do telefone com formato internacional
-- http://localhost:3000/admin/events/2/activities, http://localhost:3000/admin/reports?eventId=2, http://localhost:3000/admin/articles?eventId=2, estão com o menu superior fora do padrão
 - No certificado de quem ministrou um curso, deve ter "ministrou" e horas-aula
 
 

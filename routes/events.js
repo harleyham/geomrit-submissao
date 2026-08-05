@@ -43,7 +43,15 @@ function generateCertificateBuffer(certificate) {
       }
       const textColor = certificate.text_color || '#0f172a';
       const certificateTitle = certificate.certificate_title || 'CERTIFICADO DE PARTICIPAÇÃO';
-      const certificateBody = certificate.certificate_body || `participou do evento ${certificate.event_name}.`;
+      let certificateBody = certificate.certificate_body || `participou do evento ${certificate.event_name}.`;
+      const workloadHours = Number(certificate.total_workload_hours);
+      if (Number.isFinite(workloadHours) && workloadHours > 0) {
+        const formattedHours = Number.isInteger(workloadHours)
+          ? String(workloadHours)
+          : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+        const hourLabel = workloadHours === 1 ? 'hora-aula' : 'horas-aula';
+        certificateBody = `${certificateBody} ( ${formattedHours} ${hourLabel} )`;
+      }
       document.fillColor(textColor).font('Helvetica-Bold').fontSize(30).text(certificateTitle, 55, 105, { width: width - 110, align: 'center' });
       document.fillColor(textColor).font('Helvetica').fontSize(16).text('Certificamos que', 80, 205, { width: width - 160, align: 'center' });
       document.fillColor(textColor).font('Helvetica-Bold').fontSize(27).text(certificate.participant_name, 80, 240, { width: width - 160, align: 'center' });
@@ -52,16 +60,6 @@ function generateCertificateBuffer(certificate) {
         ? `Realizado de ${certificate.event_date_start} a ${certificate.event_date_end}.`
         : certificate.event_date_start ? `Realizado em ${certificate.event_date_start}.` : '';
       document.fontSize(12).fillColor(textColor).text(dateLabel, 80, 335, { width: width - 160, align: 'center' });
-      const workloadHours = Number(certificate.total_workload_hours);
-      if (Number.isFinite(workloadHours) && workloadHours > 0) {
-        const formattedHours = Number.isInteger(workloadHours)
-          ? String(workloadHours)
-          : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
-        const hourLabel = workloadHours === 1 ? 'hora-aula' : 'horas-aula';
-        document.fillColor(textColor).font('Helvetica').fontSize(10).text(
-          `Carga horária: ${formattedHours} ${hourLabel}.`, 80, 360, { width: width - 160, align: 'center' }
-        );
-      }
       if (certificate.activities_summary) {
         document.fillColor(textColor).font('Helvetica').fontSize(9).text(
           `Atividades: ${certificate.activities_summary}.`, 80, 382, { width: width - 160, align: 'center', ellipsis: true }
@@ -77,13 +75,18 @@ const CERTIFICATE_ROLES = {
   participant: { label: 'Participante', title: 'CERTIFICADO DE PARTICIPAÇÃO', body: 'participou do evento {event}.', attendance: true },
   reviewer: { label: 'Revisor', title: 'CERTIFICADO DE REVISÃO', body: 'atuou como revisor(a) de trabalhos científicos no evento {event}.', attendance: false },
   speaker: { label: 'Palestrante', title: 'CERTIFICADO DE PALESTRANTE', body: 'participou como palestrante do evento {event}.', attendance: true },
-  teacher: { label: 'Professor', title: 'CERTIFICADO DE PROFESSOR(A)', body: 'atuou como professor(a) no evento {event}.', attendance: true },
+  teacher: { label: 'Professor', title: 'CERTIFICADO DE PROFESSOR(A)', body: 'ministrou {atividade} no {event}.', attendance: true },
   oral_presenter: { label: 'Apresentador Oral', title: 'CERTIFICADO DE APRESENTAÇÃO ORAL', body: 'realizou apresentação oral no evento {event}.', attendance: true },
   poster_presenter: { label: 'Apresentador Pôster', title: 'CERTIFICADO DE APRESENTAÇÃO DE PÔSTER', body: 'realizou apresentação de pôster no evento {event}.', attendance: true }
 };
 
 function certificateRoleMeta(role) { return CERTIFICATE_ROLES[role] || CERTIFICATE_ROLES.participant; }
-function certificateText(value, eventName) { return String(value || '').replaceAll('{event}', eventName); }
+function certificateText(value, eventName, activityName) {
+  let text = String(value || '');
+  text = text.replaceAll('{event}', eventName || '');
+  if (activityName) { text = text.replaceAll('{atividade}', activityName); }
+  return text;
+}
 
 // Todas as rotas identificadas por evento exigem administração daquele evento.
 router.use((req, res, next) => {
@@ -792,12 +795,22 @@ router.get('/:id/certificates', (req, res) => {
     certificatesIssued: issuedByRole[rule.certificate_role] || 0
   }));
   const backgrounds = db.prepare('SELECT * FROM certificate_backgrounds ORDER BY created_at DESC').all();
+  const activities = db.prepare(`
+    SELECT ea.*,
+      (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
+      (SELECT COUNT(*) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count
+    FROM event_activities ea
+    WHERE ea.event_id = ?
+    ORDER BY ea.activity_date, ea.name
+  `).bind(event.id).all();
+
   res.render('admin/events/certificates', {
     title: `Certificados - ${event.name}`,
     event,
     rules,
     certificatesByRole,
     backgrounds,
+    activities,
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -866,8 +879,8 @@ router.get('/:id/certificates/preview', (req, res) => {
     certificate_code: 'PREVIEW-CODE',
     issued_at: new Date(Date.now() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ''),
     text_color: textColor,
-    certificate_title: certificateText(req.query.title || rule.title || certificateRoleMeta(role).title, event.name),
-    certificate_body: certificateText(req.query.body_text || rule.body_text || certificateRoleMeta(role).body, event.name),
+    certificate_title: certificateText(req.query.title || rule.title || certificateRoleMeta(role).title, event.name, null),
+    certificate_body: certificateText(req.query.body_text || rule.body_text || certificateRoleMeta(role).body, event.name, null),
     background_path: background.file_path,
     activities_attended: 0,
     total_workload_hours: 0
@@ -1085,13 +1098,14 @@ function issueCertificate(event, role, userId, actorUserId, reissuedFromId = nul
   const version = (participant.latest_version || 0) + 1;
   const code = `CERT-${event.id}-${userId}-${role.toUpperCase()}-V${version}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   const issuedAt = new Date(Date.now() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+  const mainActivityName = (attendedActivities.length > 0 && attendedActivities[0].activity_name) ? attendedActivities[0].activity_name : null;
   return db.prepare(`INSERT INTO certificate_emissions (event_id,registration_id,user_id,certificate_role,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,issued_by,reissued_from_id,issued_at,activity_id,activities_attended,total_workload_hours,activities_summary,text_color,certificate_title,certificate_body)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       event.id, participant.registration_id || null, userId, role, rule.background_id, code, version,
       participant.attendance_count, participant.name, event.name,
       event.date_start, event.date_end, actorUserId, reissuedFromId,
       issuedAt, mainActivityId, totalActivities, totalWorkloadHours, activitiesSummary, textColor,
-      certificateText(rule.title || certificateRoleMeta(role).title, event.name), certificateText(rule.body_text || certificateRoleMeta(role).body, event.name)
+      certificateText(rule.title || certificateRoleMeta(role).title, event.name, mainActivityName), certificateText(rule.body_text || certificateRoleMeta(role).body, event.name, mainActivityName)
     ).lastInsertRowid;
 }
 

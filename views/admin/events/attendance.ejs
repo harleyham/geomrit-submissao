@@ -66,7 +66,7 @@
                 <div><%= Number(activity.workload_hours) > 0 ? `${activity.workload_hours} hora(s)-aula` : 'Sem carga horária' %></div>
               </div>
             </div>
-            <a class="btn" href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Fazer chamada desta atividade</a>
+            <a class="btn" href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Presença</a>
           </article>
         <% }) %>
       </div>

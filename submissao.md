@@ -684,7 +684,10 @@ Observações operacionais:
 - Estatística de certificados emitidos incluída no card "Estatísticas do Evento" da página de relatórios do administrador (`/admin/reports?eventId=:id`).
 - Padronização da topbar nas views públicas (`event.ejs`, `event-certificates.ejs`): classes `btn-secondary` e `btn-logout` unificadas com `submit.ejs`, CSS `.topbar-nav` com `gap:0.4rem; align-items:center; flex-wrap:wrap` e hover com fundo sutil.
 - Botões "Editar" e "Presença" (antes "Fazer chamada") na listagem de atividades (`/admin/events/:id/activities`), estilizados como botões sem sublinhado.
+- Atividades cadastradas listadas em cards separados por tipo de atividade (Palestra, Seminário, Mesa-redonda, Minicurso, Apresentação oral, Apresentação pôster, Outra), com badges de cor distintos para cada tipo e ordenação alfabética por nome.
 - O PDF informa a carga horária consolidada em `hora-aula` ou `horas-aula` somente quando as atividades vinculadas ao certificado totalizam valor maior que zero.
+- Texto do corpo do certificado de Professor configurado para aceitar `{atividade}` como substituição pelo nome da atividade ministrada, além do `{event}` pelo nome do evento.
+- Seção "Atividades do evento" na página de certificados administrativos com cards separados por tipo de atividade, cards de estatísticas (total de atividades, inscrições vinculadas, presenças registradas) e link de acesso à gestão completa de atividades.
 - Emissão em lote dos certificados elegíveis ainda não emitidos.
 - Seleção individual das seções incluídas na impressão do relatório em PDF.
 - Download em lote dos PDFs submetidos por evento em arquivo ZIP.

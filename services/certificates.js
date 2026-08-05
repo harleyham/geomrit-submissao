@@ -38,7 +38,15 @@ function renderCertificatePdf(res, certificate) {
 
   const textColor = certificate.text_color || '#0f172a';
   const certificateTitle = certificate.certificate_title || 'CERTIFICADO DE PARTICIPAÇÃO';
-  const certificateBody = certificate.certificate_body || `participou do evento ${certificate.event_name}.`;
+  let certificateBody = certificate.certificate_body || `participou do evento ${certificate.event_name}.`;
+  const workloadHours = Number(certificate.total_workload_hours);
+  if (Number.isFinite(workloadHours) && workloadHours > 0) {
+    const formattedHours = Number.isInteger(workloadHours)
+      ? String(workloadHours)
+      : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    const hourLabel = workloadHours === 1 ? 'hora-aula' : 'horas-aula';
+    certificateBody = `${certificateBody} ( ${formattedHours} ${hourLabel} )`;
+  }
   document.fillColor(textColor).font('Helvetica-Bold').fontSize(30).text(certificateTitle, 55, 105, { width: width - 110, align: 'center' });
   document.fillColor(textColor).font('Helvetica').fontSize(16).text('Certificamos que', 80, 205, { width: width - 160, align: 'center' });
   document.fillColor(textColor).font('Helvetica-Bold').fontSize(27).text(certificate.participant_name, 80, 240, { width: width - 160, align: 'center' });
@@ -49,20 +57,6 @@ function renderCertificatePdf(res, certificate) {
     ? `Realizado de ${certificate.event_date_start} a ${certificate.event_date_end}.`
     : certificate.event_date_start ? `Realizado em ${certificate.event_date_start}.` : '';
   document.fontSize(12).fillColor(textColor).text(dateLabel, 80, 335, { width: width - 160, align: 'center' });
-
-  const workloadHours = Number(certificate.total_workload_hours);
-  if (Number.isFinite(workloadHours) && workloadHours > 0) {
-    const formattedHours = Number.isInteger(workloadHours)
-      ? String(workloadHours)
-      : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
-    const hourLabel = workloadHours === 1 ? 'hora-aula' : 'horas-aula';
-    document.fillColor(textColor).font('Helvetica').fontSize(10).text(
-      `Carga horária: ${formattedHours} ${hourLabel}.`,
-      80,
-      360,
-      { width: width - 160, align: 'center' }
-    );
-  }
 
   if (certificate.activities_summary) {
     document.fillColor(textColor).font('Helvetica').fontSize(9).text(
