@@ -7,12 +7,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *{box-sizing:border-box} body{font-family:'Inter',sans-serif;background:#0a0f1a;color:#e2e8f0;margin:0}
-    .topbar{background:rgba(15,23,42,0.8);border-bottom:1px solid rgba(148,163,184,0.1);backdrop-filter:blur(20px);padding:0 2rem;height:64px;display:flex;align-items:center;position:sticky;top:0;z-index:100}.topbar-inner{width:100%;max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}.logo{font-size:1.25rem;font-weight:700;color:#e2e8f0;text-decoration:none}.logo-icon{color:#60a5fa}.topbar-nav{display:flex;gap:0.25rem;align-items:center}.topbar-nav a{color:#94a3b8;padding:0.5rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.875rem;font-weight:500;transition:all 0.15s}.topbar-nav a:hover,.topbar-nav a.active{color:#e2e8f0;background:rgba(148,163,184,0.1)}.main-content{max-width:1400px;margin:0 auto;padding:2rem}
+    .topbar{background:rgba(15,23,42,0.8);border-bottom:1px solid rgba(148,163,184,0.1);backdrop-filter:blur(20px);padding:0 2rem;height:64px;display:flex;align-items:center;position:sticky;top:0;z-index:100}.topbar-inner{width:100%;max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}.logo{font-size:1.25rem;font-weight:700;color:#e2e8f0;text-decoration:none}.logo-icon{color:#60a5fa}.topbar-nav{display:flex;gap:0.25rem;align-items:center}.topbar-nav a{color:#94a3b8;padding:0.5rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.875rem;font-weight:500;transition:all 0.15s}
+    .topbar-nav a:hover{color:#e2e8f0;background:rgba(148,163,184,0.1)}
+    .topbar-nav a.active{color:#e2e8f0;background:rgba(148,163,184,0.1)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:0.625rem 1.25rem;border-radius:8px;font-size:0.875rem;font-weight:500;cursor:pointer;border:none;text-decoration:none}.btn-secondary{background:rgba(148,163,184,0.12);color:#e2e8f0;border:1px solid rgba(148,163,184,0.18);text-decoration:none;font-weight:500}.btn-secondary:hover{background:rgba(148,163,184,0.2)}.main-content{max-width:1400px;margin:0 auto;padding:2rem}
     .hint{color:#94a3b8;line-height:1.5}.card{background:rgba(30,41,59,0.6);border:1px solid rgba(148,163,184,0.1);border-radius:12px;padding:22px;margin:18px 0}
     .activities{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px}.activity{display:flex;min-height:180px;flex-direction:column;justify-content:space-between;padding:18px;border:1px solid rgba(148,163,184,0.1);border-radius:10px;background:rgba(30,41,59,0.6)}
     .activity h3{margin:0 0 10px;color:#f1f5f9}.meta{color:#cbd5e1;font-size:14px;line-height:1.6}
     .btn{display:inline-block;text-align:center;background:#3b82f6;color:white;text-decoration:none;border-radius:7px;padding:10px 12px;margin-top:16px;transition:background 0.15s}.btn:hover{background:#2563eb}
-    .btn-ghost{background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);font-size:0.875rem;padding:0.5rem 1rem}.btn-ghost:hover{background:rgba(148,163,184,0.1);color:#e2e8f0}
+    .btn-ghost{background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,0.2);font-size:0.875rem;padding:0.5rem 1rem}.btn-ghost:hover{background:rgba(148,163,184,0.1);color:#e2e8f0}.session-pill{padding:0.42rem 0.78rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem}.btn-logout{background:transparent;color:#f87171;border:1px solid rgba(248,113,113,0.25);font-family:inherit;cursor:pointer}
     .empty{padding:18px;border:1px dashed rgba(148,163,184,0.2);border-radius:8px;color:#94a3b8}
     .summary{display:flex;gap:12px;flex-wrap:wrap}.stat{background:rgba(15,23,42,0.35);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:12px 16px;min-width:150px}.stat strong{display:block;font-size:22px;color:#bfdbfe}
     .btn-primary{background:#3b82f6;color:white;padding:0.625rem 1.25rem;border-radius:8px;font-size:0.875rem;font-weight:500;cursor:pointer;border:none;text-decoration:none}
@@ -25,12 +28,14 @@
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
       <nav class="topbar-nav">
-        <a href="/admin">Dashboard</a>
+        <a href="/admin" class="active">Dashboard</a>
         <a href="/admin/events">Eventos</a>
         <a href="/admin/users">Usuários</a>
-        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
         <form method="POST" action="/admin/logout" style="display:inline">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost" style="padding:0.3rem 0.5rem">Sair</button></form>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-logout">Sair</button>
+        </form>
       </nav>
     </div>
   </header>

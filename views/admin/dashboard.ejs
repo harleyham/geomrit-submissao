@@ -16,8 +16,11 @@
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
     .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
     .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
-    .btn-logout { color: #f87171 !important; }
-    .topbar-user { color: #94a3b8; font-size: 0.875rem; }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
 
     .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
     .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
@@ -80,13 +83,16 @@
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
       <nav class="topbar-nav">
         <a href="/admin" class="active">Dashboard</a>
-        <a href="/admin/events">Eventos</a>
-        <a href="/admin/users">Usuários</a>
+        <a href="/admin/events" class="btn btn-secondary">Eventos</a>
+        <a href="/admin/users" class="btn btn-secondary">Usuários</a>
         <% if (isReviewer) { %>
-          <a href="/reviewer">Painel do Revisor</a>
+          <a href="/reviewer" class="btn btn-secondary">Painel do Revisor</a>
         <% } %>
-        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
-        <a href="/admin/logout" style="padding:0.3rem 0.5rem; color: #f87171; text-decoration: none; font-size: 0.875rem; font-weight: 500;">Sair</a>
+        <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-logout">Sair</button>
+        </form>
       </nav>
     </div>
   </header>

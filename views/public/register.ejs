@@ -11,6 +11,10 @@
     .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; }
     .topbar-inner { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
     .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
     .main-content { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem; }
     .hero { margin-bottom: 1.75rem; text-align: center; }
     .hero h1 { font-size: 2rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.75rem; }
@@ -42,8 +46,10 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <a href="/" class="logo">Artigos LIGEM</a>
-      <a href="/login" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Entrar</a>
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/login" class="btn btn-secondary">Entrar</a>
+      </nav>
     </div>
   </header>
 

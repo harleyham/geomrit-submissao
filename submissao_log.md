@@ -4,6 +4,71 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-05
+
+### Campo de telefone em usuários e participantes
+
+- Adicionada a coluna `phone` à tabela `users` e à tabela `event_registrations`, com migração automática via `PRAGMA table_info`.
+- O formulário de inclusão administrativa de participante (`views/admin/events/participant-form.ejs`) passou a exibir o campo "Telefone" com placeholder `+55 11 912345678` e help text de formato internacional.
+- O formulário de inclusão administrativa passou a gravar `phone` no INSERT e UPDATE de `event_registrations`, normalizado com `String(body.phone || '').trim()`.
+- O card "Dados Pessoais" do formulário de edição de usuário (`views/admin/users/form.ejs`) passou a exibir o campo "Telefone" com placeholder e help text de formato internacional.
+- A rota `POST /admin/users/:id` passou a ler e persistir `phone` nos INSERT e UPDATE da tabela `users`.
+- A listagem administrativa de participantes (`views/admin/events/participants.ejs`) passou a exibir o telefone abaixo da instituição, quando preenchido.
+
+### Padronização da topbar em todas as views
+
+- Todas as 31 views do sistema (públicas, de revisor e admin) foram atualizadas para exibir a mesma topbar com logo `◆ Artigos LIGEM`, navegação padronizada (`topbar-nav`), pill de email (`session-pill`) e botão Sair vermelho (`btn btn-logout`).
+- Botões Sair unificados com classe `.btn btn-logout`, background transparente e texto vermelho.
+- CSS de navegação unificado com `display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap` e hover com fundo sutil.
+- Correção de highlight nas views admin: páginas de eventos com "Eventos" ativo e "Usuários" sem active; páginas de artigos com "Eventos" ativo; páginas de usuários com "Usuários" ativo; páginas de relatórios com "Eventos" ativo.
+
+### Remoção de botões de navegação duplicados
+
+- Removidos links redundantes `<- Eventos` das views admin de eventos (list, participants, attendance, activities, certificates, form, roles, subsidies) e da view de relatório de certificado.
+- Removido link redundante `<- Voltar` da view `roles.ejs` e `attendance.ejs`.
+- Removido botão "Voltar aos Eventos" de `views/admin/events/participants.ejs` e `views/admin/events/subsidies.ejs`.
+
+### Ajuste de botão "Voltar" no formulário de participante
+
+- Na página de edição do participante (`views/admin/events/participant-form.ejs`), o link `<- Voltar` foi removido e substituído pelo botão "Cancelar" estilizado como `.btn btn-secondary`, com texto dinâmico conforme o modo (incluindo ou editando).
+
+### Ajuste de botão de inclusão na listagem de participantes
+
+- Na listagem de participantes (`views/admin/events/participants.ejs`), o link "Incluir participante" foi substituído por botão com classe `.btn btn-secondary`, cor de fundo consistente com o sistema.
+
+### Correções de layout em views admin
+
+- Correção de layout na página de edição de participante (`views/admin/events/participant-form.ejs`): grid de 2 colunas com altura igual e texto ajustado com `align-items: flex-start`.
+- Correção de alinhamento de cards no dashboard admin (`views/admin/dashboard.ejs`): grid com altura igual via `align-items: stretch`.
+- Correção de exibição de contadores no dashboard admin: labels com cor mais clara (`#94a3b8`) e separação visual com `font-size` e `margin-bottom`.
+- Correção de erro de renderização na página de participantes do admin: template atualizado para usar `participant.id` ao invés de `participant.registration_id`.
+
+### Correção de erro de renderização EJS na listagem de certificados
+
+- Removido bloco inválido de EJS em `views/admin/events/certificates.ejs` que causava erro "Unexpected token" e impedia a renderização da página.
+
+### Correção de exibição de status de subsídio no autor-dashboard
+
+- Adicionado suporte à exibição condicional do status de subsídio na página do participante (`views/public/author-dashboard.ejs`): coluna "Subsídio" com badge colorido aparece apenas quando o usuário possui solicitações de subsídio vinculadas.
+- Correção de erro de renderização na visualização administrativa da área do participante (`/admin/users/:id/participant`): prop `showSubsidyStatus` agora é passada ao template, eliminando erro de renderização EJS.
+
+### Correção de coluna ambígua na query de presença por atividade
+
+- Corrigido erro `ambiguous column name: user_id` na query de presença por atividade (`routes/events.js`), aliasando coluna de `event_user_roles` para `person_user_id` na junção com `event_registrations` e `activity_attendance_records`.
+
+### Reescrita da página de presença por atividade
+
+- Reescrita completa da página de presença por atividade (`views/admin/events/activity-attendance.ejs`) com layout topbar/Inter, stats cards (presentes/ausentes/total), tabela com perfis no evento e role na atividade, e validação server-side dos papéis aceitos.
+
+### Vinculação de atuação por atividade no controle de presença
+
+- O dropdown de seleção de papel na chamada de atividade agora apresenta somente os papéis elegíveis que a pessoa já possui no evento.
+- Botões separados marcam, atualizam ou removem a presença, sem alterar `event_user_roles`.
+
+### Correção de botão Sair com CSRF
+
+- Todos os formulários de logout passam a conter o campo oculto `_csrf` com o token CSRF da sessão, evitando falha de autenticação ao clicar "Sair".
+
 ## 2026-08-04
 
 ### Correção do vínculo Atividade–Pessoa–Presença–Certificado

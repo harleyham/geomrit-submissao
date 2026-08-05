@@ -55,23 +55,23 @@
   </style>
 </head>
 <body>
-  <header class="topbar">
+    <header class="topbar">
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
       <nav class="topbar-nav">
-        <a href="/evento/<%= event.id %>">← Voltar ao evento</a>
+        <a href="/evento/<%= event.id %>" class="btn btn-secondary">← Voltar ao evento</a>
         <% if (userEmail) { %>
-          <a href="/author" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Área do Participante</a>
+          <a href="/author" class="btn btn-secondary">Área do Participante</a>
           <% if (isReviewer) { %>
-            <a href="/reviewer" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Painel do Revisor</a>
+            <a href="/reviewer" class="btn btn-secondary">Painel do Revisor</a>
           <% } %>
           <% if (isAdmin) { %>
-            <a href="/admin/dashboard" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Dashboard Admin</a>
+            <a href="/admin/dashboard" class="btn btn-secondary">Dashboard</a>
           <% } %>
           <span class="session-pill"><%= userEmail %></span>
           <form method="POST" action="/login/logout" style="display:inline;">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button type="submit" class="btn btn-logout" style="padding:0.55rem 0.85rem;">Sair</button>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="btn btn-logout">Sair</button>
           </form>
         <% } %>
       </nav>

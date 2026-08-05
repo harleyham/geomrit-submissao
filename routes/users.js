@@ -152,7 +152,7 @@ function mapArticleStatus(status) {
 
 router.get('/', requireAuth, (req, res) => {
   const users = db.prepare(`
-    SELECT id, name, email, cpf, passport, country, institution,
+    SELECT id, name, email, cpf, passport, country, institution, phone,
            is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at,
            password_changed, created_at
     FROM users
@@ -179,13 +179,13 @@ router.get('/new', requireAuth, (req, res) => {
 });
 
 router.post('/', requireAuth, strictLimiter, (req, res) => {
-  const { name, email, password, cpf, passport, country, institution, reviewer_areas, is_admin, is_reviewer } = req.body;
+  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer } = req.body;
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
 
   if (!email || !password) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'E-mail e senha são obrigatórios.'
@@ -195,7 +195,7 @@ router.post('/', requireAuth, strictLimiter, (req, res) => {
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(email).get();
   if (existing) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'Já existe um usuário com o e-mail ' + email
@@ -204,7 +204,7 @@ router.post('/', requireAuth, strictLimiter, (req, res) => {
 
   if (!isValidCPF(cpf)) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       error: 'O CPF informado é inválido.'
@@ -213,9 +213,9 @@ router.post('/', requireAuth, strictLimiter, (req, res) => {
 
   const hash = bcrypt.hashSync(password, 10);
   db.prepare(`
-    INSERT INTO users (name, email, password, cpf, passport, country, institution, reviewer_areas,
+    INSERT INTO users (name, email, password, cpf, passport, country, institution, phone, reviewer_areas,
       is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at, password_changed, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).bind(
     name || email,
     email,
@@ -224,6 +224,7 @@ router.post('/', requireAuth, strictLimiter, (req, res) => {
     passport || null,
     country || null,
     institution || null,
+    phone || null,
     normalizedReviewerAreas || null,
     is_admin ? 1 : 0, is_reviewer ? 1 : 0,
     certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher,
@@ -386,7 +387,7 @@ router.get('/:id/participant', requireAuth, (req, res) => {
 
 function updateUser(req, res) {
   const id = parseInt(req.params.id, 10);
-  const { name, email, password, cpf, passport, country, institution, reviewer_areas, is_admin, is_reviewer } = req.body;
+  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer } = req.body;
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
   const user = db.prepare('SELECT id, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
@@ -402,7 +403,7 @@ function updateUser(req, res) {
 
   if (!isValidCPF(cpf)) {
     return res.render('admin/users/form', {
-      user: { id, name, email, cpf, passport, country, institution, reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
+      user: { id, name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
       title: 'Editar Usuário',
       year: new Date().getFullYear(),
       error: 'O CPF informado é inválido.'
@@ -412,22 +413,22 @@ function updateUser(req, res) {
   if (password) {
     const hash = bcrypt.hashSync(password, 10);
     db.prepare(`
-      UPDATE users SET name=?, email=?, password=?, cpf=?, passport=?, country=?, institution=?, reviewer_areas=?,
+      UPDATE users SET name=?, email=?, password=?, cpf=?, passport=?, country=?, institution=?, phone=?, reviewer_areas=?,
         is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, password_changed=0, updated_at=datetime('now', '-3 hours')
       WHERE id=?
     `).bind(
       name, email, hash,
-      normalizeCPF(cpf) || null, passport || null, country || null, institution || null, normalizedReviewerAreas || null,
+      normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter, id
     ).run();
   } else {
     db.prepare(`
-      UPDATE users SET name=?, email=?, cpf=?, passport=?, country=?, institution=?, reviewer_areas=?,
+      UPDATE users SET name=?, email=?, cpf=?, passport=?, country=?, institution=?, phone=?, reviewer_areas=?,
         is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, updated_at=datetime('now', '-3 hours')
       WHERE id=?
     `).bind(
       name, email,
-      normalizeCPF(cpf) || null, passport || null, country || null, institution || null, normalizedReviewerAreas || null,
+      normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter, id
     ).run();
   }

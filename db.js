@@ -35,6 +35,7 @@ db.exec(`
     approved_at DATETIME,
     approved_by INTEGER,
     password_changed INTEGER DEFAULT 0,
+    phone TEXT DEFAULT '',
     created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
     updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
   );
@@ -641,6 +642,9 @@ try {
 }
 
 try {
+  const userColumns = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  if (!userColumns.includes('phone')) db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''");
+
   const registrationColumns = db.prepare("PRAGMA table_info(event_registrations)").all().map(c => c.name);
   if (!registrationColumns.includes('subsidy_requested')) db.exec('ALTER TABLE event_registrations ADD COLUMN subsidy_requested INTEGER DEFAULT 0');
   if (!registrationColumns.includes('student_level')) db.exec("ALTER TABLE event_registrations ADD COLUMN student_level TEXT DEFAULT ''");
@@ -658,6 +662,7 @@ try {
   if (!registrationColumns.includes('motivation_letter_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN motivation_letter_original_name TEXT DEFAULT ''");
   if (!registrationColumns.includes('recommendation_letter_pdf_path')) db.exec("ALTER TABLE event_registrations ADD COLUMN recommendation_letter_pdf_path TEXT DEFAULT ''");
   if (!registrationColumns.includes('recommendation_letter_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN recommendation_letter_original_name TEXT DEFAULT ''");
+  if (!registrationColumns.includes('phone')) db.exec("ALTER TABLE event_registrations ADD COLUMN phone TEXT DEFAULT ''");
   db.prepare(`
     UPDATE event_registrations
     SET subsidy_status = CASE

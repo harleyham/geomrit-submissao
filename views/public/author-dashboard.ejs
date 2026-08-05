@@ -11,10 +11,10 @@
     .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
     .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .nav { display: flex; gap: 0.5rem; align-items: center; }
-    .nav a, .nav button { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 8px; text-decoration: none; font-size: 0.875rem; border: 1px solid rgba(148,163,184,0.18); background: transparent; cursor: pointer; }
-    .nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
-    .nav .danger { color: #f87171; }
+    .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
+    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
     .main-content { max-width: 1280px; margin: 0 auto; padding: 2rem; }
     .hero { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
     .panel { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 16px; padding: 1.5rem; }
@@ -69,24 +69,25 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <a href="/" class="logo">Artigos LIGEM</a>
-      <nav class="nav">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
         <% if (previewMode) { %>
-          <a href="/admin/users" class="active">Usuários</a>
-          <a href="/">Eventos</a>
-          <span style="padding:0.35rem 0.7rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem;">Visualizando: <%= previewUser && previewUser.email ? previewUser.email : userEmail %></span>
+          <a href="/admin/users" class="btn btn-secondary">Usuários</a>
+          <a href="/" class="btn btn-secondary">← Eventos</a>
+          <span class="session-pill">Visualizando: <%= previewUser && previewUser.email ? previewUser.email : userEmail %></span>
         <% } else { %>
-          <a href="/author" class="active">Área do Participante</a>
+          <a href="/author" class="btn btn-secondary">Área do Participante</a>
           <% if (isReviewer) { %>
-            <a href="/reviewer">Painel do Revisor</a>
+            <a href="/reviewer" class="btn btn-secondary">Painel do Revisor</a>
           <% } %>
           <% if (isAdmin) { %>
-            <a href="/admin/dashboard">Dashboard Admin</a>
+            <a href="/admin/dashboard" class="btn btn-secondary">Dashboard</a>
           <% } %>
-          <a href="/">Eventos</a>
-          <span style="padding:0.35rem 0.7rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem;"><%= userEmail %></span>
+          <a href="/" class="btn btn-secondary">← Eventos</a>
+          <span class="session-pill"><%= userEmail %></span>
           <form method="POST" action="/login/logout" style="display:inline;">
-            <button type="submit" class="danger">Sair</button>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="btn btn-logout">Sair</button>
           </form>
         <% } %>
       </nav>

@@ -1368,6 +1368,7 @@ function normalizeParticipantForm(body = {}) {
     name: String(body.name || '').trim(),
     email: String(body.email || '').trim().toLowerCase(),
     institution: String(body.institution || '').trim(),
+    phone: String(body.phone || '').trim(),
     registration_type: body.registration_type === 'author' ? 'author' : 'listener',
     account_mode: body.account_mode === 'existing' ? 'existing' : 'new',
     existing_user_id: String(body.existing_user_id || '').trim(),
@@ -1446,9 +1447,9 @@ router.post('/:id/participants', strictLimiter, (req, res) => {
 
       const result = db.prepare(`
         INSERT INTO event_registrations (
-          event_id, user_id, name, email, institution, registration_type, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
-      `).run(event.id, linkedUser.id, formData.name, formData.email, formData.institution, formData.registration_type);
+          event_id, user_id, name, email, institution, phone, registration_type, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+      `).run(event.id, linkedUser.id, formData.name, formData.email, formData.institution, formData.phone, formData.registration_type);
       db.prepare("UPDATE users SET is_participant=1, updated_at=datetime('now','-3 hours') WHERE id=?").run(linkedUser.id);
       saveParticipantActivities(result.lastInsertRowid, linkedUser.id, formData.activity_ids, req.session.userId);
 
@@ -1520,9 +1521,9 @@ function updateParticipant(req, res) {
     const previousActivityIds = getParticipantActivityIds(registration.id);
     db.transaction(() => {
       db.prepare(`UPDATE event_registrations
-        SET name=?,email=?,institution=?,registration_type=?,updated_at=datetime('now','-3 hours')
+        SET name=?,email=?,institution=?,phone=?,registration_type=?,updated_at=datetime('now','-3 hours')
         WHERE id=? AND event_id=?`).run(formData.name, formData.email, formData.institution,
-        formData.registration_type, req.params.registrationId, req.params.id);
+        formData.phone, formData.registration_type, req.params.registrationId, req.params.id);
       saveParticipantActivities(registration.id, registration.user_id, formData.activity_ids, req.session.userId);
       recordParticipantAudit({
         eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,

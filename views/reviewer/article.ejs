@@ -14,6 +14,10 @@
     .logo-icon { color: #60a5fa; }
     .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
     .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); }
+    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
     .main-content { max-width: 1000px; margin: 0 auto; padding: 2rem; }
     .back-link { display: inline-flex; align-items: center; gap: 0.375rem; color: #94a3b8; text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; }
     .back-link:hover { color: #e2e8f0; }
@@ -51,13 +55,13 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <a href="/reviewer" class="logo"><span class="logo-icon">◆</span> Painel do Revisor</a>
-      <nav style="display:flex; gap:0.5rem; align-items:center;">
-        <a href="/reviewer">← Voltar</a>
-        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/reviewer" class="btn btn-secondary">← Voltar</a>
+        <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
         <form method="POST" action="/reviewer/logout" style="display:inline">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem; color:#f87171;">Sair</button>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-logout">Sair</button>
         </form>
       </nav>
     </div>

@@ -42,6 +42,10 @@
     .btn-danger:hover { background: #b91c1c; }
     .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
     .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
     .form-actions { display: flex; gap: 0.75rem; justify-content: space-between; align-items: center; margin-top: 2rem; flex-wrap: wrap; }
     .form-actions-main { display: flex; gap: 0.75rem; justify-content: flex-end; flex-wrap: wrap; }
     .help-text { color: #64748b; font-size: 0.75rem; margin-top: 0.375rem; }
@@ -58,9 +62,11 @@
         <a href="/admin">Dashboard</a>
         <a href="/admin/events">Eventos</a>
         <a href="/admin/users">Usuários</a>
-        <% if (userEmail) { %><span style="padding:0.3rem 0.65rem; color:#cbd5e1; font-size:0.8125rem; border:1px solid rgba(148,163,184,0.18); border-radius:9999px; background:rgba(15,23,42,0.35);"><%= userEmail %></span><% } %>
+        <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
         <form method="POST" action="/admin/logout" style="display:inline">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-ghost btn-sm" style="padding:0.3rem 0.5rem">Sair</button></form>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-logout">Sair</button>
+        </form>
       </nav>
     </div>
   </header>

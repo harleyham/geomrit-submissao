@@ -11,8 +11,10 @@
     .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; }
     .topbar-inner { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
     .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .topbar-nav { display: flex; align-items: center; gap: 0.65rem; }
-    .pill { padding: 0.45rem 0.8rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
+    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
     .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2); }
@@ -44,21 +46,22 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <a href="/" class="logo">Artigos LIGEM</a>
-      <div class="topbar-nav">
-        <a href="/author" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Área do Participante</a>
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/author" class="btn btn-secondary">Área do Participante</a>
         <% if (isReviewer) { %>
-          <a href="/reviewer" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Painel do Revisor</a>
+          <a href="/reviewer" class="btn btn-secondary">Painel do Revisor</a>
         <% } %>
         <% if (isAdmin) { %>
-          <a href="/admin/dashboard" class="btn btn-secondary" style="padding:0.55rem 0.85rem;">Dashboard Admin</a>
+          <a href="/admin/dashboard" class="btn btn-secondary">Dashboard</a>
         <% } %>
-        <span class="pill"><%= userEmail %></span>
+        <a href="/" class="btn btn-secondary">← Eventos</a>
+        <span class="session-pill"><%= userEmail %></span>
         <form method="POST" action="/login/logout" style="display:inline;">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button type="submit" class="btn btn-logout" style="padding:0.55rem 0.85rem;">Sair</button>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-logout">Sair</button>
         </form>
-      </div>
+      </nav>
     </div>
   </header>
 

@@ -137,6 +137,7 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `passport`
 - `country`
 - `institution`
+- `phone`
 - `reviewer_areas`
 - `is_admin`
 - `is_reviewer`
@@ -210,6 +211,7 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `name`
 - `email`
 - `institution`
+- `phone`
 - `registration_type`
 - `subsidy_requested`
 - `student_level`
