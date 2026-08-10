@@ -4,6 +4,56 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-10
+
+### Perfil obrigatório no primeiro acesso
+
+- Adicionada a coluna `profile_completed` à tabela `users`. A migração usa valor padrão `1` para preservar contas existentes; novas contas com senha temporária ou novo cadastro são criadas com valor `0`.
+- O primeiro acesso passou a ter duas etapas obrigatórias: troca de senha em `/login/change-password` e preenchimento cadastral em `/login/complete-profile`.
+- A nova etapa exige nome, instituição, telefone, país, CPF ou passaporte e formação acadêmica completa (área, curso, titulação e status).
+- Adicionado middleware global que impede acesso direto às áreas administrativa, de revisão e de participante enquanto a senha ou o perfil estiverem pendentes.
+- A seleção de curso é validada no servidor contra a área de formação e os CSVs de referência, além da validação de CPF e dos limites de tamanho.
+- A listagem administrativa de usuários passou a mostrar separadamente os estados `Senha alterada/Trocar senha` e `Perfil completo/Completar perfil`.
+- Fluxo validado em banco sintético: login com senha temporária, troca obrigatória, bloqueio do dashboard, conclusão do perfil e liberação do painel.
+
+### Importação de participantes do Even3
+
+- Adicionadas rotas administrativas para importar participantes por evento a partir de arquivos CSV, XLS ou XLSX.
+- A importação detecta colunas de nome, e-mail, instituição, telefone, CPF e passaporte, cria contas com senha temporária ou atualiza contas correspondentes e apresenta o resumo do processamento.
+- Contas criadas pela importação entram no fluxo obrigatório de troca de senha e conclusão do perfil.
+
+### Verificação pública de certificados
+
+- Adicionada a rota `/consultar-certificado` para consulta pública pelo código de verificação da emissão.
+- A página informa os dados do certificado válido sem exigir autenticação e apresenta mensagem neutra para códigos inexistentes ou inválidos.
+
+### Correção: persistência do campo "Curso" na criação e edição de usuários
+
+- No formulário de novo usuário (`/admin/users/new`) e de edição (`/admin/users/:id/edit`), ao selecionar uma Área de Formação e depois um Curso no combobox, ao salvar os dados do usuário, o campo `formacao_curso` **não é persistido no banco de dados**.
+- Dados de referência verificados: os CSVs `assets/tabela_area.csv` (11 áreas) e `assets/tabela_curso_graduacao.csv` (354 cursos) são lidos corretamente pelo backend; `cursosMap` é serializado com sucesso via `JSON.stringify` e contém os 11 códigos de área com suas respectivas listas de cursos.
+- A função JavaScript `updateCursosByArea` em `views/admin/users/form.ejs` está presente e lógica correta, populando o select via `document.getElementById('formacao_curso').innerHTML` e `document.createElement('option')`.
+- O campo HTML `<select id="formacao_curso" name="formacao_curso">` está presente e com `name` correto em ambas as rotas (criação e edição).
+- As colunas `formacao_area`, `formacao_curso`, `formacao_titulacao` e `formacao_status` existem na tabela `users` (verificadas em `db.js`).
+- O backend extrai corretamente `formacao_curso` de `req.body` e passa para o `INSERT`/`UPDATE` via `?` placeholder.
+- Arquivos afetados: `routes/users.js` (rotas `POST /` e `POST/PUT /:id`), `views/admin/users/form.ejs` (template e script), `security/validation.js` (validador `userForm` não valida `formacao_curso`), `db.js` (colunas da tabela).
+- Causa identificada: na edição, o `<select>` de curso era renderizado somente com a opção inicial. O JavaScript tentava recuperar `cursoSelect.value` antes de inserir as opções da área, recebia uma string vazia e perdia o curso já persistido; ao salvar o formulário novamente, enviava o campo vazio.
+- Correção aplicada: as opções de curso da área selecionada agora são renderizadas no servidor, incluindo o curso persistido com o atributo `selected`. O JavaScript ficou responsável apenas por reconstruir a lista quando a área é alterada.
+- O validador `userForm` passou a normalizar e limitar também os quatro campos de formação.
+- Validação funcional concluída em banco temporário: criação com `Engenharia elétrica`, carregamento da edição com a opção selecionada e atualização para `Engenharia química`, com persistência confirmada no SQLite.
+- Status: **corrigido e validado**.
+
+### Botão "Salvar configuração geral" nos certificados
+
+- Adicionado botão "Salvar configuração geral" na página `/admin/events/:id/certificates` que replica a cor da fonte e o fundo selecionados em todos os tipos de certificado do evento (Participante, Revisor, Palestrante, Professor, Apresentador Oral, Apresentador Pôster), preservando título, texto e mínimo de presença individuais de cada papel.
+- Nova rota `POST /admin/events/:id/certificates/rule/apply-to-all` que faz upsert de `background_id` e `text_color` em `event_certificate_rules` para todos os papéis via `ON CONFLICT DO UPDATE` restrito a esses dois campos mais `updated_by` e `updated_at`.
+- A rota `POST /certificates/rule` agora detecta o campo `apply_to_all=1` e redireciona para a rota de apply-to-all, permitindo que o formulário de configuração individual envie a solicitação de replicação global.
+- Botão de escolha de fundo (thumbnail) restaurado: formulário "Salvar configuração geral" movido para fora do formulário de configuração de certificado, corrigindo erro de formulário aninhado inválido que quebrava os event listeners de seleção.
+- Botão "Salvar configuração geral" reposicionado na mesma linha dos demais botões ("Salvar configuração", "Visualizar prévia", "Visualizar original"), dentro do mesmo `<p>`, sem quebrar layout.
+
+### Ordem alfabética nas thumbnails de fundos
+
+- Thumbnails de fundos de certificado em `/admin/events/:id/certificates` agora são ordenadas alfabeticamente por nome (`name COLLATE NOCASE`) em vez de ordem decrescente de criação (`created_at DESC`).
+
 ## 2026-08-05
 
 ### Campo de telefone em usuários e participantes
@@ -73,6 +123,8 @@ Versão atual registrada: **V0.1**.
 
 - Botão "Baixar" na página de certificados administrativos (`views/admin/events/certificates.ejs`) alterado de `<button>` para `<a>` tag com classe `secondary`, resolvendo problema de navegação e download do PDF.
 - CSS da classe `.secondary` expandido para incluir estilos completos (background, color, border, padding, border-radius, font-weight, cursor, text-decoration) e estado `:hover`, garantindo aparência padronizada com os botões "Reemitir" e "Emitir".
+
+
 
 ### Botão "Gerenciar atividades" na página de certificados
 
@@ -497,13 +549,10 @@ Versão atual registrada: **V0.1**.
 ### Pendências Conhecidas
 
 - Auditoria de deliberação final com histórico persistente.
-- Verificação pública de certificados ainda não implementada.
 
 ### Minhas observações do a fazer
 
-- Importação de CSV com dados dos participantes
-- No certificado de quem ministrou um curso, deve ter "ministrou" e horas-aula
-
-
-
+- Validar a importação de participantes com variações adicionais de planilhas exportadas pelo Even3.
+- [Concluído em 10/08/2026] Pedir ao novo usuário, no primeiro acesso, que complete os campos de perfil após trocar a senha.
+- [Concluído em 10/08/2026] Corrigir a persistência do campo "Curso" na criação e edição de usuários.
 

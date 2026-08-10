@@ -10,7 +10,9 @@ function generateToken() {
 }
 
 function csrfProtection(req, res, next) {
-  if (!req.session) return next();
+  if (!req.session) {
+    req.session = {};
+  }
 
   if (!req.session.csrfToken) {
     req.session.csrfToken = generateToken();
@@ -21,26 +23,29 @@ function csrfProtection(req, res, next) {
   res.locals.csrfToken = token;
 
   if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE' || req.method === 'PATCH') {
-    const submitted = req.body && req.body[FIELD_NAME];
-    const headerToken = req.headers[HEADER_NAME.toLowerCase()];
-    const cookieToken = req.cookies && req.cookies[COOKIE_NAME];
-    const actualToken = submitted || headerToken || cookieToken;
+    const contentType = req.headers['content-type'] || '';
+    if (!contentType.includes('multipart/form-data')) {
+      const submitted = req.body && req.body[FIELD_NAME];
+      const headerToken = req.headers[HEADER_NAME.toLowerCase()];
+      const cookieToken = req.cookies && req.cookies[COOKIE_NAME];
+      const actualToken = submitted || headerToken || cookieToken;
 
-    if (!actualToken) {
-      return res.status(403).render('error', {
-        title: 'Solicitação inválida',
-        message: 'O token de segurança não foi fornecido. Recarregue a página e tente novamente.'
-      });
-    }
+      if (!actualToken) {
+        return res.status(403).render('error', {
+          title: 'Solicitação inválida',
+          message: 'O token de segurança não foi fornecido. Recarregue a página e tente novamente.'
+        });
+      }
 
-    if (!crypto.timingSafeEqual(
-      Buffer.from(String(token)),
-      Buffer.from(String(actualToken))
-    )) {
-      return res.status(403).render('error', {
-        title: 'Solicitação inválida',
-        message: 'O token de segurança não é válido. Recarregue a página e tente novamente.'
-      });
+      if (!crypto.timingSafeEqual(
+        Buffer.from(String(token)),
+        Buffer.from(String(actualToken))
+      )) {
+        return res.status(403).render('error', {
+          title: 'Solicitação inválida',
+          message: 'O token de segurança não é válido. Recarregue a página e tente novamente.'
+        });
+      }
     }
   }
 

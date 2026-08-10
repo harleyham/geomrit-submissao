@@ -46,6 +46,7 @@
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
       <nav class="topbar-nav">
         <a href="/evento/<%= event.id %>">← Voltar ao evento</a>
+        <a href="/consultar-certificado" class="btn btn-secondary">Verificar Certificado</a>
         <% if (userEmail) { %>
           <a href="<%= isAdmin ? '/admin/dashboard' : isReviewer ? '/reviewer' : '/author' %>" class="btn btn-secondary"><%= isAdmin ? 'Dashboard' : isReviewer ? 'Revisor' : 'Área do Participante' %></a>
           <span class="session-pill"><%= userEmail %></span>
@@ -86,6 +87,7 @@
           <p>
             <span style="display:inline-block;background:rgba(99,102,241,.2);color:#c7d2fe;padding:0.2rem 0.55rem;border-radius:999px;margin-bottom:0.45rem;"><%= ({participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresentador Oral',poster_presenter:'Apresentador Pôster'})[certificate.certificate_role] || 'Participante' %></span><br>
             Versão <%= certificate.version %> · Código: <code><%= certificate.certificate_code %></code><br>
+            <a href="/consultar-certificado?code=<%= certificate.certificate_code %>" class="btn btn-secondary" style="margin-top:0.5rem; font-size:0.8rem; padding:0.35rem 0.75rem;">Verificar autenticidade</a><br>
             Emissão: <%= certificate.issued_at %>
           </p>
           <% if (Number(certificate.total_workload_hours) > 0) { const workloadHours = Number(certificate.total_workload_hours); const formattedHours = Number.isInteger(workloadHours) ? String(workloadHours) : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 }); %>

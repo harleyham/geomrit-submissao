@@ -979,7 +979,9 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
   });
 });
 
-router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorAccess, runRegistrationUpload, (req, res) => {
+router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorAccess, runRegistrationUpload, (req, res, next) => {
+  validateAndHandle(req, res, next, v.eventRegistration);
+}, (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
@@ -1261,7 +1263,9 @@ router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
 });
 
 // Processar submissão de artigo
-router.post('/submeter/:eventId', registrationLimiter, requireNonAdminAuthorAccess, runUpload, (req, res) => {
+router.post('/submeter/:eventId', registrationLimiter, requireNonAdminAuthorAccess, runUpload, (req, res, next) => {
+  validateAndHandle(req, res, next, v.submit);
+}, (req, res) => {
   try {
     const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get());
     if (!event) {
@@ -1676,7 +1680,9 @@ router.get('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
   });
 });
 
-router.post('/author/profile', registrationLimiter, requireNonAdminAuthorAccess, (req, res) => {
+router.post('/author/profile', registrationLimiter, requireNonAdminAuthorAccess, (req, res, next) => {
+  validateAndHandle(req, res, next, v.participantProfile);
+}, (req, res) => {
   const formData = normalizeParticipantProfileForm(req.body);
 
   if (!formData.name || !formData.email) {
@@ -1745,8 +1751,9 @@ router.get('/consultar', (req, res) => {
   res.render('public/consultar', { article: null, error: null, title: 'Consultar Artigo' });
 });
 
-router.post('/consultar', (req, res) => {
-  const { access_code } = req.body;
+router.post('/consultar', (req, res, next) => {
+  validateAndHandle(req, res, next, v.articleCode);
+}, (req, res) => {
   const article = db.prepare(`
     SELECT
       a.*,
@@ -1769,6 +1776,39 @@ router.post('/consultar', (req, res) => {
   }
 
   res.render('public/consultar', { article, error: null, title: 'Artigo Encontrado' });
+});
+
+// Consultar certificado por código
+router.get('/consultar-certificado', (req, res) => {
+  res.render('public/certificado-consulta', { certificate: null, error: null, codePrefill: req.query.code || null, title: 'Verificar Certificado' });
+});
+
+router.post('/consultar-certificado', (req, res, next) => {
+  validateAndHandle(req, res, next, v.certificateCode);
+}, (req, res) => {
+  const certificate = db.prepare(`
+    SELECT
+      ce.*,
+      e.name as event_name,
+      e.date_start as event_date_start,
+      e.date_end as event_date_end,
+      cb.file_path AS background_path,
+      u.name as user_name
+    FROM certificate_emissions ce
+    JOIN events e ON e.id = ce.event_id
+    LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
+    LEFT JOIN users u ON u.id = ce.user_id
+    WHERE ce.certificate_code = ?
+  `).bind(certificate_code).get();
+
+  if (!certificate) {
+    return res.render('public/certificado-consulta', { certificate: null, error: 'Código de certificado inválido ou não encontrado.', codePrefill: certificate_code, title: 'Verificar Certificado' });
+  }
+
+  const roleLabels = { participant: 'Participante', reviewer: 'Revisor', speaker: 'Palestrante', teacher: 'Professor', oral_presenter: 'Apresentador Oral', poster_presenter: 'Apresentador Pôster' };
+  certificate.role_label = roleLabels[certificate.certificate_role] || 'Participante';
+
+  res.render('public/certificado-consulta', { certificate, error: null, codePrefill: certificate_code, title: 'Certificado Verificado' });
 });
 
 // Página de revisores
@@ -1860,9 +1900,9 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
     INSERT INTO users (
       name, email, password, cpf, passport, country, institution,
       is_admin, is_reviewer, is_public, approval_status, approved_at,
-      password_changed, created_at, updated_at
+      password_changed, profile_completed, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'pending', NULL, 1, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'pending', NULL, 1, 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).bind(
     name,
     email,

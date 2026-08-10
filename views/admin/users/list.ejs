@@ -210,7 +210,7 @@
             <th>E-mail</th>
             <th>Papéis no Sistema</th>
             <th>Conta Ativa</th>
-            <th>Senha</th>
+            <th>Primeiro acesso</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -267,8 +267,13 @@
             </td>
             <td>
               <span class="badge badge-<%= u.password_changed ? 'active' : 'inactive' %>">
-                <%= u.password_changed ? 'Alterada' : '1º acesso' %>
+                <%= u.password_changed ? 'Senha alterada' : 'Trocar senha' %>
               </span>
+              <div style="margin-top:0.4rem;">
+                <span class="badge badge-<%= u.profile_completed ? 'active' : 'inactive' %>">
+                  <%= u.profile_completed ? 'Perfil completo' : 'Completar perfil' %>
+                </span>
+              </div>
             </td>
             <td class="actions-cell">
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>

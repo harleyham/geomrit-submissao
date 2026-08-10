@@ -3,6 +3,110 @@ const router = express.Router();
 const { db } = require('../db');
 const { loginLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
+const { getAreas, getCursosByArea, getCursosMap } = require('../services/academic-formation');
+
+function authenticatedDestination(req) {
+  if (req.session.isAdmin) return '/admin/dashboard';
+  if (req.session.isReviewer) return '/reviewer';
+  if (req.session.isPublic) return '/author';
+  return '/';
+}
+
+function normalizeCPF(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isValidCPF(value) {
+  const cpf = normalizeCPF(value);
+  if (!cpf) return !String(value || '').trim();
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+  const calculateDigit = (base, factor) => {
+    let total = 0;
+    for (let index = 0; index < base.length; index += 1) {
+      total += Number(base[index]) * (factor - index);
+    }
+    const remainder = (total * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  return calculateDigit(cpf.slice(0, 9), 10) === Number(cpf[9])
+    && calculateDigit(cpf.slice(0, 10), 11) === Number(cpf[10]);
+}
+
+function normalizeProfileForm(body = {}) {
+  return {
+    name: String(body.name || '').trim(),
+    institution: String(body.institution || '').trim(),
+    phone: String(body.phone || '').trim(),
+    cpf: String(body.cpf || '').trim(),
+    passport: String(body.passport || '').trim(),
+    country: String(body.country || '').trim(),
+    formacao_area: String(body.formacao_area || '').trim(),
+    formacao_curso: String(body.formacao_curso || '').trim(),
+    formacao_titulacao: String(body.formacao_titulacao || '').trim(),
+    formacao_status: String(body.formacao_status || '').trim()
+  };
+}
+
+function validateCompleteProfile(formData) {
+  if (!formData.name || !formData.institution || !formData.phone || !formData.country) {
+    return 'Preencha nome, instituição, telefone e país.';
+  }
+  if (formData.name.length > 200 || formData.institution.length > 200 || formData.phone.length > 30
+      || formData.country.length > 100 || formData.passport.length > 50) {
+    return 'Um ou mais dados pessoais excedem o tamanho permitido.';
+  }
+  if (!normalizeCPF(formData.cpf) && !formData.passport) {
+    return 'Informe o CPF ou o passaporte.';
+  }
+  if (formData.cpf && !isValidCPF(formData.cpf)) {
+    return 'O CPF informado é inválido.';
+  }
+  if (!formData.formacao_area || !formData.formacao_curso || !formData.formacao_titulacao || !formData.formacao_status) {
+    return 'Preencha todos os campos de formação acadêmica.';
+  }
+  if (!getAreas().some((area) => area.codigo === formData.formacao_area)) {
+    return 'A área de formação selecionada é inválida.';
+  }
+  if (!getCursosByArea(formData.formacao_area).includes(formData.formacao_curso)) {
+    return 'O curso selecionado não pertence à área de formação informada.';
+  }
+  if (formData.formacao_curso.length > 200) {
+    return 'O nome do curso excede o tamanho permitido.';
+  }
+  if (!['Graduado', 'Mestre', 'Doutor'].includes(formData.formacao_titulacao)) {
+    return 'A titulação selecionada é inválida.';
+  }
+  if (!['Formado', 'Cursando'].includes(formData.formacao_status)) {
+    return 'O status da formação é inválido.';
+  }
+  return null;
+}
+
+function renderCompleteProfile(res, user, formData, error = null) {
+  return res.render('complete-profile', {
+    title: 'Complete seu Perfil',
+    user,
+    formData,
+    areas: getAreas(),
+    cursosMap: getCursosMap(),
+    error,
+    success: null,
+    year: new Date().getFullYear()
+  });
+}
+
+function requireOnboarding(req, res, next) {
+  if (!req.session || !req.session.userId) return next();
+  const user = db.prepare('SELECT password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
+  if (!user) {
+    return req.session.destroy(() => res.redirect('/login'));
+  }
+  if (!user.password_changed) return res.redirect('/login/change-password');
+  if (!user.profile_completed) return res.redirect('/login/complete-profile');
+  next();
+}
 
 function getAuthorRegistrationCountWhere(whereClause = '', bindParams = []) {
   return db.prepare(`
@@ -40,9 +144,10 @@ function requireAuth(req, res, next) {
 // Login page
 router.get('/', (req, res) => {
   if (req.session.isAdmin || req.session.isReviewer || req.session.isPublic) {
-    if (req.session.isAdmin) return res.redirect('/admin/dashboard');
-    if (req.session.isReviewer) return res.redirect('/reviewer');
-    if (req.session.isPublic) return res.redirect('/author');
+    const user = db.prepare('SELECT password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
+    if (user && !user.password_changed) return res.redirect('/login/change-password');
+    if (user && !user.profile_completed) return res.redirect('/login/complete-profile');
+    return res.redirect(authenticatedDestination(req));
   }
   res.render('login', {
     error: null,
@@ -281,21 +386,11 @@ router.post('/', loginLimiter, (req, res, next) => {
   }
 
   if (!user.password_changed) {
-    if (req.session.isAdmin || req.session.isReviewer) {
-      return res.redirect('/login/change-password');
-    }
     return res.redirect('/login/change-password');
   }
 
-  if (req.session.isAdmin) {
-    return res.redirect('/admin/dashboard');
-  }
-
-  if (req.session.isReviewer) {
-    return res.redirect('/reviewer');
-  }
-
-  return res.redirect('/author');
+  if (!user.profile_completed) return res.redirect('/login/complete-profile');
+  return res.redirect(authenticatedDestination(req));
 });
 
 // Logout (GET e POST)
@@ -334,12 +429,10 @@ router.post('/logout', (req, res) => {
 // Trocar senha (primeiro acesso) - unificado
 router.get('/change-password', (req, res) => {
   if (!req.session.userId) return res.redirect('/login');
-  const user = db.prepare('SELECT password_changed FROM users WHERE id = ?').bind(req.session.userId).get();
+  const user = db.prepare('SELECT password_changed, profile_completed FROM users WHERE id = ?').bind(req.session.userId).get();
   if (user && user.password_changed) {
-    if (req.session.isAdmin) return res.redirect('/admin/dashboard');
-    if (req.session.isReviewer) return res.redirect('/reviewer');
-    if (req.session.isPublic) return res.redirect('/author');
-    return res.redirect('/');
+    if (!user.profile_completed) return res.redirect('/login/complete-profile');
+    return res.redirect(authenticatedDestination(req));
   }
   res.render('change-password', { 
     title: 'Trocar Senha', 
@@ -356,20 +449,85 @@ router.post('/change-password', loginLimiter, (req, res, next) => {
   if (!req.session.userId) return res.redirect('/login');
   const { new_password, confirm_password } = req.body;
 
+  if (res.locals.validationErrors && res.locals.validationErrors.length) {
+    return res.status(400).render('change-password', {
+      title: 'Trocar Senha',
+      action: 'change-password',
+      success: null,
+      error: res.locals.validationErrors[0],
+      year: new Date().getFullYear()
+    });
+  }
+  if (!new_password || new_password !== confirm_password) {
+    return res.status(400).render('change-password', {
+      title: 'Trocar Senha',
+      action: 'change-password',
+      success: null,
+      error: 'As senhas não conferem.',
+      year: new Date().getFullYear()
+    });
+  }
+
   const bcrypt = require('bcryptjs');
   const hash = bcrypt.hashSync(new_password, 10);
-  db.prepare('UPDATE users SET password = ?, password_changed = 1 WHERE id = ?').bind(hash, req.session.userId).run();
+  db.prepare("UPDATE users SET password = ?, password_changed = 1, updated_at = datetime('now', '-3 hours') WHERE id = ?").bind(hash, req.session.userId).run();
 
-  if (req.session.isAdmin) {
-    return res.redirect('/admin/dashboard');
-  }
-  if (req.session.isReviewer) {
-    return res.redirect('/reviewer');
-  }
-  if (req.session.isPublic) {
-    return res.redirect('/author');
-  }
-  return res.redirect('/');
+  const user = db.prepare('SELECT profile_completed FROM users WHERE id = ?').get(req.session.userId);
+  if (user && !user.profile_completed) return res.redirect('/login/complete-profile');
+  return res.redirect(authenticatedDestination(req));
 });
 
-module.exports = { router, requireAuth };
+router.get('/complete-profile', (req, res) => {
+  if (!req.session.userId) return res.redirect('/login');
+  const user = db.prepare(`
+    SELECT id, name, email, institution, phone, cpf, passport, country,
+           formacao_area, formacao_curso, formacao_titulacao, formacao_status,
+           password_changed, profile_completed
+    FROM users WHERE id = ?
+  `).get(req.session.userId);
+
+  if (!user) return res.redirect('/login');
+  if (!user.password_changed) return res.redirect('/login/change-password');
+  if (user.profile_completed) return res.redirect(authenticatedDestination(req));
+  return renderCompleteProfile(res, user, user);
+});
+
+router.post('/complete-profile', loginLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.completeProfile);
+}, (req, res) => {
+  if (!req.session.userId) return res.redirect('/login');
+  const user = db.prepare('SELECT id, email, password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
+  if (!user) return res.redirect('/login');
+  if (!user.password_changed) return res.redirect('/login/change-password');
+  if (user.profile_completed) return res.redirect(authenticatedDestination(req));
+
+  const formData = normalizeProfileForm(req.body);
+  const error = validateCompleteProfile(formData);
+  if (error) return renderCompleteProfile(res, user, formData, error);
+
+  db.prepare(`
+    UPDATE users
+    SET name = ?, institution = ?, phone = ?, cpf = ?, passport = ?, country = ?,
+        formacao_area = ?, formacao_curso = ?, formacao_titulacao = ?, formacao_status = ?,
+        profile_completed = 1, updated_at = datetime('now', '-3 hours')
+    WHERE id = ?
+  `).run(
+    formData.name,
+    formData.institution,
+    formData.phone,
+    normalizeCPF(formData.cpf) || null,
+    formData.passport || null,
+    formData.country,
+    formData.formacao_area,
+    formData.formacao_curso,
+    formData.formacao_titulacao,
+    formData.formacao_status,
+    req.session.userId
+  );
+
+  req.session.userName = formData.name;
+  req.session.userInstitution = formData.institution;
+  return res.redirect(authenticatedDestination(req));
+});
+
+module.exports = { router, requireAuth, requireOnboarding };

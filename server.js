@@ -24,7 +24,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "blob:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
       connectSrc: ["'self'"],
       frameSrc: isProduction ? [] : ["'self'", 'blob:'],
       objectSrc: ["'none'"],
@@ -84,7 +84,7 @@ app.use((req, res, next) => {
 });
 
 // Importar rotas
-const { router: authRouter, requireAuth } = require('./routes/auth');
+const { router: authRouter, requireAuth, requireOnboarding } = require('./routes/auth');
 const eventsRouter = require('./routes/events');
 const articlesRouter = require('./routes/articles');
 const usersRouter = require('./routes/users');
@@ -94,6 +94,9 @@ const reviewerRoutes = require('./routes/reviewer');
 
 // Roteamento
 app.use('/login', authRouter);
+
+// Impede que contas em primeiro acesso contornem as etapas obrigatórias.
+app.use(requireOnboarding);
 
 // Rotas públicas
 app.use('/', publicRouter);

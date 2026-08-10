@@ -35,6 +35,7 @@ db.exec(`
     approved_at DATETIME,
     approved_by INTEGER,
     password_changed INTEGER DEFAULT 0,
+    profile_completed INTEGER DEFAULT 1,
     phone TEXT DEFAULT '',
     created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
     updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
@@ -639,6 +640,17 @@ try {
   `).run();
 } catch(e) {
   console.warn('Migration events columns:', e.message);
+}
+
+try {
+  const userColumns = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  if (!userColumns.includes('formacao_area')) db.exec("ALTER TABLE users ADD COLUMN formacao_area TEXT");
+  if (!userColumns.includes('formacao_curso')) db.exec("ALTER TABLE users ADD COLUMN formacao_curso TEXT");
+  if (!userColumns.includes('formacao_titulacao')) db.exec("ALTER TABLE users ADD COLUMN formacao_titulacao TEXT");
+  if (!userColumns.includes('formacao_status')) db.exec("ALTER TABLE users ADD COLUMN formacao_status TEXT");
+  if (!userColumns.includes('profile_completed')) db.exec("ALTER TABLE users ADD COLUMN profile_completed INTEGER DEFAULT 1");
+} catch(e) {
+  console.warn('Migration users formacao columns:', e.message);
 }
 
 try {

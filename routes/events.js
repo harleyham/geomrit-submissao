@@ -5,10 +5,12 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const xlsx = require('xlsx');
 const { ZipArchive } = require('archiver');
 const { db, recordParticipantAudit } = require('../db');
 const { renderCertificatePdf, getBackgroundPath } = require('../services/certificates');
 const { strictLimiter } = require('../security/rate-limits');
+const { validateAndHandle, validators: v } = require('../security/validation');
 
 function safeArchiveFileName(value, fallback) {
   const normalized = String(value || fallback)
@@ -23,6 +25,85 @@ function safeArchiveFileName(value, fallback) {
 function roleLabel(role) {
   const meta = CERTIFICATE_ROLES[role];
   return meta ? meta.label : role;
+}
+
+function parseCsvContent(content) {
+  const headers = [];
+  const rows = [];
+  let pos = 0;
+  const len = content.length;
+
+  const skipLineEnding = () => {
+    if (pos >= len) return;
+    const ch = content[pos];
+    if (ch === '\r' || ch === '\n') {
+      if (ch === '\r' && pos + 1 < len && content[pos + 1] === '\n') pos++;
+      else pos++;
+    }
+  };
+
+  const readField = () => {
+    let field = '';
+    let inQuotes = false;
+    while (pos < len) {
+      const ch = content[pos];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (pos + 1 < len && content[pos + 1] === '"') {
+            field += '"';
+            pos += 2;
+          } else {
+            inQuotes = false;
+            pos++;
+          }
+        } else {
+          field += ch;
+          pos++;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+          pos++;
+        } else if (ch === ',') {
+          return field;
+        } else if (ch === '\r' || ch === '\n') {
+          return field;
+        } else {
+          field += ch;
+          pos++;
+        }
+      }
+    }
+    return field;
+  };
+
+  const readLine = () => {
+    if (pos >= len) return null;
+    const line = [];
+    line.push(readField());
+    while (pos < len && content[pos] === ',') {
+      pos++;
+      line.push(readField());
+    }
+    skipLineEnding();
+    if (line.every((f) => f.trim() === '')) return null;
+    return line;
+  };
+
+  const headerLine = readLine();
+  if (!headerLine) return { headers: [], rows: [] };
+  for (const h of headerLine) headers.push(h.replace(/^\uFEFF/, '').trim());
+
+  let line;
+  while ((line = readLine()) !== null) {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = (idx < line.length ? line[idx] : '').trim();
+    });
+    if (Object.values(obj).some((v) => v !== '')) rows.push(obj);
+  }
+
+  return { headers, rows };
 }
 
 function generateCertificateBuffer(certificate) {
@@ -107,6 +188,22 @@ const certificateBackgroundUpload = multer({
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, ['image/png', 'image/jpeg'].includes(file.mimetype))
+});
+
+const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
+if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: true });
+const importUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, importUploadDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`)
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeOk = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv', 'application/csv'].includes(file.mimetype);
+    const extOk = ['.xlsx', '.xls', '.csv'].includes(ext);
+    cb(null, mimeOk || extOk);
+  }
 });
 
 function parseAreaList(areaValue) {
@@ -381,7 +478,9 @@ router.get('/new', (req, res) => {
 });
 
 // Criar evento
-router.post('/', strictLimiter, (req, res) => {
+router.post('/', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.eventFormFull);
+}, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
@@ -450,7 +549,9 @@ router.get('/:id/edit', (req, res) => {
 });
 
 // Atualizar evento (POST direto)
-router.post('/:id', strictLimiter, (req, res) => {
+router.post('/:id', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.eventFormFull);
+}, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
   const normalizedStatus = status || 'draft';
   const normalizedArea = normalizeAreaList(area);
@@ -592,6 +693,219 @@ router.get('/:id/participants', (req, res) => {
   });
 });
 
+router.get('/:id/import-users', (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  res.render('admin/events/import-users', {
+    title: `Importar Usuários - ${event.name}`,
+    event,
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+});
+
+router.post('/:id/import-users', strictLimiter, importUpload.single('import_file'), (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  if (!req.file || !req.file.path) {
+    console.log('[import-users] No file received. req.file:', req.file);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Selecione um arquivo XLSX, XLS ou CSV exportado pelo Even3.')}`);
+  }
+
+  console.log('[import-users] File received:', req.file.originalname, '->', req.file.path);
+  console.log('[import-users] File exists:', fs.existsSync(req.file.path));
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  let rows;
+
+  try {
+    if (ext === '.csv') {
+      const fileContent = fs.readFileSync(req.file.path, 'utf8').replace(/^\uFEFF/, '');
+      const parsed = parseCsvContent(fileContent);
+      if (parsed.headers.length < 1 || parsed.rows.length < 1) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('O arquivo está vazio ou não possui dados.')}`);
+      }
+      rows = parsed.rows;
+      console.log('[import-users] CSV lines parsed (headers:', parsed.headers.length, 'rows:', rows.length, ')');
+      console.log('[import-users] raw CSV headers (first 5):', parsed.headers.slice(0, 5));
+    } else {
+      const readOpts = { type: 'buffer', cellDates: true };
+      const workbook = xlsx.readFile(req.file.path, readOpts);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+      console.log('[import-users] XLSX rows:', rows.length);
+    }
+  } catch (error) {
+    console.error('[import-users] Read error:', error.message);
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX, XLS ou CSV exportada pelo Even3.')}`);
+  }
+
+  if (!rows || !rows.length) {
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('O arquivo está vazio ou não possui dados.')}`);
+  }
+
+  const rawHeaders = Object.keys(rows[0]).map((h) => h.replace(/^\uFEFF/, ''));
+  const normalize = (s) => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/-/g, '').replace(/\s+/g, '');
+  const headers = rawHeaders.map(normalize);
+  const findCol = (candidates) => headers.find((h) => candidates.some((c) => h.includes(c)));
+
+  const colName = findCol(['nomecompleto', 'fullname', 'nome']);
+  const colEmail = findCol(['email', 'mail']);
+  const colInstitution = findCol(['instituicao', 'organizacao', 'orgao']);
+  const colPhone = findCol(['telefone', 'tel', 'phone']);
+  const colCpf = findCol(['cpf']);
+  const colPassport = findCol(['passaporte', 'passport']);
+
+  const debugInfo = {
+    rawHeaders,
+    normalizedHeaders: headers,
+    colName, colEmail, colInstitution, colPhone, colCpf, colPassport,
+    firstRow: rows[0],
+    totalRows: rows.length
+  };
+
+  console.log('[import-users] rawHeaders:', rawHeaders);
+  console.log('[import-users] normalizedHeaders:', headers);
+  console.log('[import-users] detected columns:', JSON.stringify({ colName, colEmail, colInstitution, colPhone, colCpf, colPassport }));
+  if (rows.length > 0) {
+    console.log('[import-users] first row sample:', JSON.stringify(rows[0]).substring(0, 500));
+    console.log('[import-users] first row resolved:', JSON.stringify({
+      name: rows[0][colName || '_'],
+      email: rows[0][colEmail || '_'],
+      institution: rows[0][colInstitution || '_'],
+      cpf: rows[0][colCpf || '_'],
+      passport: rows[0][colPassport || '_']
+    }));
+  }
+  console.log('[import-users] total rows:', rows.length);
+
+  if (!colEmail && !colCpf && !colPassport) {
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Coluna de e-mail, CPF ou passaporte não encontrada. O arquivo precisa conter pelo menos uma dessas colunas. Colunas detectadas: ' + rawHeaders.join(', '))}`);
+  }
+
+  if (!colEmail) {
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Coluna de e-mail não encontrada. O arquivo precisa conter uma coluna com "email" ou "e-mail".')}`);
+  }
+
+  const insertUser = db.prepare(`
+    INSERT INTO users (name, email, password, institution, cpf, passport, phone, is_public, approval_status, approved_at, password_changed, profile_completed, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now','-3 hours'), 0, 0, datetime('now','-3 hours'), datetime('now','-3 hours'))
+  `);
+  const updateUser = db.prepare('UPDATE users SET name=COALESCE(?, name), institution=COALESCE(?, institution), phone=COALESCE(?, phone), email=COALESCE(?, email), cpf=COALESCE(?, cpf), passport=COALESCE(?, passport) WHERE id=?');
+  const findUserByCpf = db.prepare("SELECT id, name, email, cpf FROM users WHERE cpf IS NOT NULL AND cpf != ''");
+  const findUserByPassport = db.prepare("SELECT id, name, email, passport FROM users WHERE passport IS NOT NULL AND passport != ''");
+  const findUserByEmail = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?");
+
+  const defaultPassword = bcrypt.hashSync('even3-import-2027', 10);
+  let imported = 0;
+  let skipped = 0;
+  let updated = 0;
+  let processed = 0;
+  let skippedEmpty = 0;
+  const skippedList = [];
+  const importedList = [];
+
+  const dbTx = db.transaction(() => {
+    for (const row of rows) {
+      processed++;
+      const cpf = colCpf ? String(row[colCpf] || '').trim() : '';
+      const passport = colPassport ? String(row[colPassport] || '').trim() : '';
+      const email = String(row[colEmail] || '').trim().toLowerCase();
+      const nameRaw = colName ? String(row[colName] || '').trim() : '';
+      const institution = colInstitution ? String(row[colInstitution] || '').trim() : '';
+      const phone = colPhone ? String(row[colPhone] || '').trim() : '';
+
+      if (!cpf && !passport && (!email || email === '[object Object]' || email === '')) {
+        skippedEmpty++;
+        continue;
+      }
+
+      let existing = null;
+      if (cpf && cpf.length >= 11) {
+        const cleanCpf = cpf.replace(/\D/g, '');
+        existing = findUserByCpf.get(cleanCpf);
+      }
+
+      if (!existing && passport) {
+        const cleanPassport = passport.replace(/\s+/g, '');
+        existing = findUserByPassport.get(cleanPassport);
+      }
+
+      if (!existing && email && email !== '[object Object]') {
+        existing = findUserByEmail.get(email);
+      }
+
+      if (existing) {
+        const hasChanges = (nameRaw && nameRaw !== existing.name) || (institution && institution !== existing.institution) || (phone && phone !== existing.phone) || (email && email !== existing.email);
+        if (hasChanges) {
+          try {
+            updateUser.run(nameRaw || null, institution || null, phone || null, email || null, cpf || null, passport || null, existing.id);
+            updated += 1;
+          } catch (dbErr) {
+            console.error('[import-users] DB update error for', email || cpf || passport, ':', dbErr.message);
+          }
+        }
+        skipped += 1;
+        const keyLabel = cpf ? 'CPF' : passport ? 'Passaporte' : 'E-mail';
+        skippedList.push({ key: keyLabel, keyValue: cpf || passport || email, name: existing.name, action: 'atualizado' });
+      } else {
+        const nameToUse = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Importado');
+        try {
+          const userId = insertUser.run(
+            nameToUse,
+            email || null,
+            defaultPassword,
+            institution || null,
+            cpf || null,
+            passport || null,
+            phone || null
+          ).lastInsertRowid;
+          imported += 1;
+          importedList.push({ key: cpf ? 'CPF' : passport ? 'Passaporte' : 'E-mail', keyValue: cpf || passport || email, name: nameToUse, user_id: userId });
+        } catch (dbErr) {
+          console.error('[import-users] DB insert error for', email || cpf || passport, ':', dbErr.message);
+          skipped += 1;
+          skippedList.push({ key: email ? 'E-mail' : cpf ? 'CPF' : 'Passaporte', keyValue: email || cpf || passport, name: nameToUse, action: 'erro: ' + dbErr.message });
+        }
+      }
+    }
+  });
+
+  try {
+    dbTx();
+  } catch (dbErr) {
+    console.error('[import-users] Transaction error:', dbErr.message);
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Erro ao salvar no banco de dados: ' + dbErr.message)}`);
+  }
+
+  try { fs.unlinkSync(req.file.path); } catch (_) {}
+
+  const messages = [];
+  messages.push(`${imported} usuário(s) criado(s).`);
+  messages.push(`${skipped} usuário(s) já existiam (informações complementares atualizadas se aplicável).`);
+  if (updated > 0) messages.push(`${updated} atualização(ns) de dados realizada(s).`);
+
+  return res.render('admin/events/import-users-result', {
+    title: `Resultado da Importação - ${event.name}`,
+    event,
+    imported,
+    skipped,
+    updated,
+    importedList,
+    skippedList,
+    messages: messages.join(' '),
+    success: true
+  });
+});
+
 router.get('/:id/attendance', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -651,7 +965,9 @@ router.get('/:id/attendance', (req, res) => {
   });
 });
 
-router.post('/:id/attendance/:userId', strictLimiter, (req, res) => {
+router.post('/:id/attendance/:userId', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.attendanceAction);
+}, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const person = db.prepare(`SELECT u.id AS user_id, u.name, u.email,
@@ -794,7 +1110,7 @@ router.get('/:id/certificates', (req, res) => {
     candidates: getCertificateCandidates(event.id, rule.certificate_role, rule),
     certificatesIssued: issuedByRole[rule.certificate_role] || 0
   }));
-  const backgrounds = db.prepare('SELECT * FROM certificate_backgrounds ORDER BY created_at DESC').all();
+  const backgrounds = db.prepare('SELECT * FROM certificate_backgrounds ORDER BY name COLLATE NOCASE').all();
   const activities = db.prepare(`
     SELECT ea.*,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
@@ -911,7 +1227,9 @@ router.get('/:id/activities', (req, res) => {
     error: req.query.error || null
   });
 });
-router.post('/:id/activities', strictLimiter, (req, res) => {
+router.post('/:id/activities', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.activityForm);
+}, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const name = String(req.body.name || '').trim();
@@ -933,7 +1251,9 @@ router.post('/:id/activities', strictLimiter, (req, res) => {
   );
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
 });
-router.post('/:id/activities/:activityId', strictLimiter, (req, res) => {
+router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.activityForm);
+}, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const name = String(req.body.name || '').trim();
@@ -997,7 +1317,9 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
     error: req.query.error || null
   });
 });
-router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (req, res) => {
+router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.attendanceAction);
+}, (req, res) => {
   const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const userId = Number(req.params.userId);
@@ -1047,9 +1369,14 @@ router.post('/:id/activities/:activityId/certificate-rule', (req, res) => {
   return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent('As regras de certificado agora são configuradas por papel no evento.')}`);
 });
 
-router.post('/:id/certificates/rule', strictLimiter, (req, res) => {
+router.post('/:id/certificates/rule', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.certificateRule);
+}, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (req.body.apply_to_all === '1') {
+    return res.redirect(`/admin/events/${event.id}/certificates/rule/apply-to-all?background_id=${encodeURIComponent(req.body.background_id)}&text_color=${encodeURIComponent(req.body.text_color)}`);
+  }
   const role = CERTIFICATE_ROLES[req.body.certificate_role] ? req.body.certificate_role : 'participant';
   const minAttendance = role === 'reviewer' ? 0 : Math.max(1, parseInt(req.body.min_attendance, 10) || 1);
   const backgroundId = req.body.background_id ? parseInt(req.body.background_id, 10) : null;
@@ -1066,6 +1393,32 @@ router.post('/:id/certificates/rule', strictLimiter, (req, res) => {
     ON CONFLICT(event_id,certificate_role) DO UPDATE SET min_attendance=excluded.min_attendance,background_id=excluded.background_id,text_color=excluded.text_color,title=excluded.title,body_text=excluded.body_text,updated_by=excluded.updated_by,updated_at=datetime('now','-3 hours')
   `).run(event.id, role, minAttendance, backgroundId, normalizedTextColor, title, bodyText, req.session.userId);
   res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Regra de elegibilidade salva.')}`);
+});
+
+router.post('/:id/certificates/rule/apply-to-all', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  const backgroundId = req.body.background_id ? parseInt(req.body.background_id, 10) : null;
+  const textColor = String(req.body.text_color || '#0f172a').trim();
+  const normalizedTextColor = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#0f172a';
+  if (!backgroundId || !db.prepare('SELECT id FROM certificate_backgrounds WHERE id = ?').get(backgroundId)) {
+    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado válido.')}`);
+  }
+
+  const upsert = db.prepare(`
+    INSERT INTO event_certificate_rules (event_id,certificate_role,min_attendance,background_id,text_color,title,body_text,updated_by,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))
+    ON CONFLICT(event_id,certificate_role) DO UPDATE SET background_id=excluded.background_id,text_color=excluded.text_color,updated_by=excluded.updated_by,updated_at=datetime('now','-3 hours')
+  `);
+
+  db.transaction(() => {
+    for (const role of Object.keys(CERTIFICATE_ROLES)) {
+      upsert.run(event.id, role, 1, backgroundId, normalizedTextColor, null, null, req.session.userId);
+    }
+  })();
+
+  res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Cor e fundo salvos em todos os tipos de certificado.')}`);
 });
 
 router.post('/:id/certificates/backgrounds', strictLimiter, (req, res) => {
@@ -1240,7 +1593,13 @@ router.get('/:id/roles', (req, res) => {
   res.render('admin/events/roles', { title: `Papéis do evento - ${event.name}`, event, assignments, users, articles, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' } }, success: req.query.success || null, error: req.query.error || null });
 });
 
-router.post('/:id/roles', strictLimiter, (req, res) => {
+router.post('/:id/roles', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, [
+    body('role').isIn(['admin', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.'),
+    body('user_id').isInt({ min: 1 }).withMessage('Usuário inválido.'),
+    body('article_id').optional().isInt({ min: 1 }).withMessage('Artigo inválido.')
+  ]);
+}, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   const role = ['admin', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(req.body.role) ? req.body.role : null;
   const userId = parseInt(req.body.user_id, 10);
@@ -1396,7 +1755,9 @@ function validateParticipantForm(formData) {
   return null;
 }
 
-router.post('/:id/participants', strictLimiter, (req, res) => {
+router.post('/:id/participants', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.participantForm);
+}, (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
@@ -1448,8 +1809,8 @@ router.post('/:id/participants', strictLimiter, (req, res) => {
       if (formData.account_mode === 'new') {
         const newUser = db.prepare(`
           INSERT INTO users (
-            name, email, password, institution, is_public, approval_status, approved_at, password_changed, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+            name, email, password, institution, is_public, approval_status, approved_at, password_changed, profile_completed, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
         `).run(
           formData.name,
           formData.email,
@@ -1560,7 +1921,9 @@ function updateParticipant(req, res) {
 }
 
 // O formulário HTML usa POST diretamente; PUT permanece para integrações legadas.
-router.post('/:id/participants/:registrationId', updateParticipant);
+router.post('/:id/participants/:registrationId', (req, res, next) => {
+  validateAndHandle(req, res, next, v.participantForm);
+}, updateParticipant);
 router.put('/:id/participants/:registrationId', updateParticipant);
 
 router.delete('/:id/participants/:registrationId', (req, res) => {
@@ -1628,7 +1991,9 @@ router.get('/:id/subsidies/:registrationId/document/:documentType', (req, res) =
   return res.sendFile(path.join(__dirname, '..', 'uploads', fileName));
 });
 
-router.post('/:id/subsidies/:registrationId/decision', strictLimiter, (req, res) => {
+router.post('/:id/subsidies/:registrationId/decision', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.subsidyDecision);
+}, (req, res) => {
   const { subsidy_status, subsidy_review_notes } = req.body;
   const normalizedStatus = subsidy_status === 'approved' ? 'approved' : subsidy_status === 'rejected' ? 'rejected' : null;
 
@@ -1664,7 +2029,9 @@ router.post('/:id/subsidies/:registrationId/decision', strictLimiter, (req, res)
 });
 
 // Publicar evento
-router.post('/:id/publish', strictLimiter, (req, res) => {
+router.post('/:id/publish', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.publication);
+}, (req, res) => {
   db.prepare("UPDATE events SET status = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?").bind('published', req.params.id).run();
   res.redirect('/admin/events');
 });

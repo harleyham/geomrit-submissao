@@ -9,12 +9,15 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 ## Funcionalidades
 
 - **Gestão de eventos**: CRUD de eventos, cronograma público, janelas de inscrição/submissão/certificados e administração restrita aos eventos atribuídos ao usuário
+- **Importação de participantes**: importação administrativa de planilhas CSV, XLS ou XLSX exportadas pelo Even3, com criação/atualização de contas e relatório do processamento
 - **Submissão de artigos**: formulário público, rascunhos, múltiplos revisores, parecer individual, deliberação final administrativa
 - **Revisão**: painel do revisor com artigos pendentes, envio de parecer e recomendação
 - **Participantes e papéis**: conta única por pessoa, com papéis independentes por evento (administrador, participante, revisor, palestrante, professor e apresentador); telefone internacional no cadastro de participantes e usuários
+- **Primeiro acesso**: contas novas com senha temporária devem trocar a senha e completar identificação, contato, instituição e formação acadêmica antes de acessar os painéis
 - **Presença**: atividades/partes configuráveis do evento, com papéis elegíveis e ações explícitas para marcar, atualizar ou remover presença; participantes aparecem somente na chamada das atividades em que estão inscritos
 - **Inscrição por atividade**: seleção explícita na inscrição pública ou inclusão administrativa, edição posterior pelo participante ou administrador e contadores de inscritos por atividade
-- **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo, texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável e reemissão versionada; para participante, cada atividade contabilizada exige inscrição e presença
+- **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo (thumbnails ordenadas alfabeticamente), texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável, reemissão versionada e botão "Salvar configuração geral" para replicar cor e fundo em todos os tipos de certificado; para participante, cada atividade contabilizada exige inscrição e presença
+- **Verificação pública**: consulta pública da autenticidade de certificados pelo código de verificação
 - **Vínculo de papéis por atividade**: seleção do papel que cada pessoa efetivamente exerce em cada atividade, sem alterar seus papéis administrativos no evento; presenças e cargas horárias são consolidadas separadamente para cada certificado
 
 ## Fluxo operacional de atividades e certificados

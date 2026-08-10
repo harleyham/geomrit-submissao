@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><%= title %></title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:'Inter',sans-serif;background:#0a0f1a;color:#e2e8f0;margin:0}.topbar{background:rgba(15,23,42,0.8);border-bottom:1px solid rgba(148,163,184,0.1);backdrop-filter:blur(20px);padding:0 2rem;height:64px;display:flex;align-items:center;position:sticky;top:0;z-index:100}.topbar-inner{width:100%;max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}.logo{font-size:1.25rem;font-weight:700;color:#e2e8f0;text-decoration:none}.logo-icon{color:#60a5fa}.topbar-nav{display:flex;gap:0.25rem;align-items:center}.topbar-nav a{color:#94a3b8;padding:0.5rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.875rem;font-weight:500;transition:all 0.15s}.topbar-nav a:hover,.topbar-nav a.active{color:#e2e8f0;background:rgba(148,163,184,0.1)}.session-pill{padding:0.42rem 0.78rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#e2e8f0;font-size:0.82rem}.btn-logout{background:transparent;color:#f87171;border:1px solid rgba(248,113,113,0.25);font-family:inherit;cursor:pointer}.btn-secondary{background:rgba(148,163,184,0.12);color:#e2e8f0;border:1px solid rgba(148,163,184,0.18);text-decoration:none;font-weight:500}.btn-secondary:hover{background:rgba(148,163,184,0.2)}.btn-primary{background:#2563eb;color:#fff;border:none;padding:0.6rem 1.2rem;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:0.875rem}.btn-primary:hover{background:#1d4ed8}.alert{padding:1rem 1.25rem;border-radius:10px;font-size:0.9rem;margin-bottom:1.5rem}.alert-success{background:rgba(34,197,94,0.1);border:1px solid rgba(74,222,128,0.22);color:#86efac}.alert-error{background:rgba(239,68,68,0.1);border:1px solid rgba(248,113,113,0.24);color:#fca5a5}.alert-info{background:rgba(59,130,246,0.1);border:1px solid rgba(96,165,250,0.2);color:#93c5fd}.hint{color:#94a3b8;font-size:0.85rem}.main-content{max-width:900px;margin:0 auto;padding:2rem}.card{background:rgba(30,41,59,0.6);border:1px solid rgba(148,163,184,0.1);border-radius:12px;padding:1.75rem;margin-bottom:1.5rem}.card h2{font-size:1.25rem;font-weight:700;color:#f8fafc;margin-bottom:1rem}table{width:100%;border-collapse:collapse}.th{padding:0.85rem 1.25rem;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;background:rgba(15,23,42,0.24);text-align:left}.td{padding:0.85rem 1.25rem;font-size:0.875rem;color:#cbd5e1;border-top:1px solid rgba(148,163,184,0.06)}.tr:hover td{background:rgba(148,163,184,0.03)}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem}.stat-card{background:rgba(30,41,59,0.6);border:1px solid rgba(148,163,184,0.1);border-radius:12px;padding:1.2rem;text-align:center}.stat-value{font-size:2rem;font-weight:700}.stat-label{color:#64748b;font-size:0.74rem;text-transform:uppercase;letter-spacing:0.05em;margin-top:0.25rem}.color-imported{color:#86efac}.color-skipped{color:#fcd34d}.color-updated{color:#93c5fd}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/events" class="active">Eventos</a>
+        <a href="/admin/users">Usuários</a>
+        <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-logout">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+  <main class="main-content">
+    <h1 style="font-size:1.75rem;font-weight:700;color:#f8fafc;margin-bottom:0.25rem">Resultado da Importação</h1>
+    <p style="color:#94a3b8;margin-bottom:1.5rem">Evento: <strong><%= event.name %></strong></p>
+
+    <div class="alert alert-success"><%= messages %></div>
+
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-value color-imported"><%= imported %></div><div class="stat-label">Criados</div></div>
+      <div class="stat-card"><div class="stat-value color-skipped"><%= skipped %></div><div class="stat-label">Já Existiam</div></div>
+      <div class="stat-card"><div class="stat-value color-updated"><%= updated %></div><div class="stat-label">Atualizados</div></div>
+    </div>
+
+    <% if (imported === 0 && skipped === 0 && updated === 0) { %>
+    <div class="alert alert-info">
+      <strong>Importação sem resultados.</strong> Possíveis causas: o arquivo não contém linhas com dados válidos, ou as colunas do arquivo não foram detectadas. Verifique o nome exato das colunas no arquivo exportado pelo Even3.
+    </div>
+    <% } %>
+
+    <% if (importedList && importedList.length) { %>
+    <div class="card">
+      <h2>Novos usuários criados (<%= importedList.length %>)</h2>
+      <table>
+        <thead><tr><th class="th">Nome</th><th class="th">Chave</th><th class="th">ID</th></tr></thead>
+        <tbody>
+          <% importedList.forEach((item) => { %>
+          <tr><td class="td"><%= item.name %></td><td class="td"><%= item.key %> (<%= item.keyValue %>)</td><td class="td"><%= item.user_id %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+
+    <% if (skippedList && skippedList.length) { %>
+    <div class="card">
+      <h2>Usuários que já existiam (<%= skippedList.length %>)</h2>
+      <table>
+        <thead><tr><th class="th">Nome</th><th class="th">Chave</th><th class="th">Ação</th></tr></thead>
+        <tbody>
+          <% skippedList.forEach((item) => { %>
+          <tr><td class="td"><%= item.name %></td><td class="td"><%= item.key %> (<%= item.keyValue %>)</td><td class="td"><%= item.action %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+
+    <div style="display:flex;gap:0.75rem;margin-top:1.5rem">
+      <a href="/admin/events/<%= event.id %>/import-users" class="btn-primary">Importar novamente</a>
+      <a href="/admin/events/<%= event.id %>/participants" class="btn-secondary">Ir para participantes</a>
+      <a href="/admin/events" class="btn-secondary">Voltar aos eventos</a>
+    </div>
+  </main>
+  <%- include("../../partials/csrf-inject") %>
+</body>
+</html>

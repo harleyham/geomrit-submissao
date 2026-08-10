@@ -5,6 +5,7 @@ const fs = require('fs');
 const { ZipArchive } = require('archiver');
 const { db, getArticlesByEvent, recordParticipantAudit } = require('../db');
 const { strictLimiter } = require('../security/rate-limits');
+const { validateAndHandle, validators: v } = require('../security/validation');
 
 function parseAreaList(areaValue) {
   return String(areaValue || '')
@@ -226,7 +227,9 @@ router.get('/:id', requireAuth, (req, res) => {
   });
 });
 
-router.post('/:id/final-decision', requireAuth, strictLimiter, (req, res) => {
+router.post('/:id/final-decision', requireAuth, strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.finalDecision);
+}, (req, res) => {
   const articleId = parseInt(req.params.id, 10);
   const eventId = parseInt(req.body.eventId, 10);
   const finalStatus = String(req.body.final_status || '').trim();
@@ -255,7 +258,9 @@ router.post('/:id/final-decision', requireAuth, strictLimiter, (req, res) => {
 });
 
 // Atualizar status
-router.put('/:id', requireAuth, (req, res) => {
+router.put('/:id', requireAuth, (req, res, next) => {
+  validateAndHandle(req, res, next, v.articleUpdate);
+}, (req, res) => {
   const { status } = req.body;
   db.prepare('UPDATE articles SET status = ?, updated_at = datetime("now", "-3 hours") WHERE id = ?').bind(status, req.params.id).run();
   res.json({ success: true });
@@ -347,7 +352,9 @@ router.delete('/:id', requireAuth, (req, res) => {
 });
 
 // Atribuir revisor a artigo
-router.post('/:id/assign', requireAuth, strictLimiter, (req, res) => {
+router.post('/:id/assign', requireAuth, strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.assignReviewer);
+}, (req, res) => {
   const { reviewer_id, action, eventId } = req.body;
   const article = db.prepare('SELECT status FROM articles WHERE id = ?').bind(req.params.id).get();
   if (!article) {

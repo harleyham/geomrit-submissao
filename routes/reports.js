@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db, getAssignmentsByEvent, getPendingReviews, getReviewedArticles } = require('../db');
 const { strictLimiter } = require('../security/rate-limits');
+const { validateAndHandle, validators: v } = require('../security/validation');
 
 // Middleware de autenticação admin para relatórios
 function requireAuth(req, res, next) {
@@ -205,7 +206,9 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // Decidir destino do artigo (admin)
-router.post('/:id/decide', requireAuth, strictLimiter, (req, res) => {
+router.post('/:id/decide', requireAuth, strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.finalDecision);
+}, (req, res) => {
   const { final_status, eventId } = req.body;
   if (['pending', 'in_review', 'approved', 'rejected'].includes(final_status)) {
     db.prepare('UPDATE articles SET status = ?, updated_at = datetime("now", "-3 hours") WHERE id = ?').bind(final_status, req.params.id).run();

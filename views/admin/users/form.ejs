@@ -128,6 +128,49 @@
         </div>
       </div>
 
+      <div class="section" style="margin-bottom: 1.5rem;">
+        <div class="section-title">Formação</div>
+        <div class="form-group">
+          <label for="formacao_area">Área de Formação</label>
+          <select id="formacao_area" name="formacao_area">
+            <option value="">Selecione uma área</option>
+            <% (areas || formacaoAreas || []).forEach((area) => { %>
+              <option value="<%= area.codigo %>" <%= user && user.formacao_area === area.codigo ? 'selected' : '' %>><%= area.area %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="formacao_curso">Curso</label>
+          <select id="formacao_curso" name="formacao_curso">
+            <% const selectedFormacaoArea = user ? (user.formacao_area || '') : ''; %>
+            <% const selectedFormacaoCurso = user ? (user.formacao_curso || '') : ''; %>
+            <option value=""><%= selectedFormacaoArea ? 'Selecione um curso' : 'Selecione primeiro uma área' %></option>
+            <% ((cursosMap && cursosMap[selectedFormacaoArea]) || []).forEach((curso) => { %>
+              <option value="<%= curso %>" <%= selectedFormacaoCurso === curso ? 'selected' : '' %>><%= curso %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="formacao_titulacao">Titulação</label>
+            <select id="formacao_titulacao" name="formacao_titulacao">
+              <option value="">Selecione</option>
+              <option value="Graduado" <%= user && user.formacao_titulacao === 'Graduado' ? 'selected' : '' %>>Graduado</option>
+              <option value="Mestre" <%= user && user.formacao_titulacao === 'Mestre' ? 'selected' : '' %>>Mestre</option>
+              <option value="Doutor" <%= user && user.formacao_titulacao === 'Doutor' ? 'selected' : '' %>>Doutor</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="formacao_status">Status</label>
+            <select id="formacao_status" name="formacao_status">
+              <option value="">Selecione</option>
+              <option value="Formado" <%= user && user.formacao_status === 'Formado' ? 'selected' : '' %>>Formado</option>
+              <option value="Cursando" <%= user && user.formacao_status === 'Cursando' ? 'selected' : '' %>>Cursando</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div class="section global-profiles" style="display:none; margin-bottom: 1.5rem;">
         <div class="section-title">Conta e habilitações globais</div>
         <p style="color:#fbbf24;font-size:.82rem;line-height:1.5;margin:-.35rem 0 1rem;">Os papéis efetivos são atribuídos por evento na seção abaixo. Estas opções apenas descrevem habilitações e dados gerais da conta.</p>
@@ -186,15 +229,51 @@
 
   <footer>&copy; <%= year %> LIGEM.Redes</footer>
   <script>
-    document.querySelectorAll('.toggle-password').forEach(function(button) {
-      button.addEventListener('click', function() {
-        var input = document.getElementById(button.getAttribute('data-target'));
-        var showing = input.type === 'text';
-        input.type = showing ? 'password' : 'text';
-        button.textContent = showing ? '👁' : '🙈';
-        button.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
+    (function() {
+      'use strict';
+
+      var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
+
+      function updateCursosByArea(areaCodigo, selectedValue) {
+        var cursoSelect = document.getElementById('formacao_curso');
+        if (!cursoSelect) return;
+
+        var valueToRestore = selectedValue || '';
+        cursoSelect.innerHTML = '<option value="">' + (areaCodigo ? 'Selecione um curso' : 'Selecione primeiro uma área') + '</option>';
+
+        if (!areaCodigo || !cursosMap || !cursosMap[areaCodigo]) return;
+
+        var cursos = cursosMap[areaCodigo];
+
+        for (var i = 0; i < cursos.length; i++) {
+          var curso = cursos[i];
+          var option = document.createElement('option');
+          option.value = curso;
+          option.textContent = curso;
+          if (curso === valueToRestore) {
+            option.selected = true;
+          }
+          cursoSelect.appendChild(option);
+        }
+      }
+
+      document.querySelectorAll('.toggle-password').forEach(function(button) {
+        button.addEventListener('click', function() {
+          var input = document.getElementById(button.getAttribute('data-target'));
+          var showing = input.type === 'text';
+          input.type = showing ? 'password' : 'text';
+          button.textContent = showing ? '👁' : '🙈';
+          button.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
+        });
       });
-    });
+
+      var areaSelect = document.getElementById('formacao_area');
+      if (areaSelect) {
+        areaSelect.addEventListener('change', function() {
+          updateCursosByArea(this.value, '');
+        });
+      }
+    })();
   </script>
 </body>
 </html>

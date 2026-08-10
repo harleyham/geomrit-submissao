@@ -58,6 +58,7 @@ O sistema deve permitir:
 - Impressão do relatório do evento em PDF pelo navegador.
 - Seleção de seções do relatório antes da impressão em PDF.
 - Gestão administrativa de participantes por evento, com criação de conta, inscrição, edição e remoção condicionada.
+- Importação de participantes por evento a partir de CSV, XLS ou XLSX exportado pelo Even3, com criação ou atualização de contas, senha temporária e resumo do processamento.
 - Seleção explícita das atividades na inscrição pública ou administrativa, com edição posterior pelo participante em `/evento/:id/atividades` ou pelo administrador no cadastro da participação.
 - Controle de presença simples por evento e chamada por atividade, com ações explícitas para marcar, atualizar ou remover presença.
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
@@ -84,6 +85,7 @@ O sistema deve permitir:
 - Área do participante acessível também a contas com múltiplos perfis, com atalhos para revisão e administração quando aplicável.
 - Consulta de submissão por código.
 - Consulta por código com andamento agregado da avaliação, sem expor um único revisor como responsável oficial.
+- Verificação pública de certificados emitidos pelo respectivo código.
 - Exibição pública de revisores ativos.
 - Fluxo de participação conectado às atividades, chamadas e certificados: para participante, somente atividades com inscrição e presença são contabilizadas.
 
@@ -143,6 +145,7 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `is_reviewer`
 - `is_public`
 - `password_changed`
+- `profile_completed`
 - `created_at`
 - `updated_at`
 
@@ -411,6 +414,8 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - O cadastro administrativo de revisor permite informar áreas de atuação em `reviewer_areas`.
 - O cadastro público gera usuário pendente de aprovação administrativa.
 - A troca de senha é obrigatória no primeiro acesso quando `password_changed = 0`.
+- Contas novas possuem `profile_completed = 0` e, depois de trocar a senha, devem completar identificação, país, instituição, telefone e formação acadêmica antes de acessar qualquer painel.
+- A migração preserva contas anteriores como perfil completo; o bloqueio é aplicado às novas contas administrativas, importadas, criadas na inscrição administrativa e solicitadas pelo cadastro público.
 - Administrador pode resetar a senha de outro usuário.
 - A tela `/admin/users` separa papel no sistema e status de conta.
 - O conceito de `Revisor` é independente do conceito de `Conta ativa`.
@@ -552,6 +557,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito |
 | `/cadastro` | Solicitação de cadastro público |
 | `/consultar` | Consulta por código |
+| `/consultar-certificado` | Verificação pública de certificado por código |
 | `/revisores` | Corpo de revisores |
 
 ### Autenticação
@@ -571,6 +577,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/admin/events` | Gestão de eventos |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
+| `/admin/events/:id/import-users` | Importação de participantes via CSV, XLS ou XLSX |
 | `/admin/events/:id/attendance` | Painel de chamadas por atividade do evento |
 | `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
 | `/admin/events/:id/activities/:activityId/attendance` | Controle de presença da atividade |
@@ -644,6 +651,7 @@ Observações operacionais:
 - Modelo unificado de usuários.
 - Login unificado.
 - Troca obrigatória de senha no primeiro acesso.
+- Preenchimento obrigatório do perfil no primeiro acesso, após a troca de senha, com bloqueio de acesso aos painéis até a conclusão.
 - Gestão administrativa de usuários.
 - Atualização em lote de perfis e status em `/admin/users`.
 - Distinção visual entre papel de revisor e conta ativa.
@@ -672,10 +680,12 @@ Observações operacionais:
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 - Navegação cruzada entre área do participante, painel do revisor e dashboard administrativo para usuários com múltiplos perfis.
 - Gestão manual de participantes por evento, com criação de conta ou seleção de conta ativa existente, edição, remoção condicionada e auditoria.
+- Importação administrativa de participantes por evento em CSV, XLS ou XLSX, com detecção de colunas, reconciliação de contas e relatório de itens importados, atualizados ou ignorados.
 - Painel administrativo de presença organizado por atividade, com acesso direto à chamada de cada parte do evento.
 - Cadastro de atividades internas e lançamento manual por atividade, com botões para marcar, atualizar e remover presença; para participante, inscrição e presença compõem conjuntamente a elegibilidade e a carga horária do certificado.
-- Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura, cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
+- Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura (thumbnails ordenadas alfabeticamente), cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
 - Certificados distintos por papel no evento: Participante, Revisor, Palestrante, Professor, Apresentador Oral e Apresentador Pôster, cada um com fundo, cor, título, texto, elegibilidade, emissão e reemissão próprios. A prévia dinâmica usa o fundo e a cor atualmente selecionados no formulário, sem exigir salvamento prévio.
+- Botão "Salvar configuração geral" na página de certificados que replica a cor e o fundo selecionados em todos os tipos de certificado do evento, preservando título, texto e mínimo de presença individuais de cada papel.
 - Botão "Visualizar original" na página de certificados do admin renderiza a prévia com as configurações salvas no banco sem modificar os campos do formulário, permitindo comparar o estado persistente com as edições não-salvas.
 - Exportação em lote dos certificados emitidos em arquivo ZIP via botão laranja "Exportar todos os certificados emitidos" na página de certificados, com cada certificado como PDF individual nomeado por versão, participante e papel.
 - Botão "Baixar" padronizado como `<button>` (classe `secondary`) na coluna de ações da tabela de certificados, sem sublinhado.
@@ -694,10 +704,12 @@ Observações operacionais:
 - Enxugamento técnico: remoção de rotas individuais legadas de perfis, redirecionamentos de login do revisor, fallback duplicado de eventos, dependência direta não utilizada e colunas antigas de revisão em `articles`.
 - Exibição do status do subsídio na página do participante (`/author`): coluna condicional "Subsídio" com badge colorido indicando `Pendente`, `Aprovado` ou `Rejeitado` na tabela de participações, aparecendo apenas quando o usuário possui solicitações de subsídio vinculadas.
 - Topbar unificada na página de certificados de participante (`/evento/:id/certificates`): exibe o e-mail da conta logada e o botão "Sair" em vermelho, seguindo o mesmo padrão das demais páginas públicas autenticadas.
+- Verificação pública de certificados em `/consultar-certificado`, apresentando dados da emissão somente quando o código informado corresponde a uma emissão válida.
 - Correção de renderização na visualização administrativa da área do participante (`/admin/users/:id/participant`): prop `showSubsidyStatus` agora é passada ao template, eliminando erro de renderização EJS.
 - Vinculação de atuação por atividade no controle de presença: o dropdown apresenta apenas papéis elegíveis que a pessoa já possui no evento, enquanto botões separados marcam, atualizam ou removem a presença; a operação não altera `event_user_roles`.
 - Reescrita da página de presença por atividade com layout topbar/Inter, stats cards (presentes/ausentes/total), tabela com perfis no evento e role na atividade, e validação server-side dos papéis aceitos.
 - Correção de coluna ambígua na query de presença por atividade: alias `person_user_id` eliminou erro "ambiguous column name: user_id" causado pela junção de `event_registrations`, `event_user_roles` e `activity_attendance_records`.
+- Cadastro de formação acadêmica no formulário de usuário (`/admin/users/new` e `/admin/users/:id/edit`): campos Área de Formação, Curso, Titulação e Status populados a partir dos CSVs `assets/tabela_area.csv` e `assets/tabela_curso_graduacao.csv`, com persistência nas colunas `formacao_area`, `formacao_curso`, `formacao_titulacao` e `formacao_status` da tabela `users`.
 
 ### Segurança reforçada (V0.1)
 
@@ -764,14 +776,14 @@ Observações operacionais:
 4. `Gerenciar e emitir certificados de participação`
    Status atual: implementado em nível operacional.
    Base existente: regras por papel de certificado, consolidação por papel das atividades e da carga horária, emissão e reemissão versionadas, geração em PDF com resumo das atividades, download administrativo e área autenticada do participante.
-   Principais lacunas: verificação pública e refinamentos de auditoria operacional.
+   Principais lacunas: refinamentos de auditoria operacional.
 
 ### Leitura executiva
 
 - `Eventos`: pronto para uso, com algumas lacunas administrativas.
 - `Artigos`: pronto para uso, com filtros e download ZIP por evento.
 - `Presença`: implementada por evento e por atividade, com consolidação de carga horária.
-- `Certificados`: emissão real em PDF com atividades e carga horária separadas por papel, regras por papel, reemissão e download autenticado já disponíveis; falta verificação pública.
+- `Certificados`: emissão real em PDF com atividades e carga horária separadas por papel, regras por papel, reemissão, download autenticado e verificação pública já disponíveis.
 
 ### Épicos e execução incremental
 
@@ -910,7 +922,7 @@ Critério de pronto:
 ### Ordem recomendada
 
 1. Concluir o histórico de deliberação final administrativa.
-2. Evoluir certificados com verificação pública, se necessário.
+2. Evoluir a auditoria operacional dos certificados, se necessário.
 3. Reforçar validações server-side e client-side nos formulários principais.
 4. Financeiro, se entrar no escopo do produto.
 
@@ -926,7 +938,7 @@ Critério de pronto:
 #### Média prioridade
 
 1. Filtros avançados de artigos.
-2. Auditoria operacional e verificação pública de certificados.
+2. Auditoria operacional de certificados.
 
 #### Baixa prioridade
 

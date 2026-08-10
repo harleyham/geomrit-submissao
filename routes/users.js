@@ -1,10 +1,84 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 const { db } = require('../db');
 const bcrypt = require('bcryptjs');
 const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
 const { strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
+
+function parseCsvFile(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const lines = content.split(/\r?\n/).filter(l => l.trim());
+
+  const parseLine = (line) => {
+    const values = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          current += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          values.push(current);
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+    }
+    values.push(current);
+    return values.map(v => v.trim().replace(/^"|"$/g, '').trim());
+  };
+
+  const headers = parseLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const values = parseLine(line);
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = values[idx] || '';
+    });
+    return obj;
+  });
+}
+
+const areasPath = path.join(__dirname, '..', 'assets', 'tabela_area.csv');
+const cursosPath = path.join(__dirname, '..', 'assets', 'tabela_curso_graduacao.csv');
+let areasData = [];
+let cursosData = [];
+try {
+  areasData = parseCsvFile(areasPath);
+  cursosData = parseCsvFile(cursosPath);
+} catch (e) {
+  console.warn('Erro ao carregar tabelas de formação:', e.message);
+}
+
+function getAreas() {
+  return areasData.map(a => ({
+    codigo: a.Codigo,
+    area: a.Area
+  }));
+}
+
+function getCursosByArea(codigoArea) {
+  return cursosData
+    .filter(c => c.CodigoArea === codigoArea)
+    .map(c => c.NomeCurso);
+}
 
 function requireAuth(req, res, next) {
   if (!req.session.isAdmin) {
@@ -154,7 +228,7 @@ router.get('/', requireAuth, (req, res) => {
   const users = db.prepare(`
     SELECT id, name, email, cpf, passport, country, institution, phone,
            is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at,
-           password_changed, created_at
+           password_changed, profile_completed, created_at
     FROM users
     ORDER BY CASE WHEN approval_status = 'pending' THEN 0 ELSE 1 END, name
   `).all();
@@ -171,23 +245,41 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 router.get('/new', requireAuth, (req, res) => {
+  const areas = getAreas();
+  const cursosMap = {};
+  areas.forEach(area => {
+    cursosMap[area.codigo] = getCursosByArea(area.codigo);
+  });
   res.render('admin/users/form', {
     user: null,
     title: 'Novo Usuário',
-    year: new Date().getFullYear()
+    year: new Date().getFullYear(),
+    areas: areas,
+    formacaoAreas: areas,
+    cursosMap: cursosMap
   });
 });
 
-router.post('/', requireAuth, strictLimiter, (req, res) => {
-  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer } = req.body;
+router.post('/', requireAuth, strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.userForm);
+}, (req, res) => {
+  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer, formacao_area, formacao_curso, formacao_titulacao, formacao_status } = req.body;
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
+  const areas = getAreas();
+  const cursosMap = {};
+  areas.forEach(area => {
+    cursosMap[area.codigo] = getCursosByArea(area.codigo);
+  });
 
   if (!email || !password) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
+      areas: areas,
+      formacaoAreas: areas,
+      cursosMap: cursosMap,
       error: 'E-mail e senha são obrigatórios.'
     });
   }
@@ -195,18 +287,24 @@ router.post('/', requireAuth, strictLimiter, (req, res) => {
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(email).get();
   if (existing) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
+      areas: areas,
+      formacaoAreas: areas,
+      cursosMap: cursosMap,
       error: 'Já existe um usuário com o e-mail ' + email
     });
   }
 
   if (!isValidCPF(cpf)) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
+      areas: areas,
+      formacaoAreas: areas,
+      cursosMap: cursosMap,
       error: 'O CPF informado é inválido.'
     });
   }
@@ -214,8 +312,10 @@ router.post('/', requireAuth, strictLimiter, (req, res) => {
   const hash = bcrypt.hashSync(password, 10);
   db.prepare(`
     INSERT INTO users (name, email, password, cpf, passport, country, institution, phone, reviewer_areas,
-      is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at, password_changed, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+      is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at, password_changed, created_at, updated_at,
+      formacao_area, formacao_curso, formacao_titulacao, formacao_status, profile_completed)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'),
+      ?, ?, ?, ?, 0)
   `).bind(
     name || email,
     email,
@@ -228,7 +328,11 @@ router.post('/', requireAuth, strictLimiter, (req, res) => {
     normalizedReviewerAreas || null,
     is_admin ? 1 : 0, is_reviewer ? 1 : 0,
     certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher,
-    certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter
+    certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
+    formacao_area || null,
+    formacao_curso || null,
+    formacao_titulacao || null,
+    formacao_status || null
   ).run();
 
   res.redirect('/admin/users?success=Usuário criado com sucesso');
@@ -241,13 +345,21 @@ router.get('/:id/edit', requireAuth, (req, res) => {
   const selectedEventId = managedEvents.some((event) => event.id === Number(req.query.event_id)) ? Number(req.query.event_id) : (managedEvents[0] && managedEvents[0].id);
   const eventRoles = selectedEventId ? db.prepare('SELECT role,article_id FROM event_user_roles WHERE event_id=? AND user_id=?').all(selectedEventId, user.id) : [];
   const approvedArticles = selectedEventId ? db.prepare("SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title").all(selectedEventId) : [];
+  const areas = getAreas();
+  const cursosMap = {};
+  areas.forEach(area => {
+    cursosMap[area.codigo] = getCursosByArea(area.codigo);
+  });
   res.render('admin/users/form', {
     user,
     managedEvents, selectedEventId, eventRoles, approvedArticles,
     title: 'Editar Usuário',
     year: new Date().getFullYear(),
     success: req.query.success || null,
-    error: req.query.error || null
+    error: req.query.error || null,
+    areas: areas,
+    formacaoAreas: areas,
+    cursosMap: cursosMap
   });
 });
 
@@ -387,7 +499,7 @@ router.get('/:id/participant', requireAuth, (req, res) => {
 
 function updateUser(req, res) {
   const id = parseInt(req.params.id, 10);
-  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer } = req.body;
+  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer, formacao_area, formacao_curso, formacao_titulacao, formacao_status } = req.body;
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
   const user = db.prepare('SELECT id, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
@@ -402,10 +514,18 @@ function updateUser(req, res) {
   }
 
   if (!isValidCPF(cpf)) {
+    const areas = getAreas();
+    const cursosMap = {};
+    areas.forEach(area => {
+      cursosMap[area.codigo] = getCursosByArea(area.codigo);
+    });
     return res.render('admin/users/form', {
-      user: { id, name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles },
+      user: { id, name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Editar Usuário',
       year: new Date().getFullYear(),
+      areas: areas,
+      formacaoAreas: areas,
+      cursosMap: cursosMap,
       error: 'O CPF informado é inválido.'
     });
   }
@@ -414,22 +534,28 @@ function updateUser(req, res) {
     const hash = bcrypt.hashSync(password, 10);
     db.prepare(`
       UPDATE users SET name=?, email=?, password=?, cpf=?, passport=?, country=?, institution=?, phone=?, reviewer_areas=?,
-        is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, password_changed=0, updated_at=datetime('now', '-3 hours')
+        is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, password_changed=0, updated_at=datetime('now', '-3 hours'),
+        formacao_area=?, formacao_curso=?, formacao_titulacao=?, formacao_status=?
       WHERE id=?
     `).bind(
       name, email, hash,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
-      nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter, id
+      nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
+      formacao_area || null, formacao_curso || null, formacao_titulacao || null, formacao_status || null,
+      id
     ).run();
   } else {
     db.prepare(`
       UPDATE users SET name=?, email=?, cpf=?, passport=?, country=?, institution=?, phone=?, reviewer_areas=?,
-        is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, updated_at=datetime('now', '-3 hours')
+        is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, updated_at=datetime('now', '-3 hours'),
+        formacao_area=?, formacao_curso=?, formacao_titulacao=?, formacao_status=?
       WHERE id=?
     `).bind(
       name, email,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
-      nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter, id
+      nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
+      formacao_area || null, formacao_curso || null, formacao_titulacao || null, formacao_status || null,
+      id
     ).run();
   }
 
@@ -438,8 +564,12 @@ function updateUser(req, res) {
 
 // Formulários HTML enviam POST. Mantemos PUT também para integrações que já
 // utilizavam method-override, sem depender dele para a interface administrativa.
-router.post('/:id(\\d+)', requireAuth, updateUser);
-router.put('/:id(\\d+)', requireAuth, updateUser);
+router.post('/:id(\\d+)', requireAuth, (req, res, next) => {
+  validateAndHandle(req, res, next, v.userForm);
+}, updateUser);
+router.put('/:id(\\d+)', requireAuth, (req, res, next) => {
+  validateAndHandle(req, res, next, v.userForm);
+}, updateUser);
 
 router.delete('/:id', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
@@ -461,7 +591,9 @@ router.delete('/:id', requireAuth, (req, res) => {
 });
 
 // Alterar senha do admin logado
-router.post('/change-password', requireAuth, strictLimiter, (req, res) => {
+router.post('/change-password', requireAuth, strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.changePassword);
+}, (req, res) => {
   const { current_password, new_password, confirm_password } = req.body;
 
   if (!current_password || !new_password || !confirm_password) {
@@ -503,7 +635,9 @@ router.post('/:id/reset-password', requireAuth, (req, res) => {
   res.redirect('/admin/users?success=Senha resetada para 123456');
 });
 
-router.post('/bulk-update-flags', requireAuth, (req, res) => {
+router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
+  validateAndHandle(req, res, next, v.bulkUserFlags);
+}, (req, res) => {
   const userIds = Array.isArray(req.body.user_ids)
     ? req.body.user_ids
     : req.body.user_ids

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: linear-gradient(180deg, #08111f, #0f172a 48%, #101827); color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); padding: 0 2rem; min-height: 64px; display: flex; align-items: center; }
+    .topbar-inner { width: 100%; max-width: 860px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .logo { color: #e2e8f0; text-decoration: none; font-size: 1.25rem; font-weight: 700; }
+    .session { color: #94a3b8; font-size: 0.82rem; }
+    .logout-form { display: inline; }
+    .btn-logout { padding: 0.55rem 0.85rem; border-radius: 8px; background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); cursor: pointer; }
+    .main-content { max-width: 860px; margin: 0 auto; padding: 3rem 1.5rem; }
+    .step { color: #60a5fa; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.6rem; }
+    h1 { color: #f8fafc; font-size: 2rem; margin-bottom: 0.7rem; }
+    .intro { color: #94a3b8; line-height: 1.65; margin-bottom: 1.75rem; }
+    .card { background: rgba(15,23,42,0.78); border: 1px solid rgba(148,163,184,0.14); border-radius: 18px; padding: 2rem; box-shadow: 0 24px 80px rgba(2,6,23,0.35); }
+    .section-title { color: #f8fafc; font-weight: 700; font-size: 1.05rem; padding-bottom: 0.7rem; margin: 1.5rem 0 1rem; border-bottom: 1px solid rgba(148,163,184,0.14); }
+    .section-title:first-of-type { margin-top: 0; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
+    input, select { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font: inherit; }
+    input[readonly] { color: #94a3b8; cursor: not-allowed; }
+    input:focus, select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    .help { color: #94a3b8; font-size: 0.78rem; line-height: 1.5; margin-top: 0.4rem; }
+    .alert { padding: 0.9rem 1rem; border-radius: 10px; margin-bottom: 1.25rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
+    .btn-primary { width: 100%; padding: 0.85rem 1.2rem; margin-top: 0.75rem; border: 0; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; font: inherit; font-weight: 700; cursor: pointer; }
+    footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; gap: 0; } .topbar { padding: 1rem 1.25rem; } .topbar-inner { flex-wrap: wrap; } .card { padding: 1.25rem; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <span class="logo"><span aria-hidden="true">◆</span> Artigos LIGEM</span>
+      <div>
+        <span class="session"><%= user.email %></span>
+        <form method="POST" action="/login/logout" class="logout-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn-logout">Sair</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="step">Primeiro acesso · Etapa 2 de 2</div>
+    <h1>Complete seu perfil</h1>
+    <p class="intro">Antes de acessar o sistema, confirme seus dados pessoais e informe sua formação acadêmica. Todos os campos marcados com * são obrigatórios.</p>
+
+    <div class="card">
+      <% if (error) { %><div class="alert"><%= error %></div><% } %>
+
+      <form method="POST" action="/login/complete-profile">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <div class="section-title">Dados pessoais</div>
+        <div class="form-group">
+          <label for="name">Nome completo *</label>
+          <input type="text" id="name" name="name" required maxlength="200" value="<%= formData.name || '' %>">
+        </div>
+        <div class="grid">
+          <div class="form-group">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" readonly value="<%= user.email %>">
+          </div>
+          <div class="form-group">
+            <label for="institution">Instituição *</label>
+            <input type="text" id="institution" name="institution" required maxlength="200" value="<%= formData.institution || '' %>">
+          </div>
+        </div>
+        <div class="grid">
+          <div class="form-group">
+            <label for="phone">Telefone *</label>
+            <input type="tel" id="phone" name="phone" required maxlength="30" placeholder="+55 11 912345678" value="<%= formData.phone || '' %>">
+          </div>
+          <div class="form-group">
+            <label for="country">País *</label>
+            <%- include('partials/country-select', { selectedCountry: formData.country || '', selectId: 'country', selectName: 'country' }) %>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="form-group">
+            <label for="cpf">CPF</label>
+            <input type="text" id="cpf" name="cpf" value="<%= formData.cpf || '' %>">
+          </div>
+          <div class="form-group">
+            <label for="passport">Passaporte</label>
+            <input type="text" id="passport" name="passport" maxlength="50" value="<%= formData.passport || '' %>">
+          </div>
+        </div>
+        <p class="help">Informe pelo menos um documento: CPF ou passaporte.</p>
+
+        <div class="section-title">Formação acadêmica</div>
+        <div class="form-group">
+          <label for="formacao_area">Área de formação *</label>
+          <select id="formacao_area" name="formacao_area" required>
+            <option value="">Selecione uma área</option>
+            <% areas.forEach((area) => { %>
+              <option value="<%= area.codigo %>" <%= formData.formacao_area === area.codigo ? 'selected' : '' %>><%= area.area %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="formacao_curso">Curso *</label>
+          <select id="formacao_curso" name="formacao_curso" required>
+            <option value=""><%= formData.formacao_area ? 'Selecione um curso' : 'Selecione primeiro uma área' %></option>
+            <% ((cursosMap && cursosMap[formData.formacao_area]) || []).forEach((curso) => { %>
+              <option value="<%= curso %>" <%= formData.formacao_curso === curso ? 'selected' : '' %>><%= curso %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="grid">
+          <div class="form-group">
+            <label for="formacao_titulacao">Titulação *</label>
+            <select id="formacao_titulacao" name="formacao_titulacao" required>
+              <option value="">Selecione</option>
+              <% ['Graduado', 'Mestre', 'Doutor'].forEach((value) => { %>
+                <option value="<%= value %>" <%= formData.formacao_titulacao === value ? 'selected' : '' %>><%= value %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="formacao_status">Status *</label>
+            <select id="formacao_status" name="formacao_status" required>
+              <option value="">Selecione</option>
+              <% ['Formado', 'Cursando'].forEach((value) => { %>
+                <option value="<%= value %>" <%= formData.formacao_status === value ? 'selected' : '' %>><%= value %></option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Salvar perfil e continuar</button>
+      </form>
+    </div>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+  <script>
+    (function() {
+      var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
+      var areaSelect = document.getElementById('formacao_area');
+      var cursoSelect = document.getElementById('formacao_curso');
+
+      areaSelect.addEventListener('change', function() {
+        cursoSelect.innerHTML = '<option value="">' + (this.value ? 'Selecione um curso' : 'Selecione primeiro uma área') + '</option>';
+        (cursosMap[this.value] || []).forEach(function(curso) {
+          var option = document.createElement('option');
+          option.value = curso;
+          option.textContent = curso;
+          cursoSelect.appendChild(option);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
