@@ -1754,6 +1754,7 @@ router.get('/consultar', (req, res) => {
 router.post('/consultar', (req, res, next) => {
   validateAndHandle(req, res, next, v.articleCode);
 }, (req, res) => {
+  const access_code = String(req.body.access_code || '').trim();
   const article = db.prepare(`
     SELECT
       a.*,
@@ -1786,6 +1787,7 @@ router.get('/consultar-certificado', (req, res) => {
 router.post('/consultar-certificado', (req, res, next) => {
   validateAndHandle(req, res, next, v.certificateCode);
 }, (req, res) => {
+  const certificate_code = String(req.body.certificate_code || '').trim();
   const certificate = db.prepare(`
     SELECT
       ce.*,

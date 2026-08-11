@@ -4,6 +4,38 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-11
+
+### Correções críticas de segurança e bugs
+
+#### Correção: variáveis não definidas nas consultas por código
+
+- As rotas `POST /consultar` e `POST /consultar-certificado` usavam variáveis inexistentes (`access_code` e `certificate_code`) no `.bind()`, causando `ReferenceError` em tempo de execução.
+- Correção: ambas as rotas agora extraem o valor de `req.body` com `String()` e `.trim()` antes do `.bind()`.
+- Arquivos afetados: `routes/public.js` (linhas 1757 e 1790).
+- Status: **corrigido e validado**.
+
+#### Correção: bypass CSRF em uploads multipart/form-data
+
+- O middleware CSRF em `security/csrf.js` saltava a validação para toda requisição com `content-type` incluindo `multipart/form-data`, deixando todos os endpoints de upload (PDFs de artigos, fundos de certificado, importação CSV, documentos de subsídio) vulneráveis a CSRF.
+- Correção: removida a exceção para multipart. O token CSRF agora é aceito por três vias: header `X-CSRF-Token`, campo hidden `_csrf` no body (formulários normais) ou cookie `csrf_token` (enviado automaticamente pelo navegador em uploads multipart). O middleware define o cookie `httpOnly` + `sameSite: lax` em todas as respostas. Função `getCookieValue` parseia o header `Cookie` sem dependência externa.
+- Arquivos afetados: `security/csrf.js` (reescrita completa).
+- Status: **corrigido e validado**.
+
+#### Correção: risco de SQL Injection em bulk-update-flags
+
+- A rota `POST /admin/users/bulk-update-flags` interpolava IDs de `req.body.user_ids` diretamente no SQL via template literal, sem sanitização numérica. Embora o validador `isInt` existisse, `validateAndHandle` continua para `next()` mesmo com erros de validação, permitindo que valores não numéricos chegassem à query.
+- Correção: IDs agora são sanitizados com `parseInt()` e filtrados para inteiros positivos (`sanitizedIds`) antes de serem passados ao `.bind()`. Se nenhum ID válido for fornecido, a rota retorna erro 400.
+- Arquivos afetados: `routes/users.js` (linhas 647-659, 714).
+- Status: **corrigido e validado**.
+
+#### Correção: senha padrão exposta na URL de redirect
+
+- A rota `POST /admin/users/:id/reset-password` redirecionava com a mensagem `?success=Senha resetada para 123456`, expondo a senha padrão em logs do servidor, history do navegador e headers Referer.
+- Correção: mensagem alterada para `?success=Senha+resetada+para+padrão`.
+- Arquivo afetado: `routes/users.js` (linha 635).
+- Status: **corrigido e validado**.
+
 ## 2026-08-10
 
 ### Perfil obrigatório no primeiro acesso

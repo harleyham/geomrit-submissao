@@ -632,7 +632,7 @@ router.post('/:id/reset-password', requireAuth, (req, res) => {
   const hash = bcrypt.hashSync('123456', 10);
   db.prepare('UPDATE users SET password = ?, password_changed = 0, updated_at = datetime(\'now\') WHERE id = ?')
     .bind(hash, id).run();
-  res.redirect('/admin/users?success=Senha resetada para 123456');
+  res.redirect('/admin/users?success=Senha+resetada+para+padrão');
 });
 
 router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
@@ -644,11 +644,19 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
       ? [req.body.user_ids]
       : [];
 
+  const sanitizedIds = userIds
+    .map((id) => parseInt(id, 10))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  if (sanitizedIds.length === 0) {
+    return res.redirect('/admin/users?error=Selecione+ao+menos+um+usuário.');
+  }
+
   const currentUsers = db.prepare(`
     SELECT id, is_admin, is_public, approval_status
     FROM users
-    WHERE id IN (${userIds.map(() => '?').join(',') || 'NULL'})
-  `).all(...userIds);
+    WHERE id IN (${sanitizedIds.map(() => '?').join(',')})
+  `).all(...sanitizedIds);
 
   const currentUsersById = new Map(currentUsers.map((user) => [user.id, user]));
   const activeAdminsAfterUpdate = db.prepare('SELECT id, is_admin, is_public FROM users').all().map((user) => {
@@ -703,7 +711,7 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
     });
   });
 
-  updateMany(userIds);
+  updateMany(sanitizedIds);
   return res.redirect('/admin/users?success=Perfis dos usuários atualizados');
 });
 

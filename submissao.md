@@ -710,13 +710,20 @@ Observações operacionais:
 - Reescrita da página de presença por atividade com layout topbar/Inter, stats cards (presentes/ausentes/total), tabela com perfis no evento e role na atividade, e validação server-side dos papéis aceitos.
 - Correção de coluna ambígua na query de presença por atividade: alias `person_user_id` eliminou erro "ambiguous column name: user_id" causado pela junção de `event_registrations`, `event_user_roles` e `activity_attendance_records`.
 - Cadastro de formação acadêmica no formulário de usuário (`/admin/users/new` e `/admin/users/:id/edit`): campos Área de Formação, Curso, Titulação e Status populados a partir dos CSVs `assets/tabela_area.csv` e `assets/tabela_curso_graduacao.csv`, com persistência nas colunas `formacao_area`, `formacao_curso`, `formacao_titulacao` e `formacao_status` da tabela `users`.
+- Correção crítica: rotas `POST /consultar` e `POST /consultar-certificado` agora extraem corretamente `access_code` e `certificate_code` de `req.body`, eliminando `ReferenceError` que impedia o funcionamento das consultas.
+- Correção crítica: proteção CSRF agora cobre uploads multipart, aceitando o token por cookie `csrf_token` (enviado automaticamente pelo navegador) além do campo hidden `_csrf` e header `X-CSRF-Token`.
+- Correção crítica: IDs em `POST /admin/users/bulk-update-flags` são sanitizados com `parseInt()` e filtrados para inteiros positivos antes do `.bind() SQL, eliminando risco de injeção.
+- Correção crítica: mensagem de redirect em `POST /admin/users/:id/reset-password` não expõe mais a senha padrão na URL.
 
 ### Segurança reforçada (V0.1)
 
-- Proteção CSRF em todos os formulários POST: token gerado por sessão, validação `timingSafeEqual`, rejeição 403 para requisições sem token ou inválido. Injeção automática via partial `views/partials/csrf-inject.ejs`.
+- Proteção CSRF em todos os formulários POST e uploads multipart: token gerado por sessão, validação `timingSafeEqual`, rejeição 403 para requisições sem token ou inválido. O middleware aceita o token por header `X-CSRF-Token`, campo hidden `_csrf` no body ou cookie `csrf_token` (enviado automaticamente pelo navegador em uploads multipart, onde `req.body` ainda não existe). Injeção automática via partial `views/partials/csrf-inject.ejs`.
 - Rate limiting por rota: login (10/15min), cadastro/inscrição (5/hora), admin sensível (30/min), global (200/15min).
 - `express-validator` integrado nas rotas de login, troca de senha, cadastro público, revisão e decisão final, com mensagens de erro localizadas.
 - Hardened security: secret de sessão via `SESSION_SECRET` ou `crypto.randomBytes(32)`, cookie `secure` ativado em produção, CSP com `objectSrc: none`, `baseUri` e `formAction` restritos, `referrerPolicy` configurado, payload limit de 1 MB, `noCache` headers.
+- Sanitização de IDs numéricos: parâmetros de array em rotas de atualização em lote (ex: `bulk-update-flags`) passam por `parseInt()` e filtro para inteiros positivos antes do `.bind()` SQL, eliminando risco de injeção via valores não numéricos.
+- Mensagens de redirect seguras: senhas padrão não são expostas em parâmetros de URL (ex: reset de senha redireciona com mensagem genérica).
+- Consultas por código funcionais: rotas de consulta de artigo e certificado por código extraem corretamente os parâmetros de `req.body` antes do `.bind()` SQL.
 
 ### Parcial ou pendente de validação
 
