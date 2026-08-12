@@ -299,19 +299,49 @@ function mapArticleStatus(status) {
 }
 
 router.get('/', requireAuth, (req, res) => {
-  const users = db.prepare(`
+  const perPage = Math.min(parseInt(req.query.per_page) || 50, 200);
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const offset = (page - 1) * perPage;
+
+  const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+  const totalPending = db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
+  const totalPages = Math.max(1, Math.ceil((totalUsers - totalPending) / perPage));
+  const clampedPage = Math.min(page, totalPages);
+  const clampedOffset = (clampedPage - 1) * perPage;
+
+  const allPending = db.prepare(`
     SELECT id, name, email, cpf, passport, country, institution, phone,
            is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at,
            password_changed, profile_completed, created_at
     FROM users
-    ORDER BY CASE WHEN approval_status = 'pending' THEN 0 ELSE 1 END, name
+    WHERE approval_status = 'pending'
+    ORDER BY name
   `).all();
-  const pendingUsers = users.filter((user) => user.approval_status === 'pending');
-  const approvedUsers = users.filter((user) => user.approval_status !== 'pending');
+
+  const paginatedApproved = db.prepare(`
+    SELECT id, name, email, cpf, passport, country, institution, phone,
+           is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at,
+           password_changed, profile_completed, created_at
+    FROM users
+    WHERE approval_status != 'pending'
+    ORDER BY name
+    LIMIT ? OFFSET ?
+  `).bind(perPage, clampedOffset).all();
+
   const currentUser = db.prepare('SELECT id, name, email FROM users WHERE id = ?').bind(req.session.userId).get();
-  res.render('admin/users/list', { 
-    users, pendingUsers, approvedUsers, currentUser,
-    title: 'Usuários', 
+  res.render('admin/users/list', {
+    pendingUsers: allPending,
+    approvedUsers: paginatedApproved,
+    currentUser,
+    pagination: {
+      currentPage: clampedPage,
+      totalPages,
+      totalApproved: totalUsers - totalPending,
+      perPage,
+      hasNext: clampedPage < totalPages,
+      hasPrev: clampedPage > 1
+    },
+    title: 'Usuários',
     year: new Date().getFullYear(),
     success: req.query.success,
     error: req.query.error
@@ -911,7 +941,11 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
       const personKey = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Sem nome');
       const personEmail = email && email !== '[object Object]' ? email : '(não informado)';
 
-      if (!email || email === '[object Object]') {
+      const hasValidEmail = email && email !== '[object Object]' && email !== '' && email.includes('@');
+      if (!hasValidEmail && !cpf && !passport) {
+        if (!nameRaw && !institution && !phone && !cpf && !passport) {
+          continue;
+        }
         report.push({ name: personKey, email: personEmail, status: 'ignored', detail: 'Linha sem e-mail válido' });
         continue;
       }
@@ -945,7 +979,7 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
             cpf || null, passport || null, phone || null
           ).lastInsertRowid;
           imported += 1;
-          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado (ID: ' + userId + ')' });
+          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado' });
         } catch (dbErr) {
           console.error('[users-import] DB insert error for', email || cpf || passport, ':', dbErr.message);
           skipped += 1;

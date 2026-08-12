@@ -726,6 +726,10 @@ Observações operacionais:
 - Correção crítica: mensagem de redirect em `POST /admin/users/:id/reset-password` não expõe mais a senha padrão na URL.
 - Campos de formação acadêmica (Área, Curso, Titulação e Status) adicionados ao formulário de edição de participante, sincronizados com a conta vinculada do usuário.
 - Telefone do participante agora é buscado e salvo tanto na tabela `users` quanto em `event_registrations`, quando há conta vinculada.
+- Paginação na listagem de usuários (`/admin/users`): 50 por página (padrão), com opção de 25, 50, 100 ou 200 registros; controles no topo do card com contador, botões Anterior/Próxima, indicador de página e seletor de registros; a paginação só aparece quando o total excede o limite.
+- Relatório de importação com botão de ocultar/mostrar: na página de resultado (`/admin/users/import/result` e `/admin/events/:id/import-users-result`), botão "Ocultar relatório" / "Mostrar relatório" alterna a visibilidade da tabela detalhada, evitando páginas gigantes.
+- Mensagens de relatório de importação sem ID do usuário: "Usuário criado" e "Usuário criado e inscrito no evento" não expõem mais o número do ID.
+- Linhas brancas do CSV/XLSX ignoradas silenciosamente: linhas totalmente vazias (sem dados em nenhuma coluna) são puladas sem gerar entradas no relatório.
 - Refatoração completa da importação de participantes: parser CSV com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), detecção flexível de colunas (exact match first), mapeamento correto de colunas normalizadas para nomes originais.
 - Duas rotas de importação: `/admin/events/:id/import-users` cria usuários e inscreve no evento; `/admin/users/import` cria apenas usuários sem inscrição.
 - Páginas de resultado em URLs separadas das páginas de upload: POST redireciona para GET de resultado.

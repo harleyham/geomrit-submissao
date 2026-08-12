@@ -88,8 +88,8 @@
   </header>
 
   <main class="main-content">
-    <% const pendingList = typeof pendingUsers !== 'undefined' ? pendingUsers : users.filter(u => u.approval_status === 'pending'); %>
-    <% const approvedList = typeof approvedUsers !== 'undefined' ? approvedUsers : users.filter(u => u.approval_status !== 'pending'); %>
+    <% const pendingList = pendingUsers; %>
+    <% const approvedList = approvedUsers; %>
     <div class="page-header">
       <h1>Usuários</h1>
       <div style="display:flex;gap:0.5rem">
@@ -206,6 +206,26 @@
         Desativar a conta <strong>não remove</strong> automaticamente o papel de revisor.
         Um usuário com Revisor ligado e Conta ativa desligada será contado como <strong>revisor inativo</strong>.
       </div>
+      <% if (pagination && pagination.totalApproved > pagination.perPage) { %>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
+        <span style="color:#64748b;font-size:0.8125rem">Exibindo <%= ((pagination.currentPage - 1) * pagination.perPage) + 1 %>-<%= Math.min(pagination.currentPage * pagination.perPage, pagination.totalApproved) %> de <%= pagination.totalApproved %> usuário(s)</span>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <% if (pagination.hasPrev) { %>
+          <a href="/admin/users?page=<%= pagination.currentPage - 1 %>&per_page=<%= pagination.perPage %>" class="btn btn-ghost btn-sm" style="display:inline-block">← Anterior</a>
+          <% } %>
+          <span style="color:#94a3b8;font-size:0.8125rem;padding:0.25rem 0.5rem">Página <%= pagination.currentPage %> de <%= pagination.totalPages %></span>
+          <% if (pagination.hasNext) { %>
+          <a href="/admin/users?page=<%= pagination.currentPage + 1 %>&per_page=<%= pagination.perPage %>" class="btn btn-ghost btn-sm" style="display:inline-block">Próxima →</a>
+          <% } %>
+          <select onchange="window.location.href='/admin/users?page=1&amp;per_page='+this.value" style="background:rgba(15,23,42,0.5);color:#e2e8f0;border:1px solid rgba(148,163,184,0.2);border-radius:6px;padding:0.25rem 0.5rem;font-size:0.8125rem;font-family:'Inter',sans-serif">
+            <option value="25"<%= pagination.perPage === 25 ? ' selected' : ''%>>25 por página</option>
+            <option value="50"<%= pagination.perPage === 50 ? ' selected' : ''%>>50 por página</option>
+            <option value="100"<%= pagination.perPage === 100 ? ' selected' : ''%>>100 por página</option>
+            <option value="200"<%= pagination.perPage === 200 ? ' selected' : ''%>>200 por página</option>
+          </select>
+        </div>
+      </div>
+      <% } %>
       <table>
         <thead>
           <tr>

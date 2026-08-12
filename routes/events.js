@@ -849,7 +849,11 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
       const personKey = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Sem nome');
       const personEmail = email && email !== '[object Object]' ? email : '(não informado)';
 
-      if (!cpf && !passport && (!email || email === '[object Object]' || email === '')) {
+      const hasValidEmail = email && email !== '[object Object]' && email !== '' && email.includes('@');
+      if (!hasValidEmail && !cpf && !passport) {
+        if (!nameRaw && !institution && !phone && !cpf && !passport) {
+          continue;
+        }
         report.push({ name: personKey, email: personEmail, status: 'ignored', detail: 'Linha sem e-mail, CPF ou passaporte' });
         continue;
       }
@@ -898,7 +902,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
           insertRegistration.run(event.id, userId, nameToUse, email || null, institution || null, phone || null);
           imported += 1;
           registered += 1;
-          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado (ID: ' + userId + ') e inscrito no evento' });
+          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado e inscrito no evento' });
         } catch (dbErr) {
           console.error('[import-users] DB insert error for', email || cpf || passport, ':', dbErr.message);
           skipped += 1;

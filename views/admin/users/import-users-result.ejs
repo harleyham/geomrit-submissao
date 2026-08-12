@@ -33,8 +33,11 @@
 
     <% if (report && report.length) { %>
     <div class="card">
-      <h2>Relatório detalhado (<%= report.length %> registro(s))</h2>
-      <table>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">
+        <h2 style="margin:0">Relatório detalhado (<%= report.length %> registro(s))</h2>
+        <button type="button" id="toggleReport" class="btn-secondary" onclick="document.getElementById('reportTable').style.display=document.getElementById('reportTable').style.display==='none'?'block':'none';this.textContent=this.textContent.includes('Mostrar')?'Ocultar relatório':'Mostrar relatório';">Ocultar relatório</button>
+      </div>
+      <table id="reportTable">
         <thead><tr><th class="th">Nome</th><th class="th">E-mail</th><th class="th">Status</th><th class="th">Detalhe</th></tr></thead>
         <tbody>
           <% report.forEach((item) => { %>

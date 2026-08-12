@@ -6,6 +6,45 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-12
 
+### Correções na importação de participantes — relatório e listagem de usuários
+
+#### Mensagens de relatório sem ID do usuário
+
+- As mensagens do relatório de importação ("Usuário criado", "Usuário criado e inscrito no evento") passaram a excluir o número do ID do usuário, que antes aparecia como "Usuário criado (ID: N)".
+- Arquivos afetados: `routes/users.js` (linha 952), `routes/events.js` (linha 905).
+- Status: **corrigido e validado**.
+
+#### Botão de ocultar/mostrar relatório detalhado na importação
+
+- Adicionado botão "Ocultar relatório" / "Mostrar relatório" na página de resultado da importação (`/admin/users/import/result` e `/admin/events/:id/import-users-result`).
+- O botão alterna a visibilidade da tabela com JavaScript inline (`display: none/block`), evitando páginas gigantes quando o CSV possui centenas de linhas.
+- O botão aparece no cabeçalho do card "Relatório detalhado", ao lado do título e da contagem de registros.
+- Arquivos afetados: `views/admin/users/import-users-result.ejs`, `views/admin/events/import-users-result.ejs`.
+- Status: **implementado e validado**.
+
+#### Linhas brancas do CSV ignoradas silenciosamente
+
+- Linhas totalmente vazias (sem nome, e-mail, instituição, telefone, CPF ou passaporte) são agora puladas silenciosamente, sem gerar entradas "Sem nome / (não informado) / Ignorado" no relatório.
+- Linhas com dados parciais continuam aparecendo no relatório com status "Ignorado" e justificativa.
+- Arquivos afetados: `routes/users.js`, `routes/events.js` (lógica de validação dentro do loop de processamento).
+- Status: **implementado e validado**.
+
+#### Paginação na listagem de usuários (`/admin/users`)
+
+- Adicionada paginação aos usuários aprovados: 50 por página (padrão), com opção de 25, 50, 100 ou 200 registros.
+- Usuários pendentes de aprovação continuam sem paginação (tipicamente poucos registros).
+- Controles de paginação no topo do card "Gerenciar Usuários": contador "Exibindo X-Y de Z usuário(s)", botão "← Anterior", indicador "Página X de Y", botão "Próxima →" e seletor de registros por página.
+- A paginação só aparece quando o total de usuários aprovados excede o limite configurado por página.
+- Backend: query SQL com `LIMIT ? OFFSET ?` e contagem separada de pendentes vs. aprovados.
+- Arquivos afetados: `routes/users.js` (rota `GET /`), `views/admin/users/list.ejs`.
+- Status: **implementado e validado**.
+
+#### Correção: seletor de registros por página
+
+- O seletor de "por página" usava `&` no `onchange` do `<select>`, que foi interpretado como caractere especial HTML em vez de parâmetro de query. Corrigido para `&amp;`, garantindo que a URL gerada inclua corretamente `?page=1&per_page=N`.
+- Arquivo afetado: `views/admin/users/list.ejs`.
+- Status: **corrigido e validado**.
+
 ### Refatoração completa da importação de participantes
 
 - **Parser CSV com auto-detecção de delimitador:** função `detectDelimiter` conta `;` vs `,` na primeira linha e usa o mais frequente, resolvendo problema com exports que usam ponto-e-vírgula (padrão brasileiro).
@@ -620,14 +659,10 @@ Versão atual registrada: **V0.1**.
 - Validar a importação de participantes com variações adicionais de planilhas exportadas.
 - Deve haver distinção entre Participantes Presenciais / Remotos?
 - A Presença de cursos com várias aulas deve ser por aula, a fim de se poder exigir participação mínima em cada uma?
-- Em http://127.0.0.1:3000/admin/users/import, se houverem muitos nomes no CSV pode ser que o relatório na página fique gigante. Como é que fica a paginação? E dentro do card ou na página toda? Deve então ter uma opção de mostrar ou não o resultado individualizado da importação. O mesmo vale para a página http://127.0.0.1:3000/admin/users
 - Internacionalização
 - Mandar emails
-- Deve haver distinção entre Participantes Presenciais / Remotos ?
-- A Presença de cursos com várias aulas deve ser por aula, a fim de se poder exigir participação mínima em cada uma ?
-- Em http://127.0.0.1:3000/admin/users/import, se houverem muitos nomes no CSV pode ser que o relatório na página fique gigante. Como é que fica a paginação ? E dentro do card ou na página toda ? Deve então ter uma opção de mostrar ou não o resultado individualizado da importação. O mesmo vale para a página http://127.0.0.1:3000/admin/users
-- Internacionalização
-- Mandar emails
+- Testar paginação dos usuários (a mudança de número de registros por página não está funcionando)
+
 
 
 
