@@ -4,9 +4,21 @@ const path = require('path');
 const fs = require('fs');
 const { db } = require('../db');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const xlsx = require('xlsx');
 const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
 const { strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
+
+const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
+if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: true });
+const importUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, importUploadDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname}`)
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
 
 function parseCsvFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
@@ -54,6 +66,68 @@ function parseCsvFile(filePath) {
     });
     return obj;
   });
+}
+
+function parseImportCsvContent(content) {
+  const semiCount = (content.split('\n')[0].match(/;/g) || []).length;
+  const commaCount = (content.split('\n')[0].match(/,/g) || []).length;
+  const delimiter = semiCount > commaCount ? ';' : ',';
+
+  const headers = [];
+  const rows = [];
+  let pos = 0;
+  const len = content.length;
+
+  const skipLineEnding = () => {
+    if (pos >= len) return;
+    const ch = content[pos];
+    if (ch === '\r' || ch === '\n') {
+      if (ch === '\r' && pos + 1 < len && content[pos + 1] === '\n') pos++;
+      else pos++;
+    }
+  };
+
+  const readField = () => {
+    let field = '';
+    let inQuotes = false;
+    while (pos < len) {
+      const ch = content[pos];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (pos + 1 < len && content[pos + 1] === '"') { field += '"'; pos += 2; }
+          else { inQuotes = false; pos++; }
+        } else { field += ch; pos++; }
+      } else {
+        if (ch === '"') { inQuotes = true; pos++; }
+        else if (ch === delimiter) { return field; }
+        else if (ch === '\r' || ch === '\n') { return field; }
+        else { field += ch; pos++; }
+      }
+    }
+    return field;
+  };
+
+  const readLine = () => {
+    if (pos >= len) return null;
+    const line = [readField()];
+    while (pos < len && content[pos] === delimiter) { pos++; line.push(readField()); }
+    skipLineEnding();
+    if (line.every((f) => f.trim() === '')) return null;
+    return line;
+  };
+
+  const headerLine = readLine();
+  if (!headerLine) return { headers: [], rows: [] };
+  for (const h of headerLine) headers.push(h.replace(/^\uFEFF/, '').trim());
+
+  let line;
+  while ((line = readLine()) !== null) {
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (idx < line.length ? line[idx] : '').trim(); });
+    if (Object.values(obj).some((v) => v !== '')) rows.push(obj);
+  }
+
+  return { headers, rows };
 }
 
 const areasPath = path.join(__dirname, '..', 'assets', 'tabela_area.csv');
@@ -737,6 +811,199 @@ router.post('/:id/approve', requireAuth, (req, res) => {
   `).bind(req.session.userId, id).run();
 
   return res.redirect('/admin/users?success=Cadastro aprovado com sucesso');
+});
+
+router.get('/import', requireAuth, (req, res) => {
+  res.render('admin/users/import-users', {
+    title: 'Importar Usuários',
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+});
+
+router.post('/import', requireAuth, strictLimiter, importUpload.single('import_file'), (req, res) => {
+  if (!req.file || !req.file.path) {
+    return res.redirect('/admin/users/import?error=' + encodeURIComponent('Selecione um arquivo XLSX, XLS ou CSV com a lista de participantes.'));
+  }
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  let rows;
+
+  try {
+    if (ext === '.csv') {
+      const fileContent = fs.readFileSync(req.file.path, 'utf8').replace(/^\uFEFF/, '');
+      const parsed = parseImportCsvContent(fileContent);
+      if (parsed.headers.length < 1 || parsed.rows.length < 1) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        return res.redirect('/admin/users/import?error=' + encodeURIComponent('O arquivo está vazio ou não possui dados.'));
+      }
+      rows = parsed.rows;
+    } else {
+      const workbook = xlsx.readFile(req.file.path, { type: 'buffer', cellDates: true });
+      rows = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+    }
+  } catch (error) {
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect('/admin/users/import?error=' + encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX, XLS ou CSV válida.'));
+  }
+
+  if (!rows || !rows.length) {
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect('/admin/users/import?error=' + encodeURIComponent('O arquivo está vazio ou não possui dados.'));
+  }
+
+  const rawHeaders = Object.keys(rows[0]).map((h) => h.replace(/^\uFEFF/, ''));
+  const normalize = (s) => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[-_]/g, '').replace(/\s+/g, '');
+  const headers = rawHeaders.map(normalize);
+
+  const findCol = (candidates) => {
+    for (const c of candidates) { const exact = headers.find((h) => h === c); if (exact) return exact; }
+    for (const c of candidates) { const contained = headers.find((h) => h.includes(c)); if (contained) return contained; }
+    return undefined;
+  };
+
+  const colName = findCol(['nomecompleto', 'fullname', 'nomeparticipante', 'nome', 'participantname']);
+  const colEmail = findCol(['email', 'mail', 'correoeletronico', 'emaildoparticipante']);
+  const colInstitution = findCol(['instituicao', 'instituicaodoparticipante', 'organizacao', 'orgao', 'affiliation', 'instituicaodetrabalho']);
+  const colPhone = findCol(['telefone', 'tel', 'phone', 'celular', 'whatsapp', 'numerodetelefone', 'telefonecelular']);
+  const colCpf = findCol(['cpf']);
+  const colPassport = findCol(['passaporte', 'passport']);
+
+  const normalizedToRaw = {};
+  headers.forEach((h, i) => { normalizedToRaw[h] = rawHeaders[i]; });
+  const toRaw = (normalized) => normalized ? (normalizedToRaw[normalized] || normalized) : undefined;
+  const rawName = toRaw(colName);
+  const rawEmail = toRaw(colEmail);
+  const rawInstitution = toRaw(colInstitution);
+  const rawPhone = toRaw(colPhone);
+  const rawCpf = toRaw(colCpf);
+  const rawPassport = toRaw(colPassport);
+
+  if (!rawEmail) {
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect('/admin/users/import?error=' + encodeURIComponent('Coluna de e-mail não encontrada. O arquivo precisa conter uma coluna com "email" ou "e-mail".'));
+  }
+
+  const insertUser = db.prepare(`
+    INSERT INTO users (name, email, password, institution, cpf, passport, phone, is_public, approval_status, approved_at, password_changed, profile_completed, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now','-3 hours'), 0, 0, datetime('now','-3 hours'), datetime('now','-3 hours'))
+  `);
+  const updateUser = db.prepare('UPDATE users SET name=COALESCE(?, name), institution=COALESCE(?, institution), phone=COALESCE(?, phone), email=COALESCE(?, email), cpf=COALESCE(?, cpf), passport=COALESCE(?, passport) WHERE id=?');
+  const findUserByCpf = db.prepare("SELECT id, name, email, cpf FROM users WHERE cpf IS NOT NULL AND cpf != ''");
+  const findUserByPassport = db.prepare("SELECT id, name, email, passport FROM users WHERE passport IS NOT NULL AND passport != ''");
+  const findUserByEmail = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?");
+
+  const defaultPassword = bcrypt.hashSync('import-2027', 10);
+  let imported = 0;
+  let skipped = 0;
+  let updated = 0;
+  const report = [];
+
+  const dbTx = db.transaction(() => {
+    for (const row of rows) {
+      const cpf = rawCpf ? String(row[rawCpf] || '').trim() : '';
+      const passport = rawPassport ? String(row[rawPassport] || '').trim() : '';
+      const email = String(row[rawEmail] || '').trim().toLowerCase();
+      const nameRaw = rawName ? String(row[rawName] || '').trim() : '';
+      const institution = rawInstitution ? String(row[rawInstitution] || '').trim() : '';
+      const phone = rawPhone ? String(row[rawPhone] || '').trim() : '';
+
+      const personKey = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Sem nome');
+      const personEmail = email && email !== '[object Object]' ? email : '(não informado)';
+
+      if (!email || email === '[object Object]') {
+        report.push({ name: personKey, email: personEmail, status: 'ignored', detail: 'Linha sem e-mail válido' });
+        continue;
+      }
+
+      let existing = null;
+      if (cpf && cpf.length >= 11) existing = findUserByCpf.get(cpf.replace(/\D/g, ''));
+      if (!existing && passport) existing = findUserByPassport.get(passport.replace(/\s+/g, ''));
+      if (!existing) existing = findUserByEmail.get(email);
+
+      const nameToUse = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email.split('@')[0] || 'Importado');
+
+      if (existing) {
+        const hasChanges = (nameRaw && nameRaw !== existing.name) || (institution && institution !== existing.institution) || (phone && phone !== existing.phone) || (email && email !== existing.email);
+        if (hasChanges) {
+          try {
+            updateUser.run(nameRaw || null, institution || null, phone || null, email || null, cpf || null, passport || null, existing.id);
+            updated += 1;
+            report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'Usuário existente — dados atualizados' });
+          } catch (dbErr) {
+            console.error('[users-import] DB update error for', email || cpf || passport, ':', dbErr.message);
+            report.push({ name: existing.name, email: personEmail, status: 'error', detail: 'Erro ao atualizar: ' + dbErr.message });
+          }
+        } else {
+          report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'Usuário existente — sem alterações' });
+        }
+        skipped += 1;
+      } else {
+        try {
+          const userId = insertUser.run(
+            nameToUse, email || null, defaultPassword, institution || null,
+            cpf || null, passport || null, phone || null
+          ).lastInsertRowid;
+          imported += 1;
+          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado (ID: ' + userId + ')' });
+        } catch (dbErr) {
+          console.error('[users-import] DB insert error for', email || cpf || passport, ':', dbErr.message);
+          skipped += 1;
+          report.push({ name: nameToUse, email: personEmail, status: 'error', detail: 'Erro ao criar: ' + dbErr.message });
+        }
+      }
+    }
+  });
+
+  try {
+    dbTx();
+  } catch (dbErr) {
+    console.error('[users-import] Transaction error:', dbErr.message);
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.redirect('/admin/users/import?error=' + encodeURIComponent('Erro ao salvar no banco de dados: ' + dbErr.message));
+  }
+
+  try { fs.unlinkSync(req.file.path); } catch (_) {}
+
+  const errors = report.filter(r => r.status === 'error').length;
+  const successes = report.filter(r => r.status === 'success').length;
+
+  req.session.importResult = {
+    imported, skipped, updated, errors, successes, report, success: report.length > 0
+  };
+  return res.redirect('/admin/users/import/result');
+});
+
+router.get('/import/download-csv', requireAuth, (req, res) => {
+  const data = req.session.importResult;
+  if (!data || !data.report || !data.report.length) {
+    return res.status(400).send('Nenhum relatório disponível.');
+  }
+  var lines = ['Nome;E-mail;Status;Detalhe'];
+  data.report.forEach(function(r) {
+    var esc = function(v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; };
+    lines.push(esc(r.name) + ';' + esc(r.email) + ';' + r.status + ';' + esc(r.detail));
+  });
+  var csv = '\uFEFF' + lines.join('\r\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="relatorio-importacao-usuarios-' + new Date().toISOString().slice(0,10) + '.csv"');
+  res.end(csv);
+});
+
+router.get('/import/result', requireAuth, (req, res) => {
+  const data = req.session.importResult;
+  if (!data) return res.redirect('/admin/users/import');
+  res.render('admin/users/import-users-result', {
+    title: 'Resultado da Importação',
+    ...data
+  });
+});
+
+router.get('/import-template', requireAuth, (req, res) => {
+  const template = 'Nome completo;E-mail;Instituição;Telefone;CPF;Passaporte';
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="modelo-importacao.csv"');
+  res.end('\uFEFF' + template);
 });
 
 module.exports = router;

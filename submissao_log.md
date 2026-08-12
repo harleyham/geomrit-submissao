@@ -4,7 +4,40 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-12
+
+### Refatoração completa da importação de participantes
+
+- **Parser CSV com auto-detecção de delimitador:** função `detectDelimiter` conta `;` vs `,` na primeira linha e usa o mais frequente, resolvendo problema com exports que usam ponto-e-vírgula (padrão brasileiro).
+- **Correção crítica:** mapeamento de colunas normalizadas para nomes originais. `findCol` retornava nome normalizado (ex: `email`), mas `row` é indexado pelo nome original (ex: `E-mail`). Adicionado dicionário `normalizedToRaw` para converter.
+- **Detecção de colunas mais robusta:** `findCol` agora tenta correspondência exata antes de substring, evitando falsos positivos. Candidatos expandidos para cobrir variações: `nomeparticipante`, `nomedoparticipante`, `correoeletronico`, `instituicaodetrabalho`, `celular`, `whatsapp`, `mobilephone`, etc.
+- **Duas rotas de importação distintas:**
+  - `/admin/events/:id/import-users` — cria/atualiza usuários **E inscreve no evento** como participante (listener)
+  - `/admin/users/import` — cria/atualiza **apenas usuários** (sem inscrição em evento)
+- **Relatório pessoa por pessoa:** ambas as importações agora geram tabela detalhada com Nome, E-mail, Status (Sucesso/Falha/Ignorado) e Detalhe explicativo.
+- **Download do relatório em CSV via backend:** rotas `GET /admin/users/import/download-csv` e `GET /admin/events/:id/import-download-csv` geram arquivo CSV com BOM UTF-8, separador ponto-e-vírgula e filename com data. Dados mantidos na sessão para acesso após visualização do resultado.
+- **Páginas de resultado em URLs separadas:** POST de importação redireciona para GET de resultado, separando URL de upload (`/import`) de URL de resultado (`/import-result` ou `/import/result`).
+- **Modelo CSV para download:** rotas `GET /:id/import-template` (evento) e `GET /import-template` (usuários) geram arquivo vazio com cabeçalho pré-preenchido: `Nome completo;E-mail;Instituição;Telefone;CPF;Passaporte`.
+- **Removidas referências ao Even3:** textos, mensagens de erro e templates atualizados para serem genéricos. Senha padrão alterada de `even3-import-2027` para `import-2027`.
+- **Inscrição automática no evento:** importação via evento registra automaticamente em `event_registrations` (INSERT OR IGNORE). Usuários existentes são verificados para inscrição, novos usuários são criados e inscritos na mesma transação.
+- **Botão "Importar lista":** adicionado em `/admin/users` (ao lado de "+ Novo Usuário") e em `/admin/events/:id/participants`.
+- **Removidos logs de debug:** `console.log` de depuração removidos das rotas de importação em `routes/events.js`, mantendo apenas `console.error` para erros reais.
+- **Uniformização de estilos de botões:** classes `.btn-primary` e `.btn-secondary` unificadas nas páginas de resultado com mesmas propriedades base (padding, border-radius, font-size, cursor, font-family, line-height), garantindo aparência idêntica entre `<a>` e `<button>`.
+- Arquivos afetados: `routes/events.js` (parser CSV, rotas de importação, download CSV, templates), `routes/users.js` (nova função `parseImportCsvContent`, rotas de importação, download CSV), `views/admin/events/import-users.ejs`, `views/admin/events/import-users-result.ejs`, `views/admin/users/import-users.ejs`, `views/admin/users/import-users-result.ejs`, `views/admin/users/list.ejs`, `views/admin/events/participants.ejs`.
+- Status: **implementado e validado**.
+
 ## 2026-08-11
+
+### Formação acadêmica no formulário de edição do participante
+
+- Adicionada a seção "Formação acadêmica" ao formulário de edição de participante (`/admin/events/:id/participants/:registrationId/edit`).
+- A seção exibe os campos Área de Formação, Curso, Titulação e Status, carregados da conta vinculada do usuário (tabela `users`).
+- O select de Curso é populado dinamicamente via JavaScript conforme a Área de Formação selecionada, utilizando os mesmos CSVs de referência (`assets/tabela_area.csv` e `assets/tabela_curso_graduacao.csv`).
+- Ao salvar, os dados acadêmicos são persistidos na tabela `users` quando há conta vinculada (`user_id` não nulo).
+- O telefone do participante agora é buscado da tabela `users` (`u.phone as user_phone`) e exibido no formulário; ao salvar, o telefone é atualizado simultaneamente nas tabelas `event_registrations` e `users`.
+- Importação das funções `getAreas` e `getCursosByArea` adicionada a `routes/events.js` via `services/academic-formation.js`.
+- Arquivos afetados: `routes/events.js` (importação, query, rota de edição, função de atualização, função de erro), `views/admin/events/participant-form.ejs` (nova seção de formação + script de cursos dinâmicos).
+- Status: **implementado e validado**.
 
 ### Correções críticas de segurança e bugs
 
@@ -584,7 +617,22 @@ Versão atual registrada: **V0.1**.
 
 ### Minhas observações do a fazer
 
-- Validar a importação de participantes com variações adicionais de planilhas exportadas pelo Even3.
-- [Concluído em 10/08/2026] Pedir ao novo usuário, no primeiro acesso, que complete os campos de perfil após trocar a senha.
-- [Concluído em 10/08/2026] Corrigir a persistência do campo "Curso" na criação e edição de usuários.
+- Validar a importação de participantes com variações adicionais de planilhas exportadas.
+- Deve haver distinção entre Participantes Presenciais / Remotos?
+- A Presença de cursos com várias aulas deve ser por aula, a fim de se poder exigir participação mínima em cada uma?
+- Em http://127.0.0.1:3000/admin/users/import, se houverem muitos nomes no CSV pode ser que o relatório na página fique gigante. Como é que fica a paginação? E dentro do card ou na página toda? Deve então ter uma opção de mostrar ou não o resultado individualizado da importação. O mesmo vale para a página http://127.0.0.1:3000/admin/users
+- Internacionalização
+- Mandar emails
+- Deve haver distinção entre Participantes Presenciais / Remotos ?
+- A Presença de cursos com várias aulas deve ser por aula, a fim de se poder exigir participação mínima em cada uma ?
+- Em http://127.0.0.1:3000/admin/users/import, se houverem muitos nomes no CSV pode ser que o relatório na página fique gigante. Como é que fica a paginação ? E dentro do card ou na página toda ? Deve então ter uma opção de mostrar ou não o resultado individualizado da importação. O mesmo vale para a página http://127.0.0.1:3000/admin/users
+- Internacionalização
+- Mandar emails
+
+
+
+
+ 
+
+
 

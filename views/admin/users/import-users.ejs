@@ -12,8 +12,8 @@
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
       <nav class="topbar-nav">
         <a href="/admin">Dashboard</a>
-        <a href="/admin/events" class="active">Eventos</a>
-        <a href="/admin/users">Usuários</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/users" class="active">Usuários</a>
         <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
         <form method="POST" action="/admin/logout" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-logout">Sair</button></form>
       </nav>
@@ -21,7 +21,7 @@
   </header>
   <main class="main-content">
     <h1 style="font-size:1.75rem;font-weight:700;color:#f8fafc;margin-bottom:0.25rem">Importar Usuários</h1>
-    <p style="color:#94a3b8;margin-bottom:1.5rem">Importe usuários a partir de uma lista em formato CSV ou XLSX. O CPF é usado como chave principal; se não houver CPF, o passaporte é usado; caso nenhum dos dois exista, o e-mail é utilizado como chave. Informações complementares serão atualizadas se diferirem dos dados atuais.</p>
+    <p style="color:#94a3b8;margin-bottom:1.5rem">Importe usuários a partir de uma lista em formato CSV ou XLSX. Apenas os usuários serão criados; nenhuma inscrição em evento será realizada. O CPF é usado como chave principal; se não houver CPF, o passaporte é usado; caso nenhum dos dois exista, o e-mail é utilizado como chave.</p>
 
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
@@ -35,13 +35,13 @@
         <li>Os campos <strong>Nome completo</strong>, <strong>Instituição</strong>, <strong>Telefone</strong>, <strong>CPF</strong> e <strong>Passaporte</strong> são opcionais.</li>
         <li>Exemplo de cabeçalho: <code>Nome completo;E-mail;Instituição;Telefone;CPF;Passaporte</code></li>
       </ol>
-      <p style="margin-top:1rem"><a href="/admin/events/<%= event.id %>/import-template" class="btn-outline" download>Baixar modelo CSV vazio</a></p>
+      <p style="margin-top:1rem"><a href="/admin/users/import-template" class="btn-outline" download>Baixar modelo CSV vazio</a></p>
     </div>
 
     <div class="card">
       <h2>Upload da lista</h2>
       <p class="hint" style="margin-bottom:1rem">O sistema procura automaticamente as colunas <strong>Nome</strong>, <strong>E-mail</strong>, <strong>Organização/Instituição</strong>, <strong>Telefone</strong> e <strong>CPF</strong>. Apenas o e-mail é obrigatório; sem ele, a linha é ignorada.</p>
-      <form method="POST" enctype="multipart/form-data" action="/admin/events/<%= event.id %>/import-users" id="import-form">
+      <form method="POST" enctype="multipart/form-data" action="/admin/users/import" id="import-form">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="drop-zone" id="drop-zone">
           <div class="drop-zone-icon">📄</div>
@@ -60,8 +60,11 @@
         <li><strong>Cria novo usuário</strong> — quando CPF, passaporte e e-mail não existem no sistema, um usuário é criado com a informação disponível e uma senha temporária.</li>
         <li><strong>Atualiza dados complementares</strong> — quando CPF (ou passaporte, ou e-mail) já existe, nome, instituição, telefone e e-mail são atualizados se diferirem dos dados atuais.</li>
         <li><strong>Ignora duplicatas</strong> — linhas sem CPF, passaporte e e-mail são ignoradas.</li>
+        <li><strong>Não inscreve em evento</strong> — a importação nesta página cria apenas usuários. Para inscrever participantes em um evento, use a importação na página do evento.</li>
       </ul>
     </div>
+
+    <div style="margin-top:1.5rem"><a href="/admin/users" class="btn-secondary">Voltar aos usuários</a></div>
   </main>
   <%- include("../../partials/csrf-inject") %>
   <script>

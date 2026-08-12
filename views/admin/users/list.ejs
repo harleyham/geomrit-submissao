@@ -92,7 +92,10 @@
     <% const approvedList = typeof approvedUsers !== 'undefined' ? approvedUsers : users.filter(u => u.approval_status !== 'pending'); %>
     <div class="page-header">
       <h1>Usuários</h1>
-      <a href="/admin/users/new" class="btn btn-primary">+ Novo Usuário</a>
+      <div style="display:flex;gap:0.5rem">
+        <a href="/admin/users/new" class="btn btn-primary">+ Novo Usuário</a>
+        <a href="/admin/users/import" class="btn btn-primary" style="background:#059669">Importar lista</a>
+      </div>
     </div>
 
     <% if (typeof success !== 'undefined' && success) { %>

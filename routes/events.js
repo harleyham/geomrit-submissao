@@ -9,6 +9,7 @@ const xlsx = require('xlsx');
 const { ZipArchive } = require('archiver');
 const { db, recordParticipantAudit } = require('../db');
 const { renderCertificatePdf, getBackgroundPath } = require('../services/certificates');
+const { getAreas, getCursosByArea } = require('../services/academic-formation');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
 
@@ -27,11 +28,20 @@ function roleLabel(role) {
   return meta ? meta.label : role;
 }
 
-function parseCsvContent(content) {
+function detectDelimiter(firstLine) {
+  const semiCount = (firstLine.match(/;/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  if (semiCount > commaCount) return ';';
+  return ',';
+}
+
+function parseCsvContent(content, delimiter) {
   const headers = [];
   const rows = [];
   let pos = 0;
   const len = content.length;
+
+  const detectedDelimiter = delimiter || detectDelimiter(content.split('\n')[0].split('\r')[0]);
 
   const skipLineEnding = () => {
     if (pos >= len) return;
@@ -64,7 +74,7 @@ function parseCsvContent(content) {
         if (ch === '"') {
           inQuotes = true;
           pos++;
-        } else if (ch === ',') {
+        } else if (ch === detectedDelimiter) {
           return field;
         } else if (ch === '\r' || ch === '\n') {
           return field;
@@ -81,7 +91,7 @@ function parseCsvContent(content) {
     if (pos >= len) return null;
     const line = [];
     line.push(readField());
-    while (pos < len && content[pos] === ',') {
+    while (pos < len && content[pos] === detectedDelimiter) {
       pos++;
       line.push(readField());
     }
@@ -435,22 +445,27 @@ function getParticipantRegistrationForEvent(eventId, registrationId) {
       er.*,
       u.name as linked_user_name,
       u.email as linked_user_email,
+      u.phone as user_phone,
+      u.formacao_area as user_formacao_area,
+      u.formacao_curso as user_formacao_curso,
+      u.formacao_titulacao as user_formacao_titulacao,
+      u.formacao_status as user_formacao_status,
       COALESCE(sa.submitted_count, 0) as submitted_articles,
       COALESCE(aa.approved_count, 0) as approved_articles
     FROM event_registrations er
     LEFT JOIN users u ON u.id = er.user_id
     LEFT JOIN approved_articles aa
       ON aa.event_id = er.event_id
-     AND aa.participant_key = CASE
-       WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
-       ELSE 'email:' || LOWER(TRIM(er.email))
-     END
+      AND aa.participant_key = CASE
+        WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
+        ELSE 'email:' || LOWER(TRIM(er.email))
+      END
     LEFT JOIN submitted_articles sa
       ON sa.event_id = er.event_id
-     AND sa.participant_key = CASE
-       WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
-       ELSE 'email:' || LOWER(TRIM(er.email))
-     END
+      AND sa.participant_key = CASE
+        WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
+        ELSE 'email:' || LOWER(TRIM(er.email))
+      END
     WHERE er.event_id = ?
       AND er.id = ?
   `).bind(eventId, registrationId).get();
@@ -693,6 +708,15 @@ router.get('/:id/participants', (req, res) => {
   });
 });
 
+router.get('/:id/import-template', (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const template = 'Nome completo;E-mail;Instituição;Telefone;CPF;Passaporte';
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="modelo-importacao.csv"');
+  res.end('\uFEFF' + template);
+});
+
 router.get('/:id/import-users', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -709,12 +733,8 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
   if (!req.file || !req.file.path) {
-    console.log('[import-users] No file received. req.file:', req.file);
-    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Selecione um arquivo XLSX, XLS ou CSV exportado pelo Even3.')}`);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Selecione um arquivo XLSX, XLS ou CSV com a lista de participantes.')}`);
   }
-
-  console.log('[import-users] File received:', req.file.originalname, '->', req.file.path);
-  console.log('[import-users] File exists:', fs.existsSync(req.file.path));
 
   const ext = path.extname(req.file.originalname).toLowerCase();
   let rows;
@@ -728,20 +748,17 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
         return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('O arquivo está vazio ou não possui dados.')}`);
       }
       rows = parsed.rows;
-      console.log('[import-users] CSV lines parsed (headers:', parsed.headers.length, 'rows:', rows.length, ')');
-      console.log('[import-users] raw CSV headers (first 5):', parsed.headers.slice(0, 5));
     } else {
       const readOpts = { type: 'buffer', cellDates: true };
       const workbook = xlsx.readFile(req.file.path, readOpts);
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
-      console.log('[import-users] XLSX rows:', rows.length);
     }
   } catch (error) {
     console.error('[import-users] Read error:', error.message);
     try { fs.unlinkSync(req.file.path); } catch (_) {}
-    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX, XLS ou CSV exportada pelo Even3.')}`);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX, XLS ou CSV válida.')}`);
   }
 
   if (!rows || !rows.length) {
@@ -750,39 +767,43 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
   }
 
   const rawHeaders = Object.keys(rows[0]).map((h) => h.replace(/^\uFEFF/, ''));
-  const normalize = (s) => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/-/g, '').replace(/\s+/g, '');
+  const normalize = (s) => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[-_]/g, '').replace(/\s+/g, '');
   const headers = rawHeaders.map(normalize);
-  const findCol = (candidates) => headers.find((h) => candidates.some((c) => h.includes(c)));
 
-  const colName = findCol(['nomecompleto', 'fullname', 'nome']);
-  const colEmail = findCol(['email', 'mail']);
-  const colInstitution = findCol(['instituicao', 'organizacao', 'orgao']);
-  const colPhone = findCol(['telefone', 'tel', 'phone']);
-  const colCpf = findCol(['cpf']);
-  const colPassport = findCol(['passaporte', 'passport']);
-
-  const debugInfo = {
-    rawHeaders,
-    normalizedHeaders: headers,
-    colName, colEmail, colInstitution, colPhone, colCpf, colPassport,
-    firstRow: rows[0],
-    totalRows: rows.length
+  const findCol = (candidates, rawHeadersOnly) => {
+    for (const c of candidates) {
+      const exact = headers.find((h) => h === c);
+      if (exact) return exact;
+    }
+    for (const c of candidates) {
+      const contained = headers.find((h) => h.includes(c));
+      if (contained) return contained;
+    }
+    if (rawHeadersOnly) {
+      for (const c of candidates) {
+        const rawMatch = rawHeaders.find((h) => h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(c));
+        if (rawMatch) return rawMatch;
+      }
+    }
+    return undefined;
   };
 
-  console.log('[import-users] rawHeaders:', rawHeaders);
-  console.log('[import-users] normalizedHeaders:', headers);
-  console.log('[import-users] detected columns:', JSON.stringify({ colName, colEmail, colInstitution, colPhone, colCpf, colPassport }));
-  if (rows.length > 0) {
-    console.log('[import-users] first row sample:', JSON.stringify(rows[0]).substring(0, 500));
-    console.log('[import-users] first row resolved:', JSON.stringify({
-      name: rows[0][colName || '_'],
-      email: rows[0][colEmail || '_'],
-      institution: rows[0][colInstitution || '_'],
-      cpf: rows[0][colCpf || '_'],
-      passport: rows[0][colPassport || '_']
-    }));
-  }
-  console.log('[import-users] total rows:', rows.length);
+  const colName = findCol(['nomecompleto', 'fullname', 'nomeparticipante', 'nome', 'nomedoparticipante', 'participantname', 'participant'], false) || findCol(['nome'], true);
+  const colEmail = findCol(['email', 'e-mail', 'mail', 'correoeletronico', 'emaildo participante', 'emaildoparticipante']);
+  const colInstitution = findCol(['instituicao', 'instituicaodo participante', 'instituicaodoparticipante', 'organizacao', 'orgao', 'affiliation', 'instituicaodedocumento', 'instituicaodetrabalho']);
+  const colPhone = findCol(['telefone', 'tel', 'phone', 'celular', 'whatsapp', 'numerodetelefone', 'telefonecelular', 'fixedphone', 'mobilephone']);
+  const colCpf = findCol(['cpf', 'cpfdobr', 'cpfdobrigado']);
+  const colPassport = findCol(['passaporte', 'passport']);
+
+  const normalizedToRaw = {};
+  headers.forEach((h, i) => { normalizedToRaw[h] = rawHeaders[i]; });
+  const toRaw = (normalized) => normalized ? (normalizedToRaw[normalized] || normalized) : undefined;
+  const rawName = toRaw(colName);
+  const rawEmail = toRaw(colEmail);
+  const rawInstitution = toRaw(colInstitution);
+  const rawPhone = toRaw(colPhone);
+  const rawCpf = toRaw(colCpf);
+   const rawPassport = toRaw(colPassport);
 
   if (!colEmail && !colCpf && !colPassport) {
     try { fs.unlinkSync(req.file.path); } catch (_) {}
@@ -794,53 +815,51 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
     return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Coluna de e-mail não encontrada. O arquivo precisa conter uma coluna com "email" ou "e-mail".')}`);
   }
 
-  const insertUser = db.prepare(`
+   const insertUser = db.prepare(`
     INSERT INTO users (name, email, password, institution, cpf, passport, phone, is_public, approval_status, approved_at, password_changed, profile_completed, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now','-3 hours'), 0, 0, datetime('now','-3 hours'), datetime('now','-3 hours'))
   `);
   const updateUser = db.prepare('UPDATE users SET name=COALESCE(?, name), institution=COALESCE(?, institution), phone=COALESCE(?, phone), email=COALESCE(?, email), cpf=COALESCE(?, cpf), passport=COALESCE(?, passport) WHERE id=?');
+  const insertRegistration = db.prepare(`
+    INSERT OR IGNORE INTO event_registrations (event_id, user_id, name, email, institution, phone, registration_type, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'listener', datetime('now','-3 hours'), datetime('now','-3 hours'))
+  `);
+  const findRegistration = db.prepare("SELECT id FROM event_registrations WHERE event_id=? AND user_id=?");
   const findUserByCpf = db.prepare("SELECT id, name, email, cpf FROM users WHERE cpf IS NOT NULL AND cpf != ''");
   const findUserByPassport = db.prepare("SELECT id, name, email, passport FROM users WHERE passport IS NOT NULL AND passport != ''");
   const findUserByEmail = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?");
 
-  const defaultPassword = bcrypt.hashSync('even3-import-2027', 10);
+   const defaultPassword = bcrypt.hashSync('import-2027', 10);
   let imported = 0;
   let skipped = 0;
   let updated = 0;
-  let processed = 0;
-  let skippedEmpty = 0;
-  const skippedList = [];
-  const importedList = [];
+  let registered = 0;
+  let alreadyRegistered = 0;
+  const report = [];
 
   const dbTx = db.transaction(() => {
     for (const row of rows) {
-      processed++;
-      const cpf = colCpf ? String(row[colCpf] || '').trim() : '';
-      const passport = colPassport ? String(row[colPassport] || '').trim() : '';
-      const email = String(row[colEmail] || '').trim().toLowerCase();
-      const nameRaw = colName ? String(row[colName] || '').trim() : '';
-      const institution = colInstitution ? String(row[colInstitution] || '').trim() : '';
-      const phone = colPhone ? String(row[colPhone] || '').trim() : '';
+      const cpf = rawCpf ? String(row[rawCpf] || '').trim() : '';
+      const passport = rawPassport ? String(row[rawPassport] || '').trim() : '';
+      const email = String(row[rawEmail] || '').trim().toLowerCase();
+      const nameRaw = rawName ? String(row[rawName] || '').trim() : '';
+      const institution = rawInstitution ? String(row[rawInstitution] || '').trim() : '';
+      const phone = rawPhone ? String(row[rawPhone] || '').trim() : '';
+
+      const personKey = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Sem nome');
+      const personEmail = email && email !== '[object Object]' ? email : '(não informado)';
 
       if (!cpf && !passport && (!email || email === '[object Object]' || email === '')) {
-        skippedEmpty++;
+        report.push({ name: personKey, email: personEmail, status: 'ignored', detail: 'Linha sem e-mail, CPF ou passaporte' });
         continue;
       }
 
       let existing = null;
-      if (cpf && cpf.length >= 11) {
-        const cleanCpf = cpf.replace(/\D/g, '');
-        existing = findUserByCpf.get(cleanCpf);
-      }
+      if (cpf && cpf.length >= 11) existing = findUserByCpf.get(cpf.replace(/\D/g, ''));
+      if (!existing && passport) existing = findUserByPassport.get(passport.replace(/\s+/g, ''));
+      if (!existing && email && email !== '[object Object]') existing = findUserByEmail.get(email);
 
-      if (!existing && passport) {
-        const cleanPassport = passport.replace(/\s+/g, '');
-        existing = findUserByPassport.get(cleanPassport);
-      }
-
-      if (!existing && email && email !== '[object Object]') {
-        existing = findUserByEmail.get(email);
-      }
+      const nameToUse = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Importado');
 
       if (existing) {
         const hasChanges = (nameRaw && nameRaw !== existing.name) || (institution && institution !== existing.institution) || (phone && phone !== existing.phone) || (email && email !== existing.email);
@@ -850,29 +869,40 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
             updated += 1;
           } catch (dbErr) {
             console.error('[import-users] DB update error for', email || cpf || passport, ':', dbErr.message);
+            report.push({ name: existing.name, email: personEmail, status: 'error', detail: 'Erro ao atualizar usuário: ' + dbErr.message });
+            skipped += 1;
+            continue;
           }
         }
+        const existingReg = findRegistration.get(event.id, existing.id);
+        if (!existingReg) {
+          try {
+            insertRegistration.run(event.id, existing.id, nameToUse, email || null, institution || null, phone || null);
+            registered += 1;
+            report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'Usuário existente — inscrito no evento' });
+          } catch (dbErr) {
+            console.error('[import-users] registration error for', email || cpf || passport, ':', dbErr.message);
+            report.push({ name: existing.name, email: personEmail, status: 'error', detail: 'Erro ao inscrever: ' + dbErr.message });
+          }
+        } else {
+          alreadyRegistered += 1;
+          report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'Usuário existente — já inscrito no evento' });
+        }
         skipped += 1;
-        const keyLabel = cpf ? 'CPF' : passport ? 'Passaporte' : 'E-mail';
-        skippedList.push({ key: keyLabel, keyValue: cpf || passport || email, name: existing.name, action: 'atualizado' });
       } else {
-        const nameToUse = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Importado');
         try {
           const userId = insertUser.run(
-            nameToUse,
-            email || null,
-            defaultPassword,
-            institution || null,
-            cpf || null,
-            passport || null,
-            phone || null
+            nameToUse, email || null, defaultPassword, institution || null,
+            cpf || null, passport || null, phone || null
           ).lastInsertRowid;
+          insertRegistration.run(event.id, userId, nameToUse, email || null, institution || null, phone || null);
           imported += 1;
-          importedList.push({ key: cpf ? 'CPF' : passport ? 'Passaporte' : 'E-mail', keyValue: cpf || passport || email, name: nameToUse, user_id: userId });
+          registered += 1;
+          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado (ID: ' + userId + ') e inscrito no evento' });
         } catch (dbErr) {
           console.error('[import-users] DB insert error for', email || cpf || passport, ':', dbErr.message);
           skipped += 1;
-          skippedList.push({ key: email ? 'E-mail' : cpf ? 'CPF' : 'Passaporte', keyValue: email || cpf || passport, name: nameToUse, action: 'erro: ' + dbErr.message });
+          report.push({ name: nameToUse, email: personEmail, status: 'error', detail: 'Erro ao criar/inscrever: ' + dbErr.message });
         }
       }
     }
@@ -888,21 +918,47 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
 
   try { fs.unlinkSync(req.file.path); } catch (_) {}
 
-  const messages = [];
-  messages.push(`${imported} usuário(s) criado(s).`);
-  messages.push(`${skipped} usuário(s) já existiam (informações complementares atualizadas se aplicável).`);
-  if (updated > 0) messages.push(`${updated} atualização(ns) de dados realizada(s).`);
+  const errors = report.filter(r => r.status === 'error').length;
+  const successes = report.filter(r => r.status === 'success').length;
 
-  return res.render('admin/events/import-users-result', {
-    title: `Resultado da Importação - ${event.name}`,
-    event,
-    imported,
-    skipped,
-    updated,
-    importedList,
-    skippedList,
-    messages: messages.join(' '),
-    success: true
+  req.session.importResult = {
+    eventId: event.id, eventName: event.name,
+    imported, skipped, updated, registered, alreadyRegistered,
+    errors, successes, report, success: report.length > 0
+  };
+  return res.redirect(`/admin/events/${event.id}/import-result`);
+});
+
+router.get('/:id/import-download-csv', (req, res) => {
+  const data = req.session.importResult;
+  if (!data || !data.report || !data.report.length) {
+    return res.status(400).send('Nenhum relatório disponível.');
+  }
+  var lines = ['Nome;E-mail;Status;Detalhe'];
+  data.report.forEach(function(r) {
+    var esc = function(v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; };
+    lines.push(esc(r.name) + ';' + esc(r.email) + ';' + r.status + ';' + esc(r.detail));
+  });
+  var csv = '\uFEFF' + lines.join('\r\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="relatorio-importacao-evento-' + req.params.id + '-' + new Date().toISOString().slice(0,10) + '.csv"');
+  res.end(csv);
+});
+
+router.get('/:id/import-result', (req, res) => {
+  const data = req.session.importResult;
+  if (!data || String(data.eventId) !== String(req.params.id)) {
+    return res.redirect(`/admin/events/${req.params.id}/import-users?error=${encodeURIComponent('Nenhum resultado disponível.')}`);
+  }
+  const ev = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
+  if (!ev) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  res.render('admin/events/import-users-result', {
+    title: `Resultado da Importação - ${data.eventName}`,
+    event: ev,
+    imported: data.imported, skipped: data.skipped, updated: data.updated,
+    registered: data.registered, alreadyRegistered: data.alreadyRegistered,
+    errors: data.errors, successes: data.successes,
+    report: data.report, success: data.success
   });
 });
 
@@ -1723,6 +1779,11 @@ function validateAndSaveParticipantEventRoles(eventId, userId, body, actorUserId
 }
 
 function renderParticipantFormError(res, event, registration, formData, error) {
+  const areas = getAreas();
+  const cursosMap = {};
+  areas.forEach((area) => {
+    cursosMap[area.codigo] = getCursosByArea(area.codigo);
+  });
   return res.status(400).render('admin/events/participant-form', {
     title: `${registration ? 'Editar' : 'Adicionar'} Participante - ${event.name}`,
     event,
@@ -1732,6 +1793,9 @@ function renderParticipantFormError(res, event, registration, formData, error) {
     activities: getActivitiesForParticipantForm(event.id),
     eventRoles: getParticipantEventRoles(event.id, registration && registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
+    areas: areas,
+    formacaoAreas: areas,
+    cursosMap: cursosMap,
     error
   });
 }
@@ -1745,7 +1809,11 @@ function normalizeParticipantForm(body = {}) {
     registration_type: body.registration_type === 'author' ? 'author' : 'listener',
     account_mode: body.account_mode === 'existing' ? 'existing' : 'new',
     existing_user_id: String(body.existing_user_id || '').trim(),
-    activity_ids: normalizeActivityIds(body.activity_ids)
+    activity_ids: normalizeActivityIds(body.activity_ids),
+    formacao_area: String(body.formacao_area || '').trim(),
+    formacao_curso: String(body.formacao_curso || '').trim(),
+    formacao_titulacao: String(body.formacao_titulacao || '').trim(),
+    formacao_status: String(body.formacao_status || '').trim()
   };
 }
 
@@ -1854,6 +1922,12 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
   const registration = getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
   if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
 
+  const areas = getAreas();
+  const cursosMap = {};
+  areas.forEach((area) => {
+    cursosMap[area.codigo] = getCursosByArea(area.codigo);
+  });
+
   res.render('admin/events/participant-form', {
     title: `Editar Participante - ${event.name}`,
     event,
@@ -1862,14 +1936,22 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
       name: registration.name || '',
       email: registration.email || '',
       institution: registration.institution || '',
+      phone: registration.user_phone || registration.phone || '',
       registration_type: registration.registration_type || 'listener',
       existing_user_id: registration.user_id || '',
-      activity_ids: getParticipantActivityIds(registration.id)
+      activity_ids: getParticipantActivityIds(registration.id),
+      formacao_area: registration.user_formacao_area || '',
+      formacao_curso: registration.user_formacao_curso || '',
+      formacao_titulacao: registration.user_formacao_titulacao || '',
+      formacao_status: registration.user_formacao_status || ''
     },
     availableUsers: getUsersForParticipantSelection(),
     activities: getActivitiesForParticipantForm(event.id),
     eventRoles: getParticipantEventRoles(event.id, registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
+    areas: areas,
+    formacaoAreas: areas,
+    cursosMap: cursosMap,
     error: null
   });
 });
@@ -1900,6 +1982,12 @@ function updateParticipant(req, res) {
         WHERE id=? AND event_id=?`).run(formData.name, formData.email, formData.institution,
         formData.phone, formData.registration_type, req.params.registrationId, req.params.id);
       saveParticipantActivities(registration.id, registration.user_id, formData.activity_ids, req.session.userId);
+      if (registration.user_id) {
+        db.prepare(`UPDATE users
+          SET phone=?,formacao_area=?,formacao_curso=?,formacao_titulacao=?,formacao_status=?,updated_at=datetime('now','-3 hours')
+          WHERE id=?`).run(formData.phone || null, formData.formacao_area || null, formData.formacao_curso || null,
+          formData.formacao_titulacao || null, formData.formacao_status || null, registration.user_id);
+      }
       recordParticipantAudit({
         eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
         action: 'participant_updated_manually',

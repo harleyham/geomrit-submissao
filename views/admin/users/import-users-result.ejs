@@ -12,8 +12,8 @@
       <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
       <nav class="topbar-nav">
         <a href="/admin">Dashboard</a>
-        <a href="/admin/events" class="active">Eventos</a>
-        <a href="/admin/users">Usuários</a>
+        <a href="/admin/events">Eventos</a>
+        <a href="/admin/users" class="active">Usuários</a>
         <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
         <form method="POST" action="/admin/logout" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-logout">Sair</button></form>
       </nav>
@@ -21,14 +21,14 @@
   </header>
   <main class="main-content">
     <h1 style="font-size:1.75rem;font-weight:700;color:#f8fafc;margin-bottom:0.25rem">Resultado da Importação</h1>
-    <p style="color:#94a3b8;margin-bottom:1.5rem">Evento: <strong><%= event.name %></strong> — Relatório pessoa por pessoa (criação de usuários + inscrição no evento).</p>
+    <p style="color:#94a3b8;margin-bottom:1.5rem">Relatório pessoa por pessoa (criação de usuários sem inscrição em evento).</p>
 
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-value" style="color:#86efac"><%= successes %></div><div class="stat-label">Sucesso</div></div>
       <div class="stat-card"><div class="stat-value" style="color:#fca5a5"><%= errors %></div><div class="stat-label">Falhas</div></div>
       <div class="stat-card"><div class="stat-value" style="color:#fbbf24"><%= imported %></div><div class="stat-label">Novos Criados</div></div>
       <div class="stat-card"><div class="stat-value" style="color:#60a5fa"><%= skipped %></div><div class="stat-label">Já Existiam</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:#a78bfa"><%= registered %></div><div class="stat-label">Inscritos</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#94a3b8"><%= updated %></div><div class="stat-label">Dados Atualizados</div></div>
     </div>
 
     <% if (report && report.length) { %>
@@ -65,10 +65,9 @@
     <% } %>
 
     <div style="display:flex;gap:0.75rem;margin-top:1.5rem">
-      <a href="/admin/events/<%= event.id %>/import-users" class="btn-primary">Importar novamente</a>
-      <a href="/admin/events/<%= event.id %>/import-download-csv" class="btn-secondary">Download relatório CSV</a>
-      <a href="/admin/events/<%= event.id %>/participants" class="btn-secondary">Ir para participantes</a>
-      <a href="/admin/events" class="btn-secondary">Voltar aos eventos</a>
+      <a href="/admin/users/import" class="btn-primary">Importar novamente</a>
+      <a href="/admin/users/import/download-csv" class="btn-secondary">Download relatório CSV</a>
+      <a href="/admin/users" class="btn-secondary">Voltar aos usuários</a>
     </div>
   </main>
   <%- include("../../partials/csrf-inject") %>

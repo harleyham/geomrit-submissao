@@ -9,10 +9,10 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 ## Funcionalidades
 
 - **Gestão de eventos**: CRUD de eventos, cronograma público, janelas de inscrição/submissão/certificados e administração restrita aos eventos atribuídos ao usuário
-- **Importação de participantes**: importação administrativa de planilhas CSV, XLS ou XLSX exportadas pelo Even3, com criação/atualização de contas e relatório do processamento
+- **Importação de participantes**: importação administrativa de planilhas CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), detecção flexível de colunas, criação/atualização de contas, relatório pessoa por pessoa com status (Sucesso/Falha/Ignorado) e download em CSV; via evento (`/admin/events/:id/import-users`) também inscreve os participantes automaticamente; via usuários (`/admin/users/import`) cria apenas contas sem inscrição
 - **Submissão de artigos**: formulário público, rascunhos, múltiplos revisores, parecer individual, deliberação final administrativa
 - **Revisão**: painel do revisor com artigos pendentes, envio de parecer e recomendação
-- **Participantes e papéis**: conta única por pessoa, com papéis independentes por evento (administrador, participante, revisor, palestrante, professor e apresentador); telefone internacional no cadastro de participantes e usuários
+- **Participantes e papéis**: conta única por pessoa, com papéis independentes por evento (administrador, participante, revisor, palestrante, professor e apresentador); telefone internacional e formação acadêmica (área, curso, titulação, status) editáveis no cadastro de participantes e usuários
 - **Primeiro acesso**: contas novas com senha temporária devem trocar a senha e completar identificação, contato, instituição e formação acadêmica antes de acessar os painéis
 - **Presença**: atividades/partes configuráveis do evento, com papéis elegíveis e ações explícitas para marcar, atualizar ou remover presença; participantes aparecem somente na chamada das atividades em que estão inscritos
 - **Inscrição por atividade**: seleção explícita na inscrição pública ou inclusão administrativa, edição posterior pelo participante ou administrador e contadores de inscritos por atividade

@@ -58,7 +58,10 @@ O sistema deve permitir:
 - Impressão do relatório do evento em PDF pelo navegador.
 - Seleção de seções do relatório antes da impressão em PDF.
 - Gestão administrativa de participantes por evento, com criação de conta, inscrição, edição e remoção condicionada.
-- Importação de participantes por evento a partir de CSV, XLS ou XLSX exportado pelo Even3, com criação ou atualização de contas, senha temporária e resumo do processamento.
+- Importação de participantes via CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), detecção flexível de colunas (nome, e-mail, instituição, telefone, CPF, passaporte), criação ou atualização de contas, senha temporária e resumo do processamento.
+- Duas rotas de importação distintas: por evento (`/admin/events/:id/import-users`) cria usuários e inscreve no evento; por usuários (`/admin/users/import`) cria apenas usuários sem inscrição.
+- Relatório detalhado pessoa por pessoa na importação, com status individual (Sucesso, Falha, Ignorado), descrição detalhada e download em CSV.
+- Modelo CSV vazio com cabeçalho pré-preenchido disponível para download nas páginas de importação.
 - Seleção explícita das atividades na inscrição pública ou administrativa, com edição posterior pelo participante em `/evento/:id/atividades` ou pelo administrador no cadastro da participação.
 - Controle de presença simples por evento e chamada por atividade, com ações explícitas para marcar, atualizar ou remover presença.
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
@@ -577,7 +580,14 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/admin/events` | Gestão de eventos |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
-| `/admin/events/:id/import-users` | Importação de participantes via CSV, XLS ou XLSX |
+| `/admin/events/:id/import-users` | Importação de participantes via CSV, XLS ou XLSX (cria usuário + inscreve no evento) |
+| `/admin/events/:id/import-template` | Download do modelo CSV vazio para importação de participantes |
+| `/admin/events/:id/import-download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
+| `/admin/events/:id/import-result` | Resultado da importação com relatório detalhado |
+| `/admin/users/import` | Importação de usuários via CSV, XLS ou XLSX (cria apenas usuário, sem inscrição) |
+| `/admin/users/import-template` | Download do modelo CSV vazio para importação de usuários |
+| `/admin/users/import/download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
+| `/admin/users/import/result` | Resultado da importação com relatório detalhado |
 | `/admin/events/:id/attendance` | Painel de chamadas por atividade do evento |
 | `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
 | `/admin/events/:id/activities/:activityId/attendance` | Controle de presença da atividade |
@@ -680,7 +690,7 @@ Observações operacionais:
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 - Navegação cruzada entre área do participante, painel do revisor e dashboard administrativo para usuários com múltiplos perfis.
 - Gestão manual de participantes por evento, com criação de conta ou seleção de conta ativa existente, edição, remoção condicionada e auditoria.
-- Importação administrativa de participantes por evento em CSV, XLS ou XLSX, com detecção de colunas, reconciliação de contas e relatório de itens importados, atualizados ou ignorados.
+- Importação administrativa de participantes via CSV, XLS ou XLSX, com auto-detecção de delimitador, detecção flexível de colunas, reconciliação de contas e relatório pessoa por pessoa com status e download em CSV.
 - Painel administrativo de presença organizado por atividade, com acesso direto à chamada de cada parte do evento.
 - Cadastro de atividades internas e lançamento manual por atividade, com botões para marcar, atualizar e remover presença; para participante, inscrição e presença compõem conjuntamente a elegibilidade e a carga horária do certificado.
 - Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura (thumbnails ordenadas alfabeticamente), cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
@@ -714,6 +724,16 @@ Observações operacionais:
 - Correção crítica: proteção CSRF agora cobre uploads multipart, aceitando o token por cookie `csrf_token` (enviado automaticamente pelo navegador) além do campo hidden `_csrf` e header `X-CSRF-Token`.
 - Correção crítica: IDs em `POST /admin/users/bulk-update-flags` são sanitizados com `parseInt()` e filtrados para inteiros positivos antes do `.bind() SQL, eliminando risco de injeção.
 - Correção crítica: mensagem de redirect em `POST /admin/users/:id/reset-password` não expõe mais a senha padrão na URL.
+- Campos de formação acadêmica (Área, Curso, Titulação e Status) adicionados ao formulário de edição de participante, sincronizados com a conta vinculada do usuário.
+- Telefone do participante agora é buscado e salvo tanto na tabela `users` quanto em `event_registrations`, quando há conta vinculada.
+- Refatoração completa da importação de participantes: parser CSV com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), detecção flexível de colunas (exact match first), mapeamento correto de colunas normalizadas para nomes originais.
+- Duas rotas de importação: `/admin/events/:id/import-users` cria usuários e inscreve no evento; `/admin/users/import` cria apenas usuários sem inscrição.
+- Páginas de resultado em URLs separadas das páginas de upload: POST redireciona para GET de resultado.
+- Relatório pessoa por pessoa na importação com status individual (Sucesso, Falha, Ignorado), descrição detalhada e download em CSV via rotas backend.
+- Modelo CSV vazio com cabeçalho pré-preenchido disponível para download nas páginas de importação.
+- Removidas referências ao Even3: textos, mensagens de erro e templates atualizados para serem genéricos.
+- Uniformização de estilos de botões nas páginas de resultado de importação.
+- Remoção de logs de debug das rotas de importação.
 
 ### Segurança reforçada (V0.1)
 
