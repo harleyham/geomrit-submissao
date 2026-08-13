@@ -34,6 +34,11 @@
     .badge-rejected { background: rgba(248,113,113,0.15); color: #f87171; }
     .badge-revision { background: rgba(251,191,36,0.15); color: #fbbf24; }
     .badge-pending { background: rgba(100,116,139,0.2); color: #94a3b8; }
+    .badge-role { background: rgba(96,165,250,0.15); color: #93c5fd; border: 1px solid rgba(96,165,250,0.25); }
+    .badge-role-teacher { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.25); }
+    .badge-role-speaker { background: rgba(251,146,60,0.15); color: #fdba74; border: 1px solid rgba(251,146,60,0.25); }
+    .badge-role-oral { background: rgba(56,189,248,0.15); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.25); }
+    .badge-role-poster { background: rgba(192,132,252,0.15); color: #d8b4fe; border: 1px solid rgba(192,132,252,0.25); }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.4rem 0.75rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
     .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
     .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
@@ -205,6 +210,74 @@
             <div style="font-size: 0.8125rem; color: #94a3b8; margin-top: 0.25rem;">Certificados Emitidos</div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Atividades do Evento -->
+    <div class="section" data-report-section="activities">
+      <div class="section-header">
+        <h2>Atividades do Evento</h2>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="activities" checked> Incluir no PDF</label>
+      </div>
+      <div class="section-body" style="padding:1.5rem">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem">
+          <div style="background:rgba(15,23,42,0.35);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:1rem">
+            <div style="font-size:1.5rem;font-weight:700;color:#f8fafc"><%= totalActivities %></div>
+            <div style="color:#64748b;text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Total de atividades</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.35);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:1rem">
+            <div style="font-size:1.5rem;font-weight:700;color:#f8fafc"><%= totalEnrollments %></div>
+            <div style="color:#64748b;text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Inscrições vinculadas</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.35);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:1rem">
+            <div style="font-size:1.5rem;font-weight:700;color:#f8fafc"><%= totalAttendance %></div>
+            <div style="color:#64748b;text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Presenças registradas</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.35);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:1rem">
+            <div style="font-size:1.5rem;font-weight:700;color:#f8fafc"><%= certifiedActivities %></div>
+            <div style="color:#64748b;text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Atividades certificáveis</div>
+          </div>
+        </div>
+        <% if (activities.length === 0) { %>
+          <div class="empty-state"><p>Nenhuma atividade cadastrada para este evento.</p></div>
+        <% } else { %>
+          <% const activityTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', other:'Outra' }; %>
+          <% const typeBgColors = {lecture:'#3b82f6',seminar:'#8b5cf6',roundtable:'#f59e0b',course:'#10b981',oral_presentation:'#06b6d4',poster_presentation:'#a78bfa',other:'#64748b'}; %>
+          <% groupedTypes.forEach(function(type) { %>
+            <% var items = activitiesByType[type]; %>
+            <div style="margin-bottom:1.25rem">
+              <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">
+                <span style="background:<%= typeBgColors[type] || '#64748b' %>;color:#fff;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:600"><%= activityTypeMap[type] || type %></span>
+                <span style="color:#94a3b8;font-size:0.85rem;font-weight:400">(<%= items.length %> atividade<%= items.length > 1 ? 's' : '' %>)</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:0.5rem">
+                <% items.forEach(function(activity) { %>
+                  <div style="background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:0.85rem 1rem">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+                      <div>
+                        <div style="font-weight:600;color:#f1f5f9;font-size:0.9rem"><%= activity.name %></div>
+                        <div style="color:#64748b;font-size:0.8rem;margin-top:0.15rem">
+                          <%= activity.activity_date || 'A definir' %>
+                          <%= Number(activity.workload_hours) > 0 ? ' · ' + activity.workload_hours + 'h' : '' %>
+                        </div>
+                      </div>
+                      <div style="display:flex;gap:1rem;align-items:center">
+                        <div style="text-align:center;padding:0.3rem 0.8rem;background:rgba(96,165,250,0.1);border-radius:6px">
+                          <div style="font-size:1.1rem;font-weight:700;color:#60a5fa"><%= activity.enrolled_count || 0 %></div>
+                          <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em">Inscritos</div>
+                        </div>
+                        <div style="text-align:center;padding:0.3rem 0.8rem;background:rgba(52,211,153,0.1);border-radius:6px">
+                          <div style="font-size:1.1rem;font-weight:700;color:#34d399"><%= activity.attendees_count || 0 %></div>
+                          <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em">Presentes</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% }) %>
+              </div>
+            </div>
+          <% }) %>
+        <% } %>
       </div>
     </div>
 
@@ -436,12 +509,29 @@
               <td><%= participant.email || '-' %></td>
               <td><%= participant.institution || '-' %></td>
               <td>
-                <% if (participant.participation_label === 'Artigo aprovado') { %>
-                  <span class="badge badge-approved">Artigo aprovado</span>
-                <% } else if (participant.participation_label === 'Participante') { %>
-                  <span class="badge badge-pending">Participante</span>
+                <% if (participant.roles) { %>
+                  <div style="display:flex;gap:3px;flex-wrap:wrap">
+                    <% String(participant.roles).split(',').forEach((r) => {
+                      const role = r.trim();
+                      if (!role) return;
+                      let cls = 'badge-role';
+                      if (role === 'teacher') cls = 'badge-role-teacher';
+                      else if (role === 'speaker') cls = 'badge-role-speaker';
+                      else if (role === 'oral_presenter') cls = 'badge-role-oral';
+                      else if (role === 'poster_presenter') cls = 'badge-role-poster';
+                      else if (role === 'participant') cls = 'badge-role';
+                      const labels = {participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresent. Oral',poster_presenter:'Apresent. Pôster',admin:'Administrador'};
+                    %><span class="badge <%= cls %>" style="font-size:0.68rem;padding:0.12rem 0.45rem"><%= labels[role] || role %></span>
+                    <% }); %>
+                  </div>
                 <% } else { %>
-                  <span class="badge badge-revision">Inscrito com artigo</span>
+                  <% if (participant.participation_label === 'Artigo aprovado') { %>
+                    <span class="badge badge-approved">Artigo aprovado</span>
+                  <% } else if (participant.participation_label === 'Participante') { %>
+                    <span class="badge badge-pending">Participante</span>
+                  <% } else { %>
+                    <span class="badge badge-revision">Inscrito com artigo</span>
+                  <% } %>
                 <% } %>
               </td>
             </tr>

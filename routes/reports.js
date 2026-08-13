@@ -113,12 +113,18 @@ router.get('/', requireAuth, (req, res) => {
       WHERE event_id = ?
         AND status = 'approved'
       GROUP BY participant_key
+    ),
+    user_roles AS (
+      SELECT user_id, GROUP_CONCAT(role) as roles
+      FROM (SELECT DISTINCT user_id, role FROM event_user_roles WHERE event_id = ?)
+      GROUP BY user_id
     )
     SELECT
       er.name,
       er.email,
       er.institution,
       er.registration_type,
+      COALESCE(ur.roles, '') as roles,
       COALESCE(aa.approved_articles, 0) as approved_articles,
       CASE
         WHEN COALESCE(aa.approved_articles, 0) > 0 THEN 'Artigo aprovado'
@@ -131,6 +137,7 @@ router.get('/', requireAuth, (req, res) => {
         WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
         ELSE 'email:' || LOWER(TRIM(er.email))
       END
+    LEFT JOIN user_roles ur ON ur.user_id = er.user_id
     WHERE er.event_id = ?
     ORDER BY
       CASE
@@ -139,7 +146,32 @@ router.get('/', requireAuth, (req, res) => {
         ELSE 1
       END,
       er.name COLLATE NOCASE
-  `).bind(eventId, eventId).all();
+  `).bind(eventId, eventId, eventId).all();
+
+  const activities = db.prepare(`
+    SELECT ea.id, ea.name, ea.activity_type, ea.activity_date, ea.workload_hours, ea.certificate_enabled, ea.eligible_roles,
+      (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
+      (SELECT COUNT(*) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count
+    FROM event_activities ea
+    WHERE ea.event_id = ?
+    ORDER BY ea.activity_date, ea.name COLLATE NOCASE
+  `).bind(eventId).all();
+
+  const totalActivities = activities.length;
+  const totalEnrollments = activities.reduce((sum, a) => sum + a.enrolled_count, 0);
+  const totalAttendance = activities.reduce((sum, a) => sum + (a.attendees_count || 0), 0);
+  const certifiedActivities = activities.filter(a => a.certificate_enabled).length;
+
+  const activityTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', other:'Outra' };
+  const typeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','other'];
+  const sortedActivities = [...activities].sort((a,b) => String(a.name||'').localeCompare(String(b.name||''), 'pt-BR'));
+  const activitiesByType = {};
+  sortedActivities.forEach(a => {
+    const t = a.activity_type || 'other';
+    if (!activitiesByType[t]) activitiesByType[t] = [];
+    activitiesByType[t].push(a);
+  });
+  const groupedTypes = typeOrder.filter(t => activitiesByType[t]);
 
   // Calcular decisão final por artigo com base nos relatórios dos revisores
   const articleDecisions = {};
@@ -196,6 +228,13 @@ router.get('/', requireAuth, (req, res) => {
     articlesOralRejected,
     articlesPosterRejected,
     participants,
+    activities,
+    activitiesByType,
+    groupedTypes,
+    totalActivities,
+    totalEnrollments,
+    totalAttendance,
+    certifiedActivities,
     articleDecisions: Object.values(articleDecisions),
     title: 'Relatórios - ' + event.name 
   });

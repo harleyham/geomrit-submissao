@@ -126,6 +126,24 @@ Versão atual registrada: **V0.1**.
 - Arquivos afetados: `routes/events.js`, `views/admin/events/activities.ejs`.
 - Status: **implementado e validado**.
 
+### Card "Atividades do Evento" no relatório administrativo
+
+- Adicionada a seção "Atividades do Evento" na página de relatórios (`/admin/reports?eventId=:id`), posicionada após "Estatísticas do Evento".
+- Quatro cards de estatísticas: total de atividades, inscrições vinculadas, presenças registradas, atividades certificáveis.
+- Listagem de todas as atividades agrupadas por tipo de atividade (Palestra, Seminário, Mesa-redonda, Minicurso, Apresentação oral, Apresentação pôster, Outra), com badges de cor distintos e ordenação alfabética dentro de cada grupo.
+- Cada card de atividade exibe: nome, data, carga horária, número de inscritos na atividade, número de presentes.
+- Dados carregados no controller `routes/reports.js` e passados ao template `views/admin/reports/list.ejs`.
+- Arquivos afetados: `routes/reports.js`, `views/admin/reports/list.ejs`.
+- Status: **implementado e validado**.
+
+### Coluna "PARTICIPAÇÃO" com todos os papéis do evento
+
+- A coluna "PARTICIPAÇÃO" na tabela "Participantes do Evento" do relatório passou a exibir badges coloridos para todos os papéis em `event_user_roles` (Participante, Administrador, Revisor, Palestrante, Professor, Apresentador Oral, Apresentador Pôster), substituindo a lógica anterior que mostrava apenas "Participante".
+- Query alterada com CTE `user_roles` que junta `GROUP_CONCAT(DISTINCT role)` de papéis por usuário.
+- Template atualizado para renderizar badges apenas quando há roles; caso contrário, exibe o badge original de `participation_label`.
+- Arquivos afetados: `routes/reports.js`, `views/admin/reports/list.ejs`.
+- Status: **implementado e validado**.
+
 ## 2026-08-12
 
 ### Correções na importação de participantes — relatório e listagem de usuários
