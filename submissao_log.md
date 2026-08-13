@@ -6,6 +6,46 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-13
 
+### PDF da lista de presença por atividade
+
+- Reestruturado o cabeçalho do PDF gerado pela rota `GET /:id/activities/:activityId/attendance-print`:
+  - 1ª linha: nome do evento (fonte 18)
+  - 2ª linha: nome da atividade (fonte 14)
+  - 3ª linha: data no formato DD-MM-AAAA (fonte 11)
+- Função `formatBRDate` converte strings de data para o padrão brasileiro.
+- Arquivos afetados: `routes/events.js`.
+- Status: **implementado e validado**.
+
+### Botões de presença em lote na chamada de atividade
+
+- Adicionado botão verde **"Marcar presença (todos)"** no cabeçalho do card "Vincular participantes e papéis" em `/admin/events/:id/activities/:activityId/attendance`.
+- Adicionado botão vermelho **"Desmarcar presença (todos)"** ao lado do botão de marcar.
+- Nova rota `POST /:id/activities/:activityId/attendance-bulk` processa `bulk_action` (`mark_all_present` ou `unmark_all_present`).
+- Ao marcar, usa o papel mais prioritário configurado na atividade (Professor > Palestrante > Apresentador Oral > Apresentador Pôster > Revisor > Participante).
+- Ao desmarcar, remove todos os registros de presença da atividade.
+- Ignora automaticamente o usuário `admin@admin.com`.
+- Registra auditoria com flag `bulk: true`.
+- Mensagem de retorno informa quantidade marcada/removida e ignorada.
+- Arquivos afetados: `views/admin/events/activity-attendance.ejs`, `routes/events.js`.
+- Status: **implementado e validado**.
+
+### Correção: labels legíveis dos perfis elegíveis na chamada
+
+- O cabeçalho da página de presença por atividade agora exibe labels legíveis ("Participante, Palestrante") em vez dos códigos internos ("participant, speaker").
+- Usa o mesmo mapeamento `roleLabels` já existente no template.
+- Arquivo afetado: `views/admin/events/activity-attendance.ejs`.
+- Status: **corrigido e validado**.
+
+### Remoção da página de presença geral por evento
+
+- Removido botão "Presença" da listagem de eventos (`/admin/events`).
+- Removido link "Presença" da página de participantes por evento (`/admin/events/:id/participants`).
+- Eliminada a rota `GET /:id/attendance` e a rota `POST /:id/attendance/:userId` de `routes/events.js`.
+- Eliminado o template `views/admin/events/attendance.ejs`.
+- A presença é gerenciada exclusivamente por atividade em `/admin/events/:id/activities/:activityId/attendance`.
+- Arquivos afetados: `views/admin/events/list.ejs`, `views/admin/events/participants.ejs`, `routes/events.js`, `views/admin/events/attendance.ejs` (removido).
+- Status: **implementado e validado**.
+
 ### Correções e melhorias na listagem de participantes (`/admin/events/:id/participants`)
 
 #### Contador corrigido com filtros aplicados
@@ -63,6 +103,28 @@ Versão atual registrada: **V0.1**.
 - Trigger reescrita para propagar apenas `name`, `phone` e `institution` — as únicas colunas de dados compartilhadas entre `users` e `event_registrations`.
 - Arquivo afetado: `db.js`.
 - Status: **corrigido e validado**.
+
+### Listagem de participantes: coluna "TIPO" com todos os papéis
+
+- Substituída a lógica binária ("Com artigo" / "Instrutor" / "Participante") por exibição de todos os papéis do `event_user_roles` em badges coloridos.
+- Query alterada: `is_instructor` substituído por `GROUP_CONCAT(eur.role, ',') AS roles` para listar todos os papéis (participant, admin, reviewer, speaker, teacher, oral_presenter, poster_presenter).
+- Template atualizado para renderizar cada papel como badge: Participante (azul), Administrador (azul), Revisor (azul), Professor (roxo), Palestrante (laranja), Apresentador Oral (ciano), Apresentador Pôster (roxo claro).
+- Arquivos afetados: `routes/events.js`, `views/admin/events/participants.ejs`.
+- Status: **implementado e validado**.
+
+### Impressão de lista de presença por atividade
+
+- Novo botão "Imp. Lista Presença" adicionado na listagem de atividades (`/admin/events/:id/activities`), ao lado de "Marcar Presença".
+- Nova rota `GET /:id/activities/:activityId/attendance-print` gera PDF em A4 paisagem com:
+  - Título com nome da atividade
+  - Dados do evento (nome, data, carga horária)
+  - Tabela com colunas: Nome, E-mail, Assinatura (linha para assinatura)
+  - Paginação automática conforme quantidade de inscritos
+- Query unificada com `UNION ALL` para incluir participantes inscritos, papéis do `event_user_roles` e revisores atribuídos.
+- Usuário `admin@admin.com` é excluído automaticamente da lista.
+- Layout corrigido: colunas de cabeçalho alinhadas na mesma linha Y, com espaçamento adequado entre texto, linha separadora e primeira linha de dados (PDFKit `doc.text()` com Y explícito não altera `doc.y`, exigindo cálculo manual de offsets).
+- Arquivos afetados: `routes/events.js`, `views/admin/events/activities.ejs`.
+- Status: **implementado e validado**.
 
 ## 2026-08-12
 

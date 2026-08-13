@@ -40,9 +40,11 @@
     .name-cell strong { display: block; color: #f8fafc; margin-bottom: 0.25rem; }
     .name-cell small, .muted { color: #94a3b8; }
     .badge { display: inline-flex; align-items: center; padding: 0.24rem 0.65rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-    .badge-author { background: rgba(59,130,246,0.14); color: #93c5fd; }
-    .badge-listener { background: rgba(148,163,184,0.16); color: #cbd5e1; }
-    .badge-instructor { background: rgba(168,85,247,0.14); color: #d8b4fe; }
+    .badge-role { background: rgba(96,165,250,0.15); color: #93c5fd; }
+    .badge-role-teacher { background: rgba(168,85,247,0.15); color: #d8b4fe; }
+    .badge-role-speaker { background: rgba(251,146,60,0.15); color: #fdba74; }
+    .badge-role-oral { background: rgba(56,189,248,0.15); color: #7dd3fc; }
+    .badge-role-poster { background: rgba(192,132,252,0.15); color: #d8b4fe; }
     .badge-approved { background: rgba(34,197,94,0.16); color: #86efac; }
     .badge-subsidy { background: rgba(251,191,36,0.14); color: #fcd34d; }
     .badge-rejected { background: rgba(239,68,68,0.14); color: #fca5a5; }
@@ -90,7 +92,6 @@
       <div class="header-actions">
         <a href="/admin/events/<%= event.id %>/participants/new" class="btn btn-primary">+ Adicionar participante</a>
         <a href="/admin/events/<%= event.id %>/import-users" class="btn btn-primary" style="background:#059669">Importar lista</a>
-        <a href="/admin/events/<%= event.id %>/attendance" class="btn btn-ghost">Presença</a>
         <a href="/admin/reports?eventId=<%= event.id %>" class="btn btn-ghost">Relatórios</a>
         <a href="/admin/articles?eventId=<%= event.id %>" class="btn btn-ghost">Artigos</a>
       </div>
@@ -205,18 +206,31 @@
                 </td>
                 <td>
                   <%
-                    var roles = [];
-                    if (participant.registration_type === 'author') roles.push('Com artigo');
-                    if (participant.is_instructor) {
-                      roles.push('Instrutor');
+                    var roleNames = {
+                      'participant': 'Participante',
+                      'admin': 'Administrador',
+                      'reviewer': 'Revisor',
+                      'speaker': 'Palestrante',
+                      'teacher': 'Professor',
+                      'oral_presenter': 'Apresentador Oral',
+                      'poster_presenter': 'Apresentador Pôster'
+                    };
+                    var badges = String(participant.roles || '').split(',');
+                    if (badges.length === 1 && !badges[0].trim()) {
+                      badges = ['participant'];
                     }
-                    if (roles.length > 0) {
-                      roles.forEach(function(role) {
+                    badges.forEach(function(role) {
+                      var r = role.trim();
+                      if (!r) return;
+                      var cls = 'badge-role';
+                      if (r === 'teacher') cls = 'badge-role-teacher';
+                      else if (r === 'speaker') cls = 'badge-role-speaker';
+                      else if (r === 'oral_presenter') cls = 'badge-role-oral';
+                      else if (r === 'poster_presenter') cls = 'badge-role-poster';
+                      var label = roleNames[r] || r;
                   %>
-                        <span class="badge badge-<%= role === 'Com artigo' ? 'author' : (role === 'Instrutor' ? 'instructor' : 'listener') %>"><%= role %></span>
-                  <% }); } else { %>
-                        <span class="badge badge-listener">Participante</span>
-                  <% } %>
+                        <span class="badge <%= cls %>"><%= label %></span>
+                  <% }); %>
                 </td>
                 <td class="activity-summary">
                   <% if (participant.enrolled_activities > 0) { %>

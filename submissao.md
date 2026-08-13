@@ -729,6 +729,10 @@ Observações operacionais:
 - Paginação na listagem de usuários (`/admin/users`): 50 por página (padrão), com opção de 25, 50, 100 ou 200 registros; controles no topo do card com contador, botões Anterior/Próxima, indicador de página e seletor de registros; a paginação só aparece quando o total excede o limite.
 - Relatório de importação com botão de ocultar/mostrar: na página de resultado (`/admin/users/import/result` e `/admin/events/:id/import-users-result`), botão "Ocultar relatório" / "Mostrar relatório" alterna a visibilidade da tabela detalhada, evitando páginas gigantes.
 - Mensagens de relatório de importação sem ID do usuário: "Usuário criado" e "Usuário criado e inscrito no evento" não expõem mais o número do ID.
+- PDF da lista de presença por atividade reformulado: 1ª linha com nome do evento (fonte 18), 2ª linha com nome da atividade (fonte 14), 3ª linha com data no formato DD-MM-AAAA (fonte 11).
+- Botões de presença em lote na chamada de atividade (`/admin/events/:id/activities/:activityId/attendance`): botão verde "Marcar presença (todos)" e botão vermelho "Desmarcar presença (todos)" no cabeçalho do card "Vincular participantes e papéis". Rota `POST /:id/activities/:activityId/attendance-bulk` processa os dois casos, usa papel prioritário configurado na atividade e ignora `admin@admin.com`.
+- Labels legíveis dos perfis elegíveis na chamada: cabeçalho exibe "Participante, Palestrante" em vez de "participant, speaker".
+- Remoção da página de presença geral por evento (`/admin/events/:id/attendance`): removido botão "Presença" da listagem de eventos e da página de participantes; eliminadas as rotas `GET /:id/attendance` e `POST /:id/attendance/:userId` e o template `views/admin/events/attendance.ejs`. Presença gerenciada exclusivamente por atividade.
 - Linhas brancas do CSV/XLSX ignoradas silenciosamente: linhas totalmente vazias (sem dados em nenhuma coluna) são puladas sem gerar entradas no relatório.
 - Refatoração completa da importação de participantes: parser CSV com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), detecção flexível de colunas (exact match first), mapeamento correto de colunas normalizadas para nomes originais.
 - Duas rotas de importação: `/admin/events/:id/import-users` cria usuários e inscreve no evento; `/admin/users/import` cria apenas usuários sem inscrição.
@@ -743,12 +747,14 @@ Observações operacionais:
 - Correção da paginação de usuários: o seletor "por página" permanece visível mesmo quando o total de registros cabe em uma única página, permitindo alterar o limite.
 - Correção do contador de participantes quando filtros retornam zero registros: exibe "0-0 de 0" em vez de "1-1 de N".
 - Correção do filtro "Instrutor" na listagem de participantes: substituído `LEFT JOIN` por `EXISTS` para manter ordem correta dos parâmetros SQL.
-- Coluna "TIPO" na listagem de participantes exibe todos os atributos: "Com artigo", "Instrutor" e "Participante", com badges coloridos distintos (azul, roxo e cinza).
 - Coluna "SUBSÍDIO" usa cores por status: verde para aprovado, vermelho para reprovado e amarelo para pendente.
 - Filtro de titulação como dropdown separado: opções "Todas", "Graduado", "Mestre", "Doutor" e "Não especificado" (NULL ou vazio).
 - Busca de participantes ampliada para CPF: campo de texto busca por nome, e-mail, instituição e CPF (sem formatação).
 - Trigger `trg_sync_user_to_event_registration` propaga `name`, `phone` e `institution` de `users` → `event_registrations` automaticamente.
-- Propagação de dados de `users` para `event_registrations`: trigger automática mantém dados sincronizados.
+- Coluna "TIPO" na listagem de participantes (`/admin/events/:id/participants`) agora exibe todos os papéis do `event_user_roles` (Participante, Administrador, Revisor, Palestrante, Professor, Apresentador Oral, Apresentador Pôster) em badges coloridos, substituindo a lógica anterior de "Com artigo" / "Instrutor" / "Participante".
+- Novo botão "Imp. Lista Presença" na listagem de atividades (`/admin/events/:id/activities`), gerando PDF com lista dos inscritos para cada atividade (Nome, E-mail, Assinatura).
+- Usuário `admin@admin.com` é excluído automaticamente das listas de presença por atividade.
+- Correção da geração de PDF de lista de presença: colunas de cabeçalho alinhadas na mesma linha Y, com espaçamento adequado entre texto, linha separadora e primeira linha de dados.
 
 ### Segurança reforçada (V0.1)
 

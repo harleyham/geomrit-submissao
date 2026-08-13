@@ -397,7 +397,7 @@ function getEventParticipantSummary(eventId, filters = {}, pagination = null) {
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.registration_id=er.id) AS enrolled_activities,
       (SELECT GROUP_CONCAT(ea.name, ' · ') FROM participant_activity_enrollments pae
         JOIN event_activities ea ON ea.id=pae.activity_id WHERE pae.registration_id=er.id) AS activity_names,
-      CASE WHEN EXISTS(SELECT 1 FROM event_user_roles eur WHERE eur.user_id=er.user_id AND eur.event_id=er.event_id AND eur.role IN ('teacher','speaker')) THEN 1 ELSE 0 END AS is_instructor,
+      COALESCE((SELECT GROUP_CONCAT(eur.role, ',') FROM event_user_roles eur WHERE eur.user_id=er.user_id AND eur.event_id=er.event_id), '') AS roles,
       CASE
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
         WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
@@ -1093,110 +1093,6 @@ router.get('/:id/import-result', (req, res) => {
   });
 });
 
-router.get('/:id/attendance', (req, res) => {
-  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-
-  const filters = {
-    query: String(req.query.q || '').trim(),
-    status: ['all', 'present', 'absent'].includes(String(req.query.status || 'all')) ? String(req.query.status || 'all') : 'all'
-  };
-  const allParticipants = db.prepare(`
-    WITH people AS (
-      SELECT er.user_id, er.id AS registration_id, er.name, er.email, er.institution,
-        CASE WHEN er.registration_type='author' THEN 'Participante com artigo' ELSE 'Participante' END AS role_label
-      FROM event_registrations er WHERE er.event_id=? AND er.user_id IS NOT NULL
-      UNION ALL
-      SELECT u.id, NULL, u.name, u.email, u.institution, 'Revisor'
-      FROM assignments ass JOIN articles art ON art.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id
-      WHERE art.event_id=?
-      UNION ALL
-      SELECT u.id, NULL, u.name, u.email, u.institution,
-        CASE eur.role WHEN 'speaker' THEN 'Palestrante' WHEN 'teacher' THEN 'Professor' WHEN 'oral_presenter' THEN 'Apresentador Oral' WHEN 'poster_presenter' THEN 'Apresentador Pôster' END
-      FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
-    ), grouped AS (
-      SELECT user_id, MAX(registration_id) AS registration_id, MAX(name) AS name, MAX(email) AS email,
-        MAX(institution) AS institution, GROUP_CONCAT(DISTINCT role_label) AS roles
-      FROM people GROUP BY user_id
-    )
-    SELECT grouped.*, ar.id AS attendance_id, ar.attended_at, ar.notes, marker.name AS marked_by_name,
-      CASE WHEN ar.id IS NULL THEN 0 ELSE 1 END AS attendance_total
-    FROM grouped LEFT JOIN attendance_records ar ON ar.event_id=? AND ar.user_id=grouped.user_id
-    LEFT JOIN users marker ON marker.id=ar.marked_by ORDER BY grouped.name COLLATE NOCASE
-  `).all(event.id, event.id, event.id, event.id);
-
-  let participants = allParticipants.filter((participant) => {
-    if (!filters.query) return true;
-    const term = filters.query.toLowerCase();
-    return [participant.name, participant.email, participant.institution, participant.roles].some((value) => String(value || '').toLowerCase().includes(term));
-  });
-  if (filters.status === 'present') participants = participants.filter((participant) => participant.attendance_total === 1);
-  if (filters.status === 'absent') participants = participants.filter((participant) => participant.attendance_total === 0);
-
-  const totals = { registered: allParticipants.length, present: allParticipants.filter((participant) => participant.attendance_total === 1).length };
-  const activities = db.prepare('SELECT id,name,activity_type,activity_date,workload_hours,eligible_roles FROM event_activities WHERE event_id=? ORDER BY activity_date,name').all(event.id);
-
-  res.render('admin/events/attendance', {
-    title: `Presença - ${event.name}`,
-    event,
-    participants,
-    activities,
-    filters,
-    summary: {
-      registered: totals.registered || 0,
-      present: totals.present || 0,
-      absent: Math.max(0, (totals.registered || 0) - (totals.present || 0))
-    },
-    success: req.query.success || null,
-    error: req.query.error || null
-  });
-});
-
-router.post('/:id/attendance/:userId', strictLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, v.attendanceAction);
-}, (req, res) => {
-  const event = db.prepare('SELECT id FROM events WHERE id = ?').bind(req.params.id).get();
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const person = db.prepare(`SELECT u.id AS user_id, u.name, u.email,
-    (SELECT id FROM event_registrations WHERE event_id=? AND user_id=u.id LIMIT 1) AS registration_id
-    FROM users u WHERE u.id=?`).get(event.id, req.params.userId);
-  if (!person) return res.status(404).render('error', { title: 'Pessoa não encontrada' });
-
-  const action = req.body.action === 'mark_absent' ? 'mark_absent' : 'mark_present';
-  const notes = String(req.body.notes || '').trim();
-  if (action === 'mark_absent') {
-    const removed = db.prepare(`
-      DELETE FROM attendance_records WHERE event_id = ? AND user_id = ?
-    `).run(event.id, person.user_id);
-    if (removed.changes) {
-      recordParticipantAudit({
-        eventId: event.id,
-        registrationId: person.registration_id || null,
-        actorUserId: req.session.userId,
-        action: 'attendance_removed',
-        details: { participant_name: person.name, participant_email: person.email }
-      });
-    }
-    return res.redirect(`/admin/events/${event.id}/attendance?success=${encodeURIComponent('Presença removida; participante marcado como ausente.')}`);
-  }
-
-  const existingAttendance = db.prepare('SELECT id FROM attendance_records WHERE event_id=? AND user_id=?').get(event.id, person.user_id);
-  if (existingAttendance) {
-    db.prepare("UPDATE attendance_records SET marked_by=?, attended_at=datetime('now','-3 hours'), notes=?, updated_at=datetime('now','-3 hours') WHERE id=?").run(req.session.userId, notes, existingAttendance.id);
-  } else {
-    db.prepare("INSERT INTO attendance_records (event_id,registration_id,user_id,marked_by,attended_at,notes,created_at,updated_at) VALUES (?,?,?,?,datetime('now','-3 hours'),?,datetime('now','-3 hours'),datetime('now','-3 hours'))")
-      .run(event.id, person.registration_id || null, person.user_id, req.session.userId, notes);
-  }
-  recordParticipantAudit({
-    eventId: event.id,
-    registrationId: person.registration_id || null,
-    actorUserId: req.session.userId,
-    action: 'attendance_marked_present',
-    details: { participant_name: person.name, participant_email: person.email, notes }
-  });
-  return res.redirect(`/admin/events/${event.id}/attendance?success=${encodeURIComponent('Presença registrada com sucesso.')}`);
-});
-
 function getRoleActivityAttendance(eventId, userId, role) {
   const activities = db.prepare(`
     SELECT ea.id AS activity_id, ea.name AS activity_name, ea.activity_type,
@@ -1504,6 +1400,101 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
     error: req.query.error || null
   });
 });
+
+router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT a.*, e.name AS event_name FROM event_activities a JOIN events e ON e.id = a.event_id WHERE a.id = ? AND a.event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+
+  const participants = db.prepare(`
+    SELECT name, email, institution
+    FROM (
+      SELECT DISTINCT
+        ep.name,
+        ep.email,
+        MAX(ep.institution) AS institution
+      FROM (
+        SELECT er.user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role
+          FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
+          WHERE er.event_id=?
+        UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
+        UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, u.institution, NULL, 'reviewer'
+          FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
+      ) ep
+      GROUP BY ep.name, ep.email
+    )
+    WHERE email != 'admin@admin.com'
+    ORDER BY name COLLATE NOCASE
+  `).all(activity.id, activity.event_id, activity.event_id, activity.event_id);
+
+  const PDFDocument = require('pdfkit');
+  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 60 });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="lista-presenca-${encodeURIComponent(activity.name)}.pdf"`);
+  doc.pipe(res);
+
+  const pageWidth = doc.page.width - 120;
+  const colName = { x: 60, width: pageWidth * 0.38 };
+  const colEmail = { x: 60 + pageWidth * 0.40, width: pageWidth * 0.38 };
+
+  function formatBRDate(dateStr) {
+    if (!dateStr) return 'A definir';
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d)) return dateStr;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+  }
+
+  doc.fontSize(18).text(event.name, { align: 'center' });
+  doc.moveDown(0.5);
+  doc.fontSize(14).text(activity.name, { align: 'center' });
+  doc.moveDown(0.3);
+  doc.fontSize(11).text(formatBRDate(activity.activity_date), { align: 'center' });
+  doc.moveDown(1);
+
+  const colWidth = pageWidth / 3;
+  const headerTextHeight = 14;
+  const headerLineGap = 8;
+  const firstRowGap = 8;
+
+  function writeHeaderAt(baseY) {
+    let y = baseY;
+    // Text baseline at y, text height ~14px above baseline
+    // Line should be below text, so position it at y + textHeight + gap
+    const lineY = y + headerTextHeight + headerLineGap;
+    doc.fontSize(10).font('Helvetica-Bold')
+      .text('Nome', 60, y, { width: colWidth })
+      .text('E-mail', 60 + colWidth + 40, y, { width: colWidth })
+      .text('Assinatura', 60 + (colWidth + 40) * 2, y, { width: colWidth });
+    doc.moveTo(60, lineY).lineTo(60 + pageWidth, lineY).stroke();
+    return lineY + firstRowGap;
+  }
+
+  let currentY = writeHeaderAt(doc.y);
+
+  const rowHeight = 26;
+  const maxRowsPerPage = Math.floor((doc.page.height - currentY - 40) / rowHeight);
+
+  participants.forEach((row, i) => {
+    if (i > 0 && i % maxRowsPerPage === 0) {
+      doc.addPage();
+      currentY = writeHeaderAt(60);
+    }
+    const yPos = currentY + (i % maxRowsPerPage) * rowHeight;
+    doc.fontSize(9).font('Helvetica')
+      .text(row.name || '', 60, yPos, { width: colWidth });
+    doc.text(row.email || '', 60 + colWidth + 40, yPos, { width: colWidth });
+    doc.text('', 60 + (colWidth + 40) * 2, yPos, { width: colWidth });
+    doc.moveTo(60, yPos + 22).lineTo(60 + pageWidth, yPos + 22).stroke({ color: '#ccc' });
+  });
+
+  doc.end();
+});
+
 router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.attendanceAction);
 }, (req, res) => {
@@ -1550,6 +1541,85 @@ router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (re
   });
 
   res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);
+});
+
+router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.attendanceAction);
+}, (req, res) => {
+  const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+
+  const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
+  if (!allowedRoles.length) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?error=${encodeURIComponent('A atividade não possui perfis elegíveis configurados.')}`);
+  }
+
+  const priorityRoles = ['teacher', 'speaker', 'oral_presenter', 'poster_presenter', 'reviewer', 'participant'];
+  const selectedRole = allowedRoles.find(r => priorityRoles.includes(r)) || allowedRoles[0];
+
+  const eligibleUsers = db.prepare(`
+    SELECT DISTINCT ep.user_id, ep.name, ep.email,
+      (SELECT id FROM event_registrations er WHERE er.event_id=? AND er.user_id=ep.user_id LIMIT 1) AS registration_id
+    FROM (
+      SELECT er.user_id, er.name, er.email, er.id AS registration_id, 'participant' AS role
+        FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
+        WHERE er.event_id=?
+      UNION ALL SELECT eur.user_id, u.name, u.email, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
+      UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, NULL, 'reviewer'
+        FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
+    ) ep
+    WHERE ep.email != 'admin@admin.com'
+    ORDER BY ep.name COLLATE NOCASE
+  `).all(activity.event_id, activity.id, activity.event_id, activity.event_id, activity.event_id);
+
+  const bulkAction = String(req.body.bulk_action || '').trim();
+  let marked = 0;
+  let skipped = 0;
+
+  if (bulkAction === 'unmark_all_present') {
+    eligibleUsers.forEach(user => {
+      if (!user.user_id) { skipped++; return; }
+      const removed = db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=?').run(activity.id, user.user_id);
+      if (removed.changes) {
+        recordParticipantAudit({
+          eventId: activity.event_id, registrationId: user.registration_id || null,
+          actorUserId: req.session.userId, action: 'activity_attendance_removed',
+          details: { activity_id: activity.id, user_id: user.user_id, bulk: true }
+        });
+        marked++;
+      }
+    });
+  } else {
+    const selectedRole = allowedRoles.find(r => priorityRoles.includes(r)) || allowedRoles[0];
+    eligibleUsers.forEach(user => {
+      if (!user.user_id) { skipped++; return; }
+      const hasRoleInEvent = selectedRole === 'participant'
+        ? Boolean(user.registration_id)
+        : selectedRole === 'reviewer'
+          ? Boolean(db.prepare(`SELECT 1 FROM assignments ass JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, user.user_id))
+          : Boolean(db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').get(activity.event_id, user.user_id, selectedRole));
+      if (!hasRoleInEvent) { skipped++; return; }
+      const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=?').get(activity.id, user.user_id);
+      if (existing) {
+        db.prepare("UPDATE activity_attendance_records SET role=?,registration_id=?,attended_at=datetime('now','-3 hours') WHERE id=?")
+          .run(selectedRole, user.registration_id || null, existing.id);
+      } else {
+        db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by) VALUES(?,?,?,?,?)')
+          .run(activity.id, user.registration_id || null, user.user_id, selectedRole, req.session.userId);
+      }
+      recordParticipantAudit({
+        eventId: activity.event_id, registrationId: user.registration_id || null,
+        actorUserId: req.session.userId, action: 'activity_attendance_marked',
+        details: { activity_id: activity.id, user_id: user.user_id, role: selectedRole, bulk: true }
+      });
+      marked++;
+    });
+  }
+
+  const msg = bulkAction === 'unmark_all_present'
+    ? `Presença removida de ${marked} pessoa(s)${skipped > 0 ? ` (${skipped} ignorada(s))` : ''}`
+    : `Presença marcada para ${marked} pessoa(s)${skipped > 0 ? ` (${skipped} ignorada(s))` : ''}`;
+  res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?success=${encodeURIComponent(msg)}`);
 });
 
 router.post('/:id/activities/:activityId/certificate-rule', (req, res) => {
