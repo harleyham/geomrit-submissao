@@ -326,13 +326,23 @@ function getSubsidyRequestCountByEvent() {
   `).all();
 }
 
-function getEventParticipantSummary(eventId, filters = {}) {
+function getEventParticipantSummary(eventId, filters = {}, pagination = null) {
   const params = [eventId];
   const conditions = ['er.event_id = ?'];
 
-  if (filters.type && filters.type !== 'all') {
+  if (filters.category === 'author') {
     conditions.push('er.registration_type = ?');
-    params.push(filters.type);
+    params.push('author');
+  } else if (filters.category === 'instrutor') {
+    conditions.push('EXISTS (SELECT 1 FROM event_user_roles eur WHERE eur.user_id = er.user_id AND eur.event_id = er.event_id AND eur.role IN (?, ?))');
+    params.push('teacher', 'speaker');
+  }
+
+  if (filters.titulation === 'Não especificado') {
+    conditions.push('(u.formacao_titulacao IS NULL OR u.formacao_titulacao = \'\' OR u.formacao_titulacao IS NULL)');
+  } else if (filters.titulation && filters.titulation !== 'all') {
+    conditions.push('u.formacao_titulacao = ?');
+    params.push(filters.titulation);
   }
 
   if (filters.query) {
@@ -340,12 +350,17 @@ function getEventParticipantSummary(eventId, filters = {}) {
       LOWER(er.name) LIKE ?
       OR LOWER(er.email) LIKE ?
       OR LOWER(COALESCE(er.institution, '')) LIKE ?
+      OR LOWER(REPLACE(REPLACE(REPLACE(COALESCE(u.cpf, ''), '.', ''), '-', ''), ' ', '')) LIKE ?
     )`);
     const term = `%${String(filters.query).trim().toLowerCase()}%`;
-    params.push(term, term, term);
+    params.push(term, term, term, term);
   }
 
-  return db.prepare(`
+  if (filters.subsidy_requested && filters.subsidy_requested === '1') {
+    conditions.push('er.subsidy_requested = 1');
+  }
+
+  const sql = `
     WITH approved_articles AS (
       SELECT
         event_id,
@@ -382,6 +397,7 @@ function getEventParticipantSummary(eventId, filters = {}) {
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.registration_id=er.id) AS enrolled_activities,
       (SELECT GROUP_CONCAT(ea.name, ' · ') FROM participant_activity_enrollments pae
         JOIN event_activities ea ON ea.id=pae.activity_id WHERE pae.registration_id=er.id) AS activity_names,
+      CASE WHEN EXISTS(SELECT 1 FROM event_user_roles eur WHERE eur.user_id=er.user_id AND eur.event_id=er.event_id AND eur.role IN ('teacher','speaker')) THEN 1 ELSE 0 END AS is_instructor,
       CASE
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
         WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
@@ -392,15 +408,15 @@ function getEventParticipantSummary(eventId, filters = {}) {
     LEFT JOIN approved_articles aa
       ON aa.event_id = er.event_id
      AND aa.participant_key = CASE
-       WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
-       ELSE 'email:' || LOWER(TRIM(er.email))
-     END
-    LEFT JOIN submitted_articles sa
-      ON sa.event_id = er.event_id
-     AND sa.participant_key = CASE
-       WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
-       ELSE 'email:' || LOWER(TRIM(er.email))
-     END
+        WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
+        ELSE 'email:' || LOWER(TRIM(er.email))
+      END
+     LEFT JOIN submitted_articles sa
+       ON sa.event_id = er.event_id
+      AND sa.participant_key = CASE
+         WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
+         ELSE 'email:' || LOWER(TRIM(er.email))
+       END
     WHERE ${conditions.join(' AND ')}
     ORDER BY
       CASE
@@ -410,7 +426,114 @@ function getEventParticipantSummary(eventId, filters = {}) {
       END,
       er.name COLLATE NOCASE,
       er.created_at DESC
-  `).bind(...params).all();
+  `;
+
+  if (pagination && pagination.perPage != null && pagination.offset != null) {
+    return db.prepare(sql + ' LIMIT ? OFFSET ?').bind(...params, pagination.perPage, pagination.offset).all();
+  }
+
+  return db.prepare(sql).bind(...params).all();
+}
+
+function countEventParticipants(eventId, filters = {}) {
+  const params = [eventId];
+  let conditions = ['er.event_id = ?'];
+  let instrutorParams = null;
+
+  if (filters.category === 'author') {
+    conditions.push('er.registration_type = ?');
+    params.push('author');
+  } else if (filters.category === 'instrutor') {
+    instrutorParams = [eventId, 'teacher', 'speaker'];
+    conditions.push('EXISTS (SELECT 1 FROM event_user_roles eur WHERE eur.user_id = er.user_id AND eur.event_id = ? AND eur.role IN (?, ?))');
+    params.push(...instrutorParams);
+  }
+
+  if (filters.titulation === 'Não especificado') {
+    conditions.push('NOT EXISTS (SELECT 1 FROM users u WHERE u.id = er.user_id AND (u.formacao_titulacao IS NOT NULL AND u.formacao_titulacao != \'\'))');
+  } else if (filters.titulation && filters.titulation !== 'all') {
+    conditions.push('EXISTS (SELECT 1 FROM users u WHERE u.id = er.user_id AND u.formacao_titulacao = ?)');
+    params.push(filters.titulation);
+  }
+
+  if (filters.query) {
+    conditions.push(`(
+      LOWER(er.name) LIKE ?
+      OR LOWER(er.email) LIKE ?
+      OR LOWER(COALESCE(er.institution, '')) LIKE ?
+      OR LOWER(REPLACE(REPLACE(REPLACE(COALESCE((SELECT u.cpf FROM users u WHERE u.id = er.user_id), ''), '.', ''), '-', ''), ' ', '')) LIKE ?
+    )`);
+    const term = `%${String(filters.query).trim().toLowerCase()}%`;
+    params.push(term, term, term, term);
+  }
+
+  if (filters.subsidy_requested && filters.subsidy_requested === '1') {
+    conditions.push('er.subsidy_requested = 1');
+  }
+
+  return db.prepare(`SELECT COUNT(*) as total FROM event_registrations er WHERE ${conditions.join(' AND ')}`).bind(...params).get().total;
+}
+
+function countEventParticipantsDetailed(eventId, filters = {}) {
+  const params = [eventId];
+  let conditions = ['er.event_id = ?'];
+
+  if (filters.category === 'author') {
+    conditions.push('er.registration_type = ?');
+    params.push('author');
+  } else if (filters.category === 'instrutor') {
+    conditions.push('EXISTS (SELECT 1 FROM event_user_roles eur WHERE eur.user_id = er.user_id AND eur.event_id = ? AND eur.role IN (?, ?))');
+    params.push(eventId, 'teacher', 'speaker');
+  }
+
+  if (filters.titulation === 'Não especificado') {
+    conditions.push('NOT EXISTS (SELECT 1 FROM users u WHERE u.id = er.user_id AND (u.formacao_titulacao IS NOT NULL AND u.formacao_titulacao != \'\'))');
+  } else if (filters.titulation && filters.titulation !== 'all') {
+    conditions.push('EXISTS (SELECT 1 FROM users u WHERE u.id = er.user_id AND u.formacao_titulacao = ?)');
+    params.push(filters.titulation);
+  }
+
+  if (filters.query) {
+    conditions.push(`(
+      LOWER(er.name) LIKE ?
+      OR LOWER(er.email) LIKE ?
+      OR LOWER(COALESCE(er.institution, '')) LIKE ?
+      OR LOWER(REPLACE(REPLACE(REPLACE(COALESCE((SELECT u.cpf FROM users u WHERE u.id = er.user_id), ''), '.', ''), '-', ''), ' ', '')) LIKE ?
+    )`);
+    const term = `%${String(filters.query).trim().toLowerCase()}%`;
+    params.push(term, term, term, term);
+  }
+
+  if (filters.subsidy_requested && filters.subsidy_requested === '1') {
+    conditions.push('er.subsidy_requested = 1');
+  }
+
+  return db.prepare(`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN registration_type = 'author' THEN 1 ELSE 0 END) as authors,
+      SUM(CASE WHEN registration_type = 'listener' THEN 1 ELSE 0 END) as listeners,
+      SUM(CASE WHEN approved_count > 0 THEN 1 ELSE 0 END) as approvedPresenters,
+      SUM(CASE WHEN subsidy_requested = 1 THEN 1 ELSE 0 END) as subsidyRequests
+    FROM event_registrations er
+    LEFT JOIN (
+      SELECT event_id,
+        CASE
+          WHEN submitter_user_id IS NOT NULL THEN 'user:' || submitter_user_id
+          WHEN email_submission IS NOT NULL AND TRIM(email_submission) != '' THEN 'email:' || LOWER(TRIM(email_submission))
+          ELSE NULL
+        END as participant_key,
+        COUNT(*) as approved_count
+      FROM articles
+      WHERE status = 'approved'
+      GROUP BY event_id, participant_key
+    ) aa ON aa.event_id = er.event_id
+     AND aa.participant_key = CASE
+        WHEN er.user_id IS NOT NULL THEN 'user:' || er.user_id
+        ELSE 'email:' || LOWER(TRIM(er.email))
+      END
+    WHERE ${conditions.join(' AND ')}
+  `).bind(...params).get();
 }
 
 function getParticipantRegistrationForEvent(eventId, registrationId) {
@@ -678,24 +801,20 @@ router.get('/:id/participants', (req, res) => {
 
   const filters = {
     query: String(req.query.q || '').trim(),
-    type: ['all', 'listener', 'author'].includes(String(req.query.type || 'all')) ? String(req.query.type || 'all') : 'all'
+    category: ['all', 'author', 'instrutor'].includes(String(req.query.category || 'all')) ? String(req.query.category || 'all') : 'all',
+    titulation: ['all', 'Graduado', 'Mestre', 'Doutor', 'Não especificado'].includes(String(req.query.titulation || 'all')) ? String(req.query.titulation || 'all') : 'all',
+    subsidy_requested: ['all', '1'].includes(String(req.query.subsidy_requested || 'all')) ? String(req.query.subsidy_requested || 'all') : 'all'
   };
 
-  const participants = getEventParticipantSummary(req.params.id, filters);
-  const summary = participants.reduce((acc, participant) => {
-    acc.total += 1;
-    if (participant.registration_type === 'author') acc.authors += 1;
-    else acc.listeners += 1;
-    if (participant.approved_articles > 0) acc.approvedPresenters += 1;
-    if (participant.subsidy_requested) acc.subsidyRequests += 1;
-    return acc;
-  }, {
-    total: 0,
-    authors: 0,
-    listeners: 0,
-    approvedPresenters: 0,
-    subsidyRequests: 0
-  });
+  const perPage = Math.min(parseInt(req.query.per_page) || 50, 200);
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const totalParticipants = countEventParticipants(req.params.id, filters);
+  const totalPages = Math.max(1, Math.ceil(totalParticipants / perPage));
+  const clampedPage = Math.min(page, totalPages);
+  const clampedOffset = (clampedPage - 1) * perPage;
+
+  const participants = getEventParticipantSummary(req.params.id, filters, { perPage, offset: clampedOffset });
+  const summary = countEventParticipantsDetailed(req.params.id, filters);
 
   res.render('admin/events/participants', {
     title: `Participantes - ${event.name}`,
@@ -703,6 +822,14 @@ router.get('/:id/participants', (req, res) => {
     participants,
     filters,
     summary,
+    pagination: {
+      currentPage: clampedPage,
+      totalPages,
+      totalApproved: totalParticipants,
+      perPage,
+      hasNext: clampedPage < totalPages,
+      hasPrev: clampedPage > 1
+    },
     success: req.query.success || null,
     error: req.query.error || null
   });

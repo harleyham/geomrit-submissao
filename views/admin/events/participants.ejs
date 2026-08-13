@@ -42,8 +42,10 @@
     .badge { display: inline-flex; align-items: center; padding: 0.24rem 0.65rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
     .badge-author { background: rgba(59,130,246,0.14); color: #93c5fd; }
     .badge-listener { background: rgba(148,163,184,0.16); color: #cbd5e1; }
+    .badge-instructor { background: rgba(168,85,247,0.14); color: #d8b4fe; }
     .badge-approved { background: rgba(34,197,94,0.16); color: #86efac; }
     .badge-subsidy { background: rgba(251,191,36,0.14); color: #fcd34d; }
+    .badge-rejected { background: rgba(239,68,68,0.14); color: #fca5a5; }
     .activity-summary { max-width:260px; color:#cbd5e1; line-height:1.45; }
     .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.55rem 0.9rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; text-decoration: none; border: 1px solid transparent; cursor: pointer; }
@@ -113,14 +115,31 @@
       <form method="GET" class="filters">
         <div class="filter-group">
           <label for="q">Buscar participante</label>
-          <input id="q" type="text" name="q" value="<%= filters.query %>" placeholder="Nome, e-mail ou instituição">
+          <input id="q" type="text" name="q" value="<%= filters.query %>" placeholder="Nome, e-mail, instituição ou CPF">
         </div>
         <div class="filter-group" style="max-width:220px;">
-          <label for="type">Tipo de participação</label>
-          <select id="type" name="type">
-            <option value="all" <%= filters.type === 'all' ? 'selected' : '' %>>Todos</option>
-            <option value="author" <%= filters.type === 'author' ? 'selected' : '' %>>Com artigo</option>
-            <option value="listener" <%= filters.type === 'listener' ? 'selected' : '' %>>Participantes</option>
+          <label for="category">Categoria</label>
+          <select id="category" name="category">
+            <option value="all" <%= filters.category === 'all' ? 'selected' : '' %>>Todos</option>
+            <option value="author" <%= filters.category === 'author' ? 'selected' : '' %>>Autor</option>
+            <option value="instrutor" <%= filters.category === 'instrutor' ? 'selected' : '' %>>Instrutor</option>
+          </select>
+        </div>
+        <div class="filter-group" style="max-width:160px;">
+          <label for="titulation">Titulação</label>
+          <select id="titulation" name="titulation">
+            <option value="all" <%= filters.titulation === 'all' ? 'selected' : '' %>>Todas</option>
+            <option value="Graduado" <%= filters.titulation === 'Graduado' ? 'selected' : '' %>>Graduado</option>
+            <option value="Mestre" <%= filters.titulation === 'Mestre' ? 'selected' : '' %>>Mestre</option>
+            <option value="Doutor" <%= filters.titulation === 'Doutor' ? 'selected' : '' %>>Doutor</option>
+            <option value="Não especificado" <%= filters.titulation === 'Não especificado' ? 'selected' : '' %>>Não especificado</option>
+          </select>
+        </div>
+        <div class="filter-group" style="max-width:200px;">
+          <label for="subsidy_requested">Subsídio</label>
+          <select id="subsidy_requested" name="subsidy_requested">
+            <option value="all" <%= filters.subsidy_requested === 'all' ? 'selected' : '' %>>Todos</option>
+            <option value="1" <%= filters.subsidy_requested === '1' ? 'selected' : '' %>>Pediu subsídio</option>
           </select>
         </div>
         <div class="actions">
@@ -128,6 +147,35 @@
           <a href="/admin/events/<%= event.id %>/participants" class="btn btn-ghost">Limpar</a>
         </div>
       </form>
+
+      <% if (pagination) { %>
+       <div style="padding:1rem 1.25rem;border-top:1px solid rgba(148,163,184,0.08);display:flex;gap:1rem;flex-wrap:wrap;align-items:center;background:rgba(15,23,42,0.12)">
+          <div style="color:#94a3b8;font-size:0.8125rem">
+            <% if (!participants.length) { %>
+              Exibindo 0-0 de 0 participante(s)
+            <% } else { %>
+              Exibindo <%= (pagination.currentPage - 1) * pagination.perPage + 1 %>-<%= Math.min(pagination.currentPage * pagination.perPage, pagination.totalApproved) %> de <%= pagination.totalApproved %> participante(s)
+            <% } %>
+          </div>
+         <div style="display:flex;gap:0.5rem;align-items:center">
+             <% if (pagination.hasPrev) { %>
+              <a href="/admin/events/<%= event.id %>/participants?page=<%= pagination.currentPage - 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %><% if (filters && filters.category && filters.category !== 'all') { %>&category=<%= filters.category %><% } %><% if (filters && filters.titulation && filters.titulation !== 'all') { %>&titulation=<%= encodeURIComponent(filters.titulation) %><% } %><% if (filters && filters.subsidy_requested && filters.subsidy_requested !== 'all') { %>&subsidy_requested=<%= filters.subsidy_requested %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-flex;font-size:0.75rem;padding:0.3rem 0.65rem">← Anterior</a>
+             <% } %>
+             <% if (pagination.totalPages > 1) { %>
+             <span style="color:#94a3b8;font-size:0.8125rem;padding:0.25rem 0.5rem">Página <%= pagination.currentPage %> de <%= pagination.totalPages %></span>
+             <% } %>
+             <% if (pagination.hasNext) { %>
+              <a href="/admin/events/<%= event.id %>/participants?page=<%= pagination.currentPage + 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %><% if (filters && filters.category && filters.category !== 'all') { %>&category=<%= filters.category %><% } %><% if (filters && filters.titulation && filters.titulation !== 'all') { %>&titulation=<%= encodeURIComponent(filters.titulation) %><% } %><% if (filters && filters.subsidy_requested && filters.subsidy_requested !== 'all') { %>&subsidy_requested=<%= filters.subsidy_requested %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-flex;font-size:0.75rem;padding:0.3rem 0.65rem">Próxima →</a>
+             <% } %>
+           <select id="per-page-select" style="background:rgba(15,23,42,0.5);color:#e2e8f0;border:1px solid rgba(148,163,184,0.2);border-radius:6px;padding:0.3rem 0.5rem;font-size:0.75rem;font-family:'Inter',sans-serif">
+             <option value="25"<%= pagination.perPage === 25 ? ' selected' : ''%>>25 por página</option>
+             <option value="50"<%= pagination.perPage === 50 ? ' selected' : ''%>>50 por página</option>
+             <option value="100"<%= pagination.perPage === 100 ? ' selected' : ''%>>100 por página</option>
+             <option value="200"<%= pagination.perPage === 200 ? ' selected' : ''%>>200 por página</option>
+           </select>
+         </div>
+       </div>
+      <% } %>
 
       <% if (!participants.length) { %>
         <div class="empty-state">Nenhum participante encontrado para os filtros informados.</div>
@@ -156,9 +204,19 @@
                   <% } %>
                 </td>
                 <td>
-                  <span class="badge badge-<%= participant.registration_type === 'author' ? 'author' : 'listener' %>">
-                    <%= participant.registration_type === 'author' ? 'Com artigo' : 'Participante' %>
-                  </span>
+                  <%
+                    var roles = [];
+                    if (participant.registration_type === 'author') roles.push('Com artigo');
+                    if (participant.is_instructor) {
+                      roles.push('Instrutor');
+                    }
+                    if (roles.length > 0) {
+                      roles.forEach(function(role) {
+                  %>
+                        <span class="badge badge-<%= role === 'Com artigo' ? 'author' : (role === 'Instrutor' ? 'instructor' : 'listener') %>"><%= role %></span>
+                  <% }); } else { %>
+                        <span class="badge badge-listener">Participante</span>
+                  <% } %>
                 </td>
                 <td class="activity-summary">
                   <% if (participant.enrolled_activities > 0) { %>
@@ -179,7 +237,7 @@
                 </td>
                 <td>
                   <% if (participant.subsidy_requested) { %>
-                    <span class="badge badge-subsidy">
+                    <span class="badge badge-<%= participant.subsidy_status === 'approved' ? 'approved' : (participant.subsidy_status === 'rejected' ? 'rejected' : 'subsidy') %>">
                       <%= participant.subsidy_status === 'approved' ? 'Subsídio aprovado' : participant.subsidy_status === 'rejected' ? 'Subsídio reprovado' : 'Subsídio pendente' %>
                     </span>
                   <% } else { %>
@@ -212,5 +270,33 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+
+  <script>
+    (function() {
+      var sel = document.getElementById('per-page-select');
+      if (!sel) return;
+      sel.addEventListener('change', function() {
+        var perPage = this.value;
+        var url = '/admin/events/<%= event.id %>/participants?page=1&per_page=' + perPage;
+        var q = document.getElementById('q');
+        if (q && q.value.trim()) {
+          url += '&q=' + encodeURIComponent(q.value.trim());
+        }
+        var category = document.getElementById('category');
+        if (category && category.value !== 'all') {
+          url += '&category=' + encodeURIComponent(category.value);
+        }
+        var titulation = document.getElementById('titulation');
+        if (titulation && titulation.value !== 'all') {
+          url += '&titulation=' + encodeURIComponent(titulation.value);
+        }
+        var subsidy = document.getElementById('subsidy_requested');
+        if (subsidy && subsidy.value !== 'all') {
+          url += '&subsidy_requested=' + encodeURIComponent(subsidy.value);
+        }
+        window.location.href = url;
+      });
+    })();
+  </script>
 </body>
 </html>

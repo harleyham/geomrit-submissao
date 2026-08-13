@@ -6,31 +6,63 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-13
 
-### Correção da paginação de usuários — seletor de registros por página
+### Correções e melhorias na listagem de participantes (`/admin/events/:id/participants`)
 
-- O seletor de "por página" em `/admin/users` não acionava a navegação ao trocar de opção.
-- Causa: o `onchange` inline usava template literal de JavaScript (backticks) dentro de um atributo HTML, o que causava parsing inconsistente entre navegadores; a versão anterior com `&amp;` em string concatenada também apresentava falha.
-- Correção: removido o `onchange` inline e substituído por `<script>` dedicado com `addEventListener('change', ...)`, que constrói a URL via concatenação simples (`'/admin/users?page=1&per_page=' + perPage`), preservando o parâmetro `q` da busca quando presente.
-- Arquivo afetado: `views/admin/users/list.ejs`.
+#### Contador corrigido com filtros aplicados
+
+- O contador "Exibindo X-Y de Z participante(s)" agora exibe "0-0 de 0" quando nenhum participante é retornado pela combinação de filtros, em vez de "1-1 de N".
+- Arquivo afetado: `views/admin/events/participants.ejs`.
 - Status: **corrigido e validado**.
 
-### Correção da paginação de usuários — seletor invisível com menos de N registros
+#### Correção do filtro "Instrutor"
 
-- Quando o número total de usuários era menor que o valor selecionado de "por página" (ex: 164 usuários com 200 por página), o seletor e toda a barra de paginação somiam da tela.
-- Causa: a condição `pagination.totalApproved > pagination.perPage` escondia o bloco completo de paginação quando não havia múltiplas páginas.
-- Correção: a condição foi simplificada para `pagination`, garantindo que o seletor sempre apareça quando há paginação ativa. Os botões "Anterior"/"Próxima" e o indicador "Página X de Y" continuam condicionais à existência de múltiplas páginas.
-- Arquivo afetado: `views/admin/users/list.ejs`.
+- O filtro de categoria "Instrutor" usava `LEFT JOIN` com placeholders `IN (?, ?)` antes do `WHERE er.event_id = ?`, causando ordem incorreta dos parâmetros.
+- Substituído por `EXISTS` (mesma abordagem usada no count), mantendo a ordem correta: `eventId`, `teacher`, `speaker`.
+- Arquivo afetado: `routes/events.js` (função `getEventParticipantSummary`).
 - Status: **corrigido e validado**.
 
-### Busca de usuários por nome, e-mail, instituição ou CPF
+#### Filtro de subsídio na listagem
 
-- Adicionado campo de busca na listagem de usuários (`/admin/users`), com funcionalidade idêntica à existente em `/admin/events/:id/participants`.
-- O backend aceita o parâmetro `q` e filtra por `name`, `email`, `institution` e `cpf` (case-insensitive, via `LIKE`).
-- A paginação recalcula totais e páginas com o filtro aplicado.
-- Os links de paginação (Anterior, Próxima) e o seletor "por página" preservam o parâmetro `q` para manter a busca ativa entre páginas.
-- Estado vazio com mensagem "Nenhum usuário encontrado para a busca..." quando a pesquisa não retorna resultados.
-- Arquivos afetados: `routes/users.js` (rota `GET /` com filtro SQL parametrizado), `views/admin/users/list.ejs` (formulário `.filters`, CSS de busca, links de paginação com `q`, script do seletor preservando busca).
+- A função `getEventParticipantSummary` não aplicava o filtro `subsidy_requested`, causando inconsistência entre o count (correto) e a listagem (sem filtro).
+- Adicionada condição `er.subsidy_requested = 1` nas três funções de consulta.
+- Arquivo afetado: `routes/events.js`.
+- Status: **corrigido e validado**.
+
+#### Coluna "TIPO" com múltiplos papéis
+
+- A coluna "TIPO" agora exibe todos os atributos do participante: "Com artigo" (quando `registration_type === 'author'`), "Instrutor" (quando há papel `teacher` ou `speaker` em `event_user_roles`) e "Participante" (fallback).
+- Cada papel recebe um badge com cor distinta: azul para "Com artigo", roxo para "Instrutor" e cinza para "Participante".
+- Query ampliada com subquery para detectar papel de instrutor: `CASE WHEN EXISTS(...) THEN 1 ELSE 0 END AS is_instructor`.
+- Arquivos afetados: `routes/events.js`, `views/admin/events/participants.ejs`.
 - Status: **implementado e validado**.
+
+#### Cores por status de subsídio
+
+- A coluna "SUBSÍDIO" agora usa cores diferentes: verde (`#86efac`) para "Subsídio aprovado", vermelho (`#fca5a5`) para "Subsídio reprovado" e amarelo (`#fcd34d`) para "Subsídio pendente".
+- Adicionada classe CSS `.badge-rejected` para status reprovado.
+- Arquivo afetado: `views/admin/events/participants.ejs`.
+- Status: **corrigido e validado**.
+
+#### Filtro de titulação como dropdown
+
+- A titulação foi removida da busca livre e adicionada como filtro dropdown separado: "Todas", "Graduado", "Mestre", "Doutor" e "Não especificado" (para usuários sem `formacao_titulacao` ou com valor vazio).
+- Filtro de texto livre agora busca por nome, e-mail, instituição e CPF (sem formatação).
+- Arquivos afetados: `routes/events.js`, `views/admin/events/participants.ejs`.
+- Status: **implementado e validado**.
+
+#### Propagação automática de dados: users → event_registrations
+
+- Criada trigger `trg_sync_user_to_event_registration` no `db.js` que propaga automaticamente `name`, `phone` e `institution` da tabela `users` para todas as `event_registrations` vinculadas pelo `user_id` quando houver atualização.
+- Trigger só dispara quando pelo menos uma das colunas é alterada.
+- Arquivo afetado: `db.js`.
+- Status: **implementado e validado**.
+
+### Correção: trigger com colunas inexistentes
+
+- A trigger inicial tentava atualizar `cpf`, `passport` e `country` em `event_registrations`, mas essas colunas não existem na tabela.
+- Trigger reescrita para propagar apenas `name`, `phone` e `institution` — as únicas colunas de dados compartilhadas entre `users` e `event_registrations`.
+- Arquivo afetado: `db.js`.
+- Status: **corrigido e validado**.
 
 ## 2026-08-12
 
@@ -684,12 +716,16 @@ Versão atual registrada: **V0.1**.
 
 ### Minhas observações do a fazer
 
-- Validar a importação de participantes com variações adicionais de planilhas exportadas.
+
 - Deve haver distinção entre Participantes Presenciais / Remotos?
 - A Presença de cursos com várias aulas deve ser por aula, a fim de se poder exigir participação mínima em cada uma?
 - Internacionalização
 - Mandar emails
-- Testar paginação dos usuários (a mudança de número de registros por página não está funcionando)
+- Implementar geração de PDF para lista de presença manual. Deve gerar um PDF com o Nome, email e espaço para assinatura (Para cursos, deverá ser uma lista para cada período)
+- Quando implementar envio de email, colocar "Master switch" para ligar/desligar envio de email na fase de desenvolvimentp
+
+
+
 
 
 

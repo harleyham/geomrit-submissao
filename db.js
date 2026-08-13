@@ -484,6 +484,18 @@ db.exec(`
     UPDATE participant_activity_enrollments SET user_id=NEW.user_id,updated_at=datetime('now','-3 hours')
     WHERE registration_id=NEW.id;
   END;
+
+  DROP TRIGGER IF EXISTS trg_sync_user_to_event_registration;
+
+  CREATE TRIGGER IF NOT EXISTS trg_sync_user_to_event_registration
+  AFTER UPDATE OF name, phone, institution ON users
+  WHEN OLD.name != NEW.name OR OLD.phone != NEW.phone OR OLD.institution != NEW.institution
+  BEGIN
+    UPDATE event_registrations
+    SET name=NEW.name, phone=NEW.phone, institution=NEW.institution,
+        updated_at=datetime('now','-3 hours')
+    WHERE user_id=NEW.id;
+  END;
 `);
 
 // Fundos distribuídos com o sistema permanecem em assets/Fundos. Eles são

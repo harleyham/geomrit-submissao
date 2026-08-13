@@ -741,6 +741,14 @@ Observações operacionais:
 - Busca de usuários por nome, e-mail, instituição ou CPF em `/admin/users`: campo de busca com filtro case-insensitive, paginação que preserva o termo de busca entre páginas e estado vazio com mensagem contextual.
 - Correção da paginação de usuários: o seletor "por página" agora usa `addEventListener` em `<script>` dedicado, resolvendo falha de parsing de JavaScript inline que impedia a mudança de registros por página.
 - Correção da paginação de usuários: o seletor "por página" permanece visível mesmo quando o total de registros cabe em uma única página, permitindo alterar o limite.
+- Correção do contador de participantes quando filtros retornam zero registros: exibe "0-0 de 0" em vez de "1-1 de N".
+- Correção do filtro "Instrutor" na listagem de participantes: substituído `LEFT JOIN` por `EXISTS` para manter ordem correta dos parâmetros SQL.
+- Coluna "TIPO" na listagem de participantes exibe todos os atributos: "Com artigo", "Instrutor" e "Participante", com badges coloridos distintos (azul, roxo e cinza).
+- Coluna "SUBSÍDIO" usa cores por status: verde para aprovado, vermelho para reprovado e amarelo para pendente.
+- Filtro de titulação como dropdown separado: opções "Todas", "Graduado", "Mestre", "Doutor" e "Não especificado" (NULL ou vazio).
+- Busca de participantes ampliada para CPF: campo de texto busca por nome, e-mail, instituição e CPF (sem formatação).
+- Trigger `trg_sync_user_to_event_registration` propaga `name`, `phone` e `institution` de `users` → `event_registrations` automaticamente.
+- Propagação de dados de `users` para `event_registrations`: trigger automática mantém dados sincronizados.
 
 ### Segurança reforçada (V0.1)
 
