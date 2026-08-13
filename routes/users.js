@@ -301,11 +301,19 @@ function mapArticleStatus(status) {
 router.get('/', requireAuth, (req, res) => {
   const perPage = Math.min(parseInt(req.query.per_page) || 50, 200);
   const page = Math.max(parseInt(req.query.page) || 1, 1);
-  const offset = (page - 1) * perPage;
+  const query = String(req.query.q || '').trim();
+  const conditions = ["approval_status != 'pending'"];
+  const params = [];
 
-  const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-  const totalPending = db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
-  const totalPages = Math.max(1, Math.ceil((totalUsers - totalPending) / perPage));
+  if (query) {
+    const term = `%${query.toLowerCase()}%`;
+    conditions.push('(LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(COALESCE(institution, \'\')) LIKE ? OR LOWER(COALESCE(cpf, \'\')) LIKE ?)');
+    params.push(term, term, term, term);
+  }
+
+  const whereClause = conditions.join(' AND ');
+  const totalApproved = db.prepare(`SELECT COUNT(*) as count FROM users WHERE ${whereClause}`).bind(...params).get().count;
+  const totalPages = Math.max(1, Math.ceil(totalApproved / perPage));
   const clampedPage = Math.min(page, totalPages);
   const clampedOffset = (clampedPage - 1) * perPage;
 
@@ -323,10 +331,10 @@ router.get('/', requireAuth, (req, res) => {
            is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at,
            password_changed, profile_completed, created_at
     FROM users
-    WHERE approval_status != 'pending'
+    WHERE ${whereClause}
     ORDER BY name
     LIMIT ? OFFSET ?
-  `).bind(perPage, clampedOffset).all();
+  `).bind(...params, perPage, clampedOffset).all();
 
   const currentUser = db.prepare('SELECT id, name, email FROM users WHERE id = ?').bind(req.session.userId).get();
   res.render('admin/users/list', {
@@ -336,11 +344,12 @@ router.get('/', requireAuth, (req, res) => {
     pagination: {
       currentPage: clampedPage,
       totalPages,
-      totalApproved: totalUsers - totalPending,
+      totalApproved,
       perPage,
       hasNext: clampedPage < totalPages,
       hasPrev: clampedPage > 1
     },
+    filters: { query },
     title: 'Usuários',
     year: new Date().getFullYear(),
     success: req.query.success,

@@ -738,6 +738,9 @@ Observações operacionais:
 - Removidas referências ao Even3: textos, mensagens de erro e templates atualizados para serem genéricos.
 - Uniformização de estilos de botões nas páginas de resultado de importação.
 - Remoção de logs de debug das rotas de importação.
+- Busca de usuários por nome, e-mail, instituição ou CPF em `/admin/users`: campo de busca com filtro case-insensitive, paginação que preserva o termo de busca entre páginas e estado vazio com mensagem contextual.
+- Correção da paginação de usuários: o seletor "por página" agora usa `addEventListener` em `<script>` dedicado, resolvendo falha de parsing de JavaScript inline que impedia a mudança de registros por página.
+- Correção da paginação de usuários: o seletor "por página" permanece visível mesmo quando o total de registros cabe em uma única página, permitindo alterar o limite.
 
 ### Segurança reforçada (V0.1)
 

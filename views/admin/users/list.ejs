@@ -68,6 +68,13 @@
     a { color: #60a5fa; text-decoration: none; }
     a:hover { text-decoration: underline; }
     .user-detail { color: #64748b; font-size: 0.7rem; display: block; margin-top: 0.1rem; }
+    .filters { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(148,163,184,0.1); display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: end; background: rgba(15,23,42,0.2); margin: -2rem -2rem 1.5rem -2rem; border-radius: 12px 12px 0 0; }
+    .filter-group { min-width: 180px; flex: 1; }
+    .filter-group label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.45rem; }
+    .filter-group input, .filter-group select { width: 100%; padding: 0.7rem 0.9rem; border-radius: 10px; border: 1px solid rgba(148,163,184,0.16); background: rgba(2,6,23,0.45); color: #f8fafc; font-family: 'Inter', sans-serif; }
+    .filter-group input:focus, .filter-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    .filter-actions { display: flex; gap: 0.5rem; }
+    .empty-state { text-align: center; padding: 3rem; color: #64748b; font-size: 0.95rem; }
   </style>
 </head>
 <body>
@@ -200,33 +207,48 @@
     <div class="section">
       <div class="section-title">Gerenciar Usuários</div>
       <div class="section-desc">Usuários já aprovados, com gestão de papéis e status de acesso</div>
-      <div class="section-note">
+       <div class="section-note">
         Revisor define o papel do usuário no fluxo de avaliação.
         Conta ativa define se ele pode entrar no sistema.
         Desativar a conta <strong>não remove</strong> automaticamente o papel de revisor.
         Um usuário com Revisor ligado e Conta ativa desligada será contado como <strong>revisor inativo</strong>.
       </div>
-      <% if (pagination && pagination.totalApproved > pagination.perPage) { %>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
-        <span style="color:#64748b;font-size:0.8125rem">Exibindo <%= ((pagination.currentPage - 1) * pagination.perPage) + 1 %>-<%= Math.min(pagination.currentPage * pagination.perPage, pagination.totalApproved) %> de <%= pagination.totalApproved %> usuário(s)</span>
-        <div style="display:flex;gap:0.5rem;align-items:center">
-          <% if (pagination.hasPrev) { %>
-          <a href="/admin/users?page=<%= pagination.currentPage - 1 %>&per_page=<%= pagination.perPage %>" class="btn btn-ghost btn-sm" style="display:inline-block">← Anterior</a>
-          <% } %>
-          <span style="color:#94a3b8;font-size:0.8125rem;padding:0.25rem 0.5rem">Página <%= pagination.currentPage %> de <%= pagination.totalPages %></span>
-          <% if (pagination.hasNext) { %>
-          <a href="/admin/users?page=<%= pagination.currentPage + 1 %>&per_page=<%= pagination.perPage %>" class="btn btn-ghost btn-sm" style="display:inline-block">Próxima →</a>
-          <% } %>
-          <select onchange="window.location.href='/admin/users?page=1&amp;per_page='+this.value" style="background:rgba(15,23,42,0.5);color:#e2e8f0;border:1px solid rgba(148,163,184,0.2);border-radius:6px;padding:0.25rem 0.5rem;font-size:0.8125rem;font-family:'Inter',sans-serif">
-            <option value="25"<%= pagination.perPage === 25 ? ' selected' : ''%>>25 por página</option>
-            <option value="50"<%= pagination.perPage === 50 ? ' selected' : ''%>>50 por página</option>
-            <option value="100"<%= pagination.perPage === 100 ? ' selected' : ''%>>100 por página</option>
-            <option value="200"<%= pagination.perPage === 200 ? ' selected' : ''%>>200 por página</option>
-          </select>
+      <form method="GET" class="filters">
+        <div class="filter-group">
+          <label for="q">Buscar usuário</label>
+          <input id="q" type="text" name="q" value="<%= (filters && filters.query) || '' %>" placeholder="Nome, e-mail, instituição ou CPF">
         </div>
-      </div>
-      <% } %>
-      <table>
+        <div class="filter-actions">
+          <button type="submit" class="btn btn-primary">Buscar</button>
+          <a href="/admin/users" class="btn btn-ghost">Limpar</a>
+        </div>
+      </form>
+       <% if (pagination) { %>
+       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
+         <span style="color:#64748b;font-size:0.8125rem">Exibindo <%= ((pagination.currentPage - 1) * pagination.perPage) + 1 %>-<%= Math.min(pagination.currentPage * pagination.perPage, pagination.totalApproved) %> de <%= pagination.totalApproved %> usuário(s)</span>
+         <div style="display:flex;gap:0.5rem;align-items:center">
+           <% if (pagination.hasPrev) { %>
+            <a href="/admin/users?page=<%= pagination.currentPage - 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-block">← Anterior</a>
+           <% } %>
+           <% if (pagination.totalPages > 1) { %>
+           <span style="color:#94a3b8;font-size:0.8125rem;padding:0.25rem 0.5rem">Página <%= pagination.currentPage %> de <%= pagination.totalPages %></span>
+           <% } %>
+           <% if (pagination.hasNext) { %>
+            <a href="/admin/users?page=<%= pagination.currentPage + 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-block">Próxima →</a>
+           <% } %>
+           <select id="per-page-select" style="background:rgba(15,23,42,0.5);color:#e2e8f0;border:1px solid rgba(148,163,184,0.2);border-radius:6px;padding:0.25rem 0.5rem;font-size:0.8125rem;font-family:'Inter',sans-serif">
+             <option value="25"<%= pagination.perPage === 25 ? ' selected' : ''%>>25 por página</option>
+             <option value="50"<%= pagination.perPage === 50 ? ' selected' : ''%>>50 por página</option>
+             <option value="100"<%= pagination.perPage === 100 ? ' selected' : ''%>>100 por página</option>
+             <option value="200"<%= pagination.perPage === 200 ? ' selected' : ''%>>200 por página</option>
+           </select>
+          </div>
+        </div>
+       <% } %>
+       <% if (!approvedList.length) { %>
+       <div class="empty-state">Nenhum usuário encontrado<% if (filters && filters.query) { %> para a busca "<%= filters.query %>"<% } %>.</div>
+       <% } else { %>
+       <table>
         <thead>
           <tr>
             <th>Nome</th>
@@ -322,6 +344,7 @@
           <% }) %>
         </tbody>
       </table>
+       <% } %>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" form="bulk-flags-form">Salvar Alterações</button>
       </div>
@@ -342,6 +365,21 @@
         button.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
       });
     });
+  </script>
+  <script>
+    (function() {
+      var sel = document.getElementById('per-page-select');
+      if (!sel) return;
+      sel.addEventListener('change', function() {
+        var perPage = this.value;
+        var url = '/admin/users?page=1&per_page=' + perPage;
+        var q = document.getElementById('q');
+        if (q && q.value.trim()) {
+          url += '&q=' + encodeURIComponent(q.value.trim());
+        }
+        window.location.href = url;
+      });
+    })();
   </script>
 
 </body>

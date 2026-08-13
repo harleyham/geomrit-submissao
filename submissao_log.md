@@ -4,6 +4,34 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-13
+
+### Correção da paginação de usuários — seletor de registros por página
+
+- O seletor de "por página" em `/admin/users` não acionava a navegação ao trocar de opção.
+- Causa: o `onchange` inline usava template literal de JavaScript (backticks) dentro de um atributo HTML, o que causava parsing inconsistente entre navegadores; a versão anterior com `&amp;` em string concatenada também apresentava falha.
+- Correção: removido o `onchange` inline e substituído por `<script>` dedicado com `addEventListener('change', ...)`, que constrói a URL via concatenação simples (`'/admin/users?page=1&per_page=' + perPage`), preservando o parâmetro `q` da busca quando presente.
+- Arquivo afetado: `views/admin/users/list.ejs`.
+- Status: **corrigido e validado**.
+
+### Correção da paginação de usuários — seletor invisível com menos de N registros
+
+- Quando o número total de usuários era menor que o valor selecionado de "por página" (ex: 164 usuários com 200 por página), o seletor e toda a barra de paginação somiam da tela.
+- Causa: a condição `pagination.totalApproved > pagination.perPage` escondia o bloco completo de paginação quando não havia múltiplas páginas.
+- Correção: a condição foi simplificada para `pagination`, garantindo que o seletor sempre apareça quando há paginação ativa. Os botões "Anterior"/"Próxima" e o indicador "Página X de Y" continuam condicionais à existência de múltiplas páginas.
+- Arquivo afetado: `views/admin/users/list.ejs`.
+- Status: **corrigido e validado**.
+
+### Busca de usuários por nome, e-mail, instituição ou CPF
+
+- Adicionado campo de busca na listagem de usuários (`/admin/users`), com funcionalidade idêntica à existente em `/admin/events/:id/participants`.
+- O backend aceita o parâmetro `q` e filtra por `name`, `email`, `institution` e `cpf` (case-insensitive, via `LIKE`).
+- A paginação recalcula totais e páginas com o filtro aplicado.
+- Os links de paginação (Anterior, Próxima) e o seletor "por página" preservam o parâmetro `q` para manter a busca ativa entre páginas.
+- Estado vazio com mensagem "Nenhum usuário encontrado para a busca..." quando a pesquisa não retorna resultados.
+- Arquivos afetados: `routes/users.js` (rota `GET /` com filtro SQL parametrizado), `views/admin/users/list.ejs` (formulário `.filters`, CSS de busca, links de paginação com `q`, script do seletor preservando busca).
+- Status: **implementado e validado**.
+
 ## 2026-08-12
 
 ### Correções na importação de participantes — relatório e listagem de usuários
