@@ -152,6 +152,52 @@
           <div class="help-text">Formato internacional: +XX XXX XXXXXXXXX</div>
         </div>
 
+        <% if (registration && registration.user_id) { %>
+        <div style="border-top:1px solid rgba(148,163,184,0.1);padding-top:1rem;margin-top:1rem;">
+          <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Formação acadêmica (da conta vinculada)</p>
+
+          <div class="form-group">
+            <label for="formacao_area">Área de Formação</label>
+            <select id="formacao_area" name="formacao_area">
+              <option value="">Selecione uma área</option>
+              <% (areas || formacaoAreas || []).forEach((area) => { %>
+                <option value="<%= area.codigo %>" <%= formData.formacao_area === area.codigo ? 'selected' : '' %>><%= area.area %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="formacao_curso">Curso</label>
+            <select id="formacao_curso" name="formacao_curso">
+              <% const selArea = formData.formacao_area || ''; %>
+              <% const selCurso = formData.formacao_curso || ''; %>
+              <option value="<%= selArea ? 'Selecione um curso' : 'Selecione primeiro uma área' %>"><%= selArea ? 'Selecione um curso' : 'Selecione primeiro uma área' %></option>
+              <% ((cursosMap && cursosMap[selArea]) || []).forEach((curso) => { %>
+                <option value="<%= curso %>" <%= selCurso === curso ? 'selected' : '' %>><%= curso %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+              <label for="formacao_titulacao">Titulação</label>
+              <select id="formacao_titulacao" name="formacao_titulacao">
+                <option value="">Selecione</option>
+                <option value="Graduado" <%= formData.formacao_titulacao === 'Graduado' ? 'selected' : '' %>>Graduado</option>
+                <option value="Mestre" <%= formData.formacao_titulacao === 'Mestre' ? 'selected' : '' %>>Mestre</option>
+                <option value="Doutor" <%= formData.formacao_titulacao === 'Doutor' ? 'selected' : '' %>>Doutor</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="formacao_status">Status</label>
+              <select id="formacao_status" name="formacao_status">
+                <option value="">Selecione</option>
+                <option value="Formado" <%= formData.formacao_status === 'Formado' ? 'selected' : '' %>>Formado</option>
+                <option value="Cursando" <%= formData.formacao_status === 'Cursando' ? 'selected' : '' %>>Cursando</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <% } %>
+
         <% if (!registration) { %>
           <div id="temporary-password-fields">
             <div class="form-group">
@@ -239,6 +285,42 @@
       accountModeSelect.addEventListener('change', syncAccountMode);
       existingUserSelect.addEventListener('change', syncAccountMode);
       syncAccountMode();
+    </script>
+  <% } %>
+
+  <% if (registration && registration.user_id) { %>
+    <script>
+      (function() {
+        var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
+        var areaSelect = document.getElementById('formacao_area');
+        var cursoSelect = document.getElementById('formacao_curso');
+
+        if (areaSelect && cursoSelect) {
+          areaSelect.addEventListener('change', function() {
+            var selectedArea = this.value;
+            var selectedCurso = '';
+            for (var i = 0; i < cursoSelect.options.length; i++) {
+              if (cursoSelect.options[i].selected) {
+                selectedCurso = cursoSelect.options[i].value;
+                break;
+              }
+            }
+            cursoSelect.innerHTML = '<option value="">' + (selectedArea ? 'Selecione um curso' : 'Selecione primeiro uma área') + '</option>';
+            if (selectedArea && cursosMap[selectedArea]) {
+              var cursos = cursosMap[selectedArea];
+              for (var j = 0; j < cursos.length; j++) {
+                var option = document.createElement('option');
+                option.value = cursos[j];
+                option.textContent = cursos[j];
+                if (cursos[j] === selectedCurso) {
+                  option.selected = true;
+                }
+                cursoSelect.appendChild(option);
+              }
+            }
+          });
+        }
+      })();
     </script>
   <% } %>
 
