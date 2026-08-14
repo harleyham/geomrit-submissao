@@ -3,7 +3,7 @@ const router = express.Router();
 const { db } = require('../db');
 const { loginLimiter, adminLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
-const { getAreas, getCursosByArea, getCursosMap } = require('../services/academic-formation');
+const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { resetDatabase } = require('../services/db-reset');
 const { requireSuperAdmin } = require('../security/super-admin');
 
@@ -65,8 +65,8 @@ function validateCompleteProfile(formData) {
   if (formData.cpf && !isValidCPF(formData.cpf)) {
     return 'O CPF informado é inválido.';
   }
-  if (!formData.formacao_area || !formData.formacao_curso || !formData.formacao_titulacao || !formData.formacao_status) {
-    return 'Preencha todos os campos de formação acadêmica.';
+  if (!formData.formacao_area || !formData.formacao_curso) {
+    return 'Preencha a área e o curso de formação acadêmica.';
   }
   if (!getAreas().some((area) => area.codigo === formData.formacao_area)) {
     return 'A área de formação selecionada é inválida.';
@@ -77,13 +77,27 @@ function validateCompleteProfile(formData) {
   if (formData.formacao_curso.length > 200) {
     return 'O nome do curso excede o tamanho permitido.';
   }
-  if (!['Graduado', 'Mestre', 'Doutor'].includes(formData.formacao_titulacao)) {
-    return 'A titulação selecionada é inválida.';
-  }
-  if (!['Formado', 'Cursando'].includes(formData.formacao_status)) {
-    return 'O status da formação é inválido.';
+  const noDegree = formData.formacao_curso === NO_DEGREE_COURSE;
+  if (!noDegree) {
+    if (!formData.formacao_titulacao || !formData.formacao_status) {
+      return 'Preencha a titulação e o status da formação acadêmica.';
+    }
+    if (!['Graduado', 'Mestre', 'Doutor'].includes(formData.formacao_titulacao)) {
+      return 'A titulação selecionada é inválida.';
+    }
+    if (!['Formado', 'Cursando'].includes(formData.formacao_status)) {
+      return 'O status da formação é inválido.';
+    }
   }
   return null;
+}
+
+function normalizeFormacaoForStorage(formData) {
+  if (formData.formacao_curso === NO_DEGREE_COURSE) {
+    formData.formacao_titulacao = '';
+    formData.formacao_status = '';
+  }
+  return formData;
 }
 
 function renderCompleteProfile(res, user, formData, error = null) {
@@ -93,6 +107,7 @@ function renderCompleteProfile(res, user, formData, error = null) {
     formData,
     areas: getAreas(),
     cursosMap: getCursosMap(),
+    noDegreeCourse: NO_DEGREE_COURSE,
     error,
     success: null,
     year: new Date().getFullYear()
@@ -159,8 +174,17 @@ router.get('/', (req, res) => {
 
 // Dashboard admin
 router.get('/dashboard', requireAuth, (req, res) => {
+  const brToday = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
   const totalEvents = db.prepare('SELECT COUNT(*) as count FROM events').get().count;
   const publishedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'published'").get().count;
+  const concludedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE date_end IS NOT NULL AND date_end != '' AND date_end < ?").bind(brToday).get().count;
+  const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+  const futureRegistrations = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    WHERE e.date_start IS NOT NULL AND e.date_start != '' AND e.date_start >= ?
+  `).bind(brToday).get().count;
   const totalArticles = db.prepare("SELECT COUNT(*) as count FROM articles WHERE status != 'draft'").get().count;
   const articlesWithoutReviewer = db.prepare(`
     SELECT COUNT(DISTINCT a.id) as count
@@ -306,6 +330,9 @@ router.get('/dashboard', requireAuth, (req, res) => {
     title: 'Dashboard',
     totalEvents,
     publishedEvents,
+    concludedEvents,
+    totalUsers,
+    futureRegistrations,
     totalArticles,
     pendingArticles,
     articlesWithoutReviewer,
@@ -525,6 +552,7 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
   const formData = normalizeProfileForm(req.body);
   const error = validateCompleteProfile(formData);
   if (error) return renderCompleteProfile(res, user, formData, error);
+  normalizeFormacaoForStorage(formData);
 
   db.prepare(`
     UPDATE users
@@ -541,8 +569,8 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
     formData.country,
     formData.formacao_area,
     formData.formacao_curso,
-    formData.formacao_titulacao,
-    formData.formacao_status,
+    formData.formacao_titulacao || null,
+    formData.formacao_status || null,
     req.session.userId
   );
 

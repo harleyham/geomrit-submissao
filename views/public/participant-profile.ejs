@@ -34,6 +34,11 @@
     .form-group input:focus, .form-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; }
     .note { margin-bottom: 1.5rem; padding: 1rem 1.1rem; border-radius: 12px; background: rgba(59,130,246,0.1); border: 1px solid rgba(96,165,250,0.2); color: #cbd5e1; font-size: 0.9rem; line-height: 1.65; }
+    .section-title { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; margin: 1.75rem 0 0.35rem; padding-top: 1.5rem; border-top: 1px solid rgba(148,163,184,0.14); }
+    .help { margin: 0 0 1rem; font-size: 0.8rem; color: #64748b; }
+    .input-with-toggle { position: relative; }
+    .input-with-toggle input { padding-right: 2.75rem; }
+    .toggle-password { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; line-height: 1; }
     footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
     @media (max-width: 720px) {
       .grid { grid-template-columns: 1fr; }
@@ -112,9 +117,83 @@
           </div>
         </div>
 
+        <div class="grid">
+          <div class="form-group">
+            <label for="phone">Telefone</label>
+            <input type="text" id="phone" name="phone" value="<%= formData.phone || '' %>" placeholder="(00) 00000-0000">
+          </div>
+          <div class="form-group">
+            <label for="country">País</label>
+            <%- include('../partials/country-select', { selectedCountry: formData.country || '', selectId: 'country', selectName: 'country' }) %>
+          </div>
+        </div>
+
+        <div class="section-title">Formação acadêmica</div>
+        <p class="help">Opcional. Preencha todos os campos da seção ou deixe-a vazia.</p>
         <div class="form-group">
-          <label for="country">País</label>
-          <%- include('../partials/country-select', { selectedCountry: formData.country || '', selectId: 'country', selectName: 'country' }) %>
+          <label for="formacao_area">Área de formação</label>
+          <select id="formacao_area" name="formacao_area">
+            <option value="">Selecione uma área</option>
+            <% (areas || []).forEach((area) => { %>
+              <option value="<%= area.codigo %>" <%= formData.formacao_area === area.codigo ? 'selected' : '' %>><%= area.area %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="formacao_curso">Curso</label>
+          <select id="formacao_curso" name="formacao_curso">
+            <option value=""><%= formData.formacao_area ? 'Selecione um curso' : 'Selecione primeiro uma área' %></option>
+            <% ((cursosMap && cursosMap[formData.formacao_area]) || []).forEach((curso) => { %>
+              <option value="<%= curso %>" <%= formData.formacao_curso === curso ? 'selected' : '' %>><%= curso %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="grid" id="formacao-titulacao-status" <%= formData.formacao_curso === noDegreeCourse ? 'hidden' : '' %>>
+          <div class="form-group">
+            <label for="formacao_titulacao">Titulação</label>
+            <select id="formacao_titulacao" name="formacao_titulacao">
+              <option value="">Selecione</option>
+              <% ['Graduado', 'Mestre', 'Doutor'].forEach((value) => { %>
+                <option value="<%= value %>" <%= formData.formacao_titulacao === value ? 'selected' : '' %>><%= value %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="formacao_status">Status</label>
+            <select id="formacao_status" name="formacao_status">
+              <option value="">Selecione</option>
+              <% ['Formado', 'Cursando'].forEach((value) => { %>
+                <option value="<%= value %>" <%= formData.formacao_status === value ? 'selected' : '' %>><%= value %></option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-title">Trocar senha</div>
+        <p class="help">Opcional. Preencha os três campos somente se desejar alterar a senha de acesso.</p>
+        <div class="grid">
+          <div class="form-group">
+            <label for="current_password">Senha atual</label>
+            <div class="input-with-toggle">
+              <input type="password" id="current_password" name="current_password" autocomplete="current-password">
+              <button type="button" class="toggle-password" data-target="current_password" aria-label="Mostrar senha">&#128065;</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="new_password">Nova senha</label>
+            <div class="input-with-toggle">
+              <input type="password" id="new_password" name="new_password" autocomplete="new-password">
+              <button type="button" class="toggle-password" data-target="new_password" aria-label="Mostrar senha">&#128065;</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="confirm_password">Confirmar nova senha</label>
+          <div class="input-with-toggle">
+            <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password">
+            <button type="button" class="toggle-password" data-target="confirm_password" aria-label="Mostrar senha">&#128065;</button>
+          </div>
+          <p class="help">Mínimo de 8 caracteres, com maiúscula, minúscula e número.</p>
         </div>
 
         <div class="actions">
@@ -126,5 +205,55 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+  <script>
+    (function() {
+      var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
+      var noDegreeCourse = <%- JSON.stringify(noDegreeCourse || '') %>;
+      var areaSelect = document.getElementById('formacao_area');
+      var cursoSelect = document.getElementById('formacao_curso');
+      var titulacaoStatusRow = document.getElementById('formacao-titulacao-status');
+
+      function syncTitulacaoVisibility() {
+        if (!cursoSelect || !titulacaoStatusRow) return;
+        var isNoDegree = cursoSelect.value === noDegreeCourse;
+        titulacaoStatusRow.hidden = isNoDegree;
+        if (isNoDegree) {
+          var tit = document.getElementById('formacao_titulacao');
+          var st = document.getElementById('formacao_status');
+          if (tit) tit.value = '';
+          if (st) st.value = '';
+        }
+      }
+
+      if (areaSelect && cursoSelect) {
+        areaSelect.addEventListener('change', function() {
+          cursoSelect.innerHTML = '<option value="">' + (this.value ? 'Selecione um curso' : 'Selecione primeiro uma área') + '</option>';
+          (cursosMap[this.value] || []).forEach(function(curso) {
+            var option = document.createElement('option');
+            option.value = curso;
+            option.textContent = curso;
+            cursoSelect.appendChild(option);
+          });
+          syncTitulacaoVisibility();
+        });
+
+        cursoSelect.addEventListener('change', function() {
+          syncTitulacaoVisibility();
+        });
+
+        syncTitulacaoVisibility();
+      }
+
+      document.querySelectorAll('.toggle-password').forEach(function(button) {
+        button.addEventListener('click', function() {
+          var input = document.getElementById(button.getAttribute('data-target'));
+          var showing = input.type === 'text';
+          input.type = showing ? 'password' : 'text';
+          button.textContent = showing ? '\u{1F441}' : '\u{1F648}';
+          button.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

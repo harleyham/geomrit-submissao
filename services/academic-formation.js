@@ -58,14 +58,21 @@ try {
   console.warn('Erro ao carregar tabelas de formação:', error.message);
 }
 
+const NO_DEGREE_COURSE = 'Não possui curso de graduação';
+
 function getAreas() {
   return areasData.map((area) => ({ codigo: area.Codigo, area: area.Area }));
 }
 
 function getCursosByArea(codigoArea) {
-  return cursosData
+  const cursos = cursosData
     .filter((curso) => curso.CodigoArea === codigoArea)
     .map((curso) => curso.NomeCurso);
+
+  if (!cursos.includes(NO_DEGREE_COURSE)) {
+    return [NO_DEGREE_COURSE, ...cursos];
+  }
+  return cursos;
 }
 
 function getCursosMap() {
@@ -75,4 +82,4 @@ function getCursosMap() {
   }, {});
 }
 
-module.exports = { getAreas, getCursosByArea, getCursosMap };
+module.exports = { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE };

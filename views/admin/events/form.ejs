@@ -108,6 +108,15 @@
           <label for="url">URL do Evento</label>
           <input type="url" id="url" name="url" value="<%= event ? event.url : '' %>">
         </div>
+        <div class="form-group">
+          <label for="status">Status</label>
+          <select id="status" name="status">
+            <option value="draft" <%= !event || event.status === 'draft' ? 'selected' : '' %>>Rascunho</option>
+            <option value="published" <%= event && event.status === 'published' ? 'selected' : '' %>>Publicado</option>
+            <option value="encerrado" <%= event && event.status === 'encerrado' ? 'selected' : '' %>>Encerrado</option>
+          </select>
+          <small style="display:block;margin-top:0.4rem;color:#94a3b8;">Eventos encerrados saem da página inicial e não aceitam novas inscrições ou submissões, mas permanecem disponíveis para consulta por sua URL.</small>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label for="date_start">Data Início *</label>

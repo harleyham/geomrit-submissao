@@ -28,6 +28,7 @@
     .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
     .badge-published { background: rgba(52,211,153,0.15); color: #34d399; }
     .badge-draft { background: rgba(100,116,139,0.2); color: #94a3b8; }
+    .badge-encerrado { background: rgba(251,191,36,0.15); color: #fbbf24; }
     .badge-oral { background: rgba(167,139,250,0.15); color: #a78bfa; }
     .actions { display: flex; gap: 0.375rem; flex-wrap: wrap; min-width: 250px; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.4rem 0.75rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
@@ -102,7 +103,7 @@
                   <span style="color:#64748b;">Não oferece</span>
                 <% } %>
               </td>
-              <td><span class="badge badge-<%= e.status %>"><%= e.status === 'published' ? 'Publicado' : 'Rascunho' %></span></td>
+              <td><span class="badge badge-<%= e.status %>"><%= e.status === 'published' ? 'Publicado' : (e.status === 'encerrado' ? 'Encerrado' : 'Rascunho') %></span></td>
               <td class="actions">
                 <a href="/admin/events/<%= e.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
                 <a href="/admin/events/<%= e.id %>/participants" class="btn btn-ghost btn-sm">Participantes</a>
@@ -113,12 +114,17 @@
                 <% } %>
                 <a href="/admin/reports?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Relatórios</a>
                 <a href="/admin/articles?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Artigos</a>
-                <% if (e.status !== 'published') { %>
-                  <form method="POST" action="/admin/events/<%= e.id %>/publish" style="display:inline" onsubmit="return confirm('Publicar o evento <%= e.name %>?')">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button type="submit" class="btn btn-primary btn-sm">Publicar</button>
-                  </form>
-                <% } %>
+                 <% if (e.status === 'draft') { %>
+                   <form method="POST" action="/admin/events/<%= e.id %>/publish" style="display:inline" onsubmit="return confirm('Publicar o evento <%= e.name %>?')">
+                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                     <button type="submit" class="btn btn-primary btn-sm">Publicar</button>
+                   </form>
+                 <% } else if (e.status === 'published') { %>
+                   <form method="POST" action="/admin/events/<%= e.id %>/close" style="display:inline" onsubmit="return confirm('Encerrar o evento <%= e.name %>? Ele sairá da página inicial e não aceitará novas inscrições ou submissões.')">
+                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                     <button type="submit" class="btn btn-danger btn-sm">Encerrar</button>
+                   </form>
+                 <% } %>
               </td>
             </tr>
             <% }) %>

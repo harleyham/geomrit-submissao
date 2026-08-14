@@ -115,10 +115,10 @@
             <% }) %>
           </select>
         </div>
-        <div class="grid">
+        <div class="grid" id="formacao-titulacao-status" <%= formData.formacao_curso === noDegreeCourse ? 'hidden' : '' %>>
           <div class="form-group">
             <label for="formacao_titulacao">Titulação *</label>
-            <select id="formacao_titulacao" name="formacao_titulacao" required>
+            <select id="formacao_titulacao" name="formacao_titulacao" <%= formData.formacao_curso === noDegreeCourse ? '' : 'required' %>>
               <option value="">Selecione</option>
               <% ['Graduado', 'Mestre', 'Doutor'].forEach((value) => { %>
                 <option value="<%= value %>" <%= formData.formacao_titulacao === value ? 'selected' : '' %>><%= value %></option>
@@ -127,7 +127,7 @@
           </div>
           <div class="form-group">
             <label for="formacao_status">Status *</label>
-            <select id="formacao_status" name="formacao_status" required>
+            <select id="formacao_status" name="formacao_status" <%= formData.formacao_curso === noDegreeCourse ? '' : 'required' %>>
               <option value="">Selecione</option>
               <% ['Formado', 'Cursando'].forEach((value) => { %>
                 <option value="<%= value %>" <%= formData.formacao_status === value ? 'selected' : '' %>><%= value %></option>
@@ -145,8 +145,24 @@
   <script>
     (function() {
       var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
+      var noDegreeCourse = <%- JSON.stringify(noDegreeCourse || '') %>;
       var areaSelect = document.getElementById('formacao_area');
       var cursoSelect = document.getElementById('formacao_curso');
+      var titulacaoStatusRow = document.getElementById('formacao-titulacao-status');
+      var titulacaoSelect = document.getElementById('formacao_titulacao');
+      var statusSelect = document.getElementById('formacao_status');
+
+      function syncTitulacaoVisibility() {
+        if (!cursoSelect || !titulacaoStatusRow) return;
+        var isNoDegree = cursoSelect.value === noDegreeCourse;
+        titulacaoStatusRow.hidden = isNoDegree;
+        if (titulacaoSelect) titulacaoSelect.required = !isNoDegree;
+        if (statusSelect) statusSelect.required = !isNoDegree;
+        if (isNoDegree) {
+          if (titulacaoSelect) titulacaoSelect.value = '';
+          if (statusSelect) statusSelect.value = '';
+        }
+      }
 
       areaSelect.addEventListener('change', function() {
         cursoSelect.innerHTML = '<option value="">' + (this.value ? 'Selecione um curso' : 'Selecione primeiro uma área') + '</option>';
@@ -156,7 +172,14 @@
           option.textContent = curso;
           cursoSelect.appendChild(option);
         });
+        syncTitulacaoVisibility();
       });
+
+      cursoSelect.addEventListener('change', function() {
+        syncTitulacaoVisibility();
+      });
+
+      syncTitulacaoVisibility();
     })();
   </script>
 </body>

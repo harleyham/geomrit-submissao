@@ -9,7 +9,7 @@ const xlsx = require('xlsx');
 const { ZipArchive } = require('archiver');
 const { db, recordParticipantAudit } = require('../db');
 const { renderCertificatePdf, getBackgroundPath } = require('../services/certificates');
-const { getAreas, getCursosByArea } = require('../services/academic-formation');
+const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
 
@@ -225,6 +225,12 @@ function parseAreaList(areaValue) {
 
 function normalizeAreaList(areaValue) {
   return Array.from(new Set(parseAreaList(areaValue))).join(', ');
+}
+
+const EVENT_STATUSES = ['draft', 'published', 'encerrado'];
+
+function normalizeEventStatus(status) {
+  return EVENT_STATUSES.includes(status) ? status : 'draft';
 }
 
 function getKnownAreas() {
@@ -620,6 +626,7 @@ router.post('/', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
+  const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
@@ -654,7 +661,7 @@ router.post('/', strictLimiter, (req, res, next) => {
         area: normalizedArea,
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
-        status: status || 'draft',
+        status: normalizedStatus,
         institution,
         language,
         registration_start,
@@ -674,7 +681,7 @@ router.post('/', strictLimiter, (req, res, next) => {
   const createdEvent = db.prepare(`
     INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, status || 'draft', institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null).run();
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null).run();
   db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(createdEvent.lastInsertRowid, req.session.userId, req.session.userId);
   res.redirect('/admin/events');
 });
@@ -691,7 +698,7 @@ router.post('/:id', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
-  const normalizedStatus = status || 'draft';
+  const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
@@ -727,7 +734,7 @@ router.post('/:id', strictLimiter, (req, res, next) => {
         area: normalizedArea,
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
-        status: status || 'draft',
+        status: normalizedStatus,
         institution,
         language,
         registration_start,
@@ -1981,10 +1988,7 @@ function validateAndSaveParticipantEventRoles(eventId, userId, body, actorUserId
 
 function renderParticipantFormError(res, event, registration, formData, error) {
   const areas = getAreas();
-  const cursosMap = {};
-  areas.forEach((area) => {
-    cursosMap[area.codigo] = getCursosByArea(area.codigo);
-  });
+  const cursosMap = getCursosMap();
   return res.status(400).render('admin/events/participant-form', {
     title: `${registration ? 'Editar' : 'Adicionar'} Participante - ${event.name}`,
     event,
@@ -1997,6 +2001,7 @@ function renderParticipantFormError(res, event, registration, formData, error) {
     areas: areas,
     formacaoAreas: areas,
     cursosMap: cursosMap,
+    noDegreeCourse: NO_DEGREE_COURSE,
     error
   });
 }
@@ -2124,10 +2129,7 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
   if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
 
   const areas = getAreas();
-  const cursosMap = {};
-  areas.forEach((area) => {
-    cursosMap[area.codigo] = getCursosByArea(area.codigo);
-  });
+  const cursosMap = getCursosMap();
 
   res.render('admin/events/participant-form', {
     title: `Editar Participante - ${event.name}`,
@@ -2153,6 +2155,7 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
     areas: areas,
     formacaoAreas: areas,
     cursosMap: cursosMap,
+    noDegreeCourse: NO_DEGREE_COURSE,
     error: null
   });
 });
@@ -2184,10 +2187,13 @@ function updateParticipant(req, res) {
         formData.phone, formData.registration_type, req.params.registrationId, req.params.id);
       saveParticipantActivities(registration.id, registration.user_id, formData.activity_ids, req.session.userId);
       if (registration.user_id) {
+        const noDegree = formData.formacao_curso === NO_DEGREE_COURSE;
         db.prepare(`UPDATE users
           SET phone=?,formacao_area=?,formacao_curso=?,formacao_titulacao=?,formacao_status=?,updated_at=datetime('now','-3 hours')
           WHERE id=?`).run(formData.phone || null, formData.formacao_area || null, formData.formacao_curso || null,
-          formData.formacao_titulacao || null, formData.formacao_status || null, registration.user_id);
+          noDegree ? null : (formData.formacao_titulacao || null),
+          noDegree ? null : (formData.formacao_status || null),
+          registration.user_id);
       }
       recordParticipantAudit({
         eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
@@ -2322,6 +2328,19 @@ router.post('/:id/publish', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.publication);
 }, (req, res) => {
   db.prepare("UPDATE events SET status = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?").bind('published', req.params.id).run();
+  res.redirect('/admin/events');
+});
+
+// Encerrar evento
+router.post('/:id/close', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id, status FROM events WHERE id = ?').get(req.params.id);
+  if (!event) {
+    return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
+  }
+  if (event.status !== 'published') {
+    return res.redirect('/admin/events');
+  }
+  db.prepare("UPDATE events SET status = 'encerrado', updated_at = datetime('now', '-3 hours') WHERE id = ?").run(req.params.id);
   res.redirect('/admin/events');
 });
 

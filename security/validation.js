@@ -170,7 +170,18 @@ const validators = {
     body('cpf').optional().trim(),
     body('passport').optional().trim().isLength({ max: 50 }),
     body('country').optional().trim(),
-    body('phone').optional().trim().isLength({ max: 30 })
+    body('phone').optional().trim().isLength({ max: 30 }),
+    body('formacao_area').optional().trim().isLength({ max: 10 }),
+    body('formacao_curso').optional().trim().isLength({ max: 200 }),
+    body('formacao_titulacao').optional().trim().isLength({ max: 100 }),
+    body('formacao_status').optional().trim().isLength({ max: 100 }),
+    body('new_password').optional({ values: 'falsy' }).isLength({ min: 8 }).withMessage('A nova senha deve ter pelo menos 8 caracteres.').matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('A senha deve conter maiúscula, minúscula e número.'),
+    body('confirm_password').optional({ values: 'falsy' }).custom((value, { req }) => {
+      if (req.body.new_password && value !== req.body.new_password) {
+        throw new Error('As senhas não conferem.');
+      }
+      return true;
+    })
   ],
   completeProfile: [
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),

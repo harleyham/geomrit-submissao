@@ -6,6 +6,84 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-14
 
+### Fase 0 (ajuste): "Não possui curso de graduação" em todas as áreas e ocultação de Titulação/Status
+
+- Ajuste pedido pelo usuário após a entrega da Fase 0: a opção especial deve existir em **todas** as áreas de formação (antes só apareceria em "Outros") e, quando selecionada, os campos Titulação e Status devem ficar ocultos (sem sentido sem graduação).
+- `services/academic-formation.js`: `getCursosByArea` agora prepende `NO_DEGREE_COURSE` para qualquer área (removida a restrição à área `11`).
+- `routes/auth.js` (`validateCompleteProfile` + `normalizeFormacaoForStorage`): quando `formacao_curso === NO_DEGREE_COURSE`, titulação/status deixam de ser obrigatórios e são limpos para `''` antes do bind (gravados como `null`).
+- `routes/public.js` (`validateParticipantFormacao` + POST `/author/profile`): mesma regra — validação condicional e limpeza dos campos antes da persistência.
+- Templates (wrapper `#formacao-titulacao-status` + `hidden`/`display:none` + JS `syncTitulacaoVisibility`):
+  - `views/admin/users/form.ejs`
+  - `views/complete-profile.ejs` (inclui remoção dinâmica de `required` no select de curso)
+  - `views/public/participant-profile.ejs`
+  - `views/admin/events/participant-form.ejs` (usa `style.display` por causa do `display:grid` inline)
+- Handlers de persistência (`routes/users.js` create + `updateUser`, `routes/events.js` `updateParticipant`): bind condicional `formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null)` (idem para `formacao_status`). Todos os renders passaram a receber `noDegreeCourse: NO_DEGREE_COURSE`.
+- `routes/users.js`: referência residual de `getCursosByArea` no branch de CPF inválido do `updateUser` substituída por `getCursosMap()`.
+- Observação: o fluxo de **criação** de participante (`POST /:id/participants`) não grava formacao no user (a seção só existe no fluxo de edição com conta vinculada), portanto não havia risco de sobrescrita nesse caminho.
+- Status: código completo e com sintaxe validada; validação funcional ponta a ponta ainda pendente.
+
+### Correção: ReferenceError em error.ejs
+
+- Bug pré-existente detectado durante a verificação da Fase 0: `views/error.ejs:23` usava `<%= message || '' %>`. Quando a rota de erro não passa `message` via `locals`, o EJS tenta resolver `message` como escopo global e lança `ReferenceError: message is not defined`, quebrando ~20+ rotas de erro (incluindo as 404).
+- Correção: `<%= locals.message || '' %>`.
+- Impacto: páginas de erro (404/500) passam a renderizar normalmente com mensagem vazia quando ausente.
+
+### Fase 0.4: status `encerrado` para eventos
+
+- Decisão do usuário: evento encerrado usa status **`encerrado`** explícito (não reutilizar `draft`/`published`). `events.status` é TEXT sem CHECK constraint, então não foi necessária migração.
+- `routes/events.js`:
+  - `EVENT_STATUSES = ['draft', 'published', 'encerrado']` e helper `normalizeEventStatus` (valor ausente/inválido → `draft`); aplicado em criação e edição.
+  - `POST /:id/close` (com `strictLimiter`): muda `published` → `encerrado` com `updated_at` em UTC-3.
+- `routes/public.js`:
+  - Home (`/`) continua exibindo apenas `published`.
+  - `/evento/:id` e `/evento/:id/certificates` aceitam `status IN ('published', 'encerrado')`; a página do evento passa `isClosed` ao template.
+  - `/evento/:id/inscricao` e `/submeter/:eventId` continuam exigindo `published` → encerrados retornam 404.
+  - `buildEventTimeline` remove as ações de inscrição/submissão quando o evento está encerrado.
+- Templates:
+  - `views/admin/events/form.ejs`: select de status com 3 opções.
+  - `views/admin/events/list.ejs`: badge âmbar `badge-encerrado` + botão "Encerrar" (formulário POST com CSRF) para eventos `published`.
+  - `views/public/event.ejs`: bloco `.closed-notice` quando `event.status === 'encerrado'`.
+- Verificado via curl: publicar → evento visível na home → encerrar → sai da home; `inscricao`/`submeter` = 404; `certificates` = 200.
+
+### Fase 0.3: opção "Não possui curso de graduação" (base)
+
+- `services/academic-formation.js`:
+  - Constante exportada `NO_DEGREE_COURSE = 'Não possui curso de graduação'`.
+  - `getCursosByArea` insere a opção especial no início da lista de cursos da área (sem duplicar).
+  - `getCursosMap` mantém o mapa área → cursos já enriquecidos.
+- Deduplicação: `routes/users.js` e `routes/events.js` deixaram de ter funções locais `getAreas`/`getCursosByArea` duplicadas e agora importam do serviço (`getAreas`, `getCursosByArea`, `getCursosMap`).
+- A opção passou a aparecer nos selects de curso de: criação/edição de usuário (`/admin/users`), completion de perfil (`/login/complete-profile`), perfil do participante (`/author/profile`) e edição de participante (`/admin/events/:id/participants`).
+
+### Fase 0.2: perfil do participante em `/author/profile`
+
+- `security/validation.js`: validador `participantProfile` (nome, e-mail, instituição, CPF, passaporte, país, telefone, formação acadêmica, senhas opcionais com regra de 8+ caracteres e maiúscula/minúscula/número).
+- `routes/public.js`:
+  - `GET /author/profile`: carrega usuário da sessão e renderiza `renderParticipantProfile` com dados atuais + mapa de cursos.
+  - `POST /author/profile` (com `registrationLimiter`): valida via `validateAndHandle` + regras server-side (nome/e-mail obrigatórios, CPF válido, `validateParticipantFormacao`, unicidade de e-mail), troca de senha opcional (confere senha atual com `bcrypt.compareSync`, exige confirmação, grava `password_changed = 1`), atualiza `users` (inclui `phone`) e atualiza a sessão (`userName`, `userEmail`, `userInstitution`).
+  - Helpers `normalizeParticipantProfileForm`, `renderParticipantProfile` e `validateParticipantFormacao` centralizados no arquivo.
+- `views/public/participant-profile.ejs`: seção de dados cadastrais (com telefone), seção de formação acadêmica (área → curso em cascata via `cursosMap`) e seção "Trocar senha" opcional; mensagens de sucesso/erro.
+- Verificado via curl: campos renderizam com os valores salvos, POST salva telefone/formação, troca de senha funciona (login posterior com a nova senha OK).
+
+### Fase 0.1: novos contadores no dashboard
+
+- `routes/auth.js` (GET `/admin/dashboard`):
+  - `brToday`: data de hoje em UTC-3 (mesma base dos timestamps do sistema).
+  - `totalUsers`: `COUNT(*)` de `users`.
+  - `concludedEvents`: eventos com `date_end` não nulo e anterior a `brToday`.
+  - `futureRegistrations`: registros em `event_registrations` de eventos com `date_start >= brToday`.
+  - Valores incluídos no `res.render` do dashboard.
+- `views/admin/dashboard.ejs`: cards "Total de Usuários", "Eventos Realizados" e "Inscritos em Eventos Futuros" com CSS próprio (classes dedicadas).
+- Verificado via curl com dados de teste: contadores corretos (ex.: 5 usuários, 1 evento realizado, 1 inscrito em evento futuro).
+
+### Plano de evolução aprovado em `plano.md`
+
+- Criado o arquivo `plano.md` com o plano aprovado pelo usuário em 4 ciclos sequenciais:
+  1. **Ciclo 1 — Fase 0 (Quick Wins)**: 0.1 contadores do dashboard, 0.2 `/author/profile`, 0.3 "Não possui curso de graduação", 0.4 status `encerrado`.
+  2. **Ciclo 2 — Fase 1 (Aulas + QR Code)**: tabela `activity_sessions`, `min_sessions` em eventos, `session_id` nas presenças, CRUD de aulas, chamada por aula, PDF de lista por aula, QR impresso, `/presenca-qr` (câmera + jsQR local + digitação manual), auto-check-in + proxy por admin, integração com elegibilidade/carga horária.
+  3. **Ciclo 3 — Fase 2 (Auditoria)**: trilha de auditoria das operações relevantes.
+  4. **Ciclo 4 — Fase 3 (E-mails)**: módulo de e-mails (`nodemailer`), SMTP, templates e gatilhos.
+- Decisões registradas no plano: presença por aula (sem flag presencial/remoto), QR exige HTTPS, status `encerrado` explícito, opção de formação sem graduação em todas as áreas com ocultação de titulação/status, módulos novos apenas e-mails.
+
 ### Correção: rate limiter de login
 
 - O rate limiter em `security/rate-limits.js` usa `MemoryStore` em memória — os contadores são resetados ao reiniciar o servidor.
@@ -879,11 +957,16 @@ Versão atual registrada: **V0.1**.
 - Internacionalização
 - Mandar emails
 - Implementar geração de PDF para lista de presença manual. Deve gerar um PDF com o Nome, email e espaço para assinatura (Para cursos, deverá ser uma lista para cada período)
-- Quando implementar envio de email, colocar "Master switch" para ligar/desligar envio de email na fase de desenvolvimentp
-- Um novo usuário, na tela de solicitação de cadastro, não tem os campos de escolaridade.
+- Quando implementar envio de email, colocar "Master switch" para ligar/desligar envio de email na fase de desenvolvimento
 - http://127.0.0.1:3000/admin/dashboard -> Não tem um contador do número total de usuários do sistema
 - Acho que o sistema não está pedindo para trocar a senha no primeiro acesso
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
 - No cadastro do usuário, se ele não tem curso superior, colocando área do formação Outros, deve aparecer como opção "Não possui curso de graduação"
 - Vindo da Área do participante, clicando em "Alterar Meus Dados" vai para http://127.0.0.1:3000/author/profile. O formulário não é completo para alterar todas as informações do usuário.
+- Chat durante o evento (mostrando o vídeo do Youtube na interface)
+- Impressão de QR Code com o código da Palestra / Aula (com dia ou sequencia) e link para a palestra/aula
+- Leitura do QR Code pelo sistema (rodando no brower do celular) para efetivar presença
+- Com isso (os dois itens anteriores mais a folha de presença impressa teríamos fechado)
+
+
 

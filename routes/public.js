@@ -9,6 +9,7 @@ const { renderCertificatePdf } = require('../services/certificates');
 const { registrationLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { body } = require('express-validator');
+const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 
 const ABSTRACT_LIMIT = 2500;
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -810,8 +811,53 @@ function normalizeParticipantProfileForm(body = {}) {
     institution: String(body.institution || '').trim(),
     cpf: String(body.cpf || '').trim(),
     passport: String(body.passport || '').trim(),
-    country: String(body.country || '').trim()
+    country: String(body.country || '').trim(),
+    phone: String(body.phone || '').trim(),
+    formacao_area: String(body.formacao_area || '').trim(),
+    formacao_curso: String(body.formacao_curso || '').trim(),
+    formacao_titulacao: String(body.formacao_titulacao || '').trim(),
+    formacao_status: String(body.formacao_status || '').trim()
   };
+}
+
+function renderParticipantProfile(res, { formData, error = null, success = null }) {
+  res.render('public/participant-profile', {
+    title: 'Meus Dados',
+    error,
+    success,
+    formData,
+    areas: getAreas(),
+    cursosMap: getCursosMap(),
+    noDegreeCourse: NO_DEGREE_COURSE
+  });
+}
+
+function validateParticipantFormacao(formData) {
+  if (!formData.formacao_area && !formData.formacao_curso && !formData.formacao_titulacao && !formData.formacao_status) {
+    return null;
+  }
+  if (!formData.formacao_area || !formData.formacao_curso) {
+    return 'Preencha todos os campos de formação acadêmica ou deixe a seção vazia.';
+  }
+  if (!getAreas().some((area) => area.codigo === formData.formacao_area)) {
+    return 'A área de formação selecionada é inválida.';
+  }
+  if (!getCursosByArea(formData.formacao_area).includes(formData.formacao_curso)) {
+    return 'O curso selecionado não pertence à área de formação informada.';
+  }
+  const noDegree = formData.formacao_curso === NO_DEGREE_COURSE;
+  if (!noDegree) {
+    if (!formData.formacao_titulacao || !formData.formacao_status) {
+      return 'Preencha todos os campos de formação acadêmica ou deixe a seção vazia.';
+    }
+    if (!['Graduado', 'Mestre', 'Doutor'].includes(formData.formacao_titulacao)) {
+      return 'A titulação selecionada é inválida.';
+    }
+    if (!['Formado', 'Cursando'].includes(formData.formacao_status)) {
+      return 'O status da formação é inválido.';
+    }
+  }
+  return null;
 }
 
 function normalizeCPF(value) {
@@ -862,7 +908,7 @@ router.get('/', (req, res) => {
 
 // Detalhes do evento
 router.get('/evento/:id', (req, res) => {
-  const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get());
+  const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published', 'encerrado')").bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não existe ou não está publicado.' });
 
   let registration = null;
@@ -880,19 +926,35 @@ router.get('/evento/:id', (req, res) => {
     `).get(req.params.id, req.session.userId, req.session.userEmail || '');
   }
 
+  const eventWithMeta = withSubmissionMeta(event);
+  const isClosed = event.status === 'encerrado';
+  let timeline = buildEventTimeline(eventWithMeta, {
+    registration,
+    session: req.session
+  });
+
+  if (isClosed) {
+    timeline = timeline.map((item) => {
+      if (item.label === 'Inscrições' && !registration) {
+        return { ...item, actionLabel: null, actionHref: null, actionTone: null };
+      }
+      if (item.label === 'Submissão Artigos') {
+        return { ...item, actionLabel: null, actionHref: null, actionTone: null };
+      }
+      return item;
+    });
+  }
+
   res.render('public/event', {
-    event: withSubmissionMeta(event),
+    event: eventWithMeta,
     title: event.name,
     registration,
-    timeline: buildEventTimeline(withSubmissionMeta(event), {
-      registration,
-      session: req.session
-    })
+    timeline
   });
 });
 
 router.get('/evento/:id/certificates', requireNonAdminAuthorAccess, (req, res) => {
-  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
+  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published', 'encerrado')").bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const certificatesWindow = getCertificatesWindow(event);
   if (!certificatesWindow.isOpen) {
@@ -1660,7 +1722,8 @@ router.post('/evento/:id/inscricao/cancelar', registrationLimiter, requireNonAdm
 
 router.get('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
   const user = db.prepare(`
-    SELECT id, name, email, institution, cpf, passport, country
+    SELECT id, name, email, institution, phone, cpf, passport, country,
+           formacao_area, formacao_curso, formacao_titulacao, formacao_status
     FROM users
     WHERE id = ?
   `).get(req.session.userId);
@@ -1672,12 +1735,7 @@ router.get('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
     });
   }
 
-  res.render('public/participant-profile', {
-    title: 'Meus Dados',
-    error: null,
-    success: null,
-    formData: user
-  });
+  return renderParticipantProfile(res, { formData: user });
 });
 
 router.post('/author/profile', registrationLimiter, requireNonAdminAuthorAccess, (req, res, next) => {
@@ -1686,21 +1744,20 @@ router.post('/author/profile', registrationLimiter, requireNonAdminAuthorAccess,
   const formData = normalizeParticipantProfileForm(req.body);
 
   if (!formData.name || !formData.email) {
-    return res.render('public/participant-profile', {
-      title: 'Meus Dados',
-      error: 'Nome e e-mail são obrigatórios.',
-      success: null,
-      formData
-    });
+    return renderParticipantProfile(res, { formData, error: 'Nome e e-mail são obrigatórios.' });
   }
 
   if (!isValidCPF(formData.cpf)) {
-    return res.render('public/participant-profile', {
-      title: 'Meus Dados',
-      error: 'O CPF informado é inválido.',
-      success: null,
-      formData
-    });
+    return renderParticipantProfile(res, { formData, error: 'O CPF informado é inválido.' });
+  }
+
+  const formacaoError = validateParticipantFormacao(formData);
+  if (formacaoError) {
+    return renderParticipantProfile(res, { formData, error: formacaoError });
+  }
+  if (formData.formacao_curso === NO_DEGREE_COURSE) {
+    formData.formacao_titulacao = '';
+    formData.formacao_status = '';
   }
 
   const emailOwner = db.prepare(`
@@ -1708,42 +1765,73 @@ router.post('/author/profile', registrationLimiter, requireNonAdminAuthorAccess,
     FROM users
     WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
       AND id != ?
-    LIMIT 1
+      LIMIT 1
   `).get(formData.email, req.session.userId);
 
   if (emailOwner) {
-    return res.render('public/participant-profile', {
-      title: 'Meus Dados',
-      error: 'Já existe outro usuário cadastrado com este e-mail.',
-      success: null,
-      formData
-    });
+    return renderParticipantProfile(res, { formData, error: 'Já existe outro usuário cadastrado com este e-mail.' });
   }
 
-  db.prepare(`
-    UPDATE users
-    SET name = ?, email = ?, institution = ?, cpf = ?, passport = ?, country = ?, updated_at = datetime('now', '-3 hours')
-    WHERE id = ?
-  `).run(
+  const currentPassword = String(req.body.current_password || '');
+  const newPassword = String(req.body.new_password || '');
+  const confirmPassword = String(req.body.confirm_password || '');
+  let passwordHash = null;
+
+  if (currentPassword || newPassword || confirmPassword) {
+    const credentials = db.prepare('SELECT password FROM users WHERE id = ?').get(req.session.userId);
+    if (!credentials || !bcrypt.compareSync(currentPassword, credentials.password)) {
+      return renderParticipantProfile(res, { formData, error: 'A senha atual informada está incorreta.' });
+    }
+    if (!newPassword) {
+      return renderParticipantProfile(res, { formData, error: 'Informe a nova senha para concluir a alteração.' });
+    }
+    if (newPassword !== confirmPassword) {
+      return renderParticipantProfile(res, { formData, error: 'As senhas não conferem.' });
+    }
+    passwordHash = bcrypt.hashSync(newPassword, 10);
+  }
+
+  const baseParams = [
     formData.name,
     formData.email,
     formData.institution || null,
     normalizeCPF(formData.cpf) || null,
     formData.passport || null,
     formData.country || null,
-    req.session.userId
-  );
+    formData.phone || '',
+    formData.formacao_area || null,
+    formData.formacao_curso || null,
+    formData.formacao_titulacao || null,
+    formData.formacao_status || null
+  ];
+
+  if (passwordHash) {
+    db.prepare(`
+      UPDATE users
+      SET name = ?, email = ?, institution = ?, cpf = ?, passport = ?, country = ?, phone = ?,
+          formacao_area = ?, formacao_curso = ?, formacao_titulacao = ?, formacao_status = ?,
+          password = ?, password_changed = 1, updated_at = datetime('now', '-3 hours')
+      WHERE id = ?
+    `).run(...baseParams, passwordHash, req.session.userId);
+  } else {
+    db.prepare(`
+      UPDATE users
+      SET name = ?, email = ?, institution = ?, cpf = ?, passport = ?, country = ?, phone = ?,
+          formacao_area = ?, formacao_curso = ?, formacao_titulacao = ?, formacao_status = ?,
+          updated_at = datetime('now', '-3 hours')
+      WHERE id = ?
+    `).run(...baseParams, req.session.userId);
+  }
 
   req.session.userName = formData.name;
   req.session.userEmail = formData.email;
   req.session.userInstitution = formData.institution || '';
 
-  res.render('public/participant-profile', {
-    title: 'Meus Dados',
-    error: null,
-    success: 'Seus dados foram atualizados com sucesso.',
-    formData
-  });
+  const success = passwordHash
+    ? 'Seus dados e sua senha foram atualizados com sucesso.'
+    : 'Seus dados foram atualizados com sucesso.';
+
+  return renderParticipantProfile(res, { formData, success });
 });
 
 // Consultar artigo por código

@@ -41,7 +41,9 @@ O sistema deve permitir:
 - Login unificado por e-mail e senha.
 - Dashboard com estatísticas gerais.
 - Dashboard com cards e listas de pendências para artigos sem revisor, em análise, prontos para deliberação final, pedidos de subsídio e solicitações de cadastro.
+- Dashboard com contadores `Total de Usuários`, `Eventos Realizados` e `Inscritos em Eventos Futuros`.
 - CRUD de eventos.
+- Encerramento de evento publicado por ação explícita (status `encerrado`), com badge âmbar e botão "Encerrar" na listagem administrativa.
 - Configuração de múltiplas áreas/trilhas por evento.
 - Configuração explícita de evento com ou sem submissão de artigos.
 - Configuração de subsídio a participantes por evento.
@@ -95,7 +97,9 @@ O sistema deve permitir:
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas.
 - Submissão de artigo com geração de código de acesso.
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive em contas com perfil de revisor.
+- Perfil do participante em `/author/profile` com atualização de dados cadastrais (nome, e-mail, instituição, CPF, passaporte, país, telefone), formação acadêmica e troca opcional de senha.
 - Área do participante acessível também a contas com múltiplos perfis, com atalhos para revisão e administração quando aplicável.
+- Página pública de evento encerrado permanece acessível (detalhes e certificados), com aviso de encerramento; inscrição e submissão ficam bloqueadas.
 - Consulta de submissão por código.
 - Consulta por código com andamento agregado da avaliação, sem expor um único revisor como responsável oficial.
 - Verificação pública de certificados emitidos pelo respectivo código.
@@ -388,7 +392,8 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 
 ### Eventos e submissão
 
-- Apenas eventos com `status = 'published'` aparecem no site público.
+- Apenas eventos com `status = 'published'` aparecem na listagem pública inicial.
+- O status `encerrado` é um terceiro estado explícito (além de `draft` e `published`), atribuído por ação administrativa (`POST /admin/events/:id/close`), somente a partir do estado `published`.
 - O cronograma público do evento é organizado por `Inscrições`, `Submissão Artigos`, `Análise Submissão`, `Evento` e `Certificados`.
 - Cada etapa do cronograma pode ter período próprio configurado na administração do evento.
 - A submissão pública depende da janela configurada em `submission_start` e `submission_end`.
@@ -428,6 +433,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - O cadastro público gera usuário pendente de aprovação administrativa.
 - A troca de senha é obrigatória no primeiro acesso quando `password_changed = 0`.
 - Contas novas possuem `profile_completed = 0` e, depois de trocar a senha, devem completar identificação, país, instituição, telefone e formação acadêmica antes de acessar qualquer painel.
+- A formação acadêmica possui a opção especial `Não possui curso de graduação`, disponível em todas as áreas de formação; quando selecionada, os campos Titulação e Status ficam ocultos e são gravados como nulos.
 - A migração preserva contas anteriores como perfil completo; o bloqueio é aplicado às novas contas administrativas, importadas, criadas na inscrição administrativa e solicitadas pelo cadastro público.
 - Administrador pode resetar a senha de outro usuário.
 - A tela `/admin/users` separa papel no sistema e status de conta.
@@ -446,6 +452,9 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - `Inscritos` considera participantes registrados por evento.
 - `Inscritos Autores` considera participantes distintos com submissão não rascunho.
 - `Inscritos Participantes` considera registros `listener` em `event_registrations`.
+- `Total de Usuários` conta todos os registros da tabela `users`.
+- `Eventos Realizados` conta eventos com `date_end` anterior à data de hoje (horário do Brasil, UTC-3).
+- `Inscritos em Eventos Futuros` conta registros de inscrição em eventos com `date_start` igual ou posterior à data de hoje (horário do Brasil, UTC-3).
 
 ### Relatórios de evento
 
@@ -566,6 +575,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/evento/:id/inscricao` | Inscrição do participante no evento |
 | `/submeter/:eventId` | Formulário de submissão |
 | `/author` | Página do participante |
+| `/author/profile` | Perfil do participante: dados cadastrais, formação acadêmica e troca de senha |
 | `/author/certificates` | Consulta e download autenticado de certificados emitidos |
 | `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito |
 | `/cadastro` | Solicitação de cadastro público |
@@ -588,6 +598,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 |------|------------|
 | `/admin/dashboard` | Dashboard administrativo |
 | `/admin/events` | Gestão de eventos |
+| `POST /admin/events/:id/close` | Encerra o evento (published → encerrado) |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
 | `/admin/events/:id/import-users` | Importação de participantes via CSV, XLS ou XLSX (cria usuário + inscreve no evento) |
@@ -767,6 +778,12 @@ Observações operacionais:
 - Novo botão "Imp. Lista Presença" na listagem de atividades (`/admin/events/:id/activities`), gerando PDF com lista dos inscritos para cada atividade (Nome, E-mail, Assinatura).
 - Usuário `admin@admin.com` é excluído automaticamente das listas de presença por atividade.
 - Correção da geração de PDF de lista de presença: colunas de cabeçalho alinhadas na mesma linha Y, com espaçamento adequado entre texto, linha separadora e primeira linha de dados.
+- Fase 0 do plano de evolução (`plano.md`): novos contadores do dashboard (`Total de Usuários`, `Eventos Realizados`, `Inscritos em Eventos Futuros`) em `routes/auth.js` e `views/admin/dashboard.ejs`.
+- Fase 0: perfil do participante em `/author/profile` (`routes/public.js`, `views/public/participant-profile.ejs`, `security/validation.js`) com telefone, formação acadêmica e troca opcional de senha (validação da senha atual com bcrypt, `password_changed = 1`).
+- Fase 0: opção `Não possui curso de graduação` centralizada em `services/academic-formation.js` (`NO_DEGREE_COURSE`, `getCursosByArea`, `getCursosMap`), presente em todas as áreas de formação; `routes/users.js` e `routes/events.js` reutilizam o serviço em vez de funções locais duplicadas.
+- Fase 0: ao selecionar a opção `Não possui curso de graduação`, os campos Titulação e Status ficam ocultos nos formulários (`views/admin/users/form.ejs`, `views/complete-profile.ejs`, `views/public/participant-profile.ejs`, `views/admin/events/participant-form.ejs`) e são gravados como nulos nas rotas de criação/edição.
+- Fase 0: status `encerrado` para eventos (`routes/events.js`, `routes/public.js`): normalização em criação/edição, rota `POST /:id/close`, badge e botão na listagem administrativa, select com três estados no formulário; a página pública e a área de certificados permanecem acessíveis com aviso de encerramento, enquanto inscrição e submissão retornam 404.
+- Correção: `views/error.ejs` usava `<%= message || '' %>` e levantava `ReferenceError` quando a mensagem não era passada via `locals`; alterado para `<%= locals.message || '' %>`.
 
 ### Segurança reforçada (V0.1)
 
@@ -784,6 +801,7 @@ Observações operacionais:
 ### Parcial ou pendente de validação
 
 - Decisão final administrativa precisa de validação funcional ponta a ponta.
+- A opção `Não possui curso de graduação` em todas as áreas e a ocultação de Titulação/Status (Fase 0) estão implementadas, mas ainda pendem validação funcional ponta a ponta.
 
 ### Fora do escopo atual
 
@@ -818,6 +836,8 @@ Observações operacionais:
 4. Melhorias adicionais de responsividade.
 
 ## Planejamento Proposto
+
+> Plano aprovado para a próxima evolução (4 ciclos: Fase 0 Quick Wins, Fase 1 Aulas + QR Code, Fase 2 Auditoria, Fase 3 E-mails) registrado em `plano.md`. Esta seção preserva o diagnóstico e os épicos incrementais anteriores.
 
 ### Diagnóstico por objetivo
 
@@ -1012,7 +1032,7 @@ Critério de pronto:
 
 ### Observações editoriais e backlog
 
-1. Ampliar o dashboard com contadores para total de eventos realizados, eventos publicados, inscritos totais e inscritos em eventos futuros. Também vale decidir se eventos encerrados continuam visíveis na área pública.
+1. ~~Ampliar o dashboard com contadores para total de eventos realizados, eventos publicados, inscritos totais e inscritos em eventos futuros. Também vale decidir se eventos encerrados continuam visíveis na área pública.~~ Implementado em 2026-08-14 (Fase 0): contadores `Total de Usuários`, `Eventos Realizados` e `Inscritos em Eventos Futuros`; decisão adotada — eventos encerrados ficam fora da listagem inicial, mas permanecem acessíveis por URL (detalhes e certificados) com aviso de encerramento.
 2. Implementar controle de pagamento. Em uma primeira versão, basta informar cobranças, tabela de valores, pedido de isenção, cupom de desconto e upload de comprovante.
 3. Criar uma página única com a listagem dos relatórios possíveis.
 Programada

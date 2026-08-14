@@ -9,6 +9,7 @@ const xlsx = require('xlsx');
 const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
 const { strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
+const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 
 const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
 if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: true });
@@ -128,30 +129,6 @@ function parseImportCsvContent(content) {
   }
 
   return { headers, rows };
-}
-
-const areasPath = path.join(__dirname, '..', 'assets', 'tabela_area.csv');
-const cursosPath = path.join(__dirname, '..', 'assets', 'tabela_curso_graduacao.csv');
-let areasData = [];
-let cursosData = [];
-try {
-  areasData = parseCsvFile(areasPath);
-  cursosData = parseCsvFile(cursosPath);
-} catch (e) {
-  console.warn('Erro ao carregar tabelas de formação:', e.message);
-}
-
-function getAreas() {
-  return areasData.map(a => ({
-    codigo: a.Codigo,
-    area: a.Area
-  }));
-}
-
-function getCursosByArea(codigoArea) {
-  return cursosData
-    .filter(c => c.CodigoArea === codigoArea)
-    .map(c => c.NomeCurso);
 }
 
 function requireAuth(req, res, next) {
@@ -359,17 +336,15 @@ router.get('/', requireAuth, (req, res) => {
 
 router.get('/new', requireAuth, (req, res) => {
   const areas = getAreas();
-  const cursosMap = {};
-  areas.forEach(area => {
-    cursosMap[area.codigo] = getCursosByArea(area.codigo);
-  });
+  const cursosMap = getCursosMap();
   res.render('admin/users/form', {
     user: null,
     title: 'Novo Usuário',
     year: new Date().getFullYear(),
     areas: areas,
     formacaoAreas: areas,
-    cursosMap: cursosMap
+    cursosMap: cursosMap,
+    noDegreeCourse: NO_DEGREE_COURSE
   });
 });
 
@@ -380,10 +355,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
   const areas = getAreas();
-  const cursosMap = {};
-  areas.forEach(area => {
-    cursosMap[area.codigo] = getCursosByArea(area.codigo);
-  });
+  const cursosMap = getCursosMap();
 
   if (!email || !password) {
     return res.render('admin/users/form', {
@@ -393,6 +365,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
       areas: areas,
       formacaoAreas: areas,
       cursosMap: cursosMap,
+      noDegreeCourse: NO_DEGREE_COURSE,
       error: 'E-mail e senha são obrigatórios.'
     });
   }
@@ -406,6 +379,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
       areas: areas,
       formacaoAreas: areas,
       cursosMap: cursosMap,
+      noDegreeCourse: NO_DEGREE_COURSE,
       error: 'Já existe um usuário com o e-mail ' + email
     });
   }
@@ -418,6 +392,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
       areas: areas,
       formacaoAreas: areas,
       cursosMap: cursosMap,
+      noDegreeCourse: NO_DEGREE_COURSE,
       error: 'O CPF informado é inválido.'
     });
   }
@@ -444,8 +419,8 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
     certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
     formacao_area || null,
     formacao_curso || null,
-    formacao_titulacao || null,
-    formacao_status || null
+    formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null),
+    formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null)
   ).run();
 
   res.redirect('/admin/users?success=Usuário criado com sucesso');
@@ -459,10 +434,7 @@ router.get('/:id/edit', requireAuth, (req, res) => {
   const eventRoles = selectedEventId ? db.prepare('SELECT role,article_id FROM event_user_roles WHERE event_id=? AND user_id=?').all(selectedEventId, user.id) : [];
   const approvedArticles = selectedEventId ? db.prepare("SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title").all(selectedEventId) : [];
   const areas = getAreas();
-  const cursosMap = {};
-  areas.forEach(area => {
-    cursosMap[area.codigo] = getCursosByArea(area.codigo);
-  });
+  const cursosMap = getCursosMap();
   res.render('admin/users/form', {
     user,
     managedEvents, selectedEventId, eventRoles, approvedArticles,
@@ -472,7 +444,8 @@ router.get('/:id/edit', requireAuth, (req, res) => {
     error: req.query.error || null,
     areas: areas,
     formacaoAreas: areas,
-    cursosMap: cursosMap
+    cursosMap: cursosMap,
+    noDegreeCourse: NO_DEGREE_COURSE
   });
 });
 
@@ -629,10 +602,7 @@ function updateUser(req, res) {
 
   if (!isValidCPF(cpf)) {
     const areas = getAreas();
-    const cursosMap = {};
-    areas.forEach(area => {
-      cursosMap[area.codigo] = getCursosByArea(area.codigo);
-    });
+    const cursosMap = getCursosMap();
     return res.render('admin/users/form', {
       user: { id, name: displayName, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Editar Usuário',
@@ -640,6 +610,7 @@ function updateUser(req, res) {
       areas: areas,
       formacaoAreas: areas,
       cursosMap: cursosMap,
+      noDegreeCourse: NO_DEGREE_COURSE,
       error: 'O CPF informado é inválido.'
     });
   }
@@ -655,7 +626,7 @@ function updateUser(req, res) {
       displayName, email, hash,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
-      formacao_area || null, formacao_curso || null, formacao_titulacao || null, formacao_status || null,
+      formacao_area || null, formacao_curso || null, formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null), formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null),
       id
     ).run();
   } else {
@@ -668,7 +639,7 @@ function updateUser(req, res) {
       displayName, email,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
-      formacao_area || null, formacao_curso || null, formacao_titulacao || null, formacao_status || null,
+      formacao_area || null, formacao_curso || null, formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null), formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null),
       id
     ).run();
   }

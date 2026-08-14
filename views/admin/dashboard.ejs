@@ -39,8 +39,11 @@
     .stat-card.ready-decision .stat-value { color: #34d399; }
      .stat-card.reviewers .stat-value { color: #34d399; }
      .stat-card.inactive-reviewers .stat-value { color: #64748b; }
-    .stat-card.pending-users .stat-value { color: #f59e0b; }
-    .stat-card.published .stat-value { color: #fbbf24; }
+     .stat-card.pending-users .stat-value { color: #f59e0b; }
+     .stat-card.published .stat-value { color: #fbbf24; }
+     .stat-card.concluded .stat-value { color: #94a3b8; }
+     .stat-card.total-users .stat-value { color: #60a5fa; }
+     .stat-card.future-registrations .stat-value { color: #38bdf8; }
 
     .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; }
     .section-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); display: flex; align-items: center; justify-content: space-between; }
@@ -116,6 +119,10 @@
           <div class="stat-label">Eventos Publicados</div>
           <div class="stat-value"><%= publishedEvents %></div>
         </div>
+        <div class="stat-card concluded">
+          <div class="stat-label">Eventos Realizados</div>
+          <div class="stat-value"><%= concludedEvents %></div>
+        </div>
       </div>
     </div>
 
@@ -136,6 +143,10 @@
     <div class="stats-group">
       <div class="stats-group-title">Usuários</div>
       <div class="stats-grid">
+        <div class="stat-card total-users">
+          <div class="stat-label">Total de Usuários</div>
+          <div class="stat-value"><%= totalUsers %></div>
+        </div>
         <div class="stat-card pending-users">
           <div class="stat-label">Usuários Pendentes</div>
           <div class="stat-value"><%= pendingUsers %></div>
@@ -143,6 +154,10 @@
         <div class="stat-card articles">
           <div class="stat-label">Inscritos</div>
           <div class="stat-value"><%= totalRegisteredParticipants %></div>
+        </div>
+        <div class="stat-card future-registrations">
+          <div class="stat-label">Inscritos em Eventos Futuros</div>
+          <div class="stat-value"><%= futureRegistrations %></div>
         </div>
         <div class="stat-card articles">
           <div class="stat-label">Inscritos Autores</div>

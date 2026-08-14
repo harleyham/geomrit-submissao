@@ -150,7 +150,7 @@
             <% }) %>
           </select>
         </div>
-        <div class="form-row">
+        <div class="form-row" id="formacao-titulacao-status" <%= user && user.formacao_curso === noDegreeCourse ? 'hidden' : '' %>>
           <div class="form-group">
             <label for="formacao_titulacao">Titulação</label>
             <select id="formacao_titulacao" name="formacao_titulacao">
@@ -233,6 +233,21 @@
       'use strict';
 
       var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
+      var noDegreeCourse = <%- JSON.stringify(noDegreeCourse || '') %>;
+      var titulacaoStatusRow = document.getElementById('formacao-titulacao-status');
+
+      function syncTitulacaoVisibility() {
+        var cursoSelect = document.getElementById('formacao_curso');
+        if (!cursoSelect || !titulacaoStatusRow) return;
+        var isNoDegree = cursoSelect.value === noDegreeCourse;
+        titulacaoStatusRow.hidden = isNoDegree;
+        if (isNoDegree) {
+          var tit = document.getElementById('formacao_titulacao');
+          var st = document.getElementById('formacao_status');
+          if (tit) tit.value = '';
+          if (st) st.value = '';
+        }
+      }
 
       function updateCursosByArea(areaCodigo, selectedValue) {
         var cursoSelect = document.getElementById('formacao_curso');
@@ -271,8 +286,18 @@
       if (areaSelect) {
         areaSelect.addEventListener('change', function() {
           updateCursosByArea(this.value, '');
+          syncTitulacaoVisibility();
         });
       }
+
+      var cursoSelect = document.getElementById('formacao_curso');
+      if (cursoSelect) {
+        cursoSelect.addEventListener('change', function() {
+          syncTitulacaoVisibility();
+        });
+      }
+
+      syncTitulacaoVisibility();
     })();
   </script>
 </body>
