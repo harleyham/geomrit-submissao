@@ -6,6 +6,24 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-14
 
+### Correção: rate limiter de login
+
+- O rate limiter em `security/rate-limits.js` usa `MemoryStore` em memória — os contadores são resetados ao reiniciar o servidor.
+- Para desbloquear após muitas tentativas:
+  ```bash
+  kill $(lsof -t -i:3000) 2>/dev/null
+  node server.js
+  ```
+- Configuração atual: 10 tentativas a cada 15 minutos na rota `/login`.
+- Mensagem de erro: "Muitas tentativas. Aguarde 15 minutos antes de tentar novamente."
+
+### Correção: login após reinício do servidor
+
+- Após reiniciar o servidor (após reset do banco ou outros eventos), o rate limiter é resetado automaticamente.
+- O admin `admin@admin.com` é recriado com senha `123456` e `password_changed = 0`.
+- Login exige troca de senha obrigatória no primeiro acesso (`/login/change-password`).
+- Arquivo afetado: `services/db-reset.js` (resetDatabase), `security/rate-limits.js`.
+
 ### Reset de banco de dados
 
 - Nova funcionalidade de reset total do banco de dados em `/admin/db/reset`, acessível **exclusivamente** para `admin@admin.com` (super administrador).
