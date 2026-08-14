@@ -6,7 +6,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 
 Versão atual do projeto: **V0.1**.
 
-Data de referência desta especificação: **31/07/2026**.
+Data de referência desta especificação: **14/08/2026**.
 
 ## Objetivo do Produto
 
@@ -67,6 +67,16 @@ O sistema deve permitir:
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
 - Configuração de certificados por evento e por papel, com elegibilidade por presença no papel correspondente ou, para revisores, por parecer enviado; emissão, reemissão versionada e download autenticado em PDF.
 - Biblioteca administrativa de fundos PNG/JPEG para certificados, com seleção de fundo existente ou upload de novo arquivo.
+- Reset total do banco de dados (`/admin/db/reset`) via painel admin, acessível **exclusivamente** para `admin@admin.com`. Apaga todas as tabelas, arquivos de upload (artigos, certificados, fundos) e recria o banco limpo com schema, indexes, triggers e seed do administrador padrão. Necessário reinício do servidor para recarregar a conexão.
+- Middleware `requireSuperAdmin` em `security/super-admin.js` que restringe funcionalidades sensíveis ao `admin@admin.com`. Usuários com perfil de administrador em eventos são bloqueados com 403.
+- Fluxo de aprovação de usuários corrigido: ao aprovar um cadastro (`/admin/users/:id/approve`), o sistema agora redefine `password_changed = 0` e `profile_completed = 0`, obrigando o usuário a trocar a senha e completar o perfil no primeiro login.
+- Correção crítica: `method-override('_method')` movido para antes do `express.urlencoded` no `server.js`, permitindo que formulários com `_method=DELETE` funcionem corretamente para exclusão de usuários.
+- Correção na função `updateUser`: se o campo `name` não for enviado pelo formulário de edição, o valor existente do banco é preservado, evitando erro `NOT NULL constraint failed`.
+- Correção do formulário de cadastro público: `validateAndHandle` agora recebe `...v.registration` (spread operator) em vez de `v.registration` como array, resolvendo `TypeError: v.run is not a function`.
+- Middleware `validateAndHandle` agora inclui `.catch()` para evitar requisições penduradas quando Promise rejections ocorrem.
+- Partial `csrf-inject` adicionado ao formulário de criação/edição de eventos (`views/admin/events/form.ejs`), resolvendo erro de token CSRF ao criar eventos.
+- Handler global de `unhandledRejection` adicionado ao `server.js` para capturar e logar Promise rejections não tratadas.
+- Removidos campos duplicados de `_method=DELETE` nos formulários de exclusão de usuários.
 
 ### Revisão
 
@@ -767,6 +777,9 @@ Observações operacionais:
 - Sanitização de IDs numéricos: parâmetros de array em rotas de atualização em lote (ex: `bulk-update-flags`) passam por `parseInt()` e filtro para inteiros positivos antes do `.bind()` SQL, eliminando risco de injeção via valores não numéricos.
 - Mensagens de redirect seguras: senhas padrão não são expostas em parâmetros de URL (ex: reset de senha redireciona com mensagem genérica).
 - Consultas por código funcionais: rotas de consulta de artigo e certificado por código extraem corretamente os parâmetros de `req.body` antes do `.bind()` SQL.
+- Acesso super-administrador: middleware `requireSuperAdmin` restringe funcionalidades sensíveis (reset de banco) ao `admin@admin.com`. Outros administradores recebem 403.
+- Tratamento de erros assíncronos: `validateAndHandle` inclui `.catch()` para evitar requisições penduradas. Handler global de `unhandledRejection` loga erros não tratados.
+- `method-override` configurado corretamente antes do body parser, permitindo formulários POST com `_method=DELETE` para exclusão de recursos.
 
 ### Parcial ou pendente de validação
 

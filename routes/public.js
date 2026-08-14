@@ -1839,7 +1839,7 @@ router.get('/cadastro', (req, res) => {
 
 router.post('/cadastro', registrationLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, [
-    v.registration,
+    ...v.registration,
     body('password').isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
     body('password').matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('A senha deve conter maiúscula, minúscula e número.'),
     body('confirm_password').custom((value, { req: r }) => {

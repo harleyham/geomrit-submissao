@@ -341,6 +341,22 @@
         <% } %>
       </div>
     </div>
+
+    <% if (userEmail === 'admin@admin.com') { %>
+      <% if (query && query.reset === 'success') { %>
+      <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
+        <p style="color:#34d399;font-weight:600;">Banco de dados resetado com sucesso. O servidor será reiniciado automaticamente.</p>
+      </div>
+      <% } else if (query && query.reset === 'error') { %>
+      <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
+        <p style="color:#f87171;font-weight:600;">Erro ao resetar o banco de dados. Verifique os logs do servidor.</p>
+      </div>
+      <% } %>
+
+      <div style="margin-top:1.5rem;">
+        <a href="/admin/db/reset" class="btn btn-danger" onclick="return confirm('ATENÇÃO: Esta ação apagará TODOS os dados do sistema. Deseja continuar?')">Resetar Banco de Dados</a>
+      </div>
+    <% } %>
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>

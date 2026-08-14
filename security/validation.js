@@ -13,17 +13,22 @@ function handleValidationErrors(req, res, next) {
 }
 
 function validateAndHandle(req, res, next, validators) {
-  return Promise.all((Array.isArray(validators) ? validators : [validators]).map((v) => v.run(req))).then(() => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      if (req.xhr || (req.get('accept') || '').includes('application/json')) {
-        return res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+  return Promise.all((Array.isArray(validators) ? validators : [validators]).map((v) => v.run(req)))
+    .then(() => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        if (req.xhr || (req.get('accept') || '').includes('application/json')) {
+          return res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        }
+        res.locals.validationErrors = errors.array().map((e) => e.msg);
+        return next();
       }
-      res.locals.validationErrors = errors.array().map((e) => e.msg);
-      return next();
-    }
-    next();
-  });
+      next();
+    })
+    .catch((err) => {
+      console.error('validateAndHandle error:', err);
+      return res.status(500).json({ errors: ['Erro interno de validação.'] });
+    });
 }
 
 function sanitizeString(value) {

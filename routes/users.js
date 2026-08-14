@@ -621,6 +621,7 @@ function updateUser(req, res) {
     return res.redirect('/admin/users?error=Usuário não encontrado');
   }
 
+  const displayName = name || user.name;
   const nextIsAdmin = is_admin ? 1 : 0;
   if (isRemovingLastActiveAdmin(user, nextIsAdmin, user.is_public)) {
     return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
@@ -633,7 +634,7 @@ function updateUser(req, res) {
       cursosMap[area.codigo] = getCursosByArea(area.codigo);
     });
     return res.render('admin/users/form', {
-      user: { id, name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
+      user: { id, name: displayName, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Editar Usuário',
       year: new Date().getFullYear(),
       areas: areas,
@@ -651,7 +652,7 @@ function updateUser(req, res) {
         formacao_area=?, formacao_curso=?, formacao_titulacao=?, formacao_status=?
       WHERE id=?
     `).bind(
-      name, email, hash,
+      displayName, email, hash,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
       formacao_area || null, formacao_curso || null, formacao_titulacao || null, formacao_status || null,
@@ -664,7 +665,7 @@ function updateUser(req, res) {
         formacao_area=?, formacao_curso=?, formacao_titulacao=?, formacao_status=?
       WHERE id=?
     `).bind(
-      name, email,
+      displayName, email,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
       formacao_area || null, formacao_curso || null, formacao_titulacao || null, formacao_status || null,
@@ -845,6 +846,8 @@ router.post('/:id/approve', requireAuth, (req, res) => {
         approval_status = 'approved',
         approved_at = datetime('now', '-3 hours'),
         approved_by = ?,
+        password_changed = 0,
+        profile_completed = 0,
         updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `).bind(req.session.userId, id).run();

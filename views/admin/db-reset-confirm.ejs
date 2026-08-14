@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Artigos LIGEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
+    .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    .danger-card { background: rgba(239,68,68,0.05); border: 2px solid rgba(239,68,68,0.3); border-radius: 12px; padding: 2rem; text-align: center; }
+    .danger-card h1 { color: #f87171; font-size: 1.5rem; margin-bottom: 1rem; }
+    .danger-card p { color: #cbd5e1; margin-bottom: 1.5rem; line-height: 1.6; }
+    .danger-card .warning { color: #fbbf24; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    .danger-input { background: rgba(30,41,59,0.8); border: 1px solid rgba(239,68,68,0.3); color: #e2e8f0; padding: 0.75rem 1rem; border-radius: 8px; font-size: 1rem; width: 300px; text-align: center; margin-bottom: 1rem; font-family: 'Inter', sans-serif; }
+    .danger-input:focus { outline: none; border-color: #f87171; }
+    .btn-danger { background: rgba(239,68,68,0.2); color: #f87171; border: 2px solid rgba(239,68,68,0.4); padding: 0.75rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
+    .btn-danger:hover { background: rgba(239,68,68,0.35); }
+    .btn-back { color: #94a3b8; text-decoration: none; display: inline-block; margin-top: 1.5rem; font-size: 0.875rem; }
+    .btn-back:hover { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Artigos LIGEM</a>
+      <nav class="topbar-nav">
+        <a href="/admin" class="active">Dashboard</a>
+        <a href="/admin/events" class="btn btn-secondary">Eventos</a>
+        <a href="/admin/users" class="btn btn-secondary">Usuários</a>
+        <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
+        <form method="POST" action="/admin/logout" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-logout">Sair</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="danger-card">
+      <h1>Resetar Banco de Dados</h1>
+      <p>Esta ação irá apagar <strong>TODOS os dados</strong> do sistema: eventos, artigos, usuários, inscrições, presenças e certificados.</p>
+      <p class="warning">Após o reset, apenas o administrador padrão (admin@admin.com) será recriado.</p>
+      <form method="POST" action="/admin/db/reset">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="text" class="danger-input" id="confirm" placeholder='Digite RESET para confirmar' autocomplete="off">
+        <br>
+        <button type="submit" class="btn-danger" id="submitBtn">Confirmar Reset</button>
+      </form>
+      <a href="/admin/dashboard" class="btn-back">&larr; Voltar ao Dashboard</a>
+    </div>
+  </main>
+
+  <script>
+    (function() {
+      const confirmInput = document.getElementById('confirm');
+      const submitBtn = document.getElementById('submitBtn');
+      const form = document.querySelector('form[action="/admin/db/reset"]');
+
+      // Inicia desabilitado
+      submitBtn.disabled = true;
+
+      confirmInput.addEventListener('input', function() {
+        submitBtn.disabled = this.value !== 'RESET';
+      });
+
+      // Impede submit via Enter quando não digitou RESET
+      confirmInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+        }
+      });
+
+      form.addEventListener('submit', function(e) {
+        if (confirmInput.value !== 'RESET') {
+          e.preventDefault();
+          submitBtn.disabled = true;
+        }
+      });
+    })();
+  </script>
+<%- include("../partials/csrf-inject") %>
+  </body>
+</html>

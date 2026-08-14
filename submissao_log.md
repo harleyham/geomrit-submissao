@@ -4,6 +4,65 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-14
+
+### Reset de banco de dados
+
+- Nova funcionalidade de reset total do banco de dados em `/admin/db/reset`, acessível **exclusivamente** para `admin@admin.com` (super administrador).
+- Função `resetDatabase()` em `services/db-reset.js`:
+  1. Apaga todos os arquivos de upload (`uploads/`): artigos, certificados emitidos, fundos personalizados, documentos de subsídio, importações.
+  2. Remove o arquivo do banco SQLite (`artigos.db`, `.db-shm`, `.db-wal`).
+  3. Cria novo banco do zero, reconstruindo schema, indexes, triggers e seed do administrador padrão (`admin@admin.com` com senha `123456`, `password_changed=0`).
+  4. Atualiza a conexão do `db` no cache do `require` para que o servidor continue funcionando sem reinício.
+- Middleware `requireSuperAdmin` em `security/super-admin.js`:
+  - Verifica se `req.session.userEmail === 'admin@admin.com'`.
+  - Retorna 403 com mensagem "Acesso negado" para outros usuários.
+  - Aplicado às rotas `GET` e `POST` de `/admin/db/reset`.
+- Template `views/admin/db-reset-confirm.ejs`: página de confirmação com campo de texto que exige a palavra "RESET" para habilitar o botão de submit. Botão começa desabilitado. Enter é bloqueado. Validação no submit.
+- Botão "Resetar Banco de Dados" visível apenas para `admin@admin.com` no dashboard. Mensagem de sucesso/erro exibida após o reset.
+- `views/admin/events/form.ejs`: adicionado `<%- include("../../partials/csrf-inject") %>` para injetar token CSRF automaticamente. Resolve erro "token de segurança inválido" ao criar eventos.
+
+### Correção: fluxo de aprovação de usuários
+
+- Rota `POST /admin/users/:id/approve` em `routes/users.js:842-850` agora redefine `password_changed = 0` e `profile_completed = 0`.
+- Fluxo corrigido: usuário aprova → `password_changed = 0` → login redireciona para `/login/change-password` → troca senha → redireciona para `/login/complete-profile` → completa perfil → dashboard.
+- Antes disso, após aprovação o usuário ia direto para o painel sem trocar a senha.
+
+### Correção: method-override
+
+- Em `server.js`, `methodOverride('_method')` foi movido para **antes** do `express.urlencoded` (linha 48).
+- Antes, o body parser era carregado primeiro e o `_method` não era reconhecido, causando erro `NOT NULL constraint failed` ao excluir usuários via formulário POST com `_method=DELETE`.
+- Removidos campos duplicados de `_method=DELETE` dos formulários de exclusão em `views/admin/users/list.ejs` (linhas 194-195 e 333-334).
+
+### Correção: atualização de usuário sem campo name
+
+- Em `routes/users.js:updateUser`, adicionada linha `const displayName = name || user.name;` (linha 624).
+- Se o formulário de edição não enviar o campo `name`, o valor existente do banco é preservado.
+- Evita erro `SqliteError: NOT NULL constraint failed: users.name`.
+- Atualizado em todas as 3 ocorrências do `UPDATE` (senha + sem senha) e no render de erro de CPF.
+
+### Correção: formulário de cadastro público
+
+- Em `routes/public.js:1841`, `validateAndHandle` agora recebe `[...v.registration, ...]` (spread operator) em vez de `[v.registration, ...]`.
+- `v.registration` é um array de validadores; passá-lo como elemento único causava `TypeError: v.run is not a function`.
+- O spread operator expande cada validador individualmente para que `validateAndHandle` chame `.run()` corretamente em cada um.
+
+### Correção: validateAndHandle com catch
+
+- Em `security/validation.js:15-27`, `validateAndHandle` agora inclui `.catch()` após o `.then()`.
+- Previne que Promise rejections não tratadas causem requisições penduradas.
+- Em caso de erro, retorna 500 com mensagem "Erro interno de validação."
+
+### Correção: handler unhandledRejection
+
+- Adicionado handler global `process.on('unhandledRejection', ...)` em `server.js` (linha 134).
+- Loga no console erros de Promise rejections não tratadas para debug.
+
+### Correção: senha de admin
+
+- Após reset, o admin `admin@admin.com` é criado com senha `123456` e `password_changed = 0`.
+- Login exige troca de senha no primeiro acesso (fluxo obrigatório).
+
 ## 2026-08-13
 
 ### PDF da lista de presença por atividade
@@ -803,15 +862,10 @@ Versão atual registrada: **V0.1**.
 - Mandar emails
 - Implementar geração de PDF para lista de presença manual. Deve gerar um PDF com o Nome, email e espaço para assinatura (Para cursos, deverá ser uma lista para cada período)
 - Quando implementar envio de email, colocar "Master switch" para ligar/desligar envio de email na fase de desenvolvimentp
-
-
-
-
-
-
-
-
- 
-
-
+- Um novo usuário, na tela de solicitação de cadastro, não tem os campos de escolaridade.
+- http://127.0.0.1:3000/admin/dashboard -> Não tem um contador do número total de usuários do sistema
+- Acho que o sistema não está pedindo para trocar a senha no primeiro acesso
+- A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
+- No cadastro do usuário, se ele não tem curso superior, colocando área do formação Outros, deve aparecer como opção "Não possui curso de graduação"
+- Vindo da Área do participante, clicando em "Alterar Meus Dados" vai para http://127.0.0.1:3000/author/profile. O formulário não é completo para alterar todas as informações do usuário.
 

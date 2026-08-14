@@ -189,9 +189,8 @@
                 <button type="submit" class="btn btn-primary btn-sm">Aprovar Cadastro</button>
               </form>
               <% if (u.id !== currentUser.id && u.email !== 'admin@admin.com') { %>
-              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir solicitação de cadastro de <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir solicitação de cadastro de <%= u.email %>\nEsta ação não pode ser desfeita.')">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <input type="hidden" name="_method" value="DELETE">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
               </form>
@@ -331,7 +330,6 @@
               <% if (u.email !== 'admin@admin.com') { %>
               <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir usuário <%= u.email %>?\nEsta ação não pode ser desfeita.')">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <input type="hidden" name="_method" value="DELETE">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
               </form>

@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-const { loginLimiter } = require('../security/rate-limits');
+const { loginLimiter, adminLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { getAreas, getCursosByArea, getCursosMap } = require('../services/academic-formation');
+const { resetDatabase } = require('../services/db-reset');
+const { requireSuperAdmin } = require('../security/super-admin');
 
 function authenticatedDestination(req) {
   if (req.session.isAdmin) return '/admin/dashboard';
@@ -320,8 +322,27 @@ router.get('/dashboard', requireAuth, (req, res) => {
     readyForDecisionArticles,
     pendingSubsidyRequests,
     pendingRegistrationRequests,
+    year: new Date().getFullYear(),
+    query: req.query
+  });
+});
+
+router.get('/db/reset', requireAuth, requireSuperAdmin, (req, res) => {
+  return res.render('admin/db-reset-confirm', {
+    title: 'Resetar Banco de Dados',
     year: new Date().getFullYear()
   });
+});
+
+router.post('/db/reset', requireAuth, requireSuperAdmin, adminLimiter, (req, res) => {
+  try {
+    resetDatabase();
+    req.flash ? req.flash('success', 'Banco de dados resetado com sucesso. O servidor será reiniciado.') : null;
+    return res.redirect('/admin/dashboard?reset=success');
+  } catch (err) {
+    console.error('DB Reset error:', err);
+    return res.redirect('/admin/dashboard?reset=error');
+  }
 });
 
 router.post('/', loginLimiter, (req, res, next) => {

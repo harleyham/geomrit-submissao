@@ -45,9 +45,9 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(defaultLimiter);
 
 // Middleware
+app.use(methodOverride('_method'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-app.use(methodOverride('_method'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
@@ -129,6 +129,11 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Artigos LIGEM rodando em http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/login`);
+});
+
+// Catch unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 module.exports = app;
