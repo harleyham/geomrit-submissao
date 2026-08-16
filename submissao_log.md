@@ -4,6 +4,26 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-16
+
+### Esquema de backup e restauração (super-admin)
+
+- Motivação: o sistema é desenvolvido em três máquinas diferentes; o backup permite sincronizar o estado completo (banco + arquivos enviados) entre elas.
+- `services/backup.js` (novo):
+  - `createBackupZip(destPath)`: snapshot consistente do banco via `VACUUM INTO` (não bloqueia nem altera o banco em uso) + pasta `uploads/` completa + `BACKUP_META.json` (versão, data UTC-3, node, plataforma, tamanhos) empacotados em ZIP via `ZipArchive` (mesmo padrão dos downloads de artigos/certificados).
+  - `restoreFromZip(zipPath)`: validações em camadas — ZIP válido (`adm-zip`), proteção contra path traversal (`..`/caminhos absolutos), presença de `artigos.db` na raiz, `integrity_check` ok e tabelas principais (`users`, `events`) no banco do backup. Antes de substituir, faz `wal_checkpoint(TRUNCATE)`, copia o banco atual (com WAL) como cópia de segurança (`artigos.db.pre-restore`), fecha as conexões em cache, substitui os arquivos, reabre a conexão com `journal_mode=WAL`/`foreign_keys=ON`, aplica `initializeDbSchema` (migrações idempotentes + seed do admin) e substitui `uploads/` pelo conteúdo do backup. Em qualquer falha após a troca, rola o banco de volta a partir da cópia de segurança e reabre a conexão para o servidor continuar funcionando. A cópia de segurança é removida após o sucesso.
+- `routes/auth.js`:
+  - `GET /admin/backup/download` (`requireAuth` + `requireSuperAdmin`): gera o ZIP em disco temporário e envia como download `artigos-backup-AAAA-MM-DD_HH-mm-ss.zip`.
+  - `GET /admin/backup/restore` (`requireAuth` + `requireSuperAdmin`): página de confirmação com upload.
+  - `POST /admin/backup/restore` (`requireAuth` + `requireSuperAdmin` + `strictLimiter` + `multer` com limite de 500 MB, arquivo em disco temporário): exige campo de confirmação `RESTAURAR`, valida extensão `.zip`, executa a restauração e redireciona para `/admin/dashboard?restore=success` ou de volta à página de confirmação com a mensagem de erro.
+- `views/admin/dashboard.ejs`: nova seção "Backup e Restauração" visível apenas para `admin@admin.com`, com botões "Baixar Backup" (verde), "Restaurar Backup" (âmbar) e "Resetar Banco de Dados" (vermelho), além de banners de sucesso/falha (`?restore=success`).
+- `views/admin/backup-restore.ejs` (novo): página de confirmação no mesmo padrão da de reset — upload de ZIP obrigatório, campo de texto `RESTAURAR` para habilitar o botão, bloqueio de Enter e CSRF por campo hidden.
+- `package.json`: nova dependência `adm-zip` (extração do ZIP na restauração).
+- Verificação:
+  - Backup em banco real: ZIP com `artigos.db` + `BACKUP_META.json` + `uploads/`; `integrity_check` ok no banco extraído; contagens idênticas ao banco em uso; banco live inalterado (hash SHA-256 antes/depois).
+  - Restauração em sandbox isolado (cópias de banco/serviços): sucesso substitui banco e uploads (arquivo-teste removido), cópia de segurança limpa; falhas tratadas com rollback e banco íntegro — ZIP corrompido ("file is not a database"), ZIP sem banco e arquivo que não é ZIP.
+  - Status: **implementado e validado** (backup + restauração no nível de serviço; rotas HTTP com a mesma cadeia `requireAuth` + `requireSuperAdmin` do reset de banco).
+
 ## 2026-08-14
 
 ### Fase 0 (ajuste): "Não possui curso de graduação" em todas as áreas e ocultação de Titulação/Status

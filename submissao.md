@@ -609,6 +609,8 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/admin/users/import-template` | Download do modelo CSV vazio para importação de usuários |
 | `/admin/users/import/download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
 | `/admin/users/import/result` | Resultado da importação com relatório detalhado |
+| `/admin/backup/download` | Download do backup completo em ZIP (banco + uploads), restrito ao `admin@admin.com` |
+| `/admin/backup/restore` | Página de confirmação e upload para restauração de backup, restrita ao `admin@admin.com` |
 | `/admin/events/:id/attendance` | Painel de chamadas por atividade do evento |
 | `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
 | `/admin/events/:id/activities/:activityId/attendance` | Controle de presença da atividade |
@@ -784,6 +786,8 @@ Observações operacionais:
 - Fase 0: ao selecionar a opção `Não possui curso de graduação`, os campos Titulação e Status ficam ocultos nos formulários (`views/admin/users/form.ejs`, `views/complete-profile.ejs`, `views/public/participant-profile.ejs`, `views/admin/events/participant-form.ejs`) e são gravados como nulos nas rotas de criação/edição.
 - Fase 0: status `encerrado` para eventos (`routes/events.js`, `routes/public.js`): normalização em criação/edição, rota `POST /:id/close`, badge e botão na listagem administrativa, select com três estados no formulário; a página pública e a área de certificados permanecem acessíveis com aviso de encerramento, enquanto inscrição e submissão retornam 404.
 - Correção: `views/error.ejs` usava `<%= message || '' %>` e levantava `ReferenceError` quando a mensagem não era passada via `locals`; alterado para `<%= locals.message || '' %>`.
+- Esquema de backup e restauração (super-admin): `services/backup.js` gera backup em ZIP contendo snapshot consistente do banco (`VACUUM INTO`), a pasta `uploads/` completa e `BACKUP_META.json`; a restauração substitui banco e arquivos a partir do ZIP com validações (`integrity_check`, tabelas principais, proteção contra path traversal) e cópia de segurança do banco atual com rollback automático em caso de falha. Botões "Baixar Backup" e "Restaurar Backup" no dashboard, visíveis apenas para `admin@admin.com`, ao lado do botão de reset.
+- Dependência `adm-zip` adicionada para extração do ZIP na restauração.
 
 ### Segurança reforçada (V0.1)
 
@@ -794,7 +798,7 @@ Observações operacionais:
 - Sanitização de IDs numéricos: parâmetros de array em rotas de atualização em lote (ex: `bulk-update-flags`) passam por `parseInt()` e filtro para inteiros positivos antes do `.bind()` SQL, eliminando risco de injeção via valores não numéricos.
 - Mensagens de redirect seguras: senhas padrão não são expostas em parâmetros de URL (ex: reset de senha redireciona com mensagem genérica).
 - Consultas por código funcionais: rotas de consulta de artigo e certificado por código extraem corretamente os parâmetros de `req.body` antes do `.bind()` SQL.
-- Acesso super-administrador: middleware `requireSuperAdmin` restringe funcionalidades sensíveis (reset de banco) ao `admin@admin.com`. Outros administradores recebem 403.
+- Acesso super-administrador: middleware `requireSuperAdmin` restringe funcionalidades sensíveis (reset de banco, backup e restauração) ao `admin@admin.com`. Outros administradores recebem 403.
 - Tratamento de erros assíncronos: `validateAndHandle` inclui `.catch()` para evitar requisições penduradas. Handler global de `unhandledRejection` loga erros não tratados.
 - `method-override` configurado corretamente antes do body parser, permitindo formulários POST com `_method=DELETE` para exclusão de recursos.
 

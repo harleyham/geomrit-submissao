@@ -71,6 +71,10 @@
     .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
     .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
     .btn-danger:hover { background: rgba(239,68,68,0.25); }
+    .btn-success { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.2); text-decoration: none; }
+    .btn-success:hover { background: rgba(52,211,153,0.25); }
+    .btn-warn { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); text-decoration: none; }
+    .btn-warn:hover { background: rgba(251,191,36,0.25); }
 
     .empty { padding: 3rem; text-align: center; color: #64748b; }
     .empty p { margin-top: 0.5rem; font-size: 0.875rem; }
@@ -367,9 +371,28 @@
         <p style="color:#f87171;font-weight:600;">Erro ao resetar o banco de dados. Verifique os logs do servidor.</p>
       </div>
       <% } %>
+      <% if (query && query.restore === 'success') { %>
+      <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
+        <p style="color:#34d399;font-weight:600;">Backup restaurado com sucesso. Banco de dados e arquivos substituídos.</p>
+      </div>
+      <% } else if (query && query.backup === 'error') { %>
+      <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
+        <p style="color:#f87171;font-weight:600;">Erro ao gerar o backup. Verifique os logs do servidor.</p>
+      </div>
+      <% } %>
 
-      <div style="margin-top:1.5rem;">
-        <a href="/admin/db/reset" class="btn btn-danger" onclick="return confirm('ATENÇÃO: Esta ação apagará TODOS os dados do sistema. Deseja continuar?')">Resetar Banco de Dados</a>
+      <div class="section" style="margin-top:1.5rem;">
+        <div class="section-header">
+          <h2>Backup e Restauração</h2>
+        </div>
+        <div class="section-body" style="padding:1.25rem 1.5rem;">
+          <p style="color:#94a3b8;font-size:0.875rem;margin-bottom:1rem;">O backup inclui o banco de dados completo (artigos.db) e a pasta de arquivos enviados (uploads). Use o backup para sincronizar o sistema entre as suas máquinas de desenvolvimento.</p>
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+            <a href="/admin/backup/download" class="btn btn-success" onclick="return confirm('Baixar o backup completo (banco + arquivos) agora?')">Baixar Backup</a>
+            <a href="/admin/backup/restore" class="btn btn-warn" onclick="return confirm('ATENÇÃO: Restaurar um backup SUBSTITUIRÁ todos os dados e arquivos atuais. Deseja continuar?')">Restaurar Backup</a>
+            <a href="/admin/db/reset" class="btn btn-danger" onclick="return confirm('ATENÇÃO: Esta ação apagará TODOS os dados do sistema. Deseja continuar?')">Resetar Banco de Dados</a>
+          </div>
+        </div>
       </div>
     <% } %>
   </main>

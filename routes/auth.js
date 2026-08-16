@@ -1,11 +1,26 @@
 const express = require('express');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const multer = require('multer');
 const router = express.Router();
 const { db } = require('../db');
-const { loginLimiter, adminLimiter } = require('../security/rate-limits');
+const { loginLimiter, adminLimiter, strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { resetDatabase } = require('../services/db-reset');
+const { createBackupZip, restoreFromZip, backupFileName } = require('../services/backup');
 const { requireSuperAdmin } = require('../security/super-admin');
+
+const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
+fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
+const restoreUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, RESTORE_UPLOADS_DIR),
+    filename: (req, file, cb) => cb(null, `restore-${Date.now()}.zip`)
+  }),
+  limits: { fileSize: 500 * 1024 * 1024 }
+});
 
 function authenticatedDestination(req) {
   if (req.session.isAdmin) return '/admin/dashboard';
@@ -369,6 +384,64 @@ router.post('/db/reset', requireAuth, requireSuperAdmin, adminLimiter, (req, res
   } catch (err) {
     console.error('DB Reset error:', err);
     return res.redirect('/admin/dashboard?reset=error');
+  }
+});
+
+// Download do backup (banco + uploads) em ZIP
+router.get('/backup/download', requireAuth, requireSuperAdmin, async (req, res) => {
+  const tmpZip = path.join(os.tmpdir(), `artigos-backup-out-${Date.now()}.zip`);
+  try {
+    await createBackupZip(tmpZip);
+    const fileName = backupFileName();
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.sendFile(tmpZip, (err) => {
+      fs.unlink(tmpZip, () => {});
+      if (err && !res.headersSent) {
+        res.status(500).render('error', { title: 'Erro', message: 'Falha ao gerar o backup.' });
+      }
+    });
+  } catch (err) {
+    console.error('Backup error:', err);
+    fs.unlink(tmpZip, () => {});
+    if (!res.headersSent) {
+      res.status(500).render('error', { title: 'Erro', message: 'Falha ao gerar o backup.' });
+    }
+  }
+});
+
+// Página de confirmação da restauração
+router.get('/backup/restore', requireAuth, requireSuperAdmin, (req, res) => {
+  return res.render('admin/backup-restore', {
+    title: 'Restaurar Backup',
+    error: req.query.error || null,
+    year: new Date().getFullYear()
+  });
+});
+
+// Restauração: upload do ZIP gerado pelo backup
+router.post('/backup/restore', requireAuth, requireSuperAdmin, strictLimiter, restoreUpload.single('backup_file'), (req, res) => {
+  const confirmText = String(req.body.confirm || '').trim();
+  const uploadedFile = req.file ? req.file.path : null;
+  try {
+    if (!req.file) {
+      return res.redirect('/admin/backup/restore?error=Arquivo%20de%20backup%20não%20enviado.');
+    }
+    if (confirmText !== 'RESTAURAR') {
+      return res.redirect('/admin/backup/restore?error=Texto%20de%20confirmação%20inválido.');
+    }
+    const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    if (!/\.zip$/i.test(originalName)) {
+      return res.redirect('/admin/backup/restore?error=Envie%20um%20arquivo%20ZIP%20gerado%20pelo%20backup.');
+    }
+    restoreFromZip(uploadedFile);
+    return res.redirect('/admin/dashboard?restore=success');
+  } catch (err) {
+    console.error('Restore error:', err);
+    const message = encodeURIComponent(err.message || 'Falha ao restaurar o backup.');
+    return res.redirect(`/admin/backup/restore?error=${message}`);
+  } finally {
+    if (uploadedFile) fs.unlink(uploadedFile, () => {});
   }
 });
 
