@@ -176,14 +176,14 @@ module.exports = {
   getActivitiesByEvent: (eventId) => {
     return db.prepare(`
       SELECT ea.*,
-        COUNT(aar.id) AS attendees_count,
+        COUNT(DISTINCT aar.user_id) AS attendees_count,
         COALESCE(SUM(ea.workload_hours * 1), 0) AS workload_hours
       FROM event_activities ea
       LEFT JOIN activity_attendance_records aar
         ON aar.activity_id = ea.id
       WHERE ea.event_id = ?
       GROUP BY ea.id
-      ORDER BY ea.activity_date, ea.name
+      ORDER BY ea.date_start, ea.name
     `).bind(eventId).all();
   },
 

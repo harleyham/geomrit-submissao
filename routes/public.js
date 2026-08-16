@@ -669,10 +669,10 @@ function normalizeListenerRegistrationForm(body = {}, session = null) {
 }
 
 function getPublicEventActivities(eventId) {
-  return db.prepare(`SELECT id,name,activity_type,activity_date,workload_hours,certificate_enabled
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled
     FROM event_activities WHERE event_id=?
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
-    ORDER BY activity_date,name COLLATE NOCASE`).all(eventId);
+    ORDER BY date_start,name COLLATE NOCASE`).all(eventId);
 }
 
 function getRegistrationActivityIds(registrationId) {
@@ -1242,7 +1242,7 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
     LEFT JOIN activity_attendance_records aar ON aar.activity_id=ea.id AND aar.user_id=? AND aar.role='participant'
     WHERE ea.event_id=?
       AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0
-    ORDER BY ea.activity_date,ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id);
+    ORDER BY ea.date_start,ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id);
   return res.render('public/event-activities', {
     title: `Minhas atividades - ${event.name}`, event: withAreaMeta(event), registration, activities,
     success: req.query.success || null, error: req.query.error || null

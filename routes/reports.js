@@ -149,12 +149,12 @@ router.get('/', requireAuth, (req, res) => {
   `).bind(eventId, eventId, eventId).all();
 
   const activities = db.prepare(`
-    SELECT ea.id, ea.name, ea.activity_type, ea.activity_date, ea.workload_hours, ea.certificate_enabled, ea.eligible_roles,
+    SELECT ea.id, ea.name, ea.activity_type, ea.date_start, ea.date_end, ea.workload_hours, ea.certificate_enabled, ea.eligible_roles,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
-      (SELECT COUNT(*) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count
+      (SELECT COUNT(DISTINCT aar.user_id) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count
     FROM event_activities ea
     WHERE ea.event_id = ?
-    ORDER BY ea.activity_date, ea.name COLLATE NOCASE
+    ORDER BY ea.date_start, ea.name COLLATE NOCASE
   `).bind(eventId).all();
 
   const totalActivities = activities.length;

@@ -1103,7 +1103,8 @@ router.get('/:id/import-result', (req, res) => {
 function getRoleActivityAttendance(eventId, userId, role) {
   const activities = db.prepare(`
     SELECT ea.id AS activity_id, ea.name AS activity_name, ea.activity_type,
-      ea.activity_date, COALESCE(ea.workload_hours, 0) AS workload_hours
+      ea.date_start, ea.date_end, COALESCE(ea.workload_hours, 0) AS activity_workload,
+      (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id = ea.id) AS sessions_total
     FROM activity_attendance_records aar
     JOIN event_activities ea ON ea.id = aar.activity_id
     WHERE ea.event_id = ? AND aar.user_id = ? AND aar.role = ?
@@ -1113,13 +1114,35 @@ function getRoleActivityAttendance(eventId, userId, role) {
         FROM participant_activity_enrollments pae
         WHERE pae.activity_id = aar.activity_id AND pae.user_id = aar.user_id
       ))
-    ORDER BY ea.activity_date, ea.name
+    GROUP BY ea.id
+    ORDER BY ea.date_start, ea.name
   `).all(eventId, userId, role, role);
+  const records = db.prepare(`
+    SELECT aar.activity_id, aar.session_id, COALESCE(s.workload_hours, 0) AS session_workload
+    FROM activity_attendance_records aar
+    JOIN event_activities ea ON ea.id = aar.activity_id
+    LEFT JOIN activity_sessions s ON s.id = aar.session_id
+    WHERE ea.event_id = ? AND aar.user_id = ? AND aar.role = ? AND ea.certificate_enabled = 1
+  `).all(eventId, userId, role);
+  const sessionWorkloadByActivity = {};
+  const presentSessionsByActivity = {};
+  records.forEach((record) => {
+    if (record.session_id) {
+      sessionWorkloadByActivity[record.activity_id] = (sessionWorkloadByActivity[record.activity_id] || 0) + (Number(record.session_workload) || 0);
+      if (!presentSessionsByActivity[record.activity_id]) presentSessionsByActivity[record.activity_id] = new Set();
+      presentSessionsByActivity[record.activity_id].add(record.session_id);
+    }
+  });
+  const attended_activities = activities.map((activity) => {
+    const hasSessions = Number(activity.sessions_total) > 0;
+    const workload_hours = hasSessions ? (sessionWorkloadByActivity[activity.activity_id] || 0) : (Number(activity.activity_workload) || 0);
+    return { ...activity, workload_hours, sessions_present: presentSessionsByActivity[activity.activity_id] ? presentSessionsByActivity[activity.activity_id].size : 0 };
+  });
   return {
-    attended_activities: activities,
-    activities_attended: activities.length,
-    attendance_count: activities.length,
-    total_workload_hours: activities.reduce((sum, activity) => sum + (Number(activity.workload_hours) || 0), 0)
+    attended_activities,
+    activities_attended: attended_activities.length,
+    attendance_count: attended_activities.length,
+    total_workload_hours: attended_activities.reduce((sum, activity) => sum + (Number(activity.workload_hours) || 0), 0)
   };
 }
 
@@ -1207,7 +1230,7 @@ router.get('/:id/certificates', (req, res) => {
       (SELECT COUNT(*) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count
     FROM event_activities ea
     WHERE ea.event_id = ?
-    ORDER BY ea.activity_date, ea.name
+    ORDER BY ea.date_start, ea.name
   `).bind(event.id).all();
 
   res.render('admin/events/certificates', {
@@ -1296,16 +1319,37 @@ router.get('/:id/certificates/preview', (req, res) => {
   renderCertificatePdf(res, preview);
 });
 
+function getActivitySessions(activityId) {
+  return db.prepare('SELECT * FROM activity_sessions WHERE activity_id=? ORDER BY sequence_no, session_date, id').all(activityId);
+}
+function resolveSession(activityId, sessionId) {
+  const id = sessionId ? Number(sessionId) : null;
+  if (!id) return null;
+  return db.prepare('SELECT * FROM activity_sessions WHERE id=? AND activity_id=?').get(id, activityId) || null;
+}
+function sessionDateError(activity, sessionDate) {
+  if (!sessionDate) return null;
+  if (activity.date_start && String(sessionDate) < String(activity.date_start)) return 'A data da etapa não pode ser anterior ao início da atividade.';
+  if (activity.date_end && String(sessionDate) > String(activity.date_end)) return 'A data da etapa não pode ser posterior ao fim da atividade.';
+  return null;
+}
+function activityDateRangeError(dateStart, dateEnd) {
+  if (dateStart && dateEnd && String(dateEnd) < String(dateStart)) return 'A data de fim não pode ser anterior à data de início.';
+  return null;
+}
+
 router.get('/:id/activities', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const activities = db.prepare(`
     SELECT ea.*,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
-      (SELECT COUNT(*) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count
+      (SELECT COUNT(DISTINCT aar.user_id) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count,
+      (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id=ea.id) AS session_count,
+      (SELECT COALESCE(SUM(s.workload_hours),0) FROM activity_sessions s WHERE s.activity_id=ea.id) AS sessions_workload
     FROM event_activities ea
     WHERE ea.event_id = ?
-    ORDER BY ea.activity_date, ea.name
+    ORDER BY ea.date_start, ea.name
   `).bind(req.params.id).all();
   const editingActivity = req.query.edit_activity_id
     ? activities.find((activity) => Number(activity.id) === Number(req.query.edit_activity_id)) || null
@@ -1333,10 +1377,16 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
+  const dateStart = req.body.date_start || null;
+  const dateEnd = req.body.date_end || null;
+  const rangeError = activityDateRangeError(dateStart, dateEnd);
+  if (rangeError) {
+    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(rangeError)}`);
+  }
   db.prepare(`INSERT INTO event_activities
-    (event_id,name,activity_type,activity_date,workload_hours,certificate_enabled,eligible_roles,certificate_role)
-    VALUES(?,?,?,?,?,?,?,?)`).run(
-    event.id, name, activityType, req.body.activity_date || null, workloadHours,
+    (event_id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,eligible_roles,certificate_role)
+    VALUES(?,?,?,?,?,?,?,?,?)`).run(
+    event.id, name, activityType, dateStart, dateEnd, workloadHours,
     certificateEnabled, eligibleRoles.join(','), eligibleRoles[0]
   );
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
@@ -1361,9 +1411,15 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
-  db.prepare(`UPDATE event_activities SET name=?,activity_type=?,activity_date=?,workload_hours=?,
+  const dateStart = req.body.date_start || null;
+  const dateEnd = req.body.date_end || null;
+  const rangeError = activityDateRangeError(dateStart, dateEnd);
+  if (rangeError) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(rangeError)}`);
+  }
+  db.prepare(`UPDATE event_activities SET name=?,activity_type=?,date_start=?,date_end=?,workload_hours=?,
     certificate_enabled=?,eligible_roles=?,certificate_role=? WHERE id=?`).run(
-    name, activityType, req.body.activity_date || null, workloadHours, certificateEnabled,
+    name, activityType, dateStart, dateEnd, workloadHours, certificateEnabled,
     eligibleRoles.join(','), eligibleRoles[0], activity.id
   );
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade atualizada.')}`);
@@ -1375,12 +1431,80 @@ router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
   db.prepare('UPDATE event_activities SET certificate_enabled=? WHERE id=?').run(enabled, activity.id);
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(enabled ? 'Atividade incluída no cálculo dos certificados.' : 'Atividade retirada do cálculo dos certificados.')}`);
 });
+
+router.get('/:id/activities/:activityId/sessions', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const sessions = getActivitySessions(activity.id);
+  const editingSession = req.query.edit_session_id
+    ? sessions.find((session) => Number(session.id) === Number(req.query.edit_session_id)) || null
+    : null;
+  res.render('admin/events/activity-sessions', {
+    title: `Etapas - ${activity.name}`, event, activity, sessions, editingSession,
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+});
+
+router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) => {
+  const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const name = String(req.body.name || '').trim();
+  if (!name) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('Informe o nome da etapa.')}`);
+  }
+  const sessionDate = req.body.session_date || null;
+  const dateError = sessionDateError(activity, sessionDate);
+  if (dateError) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(dateError)}`);
+  }
+  const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  const nextSequence = db.prepare('SELECT COALESCE(MAX(sequence_no),0) + 1 AS next FROM activity_sessions WHERE activity_id=?').get(activity.id).next;
+  db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,workload_hours) VALUES (?,?,?,?,?)')
+    .run(activity.id, name, nextSequence, sessionDate, workloadHours);
+  return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa adicionada.')}`);
+});
+
+router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (req, res) => {
+  const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const session = db.prepare('SELECT * FROM activity_sessions WHERE id = ? AND activity_id = ?').get(req.params.sessionId, activity.id);
+  if (!session) return res.status(404).render('error', { title: 'Etapa não encontrada' });
+  const name = String(req.body.name || '').trim();
+  if (!name) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('Informe o nome da etapa.')}`);
+  }
+  const sessionDate = req.body.session_date || null;
+  const dateError = sessionDateError(activity, sessionDate);
+  if (dateError) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(dateError)}`);
+  }
+  const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  db.prepare('UPDATE activity_sessions SET name=?,session_date=?,workload_hours=? WHERE id=?')
+    .run(name, sessionDate, workloadHours, session.id);
+  return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa atualizada.')}`);
+});
+
+router.post('/:id/activities/:activityId/sessions/:sessionId/delete', strictLimiter, (req, res) => {
+  const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const session = db.prepare('SELECT * FROM activity_sessions WHERE id = ? AND activity_id = ?').get(req.params.sessionId, activity.id);
+  if (!session) return res.status(404).render('error', { title: 'Etapa não encontrada' });
+  db.prepare('DELETE FROM activity_sessions WHERE id=?').run(session.id);
+  return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa removida.')}`);
+});
 router.get('/:id/activities/:activityId/attendance', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const activity = db.prepare('SELECT a.*, e.name AS event_name FROM event_activities a JOIN events e ON e.id = a.event_id WHERE a.id = ? AND a.event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const sessions = getActivitySessions(activity.id);
+  const selectedSession = resolveSession(activity.id, req.query.session_id) || sessions[0] || null;
   const allowedRoles = String(activity.eligible_roles || 'participant').split(',').map((role) => role.trim());
+  const sessionCondition = selectedSession ? 'AND aar.session_id=?' : 'AND aar.session_id IS NULL';
+  const sessionParams = selectedSession ? [selectedSession.id] : [];
   const people = db.prepare(`WITH event_people AS (
       SELECT er.user_id AS person_user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role
         FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
@@ -1392,8 +1516,8 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
       CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present,
       COALESCE(aar.role, '') AS activity_role
     FROM event_people ep
-    LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id
-    GROUP BY ep.person_user_id ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.event_id, activity.id)
+    LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id ${sessionCondition}
+    GROUP BY ep.person_user_id ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.event_id, activity.id, ...sessionParams)
     .filter((person) => String(person.roles).split(',').some((role) => allowedRoles.includes(role)));
   const roleLabels = Object.fromEntries(Object.entries(CERTIFICATE_ROLES).map(([role, meta]) => [role, meta.label]));
   people.forEach((person) => {
@@ -1402,7 +1526,7 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
   });
   res.render('admin/events/activity-attendance', {
     title: `Presença - ${activity.name}`, event, activity, participants: people,
-    roleLabels,
+    sessions, selectedSession, roleLabels,
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -1413,6 +1537,8 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const activity = db.prepare('SELECT a.*, e.name AS event_name FROM event_activities a JOIN events e ON e.id = a.event_id WHERE a.id = ? AND a.event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const sessions = getActivitySessions(activity.id);
+  const selectedSession = resolveSession(activity.id, req.query.session_id) || sessions[0] || null;
 
   const participants = db.prepare(`
     SELECT name, email, institution
@@ -1438,8 +1564,9 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   const PDFDocument = require('pdfkit');
   const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 60 });
 
+  const printTitle = selectedSession ? `${activity.name} — ${selectedSession.name}` : activity.name;
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="lista-presenca-${encodeURIComponent(activity.name)}.pdf"`);
+  res.setHeader('Content-Disposition', `inline; filename="lista-presenca-${encodeURIComponent(printTitle)}.pdf"`);
   doc.pipe(res);
 
   const pageWidth = doc.page.width - 120;
@@ -1458,9 +1585,15 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
 
   doc.fontSize(18).text(event.name, { align: 'center' });
   doc.moveDown(0.5);
-  doc.fontSize(14).text(activity.name, { align: 'center' });
+  doc.fontSize(14).text(printTitle, { align: 'center' });
   doc.moveDown(0.3);
-  doc.fontSize(11).text(formatBRDate(activity.activity_date), { align: 'center' });
+  let headerDate;
+  if (selectedSession && selectedSession.session_date) headerDate = formatBRDate(selectedSession.session_date);
+  else if (activity.date_start || activity.date_end) {
+    const parts = [activity.date_start, activity.date_end].filter(Boolean).map(formatBRDate);
+    headerDate = parts.length === 2 && parts[0] !== parts[1] ? `${parts[0]} a ${parts[1]}` : parts[0] || 'A definir';
+  } else headerDate = 'A definir';
+  doc.fontSize(11).text(headerDate, { align: 'center' });
   doc.moveDown(1);
 
   const colWidth = pageWidth / 3;
@@ -1509,16 +1642,20 @@ router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (re
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const userId = Number(req.params.userId);
   const role = String(req.body.role || '').trim();
+  const sessions = getActivitySessions(activity.id);
+  const session = sessions.length ? (resolveSession(activity.id, req.body.session_id) || sessions[0]) : null;
+  const sessionId = session ? session.id : null;
+  const sessionQuery = sessionId ? `?session_id=${sessionId}` : '';
 
   if (req.body.action === 'absent' || !role) {
-    const existing = db.prepare('SELECT registration_id,role FROM activity_attendance_records WHERE activity_id=? AND user_id=?').get(activity.id, userId);
-    const removed = db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=?').run(activity.id, userId);
+    const existing = db.prepare('SELECT registration_id,role FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, userId, sessionId);
+    const removed = db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').run(activity.id, userId, sessionId);
     if (removed.changes) recordParticipantAudit({
       eventId: activity.event_id, registrationId: existing && existing.registration_id,
       actorUserId: req.session.userId, action: 'activity_attendance_removed',
-      details: { activity_id: activity.id, user_id: userId, role: existing && existing.role }
+      details: { activity_id: activity.id, user_id: userId, session_id: sessionId, role: existing && existing.role }
     });
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}`);
   }
 
   const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
@@ -1530,24 +1667,24 @@ router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (re
   const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
   const hasRoleInEvent = role === 'participant' ? Boolean(participantEnrollment) : Boolean(eventRole || reviewerAssignment);
   if (!CERTIFICATE_ROLES[role] || !allowedRoles.includes(role) || !hasRoleInEvent) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?error=${encodeURIComponent('A pessoa não possui este papel no evento ou o papel não é elegível para a atividade.')}`);
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}&error=${encodeURIComponent('A pessoa não possui este papel no evento ou o papel não é elegível para a atividade.')}`);
   }
 
-  const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=?').get(activity.id, userId);
+  const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, userId, sessionId);
   if (existing) {
     db.prepare("UPDATE activity_attendance_records SET role=?,registration_id=?,marked_by=?,attended_at=datetime('now','-3 hours') WHERE id=?")
       .run(role, registration ? registration.id : null, req.session.userId, existing.id);
   } else {
-    db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by) VALUES(?,?,?,?,?)')
-      .run(activity.id, registration ? registration.id : null, userId, role, req.session.userId);
+    db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by,session_id) VALUES(?,?,?,?,?,?)')
+      .run(activity.id, registration ? registration.id : null, userId, role, req.session.userId, sessionId);
   }
   recordParticipantAudit({
     eventId: activity.event_id, registrationId: registration ? registration.id : null,
     actorUserId: req.session.userId, action: 'activity_attendance_marked',
-    details: { activity_id: activity.id, user_id: userId, role }
+    details: { activity_id: activity.id, user_id: userId, session_id: sessionId, role }
   });
 
-  res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance`);
+  res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}`);
 });
 
 router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, res, next) => {
@@ -1560,6 +1697,10 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
   if (!allowedRoles.length) {
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?error=${encodeURIComponent('A atividade não possui perfis elegíveis configurados.')}`);
   }
+  const sessions = getActivitySessions(activity.id);
+  const session = sessions.length ? (resolveSession(activity.id, req.body.session_id) || sessions[0]) : null;
+  const sessionId = session ? session.id : null;
+  const sessionQuery = sessionId ? `?session_id=${sessionId}` : '';
 
   const priorityRoles = ['teacher', 'speaker', 'oral_presenter', 'poster_presenter', 'reviewer', 'participant'];
   const selectedRole = allowedRoles.find(r => priorityRoles.includes(r)) || allowedRoles[0];
@@ -1586,12 +1727,12 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
   if (bulkAction === 'unmark_all_present') {
     eligibleUsers.forEach(user => {
       if (!user.user_id) { skipped++; return; }
-      const removed = db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=?').run(activity.id, user.user_id);
+      const removed = db.prepare('DELETE FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').run(activity.id, user.user_id, sessionId);
       if (removed.changes) {
         recordParticipantAudit({
           eventId: activity.event_id, registrationId: user.registration_id || null,
           actorUserId: req.session.userId, action: 'activity_attendance_removed',
-          details: { activity_id: activity.id, user_id: user.user_id, bulk: true }
+          details: { activity_id: activity.id, user_id: user.user_id, session_id: sessionId, bulk: true }
         });
         marked++;
       }
@@ -1606,18 +1747,18 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
           ? Boolean(db.prepare(`SELECT 1 FROM assignments ass JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, user.user_id))
           : Boolean(db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').get(activity.event_id, user.user_id, selectedRole));
       if (!hasRoleInEvent) { skipped++; return; }
-      const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=?').get(activity.id, user.user_id);
+      const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, user.user_id, sessionId);
       if (existing) {
         db.prepare("UPDATE activity_attendance_records SET role=?,registration_id=?,attended_at=datetime('now','-3 hours') WHERE id=?")
           .run(selectedRole, user.registration_id || null, existing.id);
       } else {
-        db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by) VALUES(?,?,?,?,?)')
-          .run(activity.id, user.registration_id || null, user.user_id, selectedRole, req.session.userId);
+        db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by,session_id) VALUES(?,?,?,?,?,?)')
+          .run(activity.id, user.registration_id || null, user.user_id, selectedRole, req.session.userId, sessionId);
       }
       recordParticipantAudit({
         eventId: activity.event_id, registrationId: user.registration_id || null,
         actorUserId: req.session.userId, action: 'activity_attendance_marked',
-        details: { activity_id: activity.id, user_id: user.user_id, role: selectedRole, bulk: true }
+        details: { activity_id: activity.id, user_id: user.user_id, session_id: sessionId, role: selectedRole, bulk: true }
       });
       marked++;
     });
@@ -1626,7 +1767,7 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
   const msg = bulkAction === 'unmark_all_present'
     ? `Presença removida de ${marked} pessoa(s)${skipped > 0 ? ` (${skipped} ignorada(s))` : ''}`
     : `Presença marcada para ${marked} pessoa(s)${skipped > 0 ? ` (${skipped} ignorada(s))` : ''}`;
-  res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?success=${encodeURIComponent(msg)}`);
+  res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}${sessionQuery ? '&' : '?'}success=${encodeURIComponent(msg)}`);
 });
 
 router.post('/:id/activities/:activityId/certificate-rule', (req, res) => {
@@ -1917,8 +2058,8 @@ function getUsersForParticipantSelection() {
 }
 
 function getActivitiesForParticipantForm(eventId) {
-  return db.prepare(`SELECT id,name,activity_type,activity_date,workload_hours,certificate_enabled
-    FROM event_activities WHERE event_id=? ORDER BY activity_date,name COLLATE NOCASE`).all(eventId);
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled
+    FROM event_activities WHERE event_id=? ORDER BY date_start,name COLLATE NOCASE`).all(eventId);
 }
 
 function normalizeActivityIds(value) {

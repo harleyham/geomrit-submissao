@@ -6,6 +6,33 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-16
 
+### Atividades: intervalo de datas e etapas (presença por etapa)
+
+- Requisito do usuário: (a) manter os 7 tipos de atividade; (b) trocar a data única por **início e fim**; (c) permitir dividir a atividade em **etapas** (ex.: minicurso com 4 aulas, seminário com 4 períodos), com presença por etapa.
+- Decisões alinhadas: carga horária **por etapa** (o certificado soma as cargas das etapas presentes); cada etapa tem **data própria** (validada contra o intervalo da atividade); o certificado **não exibe fração de etapas** (apenas os nomes das atividades).
+- Schema (`services/db-reset.js`):
+  - `event_activities` ganha `date_start`/`date_end` (migração idempotente faz backfill de `activity_date` → `date_start`; a coluna legada é mantida).
+  - Nova tabela `activity_sessions` (`activity_id`, `name`, `sequence_no`, `session_date`, `workload_hours`, FK com `ON DELETE CASCADE`).
+  - `activity_attendance_records` ganha `session_id` (reconstrução da tabela com FK `ON DELETE CASCADE` para `activity_sessions`) + índices parciais únicos: `(activity_id,user_id)` para `session_id IS NULL` e `(activity_id,session_id,user_id)` para etapas.
+- `routes/events.js`:
+  - Helpers `getActivitySessions`, `resolveSession`, `sessionDateError`, `activityDateRangeError`.
+  - CRUD de atividades passa a gravar `date_start`/`date_end` (valida fim >= início).
+  - Novas rotas de etapas: `GET/POST .../sessions`, `POST .../sessions/:sessionId` (edição) e `POST .../sessions/:sessionId/delete` (com `strictLimiter`; data fora do intervalo é rejeitada).
+  - Chamada (`GET .../attendance`) lista as etapas como abas e mostra presença da etapa selecionada; `POST .../attendance/:userId` e `POST .../attendance-bulk` operam por `session_id` (nulo quando a atividade não tem etapas) e redirecionam preservando `?session_id=`.
+  - Impressão (`GET .../attendance-print?session_id=`): título com nome da etapa e data da etapa (ou intervalo da atividade quando sem etapas).
+  - `getRoleActivityAttendance`: para atividades com etapas, a carga horária efetiva é a soma das cargas das etapas presentes (`session_id` não nulo); sem etapas, usa `event_activities.workload_hours`. A elegibilidade (`min_attendance`) continua contando **atividades** presentes.
+- `routes/public.js`, `routes/reports.js`, `db.js`: queries passam a usar `date_start`/`date_end`; contadores de presentes passam a `COUNT(DISTINCT user_id)` (evita duplicar pessoas com presença em várias etapas).
+- `server.js`: helpers globais `formatBRDate` e `activityDateRange` (intervalo "dd/mm/aaaa a dd/mm/aaaa") via `res.locals`.
+- Views:
+  - `views/admin/events/activities.ejs`: form com duas datas; lista mostra intervalo, carga (soma das etapas quando houver, marcada com "(etapas)") e link "Etapas (n)".
+  - `views/admin/events/activity-sessions.ejs` (nova): lista de etapas (ordem, nome, data, carga), adicionar/editar etapa e remover (com confirmação).
+  - `views/admin/events/activity-attendance.ejs`: abas de etapa, campos hidden `session_id` nos forms individual e em lote, link de impressão por etapa.
+  - `certificates.ejs`, `participant-form.ejs`, `event-register.ejs`, `event-activities.ejs`, `reports/list.ejs`: exibem o intervalo via `activityDateRange`.
+- Verificação:
+  - Migração em banco antigo simulado: backfill de data, presença legada preservada com `session_id` nulo, etapas + presenças por etapa, cascata na remoção da etapa, idempotência.
+  - E2E HTTP em sandbox (cópia do projeto + banco real): login admin; lista com intervalo e botão Etapas; criação de atividade com datas; criação de etapa; rejeição de etapa fora do intervalo; presença individual e em lote por etapa; PDF da lista por etapa (cabeçalho com etapa/data); carga horária do certificado = soma das etapas presentes (2h de 4h); página de chamada com abas; atividade sem etapas continua sem `session_id`; relatório e página pública de inscrição exibem o intervalo.
+  - Status: **implementado e validado**. A migração é aplicada automaticamente no próximo start do servidor (banco atual migra na inicialização).
+
 ### Esquema de backup e restauração (super-admin)
 
 - Motivação: o sistema é desenvolvido em três máquinas diferentes; o backup permite sincronizar o estado completo (banco + arquivos enviados) entre elas.
@@ -981,20 +1008,17 @@ Versão atual registrada: **V0.1**.
 
 
 - Deve haver distinção entre Participantes Presenciais / Remotos?
-- A Presença de cursos com várias aulas deve ser por aula, a fim de se poder exigir participação mínima em cada uma?
 - Internacionalização
 - Mandar emails
 - Implementar geração de PDF para lista de presença manual. Deve gerar um PDF com o Nome, email e espaço para assinatura (Para cursos, deverá ser uma lista para cada período)
 - Quando implementar envio de email, colocar "Master switch" para ligar/desligar envio de email na fase de desenvolvimento
 - http://127.0.0.1:3000/admin/dashboard -> Não tem um contador do número total de usuários do sistema
-- Acho que o sistema não está pedindo para trocar a senha no primeiro acesso
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
-- No cadastro do usuário, se ele não tem curso superior, colocando área do formação Outros, deve aparecer como opção "Não possui curso de graduação"
 - Vindo da Área do participante, clicando em "Alterar Meus Dados" vai para http://127.0.0.1:3000/author/profile. O formulário não é completo para alterar todas as informações do usuário.
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
 - Impressão de QR Code com o código da Palestra / Aula (com dia ou sequencia) e link para a palestra/aula
 - Leitura do QR Code pelo sistema (rodando no brower do celular) para efetivar presença
 - Com isso (os dois itens anteriores mais a folha de presença impressa teríamos fechado)
-
+- Para que seja emitido Certificado, devemos poder definir a presença mínima. O default é de 75%
 
 

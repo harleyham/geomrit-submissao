@@ -279,9 +279,21 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `event_id`
 - `name`
 - `activity_type`
-- `activity_date`
-- `workload_hours`
+- `date_start` / `date_end` — intervalo da atividade (a coluna `activity_date` é legada, mantida apenas por compatibilidade; os dados foram migrados para `date_start`)
+- `workload_hours` — carga horária total (usada quando a atividade não tem etapas)
 - `certificate_enabled`
+
+### `activity_sessions`
+
+Etapas de uma atividade (ex.: aulas de um minicurso, períodos de um seminário). A presença é registrada por etapa.
+
+- `id`
+- `activity_id`
+- `name` — ex.: "Aula 1", "Período da manhã"
+- `sequence_no` — ordem de exibição/chamada
+- `session_date` — data da etapa (validada contra o intervalo da atividade)
+- `workload_hours` — carga horária da etapa
+- `created_at`
 
 ### `activity_attendance_records`
 
@@ -290,8 +302,11 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `registration_id`
 - `user_id`
 - `role`
+- `session_id` — etapa presente (`NULL` quando a atividade não tem etapas, equivalendo a uma única etapa geral)
 - `marked_by`
 - `attended_at`
+
+Único por pessoa por etapa: um índice parcial garante no máximo um registro por `(activity_id, user_id)` com `session_id` nulo e por `(activity_id, session_id, user_id)` com etapa definida.
 
 ### `participant_activity_enrollments`
 
@@ -517,6 +532,9 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - Cada atividade representa uma parte do evento e informa os papéis elegíveis. A presença é lançada por pessoa com o papel efetivamente exercido naquela atividade.
 - `event_user_roles` declara os papéis atribuídos à pessoa no evento; `activity_attendance_records.role` registra a atuação efetiva. Marcar ou remover presença não cria nem remove papéis do evento.
 - Uma pessoa só pode receber presença em papel que já possua no evento; `participant` decorre de sua inscrição em `event_registrations`.
+- Uma atividade pode ser dividida em **etapas** (`activity_sessions`) — ex.: aulas de um minicurso ou períodos de um seminário. Quando existem etapas, a chamada, a lista de presença impressa e a carga horária do certificado passam a ser por etapa; a atividade sem etapas funciona como uma única etapa geral (registro com `session_id` nulo).
+- Cada etapa tem data e carga horária próprias; a data da etapa é validada contra o intervalo de início/fim da atividade. A carga horária do certificado soma as cargas das etapas em que a pessoa esteve presente.
+- O intervalo da atividade (`date_start`/`date_end`) substitui a data única anterior; a presença e a ordenação usam `date_start`.
 - Atividades habilitadas para certificação são consolidadas por pessoa e por papel. Para o papel de participante, somente contam atividades em que coexistam inscrição e presença. Uma mesma pessoa pode receber certificados distintos de participante, palestrante, professor ou apresentador, cada um contendo apenas suas atividades e sua carga horária correspondentes.
 - O certificado de revisor é a exceção: sua elegibilidade decorre de ao menos um parecer enviado no evento.
 - A rota administrativa `/admin/events/:id/attendance` é o painel de chamadas: ela lista as atividades e direciona para a marcação de presença de cada uma. A presença geral não é usada para calcular carga horária nem elegibilidade de certificados.
@@ -534,10 +552,10 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 ### Fluxo de atividades, presença e certificados
 
 1. Admin cria o evento.
-2. Admin cadastra e configura suas atividades em `/admin/events/:id/activities`.
+2. Admin cadastra e configura suas atividades em `/admin/events/:id/activities` (intervalo de datas, carga horária, papéis elegíveis). Para atividades divididas (minicurso, seminário), o admin adiciona as etapas em `/admin/events/:id/activities/:activityId/sessions`.
 3. Participante seleciona as atividades durante a inscrição ou posteriormente em `/evento/:id/atividades`; o administrador pode editar os mesmos vínculos no cadastro do participante.
-4. Admin acessa `/admin/events/:id/attendance`, abre a chamada da atividade, seleciona o papel exercido e marca, atualiza ou remove a presença.
-5. Admin acessa `/admin/events/:id/certificates` e emite os certificados elegíveis. Para o papel de participante, cada atividade contabilizada precisa estar certificável e possuir inscrição e presença.
+4. Admin acessa a chamada da atividade, seleciona a etapa (quando houver), o papel exercido e marca, atualiza ou remove a presença daquela etapa.
+5. Admin acessa `/admin/events/:id/certificates` e emite os certificados elegíveis. Para o papel de participante, cada atividade contabilizada precisa estar certificável e possuir inscrição e presença; a carga horária contabilizada é a soma das etapas presentes (ou a carga da atividade, quando sem etapas).
 
 ### Fluxo operacional de artigos
 

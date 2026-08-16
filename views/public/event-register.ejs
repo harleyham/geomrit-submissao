@@ -131,7 +131,7 @@
           <% } else { %>
             <div class="activity-grid">
               <% activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); %>
-                <label class="activity-option"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %>><span><strong><%= activity.name %></strong><small><%= activity.activity_date || 'Data a definir' %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small></span></label>
+                <label class="activity-option"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %>><span><strong><%= activity.name %></strong><small><%= activityDateRange(activity) %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small></span></label>
               <% }) %>
             </div>
             <small style="display:block;color:#94a3b8;margin-top:.55rem;line-height:1.5;">Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas.</small>

@@ -102,10 +102,24 @@
 
     <div class="page-header">
       <div>
-        <h1>Presença — <%= activity.name %></h1>
-        <p><%= activity.workload_hours || 0 %>h carga horária · Perfis elegíveis: <%= (activity.eligible_roles || 'participant').split(',').map((r) => roleLabels[r.trim()] || r.trim()).join(', ') %></p>
+        <h1>Presença — <%= activity.name %><% if (selectedSession) { %> · <%= selectedSession.name %><% } %></h1>
+        <p>
+          <% if (selectedSession) { %><%= selectedSession.session_date ? formatBRDate(selectedSession.session_date) : 'Data a definir' %><% if (Number(selectedSession.workload_hours) > 0) { %> · <%= selectedSession.workload_hours %>h<% } %><% } else { %><%= activityDateRange(activity) %><% if (Number(activity.workload_hours) > 0) { %> · <%= activity.workload_hours %>h carga horária<% } %><% } %>
+          · Perfis elegíveis: <%= (activity.eligible_roles || 'participant').split(',').map((r) => roleLabels[r.trim()] || r.trim()).join(', ') %>
+        </p>
+      </div>
+      <div>
+        <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance-print<%= selectedSession ? `?session_id=${selectedSession.id}` : '' %>" class="btn-secondary btn-sm" style="text-decoration:none">Imprimir lista de presença</a>
       </div>
     </div>
+
+    <% if (sessions && sessions.length) { %>
+    <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:1.2rem">
+      <% sessions.forEach((s) => { const active = selectedSession && selectedSession.id === s.id; %>
+        <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance?session_id=<%= s.id %>" class="btn-sm" style="text-decoration:none;padding:0.4rem 0.9rem;border-radius:999px;font-size:0.8rem;border:1px solid <%= active ? '#2563eb' : '#334155' %>;background:<%= active ? 'rgba(37,99,235,0.18)' : 'transparent' %>;color:<%= active ? '#93c5fd' : '#94a3b8' %>"><%= s.sequence_no %>. <%= s.name %></a>
+      <% }) %>
+    </div>
+    <% } %>
 
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
@@ -130,6 +144,7 @@
         <h2>Vincular participantes e papéis</h2>
         <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance-bulk" style="display:flex;gap:.45rem;align-items:center">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if (selectedSession) { %><input type="hidden" name="session_id" value="<%= selectedSession.id %>"><% } %>
           <button type="submit" name="bulk_action" value="mark_all_present" class="btn-success btn btn-sm">Marcar presença (todos)</button>
           <button type="submit" name="bulk_action" value="unmark_all_present" class="btn-danger btn btn-sm">Desmarcar presença (todos)</button>
         </form>
@@ -182,6 +197,7 @@
                   </td>
                   <td>
                     <form id="<%= attendanceFormId %>" method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance/<%= p.user_id %>" style="display:flex;gap:.45rem;align-items:center;flex-wrap:wrap">
+                    <% if (selectedSession) { %><input type="hidden" name="session_id" value="<%= selectedSession.id %>"><% } %>
                     <% if (p.present && p.activity_role) { %>
                       <span class="badge badge-present">Presente</span>
                       <button type="submit" name="action" value="present" class="btn-primary btn-sm">Atualizar</button>

@@ -53,7 +53,7 @@
         <% items.forEach((a) => { %>
         <div class="activity-item">
           <strong><%= a.name %></strong>
-          <small><%= a.activity_date || 'Data a definir' %><% if (a.workload_hours && Number(a.workload_hours) > 0) { %> · <%= a.workload_hours %>h</small><% } else { %></small><% } %>
+          <small><%= activityDateRange(a) %><% if (a.workload_hours && Number(a.workload_hours) > 0) { %> · <%= a.workload_hours %>h</small><% } else { %></small><% } %>
           <div class="stats"><span>Inscritos: <%= a.enrolled_count || 0 %></span><span>Presentes: <%= a.attendees_count || 0 %></span></div>
           <% if (a.certificate_enabled) { %><span class="badge" style="background:#14532d;color:#86efac;font-size:10px">Certificável</span><% } else { %><span style="color:#64748b;font-size:10px">Sem certificação</span><% } %>
         </div>

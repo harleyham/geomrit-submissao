@@ -35,6 +35,7 @@ function clearCertificateEmissions() {
 const TABLES = [
   'activity_attendance_records',
   'activity_certificate_rules',
+  'activity_sessions',
   'admins',
   'admins_old',
   'article_submissions',
@@ -325,7 +326,8 @@ function initializeDbSchema(db) {
       FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
-    CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,date_start DATE,date_end DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS activity_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,name TEXT NOT NULL,sequence_no INTEGER NOT NULL DEFAULT 1,session_date DATE,workload_hours REAL DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS participant_activity_enrollments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       activity_id INTEGER NOT NULL,
@@ -425,7 +427,7 @@ function initializeDbSchema(db) {
     const activityAttendanceColumns = db.prepare('PRAGMA table_info(activity_attendance_records)').all().map((column) => column.name);
     if (!activityAttendanceColumns.includes('user_id')) db.exec('ALTER TABLE activity_attendance_records ADD COLUMN user_id INTEGER');
     db.exec('UPDATE activity_attendance_records SET user_id=(SELECT user_id FROM event_registrations er WHERE er.id=activity_attendance_records.registration_id) WHERE user_id IS NULL');
-    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_user ON activity_attendance_records(activity_id,user_id) WHERE user_id IS NOT NULL');
+    if (!activityAttendanceColumns.includes('session_id')) db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_user ON activity_attendance_records(activity_id,user_id) WHERE user_id IS NOT NULL');
   } catch (e) {}
   try {
     const aaColumns = db.prepare('PRAGMA table_info(activity_attendance_records)').all().map((c) => c.name);
@@ -434,6 +436,41 @@ function initializeDbSchema(db) {
       db.prepare("UPDATE activity_attendance_records SET role = 'participant' WHERE role IS NULL").run();
     }
   } catch (e) {}
+  try {
+    const activityDateColumns = db.prepare('PRAGMA table_info(event_activities)').all().map((column) => column.name);
+    if (!activityDateColumns.includes('date_start')) db.exec('ALTER TABLE event_activities ADD COLUMN date_start DATE');
+    if (!activityDateColumns.includes('date_end')) db.exec('ALTER TABLE event_activities ADD COLUMN date_end DATE');
+    db.exec('UPDATE event_activities SET date_start=activity_date WHERE date_start IS NULL AND activity_date IS NOT NULL');
+  } catch (e) {}
+  try {
+    const sessionColumns = db.prepare('PRAGMA table_info(activity_attendance_records)').all().map((c) => c.name);
+    if (!sessionColumns.includes('session_id')) {
+      db.pragma('foreign_keys = OFF');
+      db.transaction(() => {
+        db.exec(`CREATE TABLE activity_attendance_records_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          activity_id INTEGER NOT NULL,
+          registration_id INTEGER,
+          marked_by INTEGER,
+          attended_at DATETIME DEFAULT (datetime('now','-3 hours')),
+          user_id INTEGER,
+          role TEXT DEFAULT 'participant',
+          session_id INTEGER,
+          FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+          FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE SET NULL,
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY(session_id) REFERENCES activity_sessions(id) ON DELETE CASCADE
+        )`);
+        db.exec(`INSERT INTO activity_attendance_records_new (id,activity_id,registration_id,marked_by,attended_at,user_id,role)
+          SELECT id,activity_id,registration_id,marked_by,attended_at,user_id,COALESCE(role,'participant') FROM activity_attendance_records`);
+        db.exec('DROP TABLE activity_attendance_records');
+        db.exec('ALTER TABLE activity_attendance_records_new RENAME TO activity_attendance_records');
+      })();
+      db.pragma('foreign_keys = ON');
+    }
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_no_session ON activity_attendance_records(activity_id,user_id) WHERE user_id IS NOT NULL AND session_id IS NULL');
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_session_user ON activity_attendance_records(activity_id,session_id,user_id) WHERE user_id IS NOT NULL AND session_id IS NOT NULL');
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } catch (_) {} }
   try {
     const aaCols = db.prepare('PRAGMA table_info(activity_attendance_records)').all();
     const regCol = aaCols.find((c) => c.name === 'registration_id');

@@ -67,6 +67,28 @@ app.use(session({
 // CSRF
 app.use(csrfProtection);
 
+// Helpers de data para templates
+function formatBRDate(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00');
+  if (isNaN(d)) return dateStr;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+function activityDateRange(activity) {
+  const start = activity && activity.date_start;
+  const end = activity && activity.date_end;
+  if (start && end) {
+    if (String(start) === String(end)) return formatBRDate(start);
+    return `${formatBRDate(start)} a ${formatBRDate(end)}`;
+  }
+  if (start) return formatBRDate(start);
+  if (end) return formatBRDate(end);
+  return 'Data a definir';
+}
+
 // Dados globais para templates
 app.use((req, res, next) => {
   res.locals.isAdmin = req.session && req.session.isAdmin;
@@ -80,6 +102,8 @@ app.use((req, res, next) => {
   res.locals.year = new Date().getFullYear();
   res.locals.appVersion = APP_VERSION;
   res.locals.csrfToken = req.session && req.session.csrfToken;
+  res.locals.formatBRDate = formatBRDate;
+  res.locals.activityDateRange = activityDateRange;
   next();
 });
 

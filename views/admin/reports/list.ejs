@@ -257,7 +257,7 @@
                       <div>
                         <div style="font-weight:600;color:#f1f5f9;font-size:0.9rem"><%= activity.name %></div>
                         <div style="color:#64748b;font-size:0.8rem;margin-top:0.15rem">
-                          <%= activity.activity_date || 'A definir' %>
+                          <%= activityDateRange(activity) %>
                           <%= Number(activity.workload_hours) > 0 ? ' · ' + activity.workload_hours + 'h' : '' %>
                         </div>
                       </div>
