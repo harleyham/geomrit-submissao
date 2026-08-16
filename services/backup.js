@@ -171,11 +171,7 @@ function restoreFromZip(zipPath) {
       uploadsRestored = true;
     }
 
-    const dbCachePath = require.resolve('../db');
-    if (require.cache[dbCachePath]) {
-      require.cache[dbCachePath].exports.db = newDb;
-    }
-
+    require('../db').setDb(newDb);
     newDb = null;
 
     return {
@@ -200,10 +196,7 @@ function restoreFromZip(zipPath) {
         const restored = new Database(DB_PATH);
         restored.pragma('journal_mode = WAL');
         restored.pragma('foreign_keys = ON');
-        const dbCachePath = require.resolve('../db');
-        if (require.cache[dbCachePath]) {
-          require.cache[dbCachePath].exports.db = restored;
-        }
+        require('../db').setDb(restored);
       } catch (e) {
         console.error('Falha ao reabrir conexão após rollback do restore:', e.message);
       }

@@ -784,13 +784,10 @@ function resetDatabase() {
   db.pragma('foreign_keys = ON');
   initializeDbSchema(db);
 
-  // 6. Update the cached db.js module to use the new connection
-  // All other modules that did `const { db } = require('../db')`
-  // will get the new connection since they share the same exports object
-  const dbCachePath = require.resolve('../db');
-  if (require.cache[dbCachePath]) {
-    require.cache[dbCachePath].exports.db = db;
-  }
+  // 6. Point the stable db proxy (db.js) to the new connection.
+  // Modules that captured `const { db } = require('../db')` at load time
+  // keep working because the proxy always forwards to the current connection.
+  require('../db').setDb(db);
 }
 
 function getDb() {

@@ -24,6 +24,14 @@ Versão atual registrada: **V0.1**.
   - Restauração em sandbox isolado (cópias de banco/serviços): sucesso substitui banco e uploads (arquivo-teste removido), cópia de segurança limpa; falhas tratadas com rollback e banco íntegro — ZIP corrompido ("file is not a database"), ZIP sem banco e arquivo que não é ZIP.
   - Status: **implementado e validado** (backup + restauração no nível de serviço; rotas HTTP com a mesma cadeia `requireAuth` + `requireSuperAdmin` do reset de banco).
 
+### Correção: conexão obsoleta após restore/reset (proxy estável no db.js)
+
+- Bug: as rotas capturam a conexão no carregamento do módulo (`const { db } = require('../db')`). O restore (e o reset) fechavam a conexão e trocavam `exports.db` por uma nova, mas as referências desestruturadas nas rotas continuavam apontando para a conexão fechada — qualquer requisição subsequente quebrava com `TypeError: The database connection is not open` (ex.: `requireOnboarding`).
+- Correção: `db.js` agora exporta `db` como um Proxy estável que sempre encaminha métodos/propriedades para a conexão atual, além do setter `setDb(connection)`. `services/backup.js` (sucesso e rollback do restore) e `services/db-reset.js` (`resetDatabase`) passam a trocar a conexão via `setDb()`.
+- Efeito: restore e reset deixam de exigir reinício do servidor — a conexão é trocada em runtime e o app continua servindo normalmente.
+- Correção: `views/admin/backup-restore.ejs` — o input de confirmação não tinha `name="confirm"`, então o valor nunca chegava ao servidor e a restauração falhava com "Texto de confirmação inválido".
+- Status: **corrigido e validado** (teste simulando a troca de conexão com a referência desestruturada do módulo: queries passam a atingir a nova conexão).
+
 ## 2026-08-14
 
 ### Fase 0 (ajuste): "Não possui curso de graduação" em todas as áreas e ocultação de Titulação/Status

@@ -4,11 +4,31 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
 const DB_PATH = path.join(__dirname, 'artigos.db');
-const db = new Database(DB_PATH);
+
+let current = new Database(DB_PATH);
 
 // Habilitar WAL mode para melhor performance
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+current.pragma('journal_mode = WAL');
+current.pragma('foreign_keys = ON');
+
+// Proxy estável: as rotas capturam `db` no carregamento do módulo
+// (const { db } = require('../db')). Ao trocar a conexão (reset/restore),
+// o proxy continua apontando para a conexão atual, sem quebrar referências.
+const db = new Proxy({}, {
+  get: (_target, prop) => {
+    const value = current[prop];
+    return typeof value === 'function' ? value.bind(current) : value;
+  },
+  set: (_target, prop, value) => {
+    current[prop] = value;
+    return true;
+  }
+});
+
+function setDb(connection) {
+  current = connection;
+}
+
 const hadParticipantActivityEnrollments = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='participant_activity_enrollments'").get());
 
 const { initializeDbSchema } = require('./services/db-reset');
@@ -18,6 +38,7 @@ initializeDbSchema(db);
 // Exportar funções úteis
 module.exports = {
   db,
+  setDb,
   recordParticipantAudit: ({ eventId, registrationId = null, actorUserId = null, action, details = {} }) => {
     db.prepare(`
       INSERT INTO participant_audit_logs (event_id, registration_id, actor_user_id, action, details, created_at)

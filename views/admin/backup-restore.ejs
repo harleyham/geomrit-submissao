@@ -65,7 +65,7 @@
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="file" class="file-drop" id="backupFile" name="backup_file" accept=".zip,application/zip,application/x-zip-compressed" required>
         <br>
-        <input type="text" class="danger-input" id="confirm" placeholder='Digite RESTAURAR para confirmar' autocomplete="off">
+        <input type="text" class="danger-input" id="confirm" name="confirm" placeholder='Digite RESTAURAR para confirmar' autocomplete="off">
         <br>
         <button type="submit" class="btn-warn" id="submitBtn" disabled>Confirmar Restauração</button>
       </form>
