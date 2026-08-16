@@ -1732,7 +1732,8 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
     doc.end();
   } catch (err) {
     console.error('checkin-print error:', err);
-    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar a folha', message: 'Não foi possível gerar a folha de presença com QR Code.' });
+    const detail = err && err.message ? err.message : String(err);
+    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar a folha', message: `Não foi possível gerar a folha de presença com QR Code. Detalhes: ${detail}` });
     else res.end();
   }
 });
