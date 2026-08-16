@@ -6,7 +6,7 @@ const multer = require('multer');
 const { db, recordParticipantAudit } = require('../db');
 const bcrypt = require('bcryptjs');
 const { renderCertificatePdf } = require('../services/certificates');
-const { registrationLimiter } = require('../security/rate-limits');
+const { registrationLimiter, strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { body } = require('express-validator');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
@@ -2010,5 +2010,195 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
     formData: {}
   });
 });
+
+// Presença por QR Code (folha impressa por etapa/atividade)
+const CHECKIN_ROLE_LABELS = { participant: 'Participante', speaker: 'Palestrante', teacher: 'Professor(a)', oral_presenter: 'Apresentador Oral', poster_presenter: 'Apresentador Pôster' };
+const CHECKIN_SPECIAL_ROLES = ['speaker', 'teacher', 'oral_presenter', 'poster_presenter'];
+
+function getCheckinContext(req) {
+  const eventId = parseInt(req.params.eventId, 10);
+  const activityId = parseInt(req.params.activityId, 10);
+  const sessionId = req.params.sessionId ? parseInt(req.params.sessionId, 10) : null;
+  const event = Number.isInteger(eventId) && eventId > 0 ? db.prepare('SELECT * FROM events WHERE id = ?').get(eventId) : null;
+  if (!event) return { error: 'event' };
+  const activity = Number.isInteger(activityId) && activityId > 0 ? db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(activityId, eventId) : null;
+  if (!activity) return { error: 'activity' };
+  const sessions = db.prepare('SELECT * FROM activity_sessions WHERE activity_id = ? ORDER BY sequence_no, id').all(activityId);
+  let session = null;
+  if (sessionId) {
+    if (!Number.isInteger(sessionId) || sessionId <= 0 || !sessions.some((item) => item.id === sessionId)) return { error: 'session' };
+    session = sessions.find((item) => item.id === sessionId);
+  } else if (sessions.length > 0) {
+    return { error: 'session-required' };
+  }
+  return { eventId, activityId, session, event, activity, sessions };
+}
+
+function checkinNextPath(eventId, activityId, session) {
+  return `/presenca/${eventId}/${activityId}${session ? `/${session.id}` : ''}`;
+}
+
+function getCheckinMarkableRoles(eventId, userId) {
+  const registration = db.prepare('SELECT * FROM event_registrations WHERE event_id = ? AND user_id = ?').get(eventId, userId);
+  const roles = db.prepare('SELECT role FROM event_user_roles WHERE event_id = ? AND user_id = ?').all(eventId, userId).map((row) => row.role);
+  const markableRoles = [];
+  if (registration) markableRoles.push('participant');
+  CHECKIN_SPECIAL_ROLES.forEach((role) => { if (roles.includes(role)) markableRoles.push(role); });
+  return { registration, roles, markableRoles };
+}
+
+function canMarkCheckinRole(activity, userId, markableRoles, roles, registration, role) {
+  if (!markableRoles.includes(role)) return false;
+  if (role === 'participant') {
+    if (!registration) return false;
+    const enrolled = db.prepare('SELECT 1 FROM participant_activity_enrollments WHERE activity_id = ? AND user_id = ?').get(activity.id, userId);
+    return !!enrolled;
+  }
+  return roles.includes(role);
+}
+
+function defaultCheckinRole(activity, markableRoles) {
+  const byType = { oral_presentation: 'oral_presenter', poster_presentation: 'poster_presenter' };
+  if (byType[activity.activity_type] && markableRoles.includes(byType[activity.activity_type])) return byType[activity.activity_type];
+  if (markableRoles.includes('speaker')) return 'speaker';
+  if (markableRoles.includes('teacher')) return 'teacher';
+  if (markableRoles.includes('participant')) return 'participant';
+  return markableRoles[0] || null;
+}
+
+function getCheckinWindow(activity, session) {
+  if (session && session.session_date) return { start: session.session_date, end: session.session_date };
+  if (activity.date_start || activity.date_end) return { start: activity.date_start, end: activity.date_end || activity.date_start };
+  return { start: null, end: null };
+}
+
+function isWithinCheckinWindow(checkinWindow) {
+  if (!checkinWindow.start) return false;
+  const todayUtc3 = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
+  return todayUtc3 >= checkinWindow.start && todayUtc3 <= (checkinWindow.end || checkinWindow.start);
+}
+
+function getCheckinRecord(activityId, userId, session) {
+  if (session) {
+    return db.prepare('SELECT * FROM activity_attendance_records WHERE activity_id = ? AND user_id = ? AND session_id = ?').get(activityId, userId, session.id);
+  }
+  return db.prepare('SELECT * FROM activity_attendance_records WHERE activity_id = ? AND user_id = ? AND session_id IS NULL').get(activityId, userId);
+}
+
+function renderCheckin(req, res, message) {
+  const ctx = getCheckinContext(req);
+  if (ctx.error === 'event' || ctx.error === 'activity') {
+    return res.status(404).render('error', { title: 'Atividade não encontrada', message: 'A atividade informada no código QR não foi encontrada.' });
+  }
+  if (ctx.error === 'session') {
+    return res.status(404).render('error', { title: 'Etapa não encontrada', message: 'A etapa informada no código QR não foi encontrada.' });
+  }
+  if (ctx.error === 'session-required') {
+    return res.status(400).render('error', { title: 'Etapa necessária', message: 'Esta atividade possui etapas. O código QR deve indicar a etapa específica.' });
+  }
+  const { eventId, activityId, event, activity, session } = ctx;
+
+  if (!req.session || !req.session.userId) {
+    return res.redirect(`/login?next=${encodeURIComponent(checkinNextPath(eventId, activityId, session))}`);
+  }
+
+  const userId = req.session.userId;
+  const { registration, roles, markableRoles } = getCheckinMarkableRoles(eventId, userId);
+  const checkinWindow = getCheckinWindow(activity, session);
+  const inWindow = isWithinCheckinWindow(checkinWindow);
+  const existing = getCheckinRecord(activityId, userId, session);
+  const initialRole = String(req.query.role || '');
+  const defaultRole = defaultCheckinRole(activity, markableRoles);
+  const selectedRole = markableRoles.includes(initialRole) ? initialRole : defaultRole;
+
+  return res.render('public/checkin', {
+    title: 'Registrar Presença',
+    event,
+    activity,
+    session,
+    inWindow,
+    windowStart: checkinWindow.start,
+    windowEnd: checkinWindow.end,
+    registration,
+    markableRoles,
+    roleLabels: CHECKIN_ROLE_LABELS,
+    selectedRole,
+    existing,
+    message: message || null,
+    messageIsError: false
+  });
+}
+
+function handleCheckinSubmit(req, res) {
+  const ctx = getCheckinContext(req);
+  if (ctx.error === 'event' || ctx.error === 'activity') {
+    return res.status(404).render('error', { title: 'Atividade não encontrada', message: 'A atividade informada no código QR não foi encontrada.' });
+  }
+  if (ctx.error === 'session') {
+    return res.status(404).render('error', { title: 'Etapa não encontrada', message: 'A etapa informada no código QR não foi encontrada.' });
+  }
+  if (ctx.error === 'session-required') {
+    return res.status(400).render('error', { title: 'Etapa necessária', message: 'Esta atividade possui etapas. O código QR deve indicar a etapa específica.' });
+  }
+  const { eventId, activityId, event, activity, session } = ctx;
+
+  if (!req.session || !req.session.userId) {
+    return res.redirect(`/login?next=${encodeURIComponent(checkinNextPath(eventId, activityId, session))}`);
+  }
+
+  const userId = req.session.userId;
+  const role = String(req.body.role || '');
+  const { registration, roles, markableRoles } = getCheckinMarkableRoles(eventId, userId);
+
+  const withMessage = (text, isError) => {
+    const checkinWindow = getCheckinWindow(activity, session);
+    return res.render('public/checkin', {
+      title: 'Registrar Presença',
+      event,
+      activity,
+      session,
+      inWindow: isWithinCheckinWindow(checkinWindow),
+      windowStart: checkinWindow.start,
+      windowEnd: checkinWindow.end,
+      registration,
+      markableRoles,
+      roleLabels: CHECKIN_ROLE_LABELS,
+      selectedRole: markableRoles.includes(role) ? role : defaultCheckinRole(activity, markableRoles),
+      existing: getCheckinRecord(activityId, userId, session),
+      message: text,
+      messageIsError: !!isError
+    });
+  };
+
+  if (!canMarkCheckinRole(activity, userId, markableRoles, roles, registration, role)) {
+    return withMessage('Você não pode registrar presença com este papel para esta atividade.', true);
+  }
+  const checkinWindow = getCheckinWindow(activity, session);
+  if (!isWithinCheckinWindow(checkinWindow)) {
+    return withMessage('Fora do período: a presença por QR Code só pode ser registrada no dia da etapa (ou no período da atividade, quando não houver etapas).', true);
+  }
+
+  const registrationId = registration ? registration.id : null;
+  const existing = getCheckinRecord(activityId, userId, session);
+  if (existing) {
+    db.prepare("UPDATE activity_attendance_records SET role = ?, registration_id = ?, marked_by = ?, attended_at = datetime('now','-3 hours') WHERE id = ?")
+      .run(role, registrationId, userId, existing.id);
+  } else {
+    db.prepare("INSERT INTO activity_attendance_records (activity_id, registration_id, user_id, role, marked_by, session_id, attended_at) VALUES (?,?,?,?,?,?,datetime('now','-3 hours'))")
+      .run(activityId, registrationId, userId, role, userId, session ? session.id : null);
+  }
+  return res.redirect(`${checkinNextPath(eventId, activityId, session)}?marked=1`);
+}
+
+router.get('/presenca/:eventId/:activityId', (req, res) => {
+  if (req.query.marked === '1') return renderCheckin(req, res, 'Presença registrada com sucesso.');
+  return renderCheckin(req, res);
+});
+router.get('/presenca/:eventId/:activityId/:sessionId', (req, res) => {
+  if (req.query.marked === '1') return renderCheckin(req, res, 'Presença registrada com sucesso.');
+  return renderCheckin(req, res);
+});
+router.post('/presenca/:eventId/:activityId', strictLimiter, (req, res) => handleCheckinSubmit(req, res));
+router.post('/presenca/:eventId/:activityId/:sessionId', strictLimiter, (req, res) => handleCheckinSubmit(req, res));
 
 module.exports = router;

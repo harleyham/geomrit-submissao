@@ -312,7 +312,7 @@ function initializeDbSchema(db) {
     CREATE TABLE IF NOT EXISTS event_certificate_rules (
       event_id INTEGER NOT NULL,
       certificate_role TEXT NOT NULL CHECK(certificate_role IN ('reviewer', 'participant', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter')),
-      min_attendance INTEGER NOT NULL DEFAULT 1 CHECK(min_attendance >= 0),
+      min_attendance INTEGER NOT NULL DEFAULT 75 CHECK(min_attendance >= 0 AND min_attendance <= 100),
       background_id INTEGER,
       text_color TEXT DEFAULT '#0f172a',
       title TEXT,

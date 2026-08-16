@@ -1149,7 +1149,18 @@ function getRoleActivityAttendance(eventId, userId, role) {
 function getCertificateRule(eventId, role) {
   const meta = certificateRoleMeta(role);
   const rule = db.prepare('SELECT * FROM event_certificate_rules WHERE event_id = ? AND certificate_role = ?').get(eventId, role);
-  return rule || { certificate_role: role, min_attendance: 1, background_id: null, text_color: '#0f172a', title: meta.title, body_text: meta.body };
+  return rule || { certificate_role: role, min_attendance: 75, background_id: null, text_color: '#0f172a', title: meta.title, body_text: meta.body };
+}
+
+// Tipos de atividade em que qualquer presença já qualifica a pessoa.
+const ANY_ATTENDANCE_CERTIFICATE_TYPES = ['oral_presentation', 'poster_presentation', 'roundtable'];
+
+function certificateActivityQualifies(activity, minPercent) {
+  if (ANY_ATTENDANCE_CERTIFICATE_TYPES.includes(activity.activity_type)) return true;
+  const totalSessions = Number(activity.sessions_total) || 0;
+  if (totalSessions === 0) return true;
+  const presentSessions = Number(activity.sessions_present) || 0;
+  return presentSessions >= Math.ceil((totalSessions * minPercent) / 100);
 }
 
 function enrichCertificateCandidate(eventId, role, candidate) {
@@ -1160,16 +1171,27 @@ function enrichCertificateCandidate(eventId, role, candidate) {
   return { ...candidate, role, role_label: certificateRoleMeta(role).label, active_emission_id: emission && emission.id, latest_version: latest && latest.version || 0 };
 }
 
+function qualifyCertificateAttendance(attendance, minPercent) {
+  const qualified = attendance.attended_activities.filter((activity) => certificateActivityQualifies(activity, minPercent));
+  return {
+    ...attendance,
+    total_attended: attendance.attended_activities.length,
+    attended_activities: qualified,
+    attendance_count: qualified.length,
+    total_workload_hours: qualified.reduce((sum, activity) => sum + (Number(activity.workload_hours) || 0), 0),
+    eligible: qualified.length > 0
+  };
+}
+
 function getCertificateCandidates(eventId, role, rule) {
-  const minAttendance = role === 'reviewer' ? 0 : Math.max(1, Number(rule.min_attendance) || 1);
+  const minPercent = role === 'reviewer' ? 0 : Math.min(100, Math.max(0, Number(rule.min_attendance) || 0));
   if (role === 'participant') {
     return db.prepare(`SELECT er.id AS registration_id, er.user_id, er.name, er.email, er.registration_type
       FROM event_registrations er WHERE er.event_id=? AND er.user_id IS NOT NULL
       ORDER BY er.name COLLATE NOCASE`).all(eventId).map((item) => {
-        const attendance = getRoleActivityAttendance(eventId, item.user_id, role);
+        const attendance = qualifyCertificateAttendance(getRoleActivityAttendance(eventId, item.user_id, role), minPercent);
         return enrichCertificateCandidate(eventId, role, {
-          ...item, ...attendance, text_color: rule.text_color,
-          eligible: attendance.attendance_count >= minAttendance
+          ...item, ...attendance, text_color: rule.text_color
         });
       });
   }
@@ -1195,11 +1217,11 @@ function getCertificateCandidates(eventId, role, rule) {
     LEFT JOIN articles ar ON ar.id=eur.article_id
     WHERE eur.event_id=? AND eur.role=? ORDER BY u.name COLLATE NOCASE`).all(eventId, role)
     .map((item) => {
-      const attendance = getRoleActivityAttendance(eventId, item.user_id, role);
+      const attendance = qualifyCertificateAttendance(getRoleActivityAttendance(eventId, item.user_id, role), minPercent);
       const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(eventId, item.user_id);
       return enrichCertificateCandidate(eventId, role, {
         ...item, ...attendance, registration_id: registration ? registration.id : null,
-        text_color: rule.text_color, eligible: attendance.attendance_count >= minAttendance
+        text_color: rule.text_color
       });
     });
 }
@@ -1351,6 +1373,9 @@ router.get('/:id/activities', (req, res) => {
     WHERE ea.event_id = ?
     ORDER BY ea.date_start, ea.name
   `).bind(req.params.id).all();
+  activities.forEach((activity) => {
+    if (Number(activity.session_count || 0) > 0) activity.sessions = getActivitySessions(activity.id);
+  });
   const editingActivity = req.query.edit_activity_id
     ? activities.find((activity) => Number(activity.id) === Number(req.query.edit_activity_id)) || null
     : null;
@@ -1635,6 +1660,83 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   doc.end();
 });
 
+router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
+  try {
+    const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+    if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+    const activity = db.prepare('SELECT a.*, e.name AS event_name FROM event_activities a JOIN events e ON e.id = a.event_id WHERE a.id = ? AND a.event_id = ?').get(req.params.activityId, req.params.id);
+    if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+    const sessions = getActivitySessions(activity.id);
+    const selectedSession = resolveSession(activity.id, req.query.session_id) || null;
+    if (sessions.length > 0 && !selectedSession) {
+      return res.status(400).render('error', { title: 'Etapa não informada', message: 'Esta atividade possui etapas. Selecione a etapa para imprimir a folha de presença com QR Code.' });
+    }
+
+    let origin = '';
+    const eventUrl = String(event.url || '').trim();
+    if (eventUrl) {
+      try { origin = new URL(eventUrl).origin; } catch (_) { origin = ''; }
+    }
+    if (!origin) origin = `http://${req.get('host') || 'localhost:3000'}`;
+    const checkinUrl = `${origin}/presenca/${event.id}/${activity.id}${selectedSession ? `/${selectedSession.id}` : ''}`;
+
+    const PDFDocument = require('pdfkit');
+    const QRCode = require('qrcode');
+    const qrBuffer = await QRCode.toBuffer(checkinUrl, { width: 512, margin: 2, errorCorrectionLevel: 'M' });
+
+    const doc = new PDFDocument({ size: 'LETTER', margin: 60 });
+    const printTitle = selectedSession ? `${activity.name} — ${selectedSession.name}` : activity.name;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="presenca-qr-${encodeURIComponent(printTitle)}.pdf"`);
+    doc.pipe(res);
+
+    function formatBRDate(dateStr) {
+      if (!dateStr) return 'A definir';
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d)) return dateStr;
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}-${mm}-${yyyy}`;
+    }
+
+    let headerDate;
+    if (selectedSession && selectedSession.session_date) headerDate = formatBRDate(selectedSession.session_date);
+    else if (activity.date_start || activity.date_end) {
+      const parts = [activity.date_start, activity.date_end].filter(Boolean).map(formatBRDate);
+      headerDate = parts.length === 2 && parts[0] !== parts[1] ? `${parts[0]} a ${parts[1]}` : parts[0] || 'A definir';
+    } else headerDate = 'A definir';
+
+    doc.fontSize(10).font('Helvetica').text('FOLHA DE PRESENÇA — QR CODE', 60, doc.y, { align: 'center', characterSpacing: 2 });
+    doc.moveDown(1.2);
+    doc.fontSize(20).font('Helvetica-Bold').text(event.name, { align: 'center' });
+    doc.moveDown(0.6);
+    doc.fontSize(15).font('Helvetica').text(activity.name, { align: 'center' });
+    doc.moveDown(0.3);
+    doc.fontSize(12).text(`Data: ${headerDate}`, { align: 'center' });
+    if (selectedSession) doc.fontSize(12).text(`Etapa: ${selectedSession.name}`, { align: 'center' });
+    doc.moveDown(1.5);
+
+    const qrSize = 220;
+    const qrX = (doc.page.width - qrSize) / 2;
+    const qrY = doc.y;
+    doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize });
+    doc.y = qrY + qrSize + 24;
+    doc.x = 60;
+    doc.fontSize(12).font('Helvetica-Bold').text('Para registrar sua presença:', { align: 'center' });
+    doc.moveDown(0.3);
+    doc.fontSize(11).font('Helvetica')
+      .text('Aponte a câmera do celular para o código QR acima, entre no site com sua conta', { align: 'center' })
+      .text('e toque em "Marcar presença".', { align: 'center' });
+
+    doc.end();
+  } catch (err) {
+    console.error('checkin-print error:', err);
+    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar a folha', message: 'Não foi possível gerar a folha de presença com QR Code.' });
+    else res.end();
+  }
+});
+
 router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.attendanceAction);
 }, (req, res) => {
@@ -1783,7 +1885,7 @@ router.post('/:id/certificates/rule', strictLimiter, (req, res, next) => {
     return res.redirect(`/admin/events/${event.id}/certificates/rule/apply-to-all?background_id=${encodeURIComponent(req.body.background_id)}&text_color=${encodeURIComponent(req.body.text_color)}`);
   }
   const role = CERTIFICATE_ROLES[req.body.certificate_role] ? req.body.certificate_role : 'participant';
-  const minAttendance = role === 'reviewer' ? 0 : Math.max(1, parseInt(req.body.min_attendance, 10) || 1);
+  const minAttendance = role === 'reviewer' ? 0 : Math.min(100, Math.max(0, parseInt(req.body.min_attendance, 10) || 0));
   const backgroundId = req.body.background_id ? parseInt(req.body.background_id, 10) : null;
   const textColor = String(req.body.text_color || '#0f172a').trim();
   const normalizedTextColor = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#0f172a';
@@ -1819,7 +1921,7 @@ router.post('/:id/certificates/rule/apply-to-all', strictLimiter, (req, res) => 
 
   db.transaction(() => {
     for (const role of Object.keys(CERTIFICATE_ROLES)) {
-      upsert.run(event.id, role, 1, backgroundId, normalizedTextColor, null, null, req.session.userId);
+      upsert.run(event.id, role, role === 'reviewer' ? 0 : 75, backgroundId, normalizedTextColor, null, null, req.session.userId);
     }
   })();
 

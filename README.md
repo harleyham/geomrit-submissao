@@ -15,8 +15,9 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 - **Participantes e papéis**: conta única por pessoa, com papéis independentes por evento (administrador, participante, revisor, palestrante, professor e apresentador); telefone internacional e formação acadêmica (área, curso, titulação, status) editáveis no cadastro de participantes e usuários
 - **Primeiro acesso**: contas novas com senha temporária devem trocar a senha e completar identificação, contato, instituição e formação acadêmica antes de acessar os painéis
 - **Presença**: atividades/partes configuráveis do evento, com papéis elegíveis e ações explícitas para marcar, atualizar ou remover presença; participantes aparecem somente na chamada das atividades em que estão inscritos; botões de presença em lote ("Marcar presença (todos)" e "Desmarcar presença (todos)") na chamada de cada atividade
+- **Presença por QR Code**: botão "QR Presença" na listagem de atividades imprime uma folha letter por etapa (ou da atividade, quando sem etapas) com evento, atividade, data, etapa e QR Code; o usuário escaneia o código no dia e marca a própria presença na página pública, no papel que exerce (participante, palestrante, professor ou apresentador), exigindo login e vínculo à atividade para participantes
 - **Inscrição por atividade**: seleção explícita na inscrição pública ou inclusão administrativa, edição posterior pelo participante ou administrador e contadores de inscritos por atividade
-- **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo (thumbnails ordenadas alfabeticamente), texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável, reemissão versionada e botão "Salvar configuração geral" para replicar cor e fundo em todos os tipos de certificado; para participante, cada atividade contabilizada exige inscrição e presença
+- **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo (thumbnails ordenadas alfabeticamente), texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável, reemissão versionada e botão "Salvar configuração geral" para replicar cor e fundo em todos os tipos de certificado; para participante, cada atividade contabilizada exige inscrição e presença; elegibilidade por "Presença mínima (%)": apresentações oral/pôster e mesas-redondas contam com qualquer presença, e palestras, seminários, minicursos e outras exigem o percentual de etapas presente na atividade
 - **Verificação pública**: consulta pública da autenticidade de certificados pelo código de verificação
 - **Vínculo de papéis por atividade**: seleção do papel que cada pessoa efetivamente exerce em cada atividade, sem alterar seus papéis administrativos no evento; presenças e cargas horárias são consolidadas separadamente para cada certificado
 
@@ -25,7 +26,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 1. O administrador cria o evento.
 2. Em `/admin/events/:id/activities`, cadastra as atividades do evento, como palestras, minicursos e apresentações.
 3. O participante seleciona suas atividades durante a inscrição pública ou posteriormente em `/evento/:id/atividades`. O administrador também pode fazer essa ligação na inclusão ou edição do participante.
-4. Em `/admin/events/:id/activities/:activityId/attendance`, o administrador abre a chamada de cada atividade, escolhe o papel exercido e usa os botões para marcar, atualizar ou remover a presença; também pode usar os botões de presença em lote ("Marcar presença (todos)" / "Desmarcar presença (todos)").
+4. Em `/admin/events/:id/activities/:activityId/attendance`, o administrador abre a chamada de cada atividade, escolhe o papel exercido e usa os botões para marcar, atualizar ou remover a presença; também pode usar os botões de presença em lote ("Marcar presença (todos)" / "Desmarcar presença (todos)"). Alternativamente, o administrador imprime a folha de presença com QR Code da etapa e, no dia, o usuário escaneia o código, autentica-se e marca a própria presença na página pública.
 5. Em `/admin/events/:id/certificates`, são emitidos os certificados elegíveis. Para participante, apenas atividades certificáveis com inscrição e presença entram no certificado e na carga horária.
 
 Uma atividade com presença registrada não pode ser removida da inscrição. A mesma pessoa pode receber certificados distintos pelos diferentes papéis exercidos no evento.
@@ -41,6 +42,7 @@ Uma atividade com presença registrada não pode ser removida da inscrição. A 
 | Segurança | `helmet` + `bcryptjs` + `express-rate-limit` + `express-validator` |
 | Upload | `multer` |
 | Certificados PDF | `pdfkit` |
+| QR Code | `qrcode` |
 | Compactação | `compression` |
 | Download ZIP | `archiver` |
 

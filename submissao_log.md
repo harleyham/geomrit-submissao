@@ -59,6 +59,58 @@ Versão atual registrada: **V0.1**.
 - Correção: `views/admin/backup-restore.ejs` — o input de confirmação não tinha `name="confirm"`, então o valor nunca chegava ao servidor e a restauração falhava com "Texto de confirmação inválido".
 - Status: **corrigido e validado** (teste simulando a troca de conexão com a referência desestruturada do módulo: queries passam a atingir a nova conexão).
 
+### Correção: lista de presença por etapa na página de atividades
+
+- Bug: o botão "Imp. Lista Presença" de `/admin/events/:id/activities` apontava para `attendance-print` sem `session_id`; a rota usa `sessions[0]` como fallback, então atividades com etapas sempre imprimiam a lista da **primeira** etapa.
+- `routes/events.js` (GET `/:id/activities`): atividades com etapas passam a receber `activity.sessions` (via `getActivitySessions`) no render.
+- `views/admin/events/activities.ejs`: para atividades com etapas, um botão "Imp. Lista · <nome da etapa>" por etapa (link `attendance-print?session_id=<id>`); atividades sem etapas mantêm o botão único original. `.item-actions` ganhou `flex-wrap:wrap` para acomodar os botões.
+- Verificação E2E em sandbox (cópia do projeto + banco real): minicurso com 5 etapas renderiza 5 links de impressão (um por etapa) e o PDF por etapa responde 200 com `filename="lista-presenca-Minicurso 1 — Aula 1.pdf"`.
+- Status: **corrigido e validado**.
+
+### Cor do certificado: paleta de 64 cores no lugar do picker nativo
+
+- O campo "Cor" da configuração de certificados usava `<input type="color">`; o picker nativo varia por navegador e, no Chrome, é considerado complexo demais para a operação.
+- `views/admin/events/certificates.ejs`: substituído por paleta embutida de **64 cores** (grade 8x8) que abre ao clicar no botão com a amostra da cor atual; cada form por papel tem sua própria paleta.
+- O contrato do backend é inalterado: o campo enviado continua sendo o hidden `text_color` (classe `text-color`). Ao clicar num tom: define o valor do campo, atualiza a amostra do botão, marca o tom selecionado e dispara a prévia (`buildPreview`); clique fora fecha a paleta.
+- Paleta com 64 hex: neutros (preto/cinza/branco), azuis, ciano, púrpuras/magenta, vermelhos/rosa, laranja/marrom/dourado, amarelos, verdes e teais; inclui o padrão `#0f172a`. Cores salvas fora da paleta continuam exibidas na amostra sem marcar nenhum tom.
+- Status: **implementado e validado pelo usuário**.
+
+### Certificados: presença mínima por percentual e qualificação por tipo de atividade
+
+- Mudança de regra pedida pelo usuário: o campo "Presenças mínimas" (contagem absoluta) foi trocado por "Presença mínima (%)" (inteiro 0-100), e a elegibilidade passou a ser calculada **atividade a atividade** por tipo:
+  - Apresentação pôster, apresentação oral e mesa-redonda: qualquer presença qualificada a atividade (e o certificado).
+  - Palestra, seminário, minicurso e outra: a atividade qualifica somente se as etapas presentes forem >= `ceil(etapas totais x percentual / 100)`; atividade sem etapas qualifica com qualquer presença.
+  - A pessoa é elegível no papel quando possui ao menos uma atividade qualificada (participante continua exigindo inscrição na atividade). Somente atividades qualificadas entram no certificado e na carga horária. Revisor inalterado (ao menos um parecer).
+- `routes/events.js`:
+  - `getCertificateRule`: default de `min_attendance` passou de `1` para `75`.
+  - Novo `ANY_ATTENDANCE_CERTIFICATE_TYPES` (`oral_presentation`, `poster_presentation`, `roundtable`) e `certificateActivityQualifies(activity, minPercent)`.
+  - Novo `qualifyCertificateAttendance(attendance, minPercent)`: filtra `attended_activities` pelas atividades qualificadas e recalcula `attendance_count`, `total_workload_hours`, `total_attended` e `eligible` (>= 1 atividade qualificada). `getCertificateCandidates` usa o resultado para participante e demais papéis (revisor mantém elegibilidade por parecer).
+  - POST `/:id/certificates/rule`: `min_attendance` normalizado com clamp 0-100 (antes `Math.max(1, ...)`).
+  - `apply-to-all`: inserção para papéis sem regra usa `75` (revisor `0`).
+- `security/validation.js`: `min_attendance` validado como inteiro 0-100 ("Presença mínima deve ser um inteiro entre 0 e 100.").
+- `views/admin/events/certificates.ejs`: label "Presença mínima (%)" com `min=0 max=100 step=1`; hint de elegibilidade descreve a regra por tipo; coluna "Atuação comprovada" passa a exibir "X de Y atividade(s)" (qualificadas de presentes).
+- `services/db-reset.js`: `event_certificate_rules.min_attendance` com `DEFAULT 75 CHECK(min_attendance >= 0 AND min_attendance <= 100)`.
+- Migração de dados em `artigos.db`: regras existentes do evento 1 (valor absoluto `1`) atualizadas para `75` (revisor `0`), já que o mesmo número agora é lido como percentual.
+- Verificação E2E em sandbox (cópia do projeto + banco real, porta 3001): evento de teste com minicurso 3/4 etapas (75%), minicurso 2/4 (50%), mesa-redonda presente, pôster presente (como apresentador pôster) e palestra 1/2 (50%). Com 75%: participante "2 de 4 atividades" elegível; com 50%: "4 de 4"; com 100%: "1 de 4" (só a mesa-redonda) e ainda elegível; com 0%: "4 de 4"; pôster "1 de 1" elegível; `min_attendance=150` clampado para 100; emissão de certificado e download do PDF ok (14/14 verificações).
+- Status: **implementado e validado**.
+
+### Presença por QR Code (folha impressa + registro pelo celular)
+
+- Requisito do usuário: para cada etapa (ou atividade sem etapas), imprimir uma folha letter com o evento, a atividade, a data, a etapa e um QR Code 2D com essas informações; o objetivo é o usuário ler o código e marcar a própria presença naquela etapa.
+- Decisões alinhadas: (1) o QR codifica o **link direto** da página de presença (`<origem>/presenca/<eventId>/<activityId>/<sessionId>`); (2) a origem vem do campo **"URL do Evento"** (apenas a origem da URL; campo vazio → host de quem imprime); (3) só **inscritos, só no dia** — participante exige inscrição no evento + vínculo à atividade, e a marcação só é permitida na data da etapa (ou no período da atividade, sem etapas), em UTC-3; (4) **todos os papéis** podem se automarcar no papel que exercem (`participant`, `speaker`, `teacher`, `oral_presenter`, `poster_presenter`); revisor e admin não se automarcam.
+- `package.json`: dependência `qrcode` (PNG via `toBuffer`).
+- `routes/events.js`:
+  - `GET /:id/activities/:activityId/checkin-print?session_id=` (admin do evento): PDF **LETTER** retrato "FOLHA DE PRESENÇA — QR CODE" com evento, atividade, data (data da etapa ou intervalo da atividade), etapa (quando houver) e QR Code centralizado (~220pt) com a instrução de uso. Atividade com etapas sem `session_id` → 400. A URL codificada é registrada em log apenas na cópia de teste (validação E2E); o código do projeto não contém debug.
+- `views/admin/events/activities.ejs`: botão "QR Presença · <etapa>" por etapa e botão "QR Presença" para atividades sem etapas, ao lado dos botões de lista de presença.
+- `routes/auth.js`: login com retorno pós-login — `safeAfterLoginPath` aceita somente caminhos iniciados por `/presenca/` (sem `//`, sem NUL, ≤ 200 chars); `GET /login?next=` guarda em `req.session.afterLoginPath` e `POST /login` redireciona para lá após login válido (sem `next` → destino padrão).
+- `routes/public.js`:
+  - Helpers `getCheckinContext`, `getCheckinMarkableRoles`, `canMarkCheckinRole`, `defaultCheckinRole`, `getCheckinWindow`, `isWithinCheckinWindow`, `getCheckinRecord`.
+  - `GET /presenca/:eventId/:activityId` e `GET /presenca/:eventId/:activityId/:sessionId`: não autenticado → redirect `/login?next=...`; atividade com etapas sem etapa indicada → 400; evento/atividade/etapa inexistentes → 404; senão renderiza `views/public/checkin.ejs` com dados, papéis marcáveis do usuário e estados (dentro/fora do período, presença já registrada).
+  - `POST` nas mesmas rotas (`strictLimiter`): valida o papel (`participant` exige inscrição + vínculo; papéis especiais exigem `event_user_roles`), o período (UTC-3) e grava/atualiza `activity_attendance_records` — idempotente por atividade + pessoa + etapa, `marked_by` = o próprio usuário, `registration_id` = inscrição do evento (nulo quando ausente), `attended_at` em UTC-3 → redirect `?marked=1` com mensagem de sucesso. O registro é o mesmo da chamada administrativa e alimenta carga horária e elegibilidade de certificados sem mudança de regra.
+- `views/public/checkin.ejs` (nova): página mobile-first no padrão topbar/Inter do site, com evento/atividade/data/etapa, seletor do papel exercido, botão "Marcar presença" e estados de erro/sucesso (fora do período, sem vínculo, já registrado).
+- Verificação E2E em sandbox (cópia do projeto + banco real, porta 3001): login admin; botões "QR Presença" por etapa e sem etapas na listagem; PDF 200 (`%PDF`, imagem embutida do QR, `filename="presenca-qr-*.pdf"`); URL codificada validada ponta a ponta = origem de "URL do Evento" + `/presenca/...` (com e sem etapa); etapa ausente → 400; etapa futura imprimível (restrição vale só para a marcação); anônimo → `/login?next=` e login retorna à página; marcação de participante (registro com `session_id`, `marked_by`, `registration_id`), remarcacao idempotente (1 registro); marcação de palestrante (atividade sem etapa, sem vínculo à atividade, com inscrição no evento); papel sem permissão e participante sem vínculo rejeitados; fora do período rejeitado; evento inexistente 404; `next=/admin` bloqueado pela guarda (34/34 verificações).
+- Status: **implementado e validado**.
+
 ## 2026-08-14
 
 ### Fase 0 (ajuste): "Não possui curso de graduação" em todas as áreas e ocultação de Titulação/Status
@@ -1020,5 +1072,4 @@ Versão atual registrada: **V0.1**.
 - Leitura do QR Code pelo sistema (rodando no brower do celular) para efetivar presença
 - Com isso (os dois itens anteriores mais a folha de presença impressa teríamos fechado)
 - Para que seja emitido Certificado, devemos poder definir a presença mínima. O default é de 75%
-
-
+- A importação de CSV de lista de pessoas parou de funcionar

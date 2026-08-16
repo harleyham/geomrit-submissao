@@ -132,7 +132,7 @@ const validators = {
   ],
   certificateRule: [
     body('certificate_role').isIn(['participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel de certificado inválido.'),
-    body('min_attendance').optional().isInt({ min: 0 }).withMessage('Mínimo de presenças inválido.'),
+    body('min_attendance').optional().isInt({ min: 0, max: 100 }).withMessage('Presença mínima deve ser um inteiro entre 0 e 100.'),
     body('background_id').optional().isInt({ min: 1 }).withMessage('Fundo inválido.'),
     body('text_color').optional().matches(/^#[0-9a-fA-F]{6}$/).withMessage('Cor inválida.'),
     body('title').optional().trim().isLength({ max: 160 }),

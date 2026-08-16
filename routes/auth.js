@@ -173,8 +173,16 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function safeAfterLoginPath(value) {
+  const path = String(value || '');
+  if (!path.startsWith('/presenca/') || path.includes('//') || path.includes('\u0000') || path.length > 200) return null;
+  return path;
+}
+
 // Login page
 router.get('/', (req, res) => {
+  const afterLogin = safeAfterLoginPath(req.query.next);
+  if (afterLogin && req.session) req.session.afterLoginPath = afterLogin;
   if (req.session.isAdmin || req.session.isReviewer || req.session.isPublic) {
     const user = db.prepare('SELECT password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
     if (user && !user.password_changed) return res.redirect('/login/change-password');
@@ -511,6 +519,11 @@ router.post('/', loginLimiter, (req, res, next) => {
   }
 
   if (!user.profile_completed) return res.redirect('/login/complete-profile');
+  const afterLogin = safeAfterLoginPath(req.session.afterLoginPath);
+  if (afterLogin) {
+    delete req.session.afterLoginPath;
+    return res.redirect(afterLogin);
+  }
   return res.redirect(authenticatedDestination(req));
 });
 

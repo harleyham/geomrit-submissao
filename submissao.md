@@ -105,6 +105,7 @@ O sistema deve permitir:
 - Verificação pública de certificados emitidos pelo respectivo código.
 - Exibição pública de revisores ativos.
 - Fluxo de participação conectado às atividades, chamadas e certificados: para participante, somente atividades com inscrição e presença são contabilizadas.
+- Registro de presença por QR Code: a folha impressa por etapa (ou atividade sem etapas) contém um QR Code que abre a página `/presenca/:eventId/:activityId(/:sessionId)`; o usuário autenticado escolhe o papel exercido e marca a própria presença, no dia da etapa (ou no período da atividade, quando não houver etapas).
 
 ## Perfis, Acesso e Sessão
 
@@ -383,6 +384,17 @@ Registra os papéis de administrador, participante, revisor, palestrante, profes
 
 Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de certificado em cada evento.
 
+- `event_id`
+- `certificate_role`
+- `min_attendance` (percentual 0-100 de presença mínima; default 75; revisor usa 0 e a elegibilidade segue o critério de parecer)
+- `background_id`
+- `text_color`
+- `title`
+- `body_text`
+- `updated_by`
+- `created_at`
+- `updated_at`
+
 ### `assignments`
 
 - `id`
@@ -538,6 +550,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - Atividades habilitadas para certificação são consolidadas por pessoa e por papel. Para o papel de participante, somente contam atividades em que coexistam inscrição e presença. Uma mesma pessoa pode receber certificados distintos de participante, palestrante, professor ou apresentador, cada um contendo apenas suas atividades e sua carga horária correspondentes.
 - O certificado de revisor é a exceção: sua elegibilidade decorre de ao menos um parecer enviado no evento.
 - A rota administrativa `/admin/events/:id/attendance` é o painel de chamadas: ela lista as atividades e direciona para a marcação de presença de cada uma. A presença geral não é usada para calcular carga horária nem elegibilidade de certificados.
+- Presença por QR Code: o administrador imprime, por etapa (ou atividade sem etapas), uma folha letter com o QR Code do link de presença (`/presenca/:eventId/:activityId(/:sessionId)`). A origem do link vem do campo "URL do Evento" (apenas a origem da URL); sem URL configurada, usa o host de quem imprime. O registro é feito pelo próprio usuário na página pública: exige login (com retorno automático à página via `?next=`), e só é permitido no dia da etapa (ou no período da atividade, sem etapas), em UTC-3. Papéis aceitos: `participant` (exige inscrição no evento e vinculação à atividade), `speaker`, `teacher`, `oral_presenter` e `poster_presenter` (exigem o papel em `event_user_roles`). O registro grava em `activity_attendance_records` com `marked_by` = o próprio usuário e é idempotente por atividade + pessoa + etapa, integrando-se à chamada, à carga horária e à elegibilidade de certificados sem mudança de regra.
 
 ### Autenticação e senha
 
@@ -554,8 +567,8 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 1. Admin cria o evento.
 2. Admin cadastra e configura suas atividades em `/admin/events/:id/activities` (intervalo de datas, carga horária, papéis elegíveis). Para atividades divididas (minicurso, seminário), o admin adiciona as etapas em `/admin/events/:id/activities/:activityId/sessions`.
 3. Participante seleciona as atividades durante a inscrição ou posteriormente em `/evento/:id/atividades`; o administrador pode editar os mesmos vínculos no cadastro do participante.
-4. Admin acessa a chamada da atividade, seleciona a etapa (quando houver), o papel exercido e marca, atualiza ou remove a presença daquela etapa.
-5. Admin acessa `/admin/events/:id/certificates` e emite os certificados elegíveis. Para o papel de participante, cada atividade contabilizada precisa estar certificável e possuir inscrição e presença; a carga horária contabilizada é a soma das etapas presentes (ou a carga da atividade, quando sem etapas).
+4. Admin acessa a chamada da atividade, seleciona a etapa (quando houver), o papel exercido e marca, atualiza ou remove a presença daquela etapa. Alternativamente, o admin imprime a folha de presença com QR Code da etapa; no dia, o usuário escaneia o código, autentica-se (se necessário) e marca a própria presença na página pública, no papel que exerce.
+5. Admin acessa `/admin/events/:id/certificates` e emite os certificados elegíveis. A elegibilidade é calculada atividade a atividade, por papel: apresentações oral/pôster e mesas-redondas qualificam a pessoa com qualquer presença registrada; palestras, seminários, minicursos e outras atividades com etapas exigem presença em pelo menos o percentual configurado em "Presença mínima (%)" das etapas da atividade (atividade sem etapas qualifica com qualquer presença). Para o papel de participante, cada atividade contabilizada precisa estar certificável e possuir inscrição e presença. Somente atividades qualificadas entram no certificado e na carga horária, que é a soma das etapas presentes (ou a carga da atividade, quando sem etapas). A pessoa é elegível quando possui ao menos uma atividade qualificada no papel (revisor: ao menos um parecer).
 
 ### Fluxo operacional de artigos
 
@@ -596,6 +609,8 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/author/profile` | Perfil do participante: dados cadastrais, formação acadêmica e troca de senha |
 | `/author/certificates` | Consulta e download autenticado de certificados emitidos |
 | `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito |
+| `/presenca/:eventId/:activityId` | Registro de presença por QR Code em atividade sem etapas (exige login) |
+| `/presenca/:eventId/:activityId/:sessionId` | Registro de presença por QR Code em etapa específica (exige login) |
 | `/cadastro` | Solicitação de cadastro público |
 | `/consultar` | Consulta por código |
 | `/consultar-certificado` | Verificação pública de certificado por código |
@@ -632,6 +647,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/admin/events/:id/attendance` | Painel de chamadas por atividade do evento |
 | `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
 | `/admin/events/:id/activities/:activityId/attendance` | Controle de presença da atividade |
+| `GET /admin/events/:id/activities/:activityId/checkin-print?session_id=` | Folha letter de presença com QR Code por etapa (ou da atividade, sem etapas) |
 | `/admin/events/:id/certificates` | Regras, fundos, emissão e reemissão de certificados |
 | `/admin/articles` | Gestão de artigos |
 | `/admin/articles/download-all?eventId=:id` | Download ZIP dos PDFs submetidos do evento |
@@ -806,6 +822,10 @@ Observações operacionais:
 - Correção: `views/error.ejs` usava `<%= message || '' %>` e levantava `ReferenceError` quando a mensagem não era passada via `locals`; alterado para `<%= locals.message || '' %>`.
 - Esquema de backup e restauração (super-admin): `services/backup.js` gera backup em ZIP contendo snapshot consistente do banco (`VACUUM INTO`), a pasta `uploads/` completa e `BACKUP_META.json`; a restauração substitui banco e arquivos a partir do ZIP com validações (`integrity_check`, tabelas principais, proteção contra path traversal) e cópia de segurança do banco atual com rollback automático em caso de falha. Botões "Baixar Backup" e "Restaurar Backup" no dashboard, visíveis apenas para `admin@admin.com`, ao lado do botão de reset.
 - Dependência `adm-zip` adicionada para extração do ZIP na restauração.
+- Impressão da lista de presença por etapa na página de atividades: para atividades com etapas, a listagem (`/admin/events/:id/activities`) exibe um botão "Imp. Lista · <etapa>" por etapa (link `attendance-print?session_id=`), substituindo o botão único que sempre imprimia a lista da primeira etapa; atividades sem etapas mantêm o botão único original.
+- Cor do texto do certificado selecionada por paleta embutida de 64 cores (grade 8x8) no lugar do picker nativo do navegador: o botão exibe a amostra da cor atual e abre a grade por papel de certificado; a escolha atualiza o campo oculto `text_color`, a amostra e a prévia do certificado.
+- Elegibilidade de certificados por percentual de presença: o campo "Presenças mínimas" foi substituído por "Presença mínima (%)" (inteiro 0-100, default 75, revisor fixo em 0). Cada atividade certificável é qualificada individualmente por papel: apresentações oral/pôster e mesas-redondas qualificam com qualquer presença; palestras, seminários, minicursos e outras exigem presença em pelo menos o percentual configurado das etapas da atividade (atividade sem etapas qualifica com qualquer presença). A pessoa é elegível quando possui ao menos uma atividade qualificada no papel (participante continua exigindo inscrição); somente atividades qualificadas entram no certificado e na carga horária.
+- Presença por QR Code: botão "QR Presença" na listagem de atividades (por etapa, ou único para atividade sem etapas) imprime folha letter com evento, atividade, data, etapa e QR Code centralizado apontando para a página pública de presença; origem do link extraída do campo "URL do Evento" (ou host de quem imprime). Na página, o usuário autenticado (login com retorno automático via `?next=`) escolhe o papel exercido e marca presença — só no dia da etapa ou no período da atividade, UTC-3 — gravando em `activity_attendance_records` (idempotente, `marked_by` = o próprio usuário), integrando-se à chamada e aos certificados.
 
 ### Segurança reforçada (V0.1)
 
