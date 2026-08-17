@@ -1235,11 +1235,9 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
   const registration = getOwnedEventRegistration(event.id, req);
   if (!registration) return res.redirect(`/evento/${event.id}/inscricao`);
   const activities = db.prepare(`SELECT ea.*,
-      CASE WHEN pae.id IS NULL THEN 0 ELSE 1 END AS enrolled,
-      CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present
+      CASE WHEN EXISTS (SELECT 1 FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id AND pae.registration_id=?) THEN 1 ELSE 0 END AS enrolled,
+      CASE WHEN EXISTS (SELECT 1 FROM activity_attendance_records aar WHERE aar.activity_id=ea.id AND aar.user_id=? AND aar.role='participant') THEN 1 ELSE 0 END AS present
     FROM event_activities ea
-    LEFT JOIN participant_activity_enrollments pae ON pae.activity_id=ea.id AND pae.registration_id=?
-    LEFT JOIN activity_attendance_records aar ON aar.activity_id=ea.id AND aar.user_id=? AND aar.role='participant'
     WHERE ea.event_id=?
       AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0
     ORDER BY ea.date_start,ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id);
