@@ -9,8 +9,10 @@ const crypto = require('crypto');
 const { csrfProtection } = require('./security/csrf');
 const { defaultLimiter, adminLimiter } = require('./security/rate-limits');
 const { handleValidationErrors } = require('./security/validation');
+const { db } = require('./db');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const APP_VERSION = 'V0.1';
 
@@ -153,6 +155,25 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Artigos LIGEM rodando em http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/login`);
+});
+
+function closeDb() {
+  try { db.close(); } catch (e) { console.error('Erro ao fechar o banco:', e.message); }
+}
+
+function shutdown(signal) {
+  console.log(`${signal} recebido, encerrando o servidor...`);
+  closeDb();
+  process.exit(0);
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException (reiniciando o processo):', err);
+  closeDb();
+  process.exit(1);
 });
 
 // Catch unhandled promise rejections

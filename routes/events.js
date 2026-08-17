@@ -1593,6 +1593,9 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="lista-presenca-${encodeURIComponent(printTitle)}.pdf"`);
   doc.pipe(res);
+  doc.on('error', (err) => {
+    console.error('attendance-print pdf error:', err && err.message);
+  });
 
   const pageWidth = doc.page.width - 120;
   const colName = { x: 60, width: pageWidth * 0.38 };
@@ -1661,6 +1664,8 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
 });
 
 router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
+  let aborted = false;
+  res.on('close', () => { aborted = true; });
   try {
     const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
     if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -1683,12 +1688,16 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
     const PDFDocument = require('pdfkit');
     const QRCode = require('qrcode');
     const qrBuffer = await QRCode.toBuffer(checkinUrl, { width: 512, margin: 2, errorCorrectionLevel: 'M' });
+    if (aborted) return;
 
     const doc = new PDFDocument({ size: 'LETTER', margin: 60 });
     const printTitle = selectedSession ? `${activity.name} — ${selectedSession.name}` : activity.name;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="presenca-qr-${encodeURIComponent(printTitle)}.pdf"`);
     doc.pipe(res);
+    doc.on('error', (err) => {
+      console.error('checkin-print pdf error:', err && err.message);
+    });
 
     function formatBRDate(dateStr) {
       if (!dateStr) return 'A definir';

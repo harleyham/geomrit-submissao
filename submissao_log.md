@@ -111,6 +111,19 @@ Versão atual registrada: **V0.1**.
 - Verificação E2E em sandbox (cópia do projeto + banco real, porta 3001): login admin; botões "QR Presença" por etapa e sem etapas na listagem; PDF 200 (`%PDF`, imagem embutida do QR, `filename="presenca-qr-*.pdf"`); URL codificada validada ponta a ponta = origem de "URL do Evento" + `/presenca/...` (com e sem etapa); etapa ausente → 400; etapa futura imprimível (restrição vale só para a marcação); anônimo → `/login?next=` e login retorna à página; marcação de participante (registro com `session_id`, `marked_by`, `registration_id`), remarcacao idempotente (1 registro); marcação de palestrante (atividade sem etapa, sem vínculo à atividade, com inscrição no evento); papel sem permissão e participante sem vínculo rejeitados; fora do período rejeitado; evento inexistente 404; `next=/admin` bloqueado pela guarda (34/34 verificações).
 - Status: **implementado e validado**.
 
+### Estabilidade em produção: trust proxy do nginx, shutdown limpo e proteção dos PDFs
+
+- Problema em produção (`ham.eng.br`, nginx): o app entrava em ciclo de quedas (pm2 com ↺168 reinicializações), com 502 Bad Gateway intermitente para o usuário.
+- Causa 1 (misconfiguração): o nginx adiciona o header `X-Forwarded-For`, mas o Express rodava sem `trust proxy` — o `express-rate-limit` lançava `ValidationError: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` em **toda** requisição (e o rate limiting contava pelo IP do proxy, não do cliente real).
+- Causa 2 (queda): ao término anormal do processo, o teardown do `better-sqlite3` disparava assertion nativa (`Assertion failed: (env) != nullptr` em `Statement::~Statement`), encerrando sem limpeza e mascarando o erro real.
+- Correções:
+  - `server.js`: `app.set('trust proxy', 1)` (o app roda atrás do nginx) — elimina a ValidationError e faz o rate limiting usar o IP real do cliente.
+  - `server.js`: handlers `SIGINT`/`SIGTERM` fecham o banco (`db.close()`) antes de `process.exit(0)` — shutdown limpo, sem a assertion nativa (também na reinicialização pelo pm2).
+  - `server.js`: handler `uncaughtException` loga o erro completo e, após fechar o banco, faz `process.exit(1)` — o pm2 reinicia o processo e o log registra o erro real que derrubou o app.
+  - `routes/events.js` (`attendance-print` e `checkin-print`): `doc.on('error')` no stream do PDF (cliente desconectando no meio da geração não derruba mais o processo) + guarda de interrupção após `await QRCode.toBuffer` no checkin-print.
+- Verificação (local): syntax check ok; servidor local com header `X-Forwarded-For` → respostas 200 com 0 ValidationErrors; padrão de fechar o banco antes de sair sem assertion nativa.
+- Status: **corrigido e pendente de validação em produção** (`git pull` + `pm2 restart artigo`).
+
 ## 2026-08-14
 
 ### Fase 0 (ajuste): "Não possui curso de graduação" em todas as áreas e ocultação de Titulação/Status
