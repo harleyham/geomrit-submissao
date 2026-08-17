@@ -69,6 +69,14 @@
     .form-inline input[type="number"] { width: 90px; }
     .person-name { font-weight: 600; color: #f1f5f9; }
     .person-email { color: #64748b; font-size: 0.8rem; margin-top: 0.15rem; }
+    tr.row-marked { background: rgba(34,197,94,0.08); }
+    tr.row-marked td { border-bottom-color: rgba(74,222,128,0.25); }
+    .qr-help { color: #94a3b8; font-size: 0.82rem; line-height: 1.5; margin-top: 0.9rem; }
+    #qr-code-input { min-width: 250px; letter-spacing: 0.15em; text-transform: uppercase; }
+    #qr-camera-overlay { position: fixed; inset: 0; background: rgba(2,6,23,0.93); z-index: 200; display: flex; align-items: center; justify-content: center; }
+    #qr-camera-overlay[hidden] { display: none; }
+    #qr-video { width: min(88vw, 460px); border-radius: 12px; border: 1px solid rgba(148,163,184,0.35); background: #000; }
+    #qr-camera-close { position: absolute; top: 1.2rem; right: 1.4rem; background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.25); color: #e2e8f0; }
     .roles-tags { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .empty-state { text-align: center; padding: 2rem; color: #64748b; }
     @media (max-width: 768px) {
@@ -141,6 +149,22 @@
 
     <section class="section">
       <div class="section-header">
+        <h2>Presença por QR Code (crachá)</h2>
+      </div>
+      <div class="section-body">
+        <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance/qr" id="qr-form" class="form-inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if (selectedSession) { %><input type="hidden" name="session_id" value="<%= selectedSession.id %>"><% } %>
+          <input type="text" name="code" id="qr-code-input" placeholder="Código do crachá (ex.: K7PM39QX2W)" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button type="submit" class="btn-primary">Marcar</button>
+          <button type="button" id="qr-camera-btn" class="btn-ghost">Ler QR Code</button>
+        </form>
+        <p class="qr-help" id="qr-help">Aponte a câmera para o QR Code do crachá do participante (ou digite o código exibido na tela dele). A presença é registrada com o mesmo efeito do botão “Marcar presença” da lista abaixo, no papel que a pessoa possui nesta atividade.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
         <h2>Vincular participantes e papéis</h2>
         <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance-bulk" style="display:flex;gap:.45rem;align-items:center">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -164,7 +188,7 @@
             </thead>
             <tbody>
               <% participants.forEach(p => { %>
-                <tr>
+                <tr id="person-row-<%= p.user_id %>"<% if (markedUserId === p.user_id) { %> class="row-marked"<% } %>>
                   <td>
                     <div class="person-name"><%= p.name %></div>
                     <div class="person-email"><%= p.email %></div>
@@ -215,6 +239,84 @@
       </div>
     </section>
   </main>
+
+  <div id="qr-camera-overlay" hidden>
+    <video id="qr-video" playsinline muted></video>
+    <button type="button" id="qr-camera-close">Fechar (Esc)</button>
+  </div>
+  <canvas id="qr-canvas" hidden></canvas>
+  <script src="/lib/jsQR.min.js"></script>
+  <script>
+    (function () {
+      var form = document.getElementById('qr-form');
+      var codeInput = document.getElementById('qr-code-input');
+      var cameraBtn = document.getElementById('qr-camera-btn');
+      var overlay = document.getElementById('qr-camera-overlay');
+      var video = document.getElementById('qr-video');
+      var canvas = document.getElementById('qr-canvas');
+      var help = document.getElementById('qr-help');
+      var stream = null;
+      var scanning = false;
+
+      function stopCamera() {
+        scanning = false;
+        if (stream) { stream.getTracks().forEach(function (track) { track.stop(); }); stream = null; }
+        if (video) video.srcObject = null;
+        if (overlay) overlay.hidden = true;
+      }
+
+      function handleScan(text) {
+        var code = String(text || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (code.length < 8 || code.length > 16) { stopCamera(); return; }
+        stopCamera();
+        if (navigator.vibrate) navigator.vibrate(180);
+        codeInput.value = code;
+        form.submit();
+      }
+
+      function tick() {
+        if (!scanning) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          var result = window.jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+          if (result && result.data) { handleScan(result.data); return; }
+        }
+        requestAnimationFrame(tick);
+      }
+
+      cameraBtn.addEventListener('click', function () {
+        if (scanning) { stopCamera(); return; }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window.jsQR === 'undefined') {
+          help.innerHTML = 'Câmera indisponível neste navegador ou contexto (a câmera exige HTTPS ou localhost). Use a digitação manual do código.';
+          return;
+        }
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+          .then(function (s) {
+            stream = s;
+            video.srcObject = stream;
+            overlay.hidden = false;
+            scanning = true;
+            video.play().catch(function () {});
+            requestAnimationFrame(tick);
+          })
+          .catch(function () {
+            help.innerHTML = 'Não foi possível acessar a câmera. Verifique as permissões do navegador ou use a digitação manual do código.';
+          });
+      });
+
+      document.getElementById('qr-camera-close').addEventListener('click', stopCamera);
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && scanning) stopCamera(); });
+
+      <% if (markedUserId) { %>
+      var markedRow = document.getElementById('person-row-<%= markedUserId %>');
+      if (markedRow) markedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      <% } %>
+    })();
+  </script>
 <%- include("../../partials/csrf-inject") %>
   </body>
 </html>

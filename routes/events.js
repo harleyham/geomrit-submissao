@@ -1555,7 +1555,8 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
     title: `Presença - ${activity.name}`, event, activity, participants: people,
     sessions, selectedSession, roleLabels,
     success: req.query.success || null,
-    error: req.query.error || null
+    error: req.query.error || null,
+    markedUserId: req.query.marked_user_id ? Number(req.query.marked_user_id) : null
   });
 });
 
@@ -1749,6 +1750,81 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
   }
 });
 
+// Marca presença de uma pessoa em uma atividade/etapa.
+// Compartilhado pelo botão "Marcar presença" da chamada e pela leitura do QR Code do crachá.
+function applyAttendanceMark(activity, userId, role, sessionId, actorUserId, extraDetails) {
+  const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
+  const participantEnrollment = registration && role === 'participant' && db.prepare(`SELECT 1 FROM participant_activity_enrollments
+    WHERE activity_id=? AND registration_id=? AND user_id=?`).get(activity.id, registration.id, userId);
+  const eventRole = db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').get(activity.event_id, userId, role);
+  const reviewerAssignment = role === 'reviewer' && db.prepare(`SELECT 1 FROM assignments ass
+    JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, userId);
+  const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
+  const hasRoleInEvent = role === 'participant' ? Boolean(participantEnrollment) : Boolean(eventRole || reviewerAssignment);
+  if (!CERTIFICATE_ROLES[role] || !allowedRoles.includes(role) || !hasRoleInEvent) {
+    return { ok: false, error: 'A pessoa não possui este papel no evento ou o papel não é elegível para a atividade.' };
+  }
+  const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, userId, sessionId);
+  if (existing) {
+    db.prepare("UPDATE activity_attendance_records SET role=?,registration_id=?,marked_by=?,attended_at=datetime('now','-3 hours') WHERE id=?")
+      .run(role, registration ? registration.id : null, actorUserId, existing.id);
+  } else {
+    db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by,session_id) VALUES(?,?,?,?,?,?)')
+      .run(activity.id, registration ? registration.id : null, userId, role, actorUserId, sessionId);
+  }
+  recordParticipantAudit({
+    eventId: activity.event_id, registrationId: registration ? registration.id : null,
+    actorUserId, action: 'activity_attendance_marked',
+    details: Object.assign({ activity_id: activity.id, user_id: userId, session_id: sessionId, role }, extraDetails || {})
+  });
+  return { ok: true };
+}
+
+// Resolve o papel a registrar, com a mesma regra da linha da chamada:
+// mantém o papel já marcado; senão "participant" (se inscrito na atividade); senão o primeiro papel elegível da pessoa.
+function resolveScanRole(activity, userId, sessionId) {
+  const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
+  const existing = db.prepare('SELECT role FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, userId, sessionId);
+  if (existing && existing.role && allowedRoles.includes(existing.role)) return existing.role;
+  const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
+  const enrollment = registration && db.prepare('SELECT 1 FROM participant_activity_enrollments WHERE activity_id=? AND registration_id=? AND user_id=?').get(activity.id, registration.id, userId);
+  if (allowedRoles.includes('participant') && enrollment) return 'participant';
+  const roles = new Set(db.prepare('SELECT role FROM event_user_roles WHERE event_id=? AND user_id=?').all(activity.event_id, userId).map((row) => row.role));
+  const reviewer = db.prepare(`SELECT 1 FROM assignments ass JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, userId);
+  if (reviewer) roles.add('reviewer');
+  return allowedRoles.find((role) => CERTIFICATE_ROLES[role] && roles.has(role)) || null;
+}
+
+// Presença por QR Code do crachá: o admin lê o código na chamada e marca a presença da pessoa.
+router.post('/:id/activities/:activityId/attendance/qr', strictLimiter, (req, res) => {
+  const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const sessions = getActivitySessions(activity.id);
+  const session = sessions.length ? (resolveSession(activity.id, req.body.session_id) || sessions[0]) : null;
+  const sessionId = session ? session.id : null;
+  const sessionQuery = sessionId ? `?session_id=${sessionId}` : '';
+  const separator = sessionQuery ? '&' : '?';
+  const backWith = (params) => `/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}${separator}${params}`;
+
+  const code = String(req.body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!/^[A-Z0-9]{8,16}$/.test(code)) {
+    return res.redirect(backWith(`error=${encodeURIComponent('Código inválido. Confira o código exibido no crachá ou na tela do participante.')}`));
+  }
+  const person = db.prepare(`SELECT q.user_id, u.name AS name FROM event_qr_codes q JOIN users u ON u.id=q.user_id WHERE q.event_id=? AND q.token=?`).get(activity.event_id, code);
+  if (!person) {
+    return res.redirect(backWith(`error=${encodeURIComponent('Código não reconhecido: ele não pertence a este evento.')}`));
+  }
+  const role = resolveScanRole(activity, person.user_id, sessionId);
+  if (!role) {
+    return res.redirect(backWith(`error=${encodeURIComponent(`${person.name} não possui papel elegível para esta atividade.`)}`));
+  }
+  const result = applyAttendanceMark(activity, person.user_id, role, sessionId, req.session.userId, { via_qr: true });
+  if (!result.ok) {
+    return res.redirect(backWith(`error=${encodeURIComponent(result.error)}`));
+  }
+  return res.redirect(backWith(`success=${encodeURIComponent(`Presença registrada: ${person.name}`)}&marked_user_id=${person.user_id}`));
+});
+
 router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.attendanceAction);
 }, (req, res) => {
@@ -1772,31 +1848,10 @@ router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (re
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}`);
   }
 
-  const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
-  const participantEnrollment = registration && role === 'participant' && db.prepare(`SELECT 1 FROM participant_activity_enrollments
-    WHERE activity_id=? AND registration_id=? AND user_id=?`).get(activity.id, registration.id, userId);
-  const eventRole = db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').get(activity.event_id, userId, role);
-  const reviewerAssignment = role === 'reviewer' && db.prepare(`SELECT 1 FROM assignments ass
-    JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, userId);
-  const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
-  const hasRoleInEvent = role === 'participant' ? Boolean(participantEnrollment) : Boolean(eventRole || reviewerAssignment);
-  if (!CERTIFICATE_ROLES[role] || !allowedRoles.includes(role) || !hasRoleInEvent) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}&error=${encodeURIComponent('A pessoa não possui este papel no evento ou o papel não é elegível para a atividade.')}`);
+  const result = applyAttendanceMark(activity, userId, role, sessionId, req.session.userId);
+  if (!result.ok) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}${sessionQuery ? '&' : '?'}error=${encodeURIComponent(result.error)}`);
   }
-
-  const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, userId, sessionId);
-  if (existing) {
-    db.prepare("UPDATE activity_attendance_records SET role=?,registration_id=?,marked_by=?,attended_at=datetime('now','-3 hours') WHERE id=?")
-      .run(role, registration ? registration.id : null, req.session.userId, existing.id);
-  } else {
-    db.prepare('INSERT INTO activity_attendance_records(activity_id,registration_id,user_id,role,marked_by,session_id) VALUES(?,?,?,?,?,?)')
-      .run(activity.id, registration ? registration.id : null, userId, role, req.session.userId, sessionId);
-  }
-  recordParticipantAudit({
-    eventId: activity.event_id, registrationId: registration ? registration.id : null,
-    actorUserId: req.session.userId, action: 'activity_attendance_marked',
-    details: { activity_id: activity.id, user_id: userId, session_id: sessionId, role }
-  });
 
   res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}`);
 });

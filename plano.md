@@ -62,40 +62,42 @@ Status geral: **CONCLUÍDO (código + verificação)**; documentação e verific
 ---
 
 ## Ciclo 2 — Fase 1: Aulas + QR Code
-Status geral: **PENDENTE**.
+Status geral: **CONCLUÍDO (código)**. A maior parte foi entregue e validada em 16–17/08 (ver `submissao_log.md`); o fluxo do QR do crachá (1.5b/1.6b/1.7b) está implementado e validado E2E (36/36, 17/08); ainda não commitado.
+Nomenclatura: "aulas" foram implementadas como **etapas** (`activity_sessions`) de uma atividade, conforme alinhado em 16/08.
 
-### 1.1 Modelo de dados — aulas
-- Nova tabela `activity_sessions` (aulas/sessões vinculadas a evento/atividade).
-- Coluna `min_sessions` em `events` (mínimo de aulas para elegibilidade).
-- Coluna `session_id` nas presenças (presença **por aula**).
+### 1.1 Modelo de dados — etapas — CONCLUÍDO ✔
+- Tabela `activity_sessions` (etapas vinculadas à atividade: nome, `sequence_no`, data, carga horária; FK `ON DELETE CASCADE`) — 16/08.
+- Coluna `session_id` em `activity_attendance_records` (presença **por etapa**) + índices parciais únicos (por pessoa sem etapa e por pessoa+etapa) — 16/08.
+- `min_sessions` em `events`: **não adotada** — a elegibilidade usa "Presença mínima (%)" por papel em `event_certificate_rules` (default 75; revisor 0), aplicada atividade a atividade por tipo (16/08).
 
-### 1.2 CRUD de aulas (admin)
-- Listar/criar/editar/excluir aulas por evento.
-- Validação de ordem/duração conforme necessário.
+### 1.2 CRUD de etapas (admin) — CONCLUÍDO ✔
+- `GET/POST .../activities/:activityId/sessions` + edição/remoção por etapa (`strictLimiter`) — 16/08.
+- Data da etapa validada contra o intervalo da atividade; exibição/ordem por `sequence_no`.
 
-### 1.3 Chamada por aula
-- Registro de presença por aula (substitui/estende a presença por atividade).
-- Sem flag presencial/remoto.
+### 1.3 Chamada por etapa — CONCLUÍDO ✔
+- Chamada com abas por etapa; marcar/atualizar/remover por `session_id` (nulo sem etapas); lote ("Marcar/Desmarcar (todos)") também por etapa — 16/08.
+- Sem flag presencial/remoto (conforme decisão do usuário).
 
-### 1.4 PDF de lista (por aula)
-- PDF da lista de presença de cada aula.
+### 1.4 PDF de lista (por etapa) — CONCLUÍDO ✔
+- `attendance-print?session_id=` com cabeçalho de etapa/data; botão "Imp. Lista · <etapa>" por etapa na listagem — 16/08.
 
-### 1.5 QR Code — impressão
-- Geração do QR por participante (requer dependência `qrcode` — ainda não está em `package.json`).
-- QR impresso (crachá/comprovante).
+### 1.5 QR Code — impressão — CONCLUÍDO ✔
+- (a) Folha letter por etapa com QR do link de presença (`GET .../checkin-print`) — 16/08; dependência `qrcode` instalada.
+- (b) Crachá com QR **pessoal** do participante: token por usuário/evento em `event_qr_codes`, exibido e imprimível em `/evento/:id/qr-presenca` — implementado, **ainda não commitado**.
 
-### 1.6 `/presenca-qr` — leitura
-- Página de leitura com câmera + **jsQR vendido localmente** (`public/lib/`; CSP `scriptSrc ['self','unsafe-inline']` → sem CDN).
-- Fallback de digitação manual do código.
+### 1.6 Leitura do QR — CONCLUÍDO ✔
+- (a) Participante: câmera própria abre o link da folha → auto-check-in em `/presenca/...` — 16/08.
+- (b) Operador: câmera + **jsQR servido localmente** (`public/lib/jsQR.min.js`, sem CDN por causa da CSP) + fallback de digitação manual, na própria página de chamada — implementado e validado E2E (17/08), **ainda não commitado**.
+- Não há rota `/presenca-qr` separada: a leitura do operador está embutida em `.../attendance` (mesma etapa selecionada).
 
-### 1.7 Fluxo de check-in
-- **Auto-check-in:** participante escaneia e registra presença na aula.
-- **Proxy por admin:** operador registra presença de terceiros.
-- Exige **domínio HTTPS** (acesso à câmera) — documentar `BASE_URL` no `README.md`.
+### 1.7 Fluxo de check-in — CONCLUÍDO ✔
+- **Auto-check-in:** `/presenca/:eventId/:activityId(/:sessionId)` — login com retorno via `?next=`, papel exercido, janela de data (dia da etapa / período da atividade, UTC-3) — 16/08.
+- **Proxy por admin:** `POST .../attendance/qr` marca a presença da pessoa do crachá, com papel resolvido automaticamente e auditoria `via_qr` — implementado e validado E2E (17/08), **ainda não commitado**.
+- HTTPS: a câmera exige HTTPS (ou localhost); fallback de digitação manual coberto. A origem do link da folha vem do campo "URL do Evento" (decisão que substituiu o `BASE_URL` do plano).
 
-### 1.8 Integração
-- Elegibilidade do certificado condicionada a `min_sessions`.
-- Carga horária calculada por aulas presenciais.
+### 1.8 Integração — CONCLUÍDO ✔
+- Elegibilidade por percentual de etapas presentes, qualificada por tipo de atividade (apresentações oral/pôster e mesa-redonda: qualquer presença; demais: ≥ `ceil(etapas × % / 100)`) — 16/08.
+- Carga horária = soma das cargas das etapas presentes (ou carga da atividade, quando sem etapas) — 16/08.
 
 ---
 
@@ -116,6 +118,8 @@ Status geral: **PENDENTE**.
 ---
 
 ## Riscos / observações
-- `qrcode` e `nodemailer` ainda não estão em `package.json` (instalar na Fase 1 e Fase 3, respectivamente).
-- QR/câmera depende de HTTPS em produção.
+- `qrcode` já está em `package.json` (instalada na Fase 1, 16/08); `nodemailer` ainda não (instalar na Fase 3).
+- `jsQR` é servido localmente em `public/lib/jsQR.min.js` (sem CDN, por causa da CSP).
+- QR/câmera depende de HTTPS em produção; o fallback de digitação manual do código do crachá cobre contextos sem câmera.
+- Fluxo do QR do crachá (1.5b/1.6b/1.7b) implementado e validado E2E (36/36, 17/08); ainda não commitado.
 - `parseCsvFile` em `routes/users.js` está morto (importação usa `xlsx`) — mantido, fora de escopo.

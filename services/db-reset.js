@@ -49,6 +49,7 @@ const TABLES = [
   'event_activities',
   'event_certificate_rules',
   'event_registrations',
+  'event_qr_codes',
   'event_user_roles',
   'events',
   'notifications',
@@ -344,6 +345,17 @@ function initializeDbSchema(db) {
     );
     CREATE TABLE IF NOT EXISTS activity_attendance_records (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,registration_id INTEGER,user_id INTEGER,marked_by INTEGER,attended_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,registration_id),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_certificate_rules (activity_id INTEGER PRIMARY KEY,min_attendance INTEGER NOT NULL DEFAULT 1,background_id INTEGER,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL);
+    CREATE TABLE IF NOT EXISTS event_qr_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      token TEXT NOT NULL,
+      created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      UNIQUE(event_id, user_id),
+      FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_event_qr_codes_token ON event_qr_codes(token);
   `);
 
   if (!hadParticipantActivityEnrollments) {

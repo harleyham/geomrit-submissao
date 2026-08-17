@@ -24,6 +24,25 @@ Versão atual registrada: **V0.1**.
 - Verificação em sandbox (cópia do projeto + banco real): "Minicurso 1" (5 etapas) renderiza "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3"; "Palestras" (sem etapas) não exibe contador. A inscrição de atividades com presença continua preservada (checkbox bloqueado).
 - Status: **implementado e validado**.
 
+### Presença por QR Code do crachá (código pessoal + leitura pelo operador)
+
+- Requisito do usuário: além da folha impressa por etapa (auto-check-in), o participante deve ter um QR Code **pessoal** (crachá) que o operador lê na chamada para registrar a presença de terceiros (proxy por admin).
+- `services/db-reset.js`: nova tabela `event_qr_codes` (`event_id`, `user_id`, `token`, `created_at`; `UNIQUE(event_id,user_id)` + índice único em `token`), incluída na lista de tabelas do reset.
+- `routes/public.js`:
+  - Token de 10 caracteres (alfabeto sem caracteres ambíguos, derivado de `crypto.randomBytes`), criado sob demanda e estável por usuário/evento (`ensureEventQrToken`).
+  - `GET /evento/:id/qr-presenca` (`requireNonAdminAuthorAccess`): 404 para evento inexistente ou `draft`; 403 sem inscrição nem papel no evento; renderiza `views/public/qr-presenca.ejs` com o QR Code (PNG dataURL via `qrcode`), o código em texto grande, os papéis do usuário no evento e CSS `@media print` para imprimir o crachá.
+  - `getEventQrRoles`: papéis em `event_user_roles` (sem `admin`) + `reviewer` quando há artigo atribuído.
+- `views/public/author-dashboard.ejs`: botão "QR de presença" por participação.
+- `routes/events.js`:
+  - `POST /:id/activities/:activityId/attendance/qr` (`strictLimiter`): normaliza o código (A-Z0-9, 8–16 caracteres), busca em `event_qr_codes` restrita ao evento, resolve o papel via `resolveScanRole` (mantém o papel já marcado na etapa; senão `participant` se inscrito na atividade; senão o primeiro papel elegível que a pessoa possui no evento) e grava via `applyAttendanceMark` com auditoria `activity_attendance_marked` + detalhe `via_qr: true`. Erros redirecionam com mensagem específica (código inválido, código não pertence ao evento, pessoa sem papel elegível).
+  - Refatoração: `applyAttendanceMark` extraída do `POST .../attendance/:userId` e compartilhada entre a marcação manual e a leitura do crachá (mesmas validações de papel/inscrição e mesma auditoria); o handler manual passou a redirecionar com `?error=` em caso de falha.
+  - GET da chamada passa `markedUserId` para destacar e rolar até a linha da pessoa marcada.
+- `views/admin/events/activity-attendance.ejs`: seção "Presença por QR Code (crachá)" com campo de código + botão "Marcar"; botão "Ler QR Code" abre a câmera (`getUserMedia`, `facingMode: environment`) e decodifica com **jsQR servido localmente** (`public/lib/jsQR.min.js`, sem CDN por causa da CSP); fallback de digitação manual; vibração, destaque da linha e scroll até ela após o scan; aviso quando a câmera está indisponível (exige HTTPS ou localhost).
+- `server.js`: sem mudança — `express.static('public')` já servia a pasta (o jsQR é a primeira estática dela).
+- Validação E2E (17/08, sandbox isolada na porta 3010): **36/36 checks passaram** — público (redirect de anônimo, página do crachá 200 com QR em PNG dataURL, token de 10 caracteres estável e distinto por evento, 403 sem inscrição/papel, 404 para evento inexistente/draft, jsQR servido localmente); admin (scan do crachá com `marked_user_id` no redirect, registro com papel/sessão corretos, auditoria `via_qr`, idempotência de rescan, presença nas 5 etapas, atividade sem etapas com sessão nula, rejeição de código malformado/inexistente/de outro evento, resolução de papel teacher/speaker/participant, bloqueio de não-admin no POST, destaque da linha `row-marked`, elegibilidade no painel de certificados).
+- Correção feita durante a validação: `views/admin/events/activity-attendance.ejs` usava ternário dentro de `<%= %>`, o que escapava as aspas e renderizava `class=&#34;row-marked&#34;` — trocado por `<% if (markedUserId === p.user_id) { %> class="row-marked"<% } %>` (atributo renderizado literalmente).
+- Status: **implementado e validado (E2E 36/36 em 17/08); ainda não commitado**.
+
 ## 2026-08-16
 
 ### Atividades: intervalo de datas e etapas (presença por etapa)
@@ -1101,3 +1120,4 @@ Versão atual registrada: **V0.1**.
 - Vindo da Área do participante, clicando em "Alterar Meus Dados" vai para http://127.0.0.1:3000/author/profile. O formulário não é completo para alterar todas as informações do usuário.
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
 - Link para a palestra/aula
+- Implementar Campo para os participantes avaliarem as Etapas, Tarefas e Eventos

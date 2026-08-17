@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
@@ -1286,6 +1287,72 @@ router.post('/evento/:id/atividades', registrationLimiter, requireNonAdminAuthor
     });
   })();
   return res.redirect(`/evento/${event.id}/atividades?success=${encodeURIComponent('Inscrição nas atividades atualizada.')}`);
+});
+
+// Presença por QR Code do participante (um código por usuário e por evento)
+const QR_TOKEN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function generateQrToken() {
+  const bytes = crypto.randomBytes(10);
+  let token = '';
+  for (let i = 0; i < 10; i += 1) token += QR_TOKEN_ALPHABET[bytes[i] % QR_TOKEN_ALPHABET.length];
+  return token;
+}
+
+function ensureEventQrToken(eventId, userId) {
+  const existing = db.prepare('SELECT token FROM event_qr_codes WHERE event_id=? AND user_id=?').get(eventId, userId);
+  if (existing) return existing.token;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const token = generateQrToken();
+    try {
+      db.prepare('INSERT INTO event_qr_codes (event_id,user_id,token) VALUES (?,?,?)').run(eventId, userId, token);
+      return token;
+    } catch (err) {
+      if (String(err.message || '').includes('event_qr_codes.token')) continue;
+      break;
+    }
+  }
+  const row = db.prepare('SELECT token FROM event_qr_codes WHERE event_id=? AND user_id=?').get(eventId, userId);
+  return row ? row.token : generateQrToken();
+}
+
+function getEventQrRoles(eventId, userId) {
+  const roles = db.prepare('SELECT role FROM event_user_roles WHERE event_id=? AND user_id=?').all(eventId, userId).map((row) => row.role);
+  const reviewer = db.prepare(`SELECT 1 FROM assignments ass JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(eventId, userId);
+  if (reviewer) roles.push('reviewer');
+  return [...new Set(roles)].filter((role) => role !== 'admin');
+}
+
+const QR_ROLE_LABELS = { participant: 'Participante', reviewer: 'Revisor', speaker: 'Palestrante', teacher: 'Professor(a)', oral_presenter: 'Apresentador Oral', poster_presenter: 'Apresentador Pôster' };
+
+router.get('/evento/:id/qr-presenca', requireNonAdminAuthorAccess, async (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não existe ou não está publicado.' });
+  const userId = req.session.userId;
+  const registration = getOwnedEventRegistration(event.id, req);
+  const roles = getEventQrRoles(event.id, userId);
+  if (!registration && roles.length === 0) {
+    return res.status(403).render('error', { title: 'Sem vínculo com o evento', message: 'Você não possui inscrição ou papel neste evento, por isso não há QR Code de presença disponível.' });
+  }
+  const token = ensureEventQrToken(event.id, userId);
+  const QRCode = require('qrcode');
+  let qrDataUrl;
+  try {
+    qrDataUrl = await QRCode.toDataURL(token, { width: 640, margin: 2, errorCorrectionLevel: 'M' });
+  } catch (err) {
+    console.error('qr-presenca error:', err && err.message);
+    return res.status(500).render('error', { title: 'Erro ao gerar o QR Code', message: 'Não foi possível gerar o QR Code agora. Tente novamente em instantes.' });
+  }
+  const displayRoles = [...new Set([...(registration ? ['participant'] : []), ...roles])];
+  res.render('public/qr-presenca', {
+    title: `QR de presença - ${event.name}`,
+    event,
+    registration,
+    token,
+    qrDataUrl,
+    roles: displayRoles,
+    roleLabels: QR_ROLE_LABELS
+  });
 });
 
 // Formulário de submissão

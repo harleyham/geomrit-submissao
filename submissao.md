@@ -395,6 +395,18 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - `created_at`
 - `updated_at`
 
+### `event_qr_codes`
+
+Código pessoal de presença (crachá) por usuário e por evento: o participante exibe ou imprime o QR Code e o operador lê na chamada para registrar a presença.
+
+- `id`
+- `event_id`
+- `user_id`
+- `token` — 10 caracteres (alfabeto sem caracteres ambíguos), único no sistema
+- `created_at`
+
+Único por `(event_id, user_id)`. O token é criado sob demanda na primeira visualização do crachá e permanece estável: reimprimir ou perder o crachá não altera o código nem afeta presenças já registradas.
+
 ### `assignments`
 
 - `id`
@@ -552,6 +564,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - O certificado de revisor é a exceção: sua elegibilidade decorre de ao menos um parecer enviado no evento.
 - A rota administrativa `/admin/events/:id/attendance` é o painel de chamadas: ela lista as atividades e direciona para a marcação de presença de cada uma. A presença geral não é usada para calcular carga horária nem elegibilidade de certificados.
 - Presença por QR Code: o administrador imprime, por etapa (ou atividade sem etapas), uma folha letter com o QR Code do link de presença (`/presenca/:eventId/:activityId(/:sessionId)`). A origem do link vem do campo "URL do Evento" (apenas a origem da URL); sem URL configurada, usa o host de quem imprime. O registro é feito pelo próprio usuário na página pública: exige login (com retorno automático à página via `?next=`), e só é permitido no dia da etapa (ou no período da atividade, sem etapas), em UTC-3. Papéis aceitos: `participant` (exige inscrição no evento e vinculação à atividade), `speaker`, `teacher`, `oral_presenter` e `poster_presenter` (exigem o papel em `event_user_roles`). O registro grava em `activity_attendance_records` com `marked_by` = o próprio usuário e é idempotente por atividade + pessoa + etapa, integrando-se à chamada, à carga horária e à elegibilidade de certificados sem mudança de regra.
+- Presença por QR Code do crachá: cada usuário com inscrição ou papel no evento possui um código pessoal por evento (`event_qr_codes`, 10 caracteres, estável), exibido e imprimível em `/evento/:id/qr-presenca`. Na chamada da atividade, o operador lê o QR pela câmera (jsQR servido localmente, sem CDN) ou digita o código; a presença é registrada com o mesmo efeito da marcação manual — papel resolvido automaticamente (mantém o já marcado na etapa; senão `participant` se a pessoa está inscrita na atividade; senão o primeiro papel elegível que a pessoa possui no evento) — e auditada em `participant_audit_logs` com o detalhe `via_qr`. O código é válido apenas para o evento e não dá acesso à conta.
 
 ### Autenticação e senha
 
@@ -610,6 +623,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/author/profile` | Perfil do participante: dados cadastrais, formação acadêmica e troca de senha |
 | `/author/certificates` | Consulta e download autenticado de certificados emitidos |
 | `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito; exibe contagem de presenças e etapas frequentadas por atividade |
+| `/evento/:id/qr-presenca` | Crachá do participante: QR Code pessoal de presença (código estável por evento), exibível na tela e imprimível (exige login e inscrição ou papel no evento) |
 | `/presenca/:eventId/:activityId` | Registro de presença por QR Code em atividade sem etapas (exige login) |
 | `/presenca/:eventId/:activityId/:sessionId` | Registro de presença por QR Code em etapa específica (exige login) |
 | `/cadastro` | Solicitação de cadastro público |
@@ -649,6 +663,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
 | `/admin/events/:id/activities/:activityId/attendance` | Controle de presença da atividade |
 | `GET /admin/events/:id/activities/:activityId/checkin-print?session_id=` | Folha letter de presença com QR Code por etapa (ou da atividade, sem etapas) |
+| `POST /admin/events/:id/activities/:activityId/attendance/qr` | Registra presença pelo código do crachá (lido pela câmera com jsQR local ou digitado manualmente) |
 | `/admin/events/:id/certificates` | Regras, fundos, emissão e reemissão de certificados |
 | `/admin/articles` | Gestão de artigos |
 | `/admin/articles/download-all?eventId=:id` | Download ZIP dos PDFs submetidos do evento |
@@ -828,6 +843,7 @@ Observações operacionais:
 - Elegibilidade de certificados por percentual de presença: o campo "Presenças mínimas" foi substituído por "Presença mínima (%)" (inteiro 0-100, default 75, revisor fixo em 0). Cada atividade certificável é qualificada individualmente por papel: apresentações oral/pôster e mesas-redondas qualificam com qualquer presença; palestras, seminários, minicursos e outras exigem presença em pelo menos o percentual configurado das etapas da atividade (atividade sem etapas qualifica com qualquer presença). A pessoa é elegível quando possui ao menos uma atividade qualificada no papel (participante continua exigindo inscrição); somente atividades qualificadas entram no certificado e na carga horária.
 - Presença por QR Code: botão "QR Presença" na listagem de atividades (por etapa, ou único para atividade sem etapas) imprime folha letter com evento, atividade, data, etapa e QR Code centralizado apontando para a página pública de presença; origem do link extraída do campo "URL do Evento" (ou host de quem imprime). Na página, o usuário autenticado (login com retorno automático via `?next=`) escolhe o papel exercido e marca presença — só no dia da etapa ou no período da atividade, UTC-3 — gravando em `activity_attendance_records` (idempotente, `marked_by` = o próprio usuário), integrando-se à chamada e aos certificados.
 - Página pública de atividades com contador e etapas de presença: em `/evento/:id/atividades`, o card de cada atividade com etapas passa a exibir quantas presenças o usuário possui e quais etapas frequentou (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3"), em `routes/public.js` e `views/public/event-activities.ejs`.
+- Presença por QR Code do crachá: código pessoal por usuário e por evento (`event_qr_codes`) exibido e imprimível em `/evento/:id/qr-presenca`; na chamada da atividade, o operador lê o QR pela câmera (jsQR local, sem CDN) ou digita o código (`POST .../attendance/qr`) e a presença é registrada no papel resolvido, com auditoria `via_qr`; botão "QR de presença" na área do participante.
 
 ### Segurança reforçada (V0.1)
 
