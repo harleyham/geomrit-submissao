@@ -83,7 +83,7 @@ Nomenclatura: "aulas" foram implementadas como **etapas** (`activity_sessions`) 
 
 ### 1.5 QR Code — impressão — CONCLUÍDO ✔
 - (a) Folha letter por etapa com QR do link de presença (`GET .../checkin-print`) — 16/08; dependência `qrcode` instalada.
-- (b) Crachá com QR **pessoal** do participante: token por usuário/evento em `event_qr_codes`, exibido e imprimível em `/evento/:id/qr-presenca` — implementado, **ainda não commitado**.
+- (b) Crachá com QR **pessoal** do participante: token por usuário/evento em `event_qr_codes`, exibido em `/evento/:id/qr-presenca` e imprimível em PDF via `/evento/:id/qr-presenca/print` (padrão das rotas de impressão; o `onclick` de `window.print()` era bloqueado pela CSP `script-src-attr 'none'` do helmet 8) — implementado e validado E2E (17/08), **não commitado**.
 
 ### 1.6 Leitura do QR — CONCLUÍDO ✔
 - (a) Participante: câmera própria abre o link da folha → auto-check-in em `/presenca/...` — 16/08.

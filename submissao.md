@@ -623,7 +623,8 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 | `/author/profile` | Perfil do participante: dados cadastrais, formação acadêmica e troca de senha |
 | `/author/certificates` | Consulta e download autenticado de certificados emitidos |
 | `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito; exibe contagem de presenças e etapas frequentadas por atividade |
-| `/evento/:id/qr-presenca` | Crachá do participante: QR Code pessoal de presença (código estável por evento), exibível na tela e imprimível (exige login e inscrição ou papel no evento) |
+| `/evento/:id/qr-presenca` | Crachá do participante: QR Code pessoal de presença (código estável por evento), exibível na tela (exige login e inscrição ou papel no evento) |
+| `/evento/:id/qr-presenca/print` | Crachá do participante em **PDF** pronto para impressão (mesmos guards da página) — padrão das demais rotas de impressão do sistema |
 | `/presenca/:eventId/:activityId` | Registro de presença por QR Code em atividade sem etapas (exige login) |
 | `/presenca/:eventId/:activityId/:sessionId` | Registro de presença por QR Code em etapa específica (exige login) |
 | `/cadastro` | Solicitação de cadastro público |
@@ -708,7 +709,7 @@ Observações estruturais:
 
 - Senhas armazenadas com hash `bcrypt`.
 - Sessão com cookie `httpOnly` e `sameSite=lax`.
-- `helmet` com CSP configurada.
+- `helmet` com CSP configurada; `script-src-attr 'unsafe-inline'` habilitado para permitir handlers `onclick` inline nos templates (default do helmet 8 os bloqueava, inclusive os `confirm()` das ações perigosas do admin).
 - `compression` habilitado.
 - `method-override` habilitado para formulários com `_method`.
 - `archiver` utilizado para geração de ZIP em streaming no download em lote de artigos.
@@ -843,7 +844,8 @@ Observações operacionais:
 - Elegibilidade de certificados por percentual de presença: o campo "Presenças mínimas" foi substituído por "Presença mínima (%)" (inteiro 0-100, default 75, revisor fixo em 0). Cada atividade certificável é qualificada individualmente por papel: apresentações oral/pôster e mesas-redondas qualificam com qualquer presença; palestras, seminários, minicursos e outras exigem presença em pelo menos o percentual configurado das etapas da atividade (atividade sem etapas qualifica com qualquer presença). A pessoa é elegível quando possui ao menos uma atividade qualificada no papel (participante continua exigindo inscrição); somente atividades qualificadas entram no certificado e na carga horária.
 - Presença por QR Code: botão "QR Presença" na listagem de atividades (por etapa, ou único para atividade sem etapas) imprime folha letter com evento, atividade, data, etapa e QR Code centralizado apontando para a página pública de presença; origem do link extraída do campo "URL do Evento" (ou host de quem imprime). Na página, o usuário autenticado (login com retorno automático via `?next=`) escolhe o papel exercido e marca presença — só no dia da etapa ou no período da atividade, UTC-3 — gravando em `activity_attendance_records` (idempotente, `marked_by` = o próprio usuário), integrando-se à chamada e aos certificados.
 - Página pública de atividades com contador e etapas de presença: em `/evento/:id/atividades`, o card de cada atividade com etapas passa a exibir quantas presenças o usuário possui e quais etapas frequentou (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3"), em `routes/public.js` e `views/public/event-activities.ejs`.
-- Presença por QR Code do crachá: código pessoal por usuário e por evento (`event_qr_codes`) exibido e imprimível em `/evento/:id/qr-presenca`; na chamada da atividade, o operador lê o QR pela câmera (jsQR local, sem CDN) ou digita o código (`POST .../attendance/qr`) e a presença é registrada no papel resolvido, com auditoria `via_qr`; botão "QR de presença" na área do participante.
+- Presença por QR Code do crachá: código pessoal por usuário e por evento (`event_qr_codes`) exibido em `/evento/:id/qr-presenca` e imprimível em PDF via `/evento/:id/qr-presenca/print`; na chamada da atividade, o operador lê o QR pela câmera (jsQR local, sem CDN) ou digita o código (`POST .../attendance/qr`) e a presença é registrada no papel resolvido, com auditoria `via_qr`; botão "QR de presença" na área do participante.
+- Correção da CSP `script-src-attr 'none'` (default do helmet 8) que bloqueava todos os `onclick` inline da aplicação (13 views), incluindo os `confirm()` das ações perigosas de backup/restore/reset do admin: `scriptSrcAttr: ["'unsafe-inline'"]` adicionado às direções do helmet em `server.js`.
 
 ### Segurança reforçada (V0.1)
 

@@ -96,7 +96,7 @@
       <p class="help">Este código é válido apenas para este evento e não dá acesso à sua conta. Em caso de perda do crachá, solicite a reimpressão à organização — o código permanece o mesmo e a presença já registrada não é afetada.</p>
 
       <div class="actions no-print">
-        <button class="btn primary" type="button" onclick="window.print()">Imprimir crachá</button>
+        <a class="btn primary" href="/evento/<%= event.id %>/qr-presenca/print" style="text-decoration:none">Imprimir crachá</a>
         <a class="btn btn-secondary" href="/evento/<%= event.id %>/atividades">Minhas atividades</a>
       </div>
     </section>

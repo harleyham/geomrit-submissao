@@ -1355,6 +1355,73 @@ router.get('/evento/:id/qr-presenca', requireNonAdminAuthorAccess, async (req, r
   });
 });
 
+// Impressão do crachá: PDF pronto para imprimir (mesmo padrão de checkin-print/attendance-print)
+router.get('/evento/:id/qr-presenca/print', requireNonAdminAuthorAccess, async (req, res) => {
+  let aborted = false;
+  res.on('close', () => { aborted = true; });
+  try {
+    const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
+    if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não existe ou não está publicado.' });
+    const userId = req.session.userId;
+    const registration = getOwnedEventRegistration(event.id, req);
+    const roles = getEventQrRoles(event.id, userId);
+    if (!registration && roles.length === 0) {
+      return res.status(403).render('error', { title: 'Sem vínculo com o evento', message: 'Você não possui inscrição ou papel neste evento, por isso não há QR Code de presença disponível.' });
+    }
+    const token = ensureEventQrToken(event.id, userId);
+    const QRCode = require('qrcode');
+    const qrBuffer = await QRCode.toBuffer(token, { width: 512, margin: 2, errorCorrectionLevel: 'M' });
+    if (aborted) return;
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ size: 'A4', margin: 60 });
+    const personName = (registration && registration.name) || req.session.userName || req.session.userEmail || 'Participante';
+    const displayRoles = [...new Set([...(registration ? ['participant'] : []), ...roles])].map((role) => QR_ROLE_LABELS[role] || role);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="cracha-${event.id}-${encodeURIComponent(personName)}.pdf"`);
+    doc.pipe(res);
+    doc.on('error', (err) => { console.error('qr-presenca print pdf error:', err && err.message); });
+
+    const cardW = 420;
+    const cardH = 600;
+    const cardX = (doc.page.width - cardW) / 2;
+    const cardY = 120;
+    doc.roundedRect(cardX, cardY, cardW, cardH, 12).lineWidth(1.5).strokeColor('#0f172a').stroke();
+
+    let y = cardY + 36;
+    doc.fontSize(10).font('Helvetica').fillColor('#475569').text('QR DE PRESENÇA', cardX, y, { width: cardW, align: 'center', characterSpacing: 3 });
+    y = doc.y + 14;
+    doc.fontSize(17).font('Helvetica-Bold').fillColor('#0f172a').text(event.name, cardX + 30, y, { width: cardW - 60, align: 'center' });
+    y = doc.y + 10;
+    doc.moveTo(cardX + 30, y).lineTo(cardX + cardW - 30, y).lineWidth(1).strokeColor('#cbd5e1').stroke();
+    y += 20;
+    doc.fontSize(15).font('Helvetica-Bold').fillColor('#0f172a').text(personName, cardX + 30, y, { width: cardW - 60, align: 'center' });
+    y = doc.y + 6;
+    if (registration && registration.institution) {
+      doc.fontSize(11).font('Helvetica').fillColor('#334155').text(registration.institution, cardX + 30, y, { width: cardW - 60, align: 'center' });
+      y = doc.y + 4;
+    }
+    if (displayRoles.length > 0) {
+      doc.fontSize(11).font('Helvetica').fillColor('#334155').text(displayRoles.join(' · '), cardX + 30, y, { width: cardW - 60, align: 'center' });
+      y = doc.y + 20;
+    }
+    const qrSize = 240;
+    const qrX = cardX + (cardW - qrSize) / 2;
+    doc.image(qrBuffer, qrX, y, { width: qrSize, height: qrSize });
+    y += qrSize + 22;
+    doc.fontSize(9).font('Helvetica').fillColor('#475569').text('CÓDIGO DO CRACHÁ', cardX, y, { width: cardW, align: 'center', characterSpacing: 2 });
+    y = doc.y + 14;
+    doc.font('Courier-Bold').fontSize(18).fillColor('#0f172a').text(token, cardX, y, { width: cardW, align: 'center', characterSpacing: 5 });
+    y = doc.y + 12;
+    doc.fontSize(8.5).font('Helvetica').fillColor('#64748b').text('Apresente este código na chamada das atividades. Válido apenas para este evento e sem acesso à sua conta.', cardX + 40, y, { width: cardW - 80, align: 'center' });
+    doc.end();
+  } catch (err) {
+    console.error('qr-presenca print error:', err);
+    const detail = err && err.message ? err.message : String(err);
+    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar o crachá', message: `Não foi possível gerar o crachá para impressão. Detalhes: ${detail}` });
+    else res.end();
+  }
+});
+
 // Formulário de submissão
 router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
   const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get());
