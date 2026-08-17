@@ -82,9 +82,11 @@ function parseImportCsvContent(content) {
   const skipLineEnding = () => {
     if (pos >= len) return;
     const ch = content[pos];
-    if (ch === '\r' || ch === '\n') {
-      if (ch === '\r' && pos + 1 < len && content[pos + 1] === '\n') pos++;
+    if (ch === '\r') {
+      if (pos + 1 < len && content[pos + 1] === '\n') pos += 2;
       else pos++;
+    } else if (ch === '\n') {
+      pos++;
     }
   };
 

@@ -6,6 +6,14 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-17
 
+### Correção: importação CSV com quebras de linha CRLF ("arquivo vazio")
+
+- Relatório do usuário: a importação de participantes via CSV em `/admin/events/:id/import-users` falhava com "O arquivo está vazio ou não possui dados." para CSVs exportados do Excel no Windows (quebras CRLF); XLSX continuava funcionando.
+- Causa raiz: o `skipLineEnding` do parser CSV próprio consumia apenas o `\r` da quebra CRLF (`\r\n`), deixando o cursor no `\n`. A linha seguinte era lida como vazia e interpretada como fim de arquivo, fazendo `parseCsvContent`/`parseImportCsvContent` retornarem 0 linhas para qualquer CSV com quebras de linha do Windows.
+- Correção: `skipLineEnding` avança 2 posições ao detectar CRLF (1 para `\r` ou `\n` isolados) em `routes/events.js` (parser da rota `/admin/events/:id/import-users`) e `routes/users.js` (parser da rota `/admin/users/import`).
+- Verificação: arquivo real `Even3_1.csv` (13 colunas, 3 linhas, CRLF, sem BOM) parseado corretamente; variações cobertas — LF, CRLF, CRLF/LF misturados, CR isolado, BOM, campos entre aspas com o delimitador, linhas vazias no fim e arquivo somente com cabeçalho (0 linhas).
+- Status: **implementado e validado** (efetiva após reinício do servidor).
+
 ### Página pública de atividades: contador e etapas de presença
 
 - Requisito do usuário: no card de cada atividade em `/evento/:id/atividades` (ex.: "Minicurso 1"), mostrar **quantas presenças** o usuário tem na atividade e **quais etapas** já marcou presença.
@@ -1087,14 +1095,9 @@ Versão atual registrada: **V0.1**.
 - Deve haver distinção entre Participantes Presenciais / Remotos?
 - Internacionalização
 - Mandar emails
-- Implementar geração de PDF para lista de presença manual. Deve gerar um PDF com o Nome, email e espaço para assinatura (Para cursos, deverá ser uma lista para cada período)
 - Quando implementar envio de email, colocar "Master switch" para ligar/desligar envio de email na fase de desenvolvimento
 - http://127.0.0.1:3000/admin/dashboard -> Não tem um contador do número total de usuários do sistema
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
 - Vindo da Área do participante, clicando em "Alterar Meus Dados" vai para http://127.0.0.1:3000/author/profile. O formulário não é completo para alterar todas as informações do usuário.
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
-- Impressão de QR Code com o código da Palestra / Aula (com dia ou sequencia) e link para a palestra/aula
-- Leitura do QR Code pelo sistema (rodando no brower do celular) para efetivar presença
-- Com isso (os dois itens anteriores mais a folha de presença impressa teríamos fechado)
-- Para que seja emitido Certificado, devemos poder definir a presença mínima. O default é de 75%
-- A importação de CSV de lista de pessoas parou de funcionar
+- Link para a palestra/aula

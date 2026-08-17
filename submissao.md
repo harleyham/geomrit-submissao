@@ -60,7 +60,7 @@ O sistema deve permitir:
 - Impressão do relatório do evento em PDF pelo navegador.
 - Seleção de seções do relatório antes da impressão em PDF.
 - Gestão administrativa de participantes por evento, com criação de conta, inscrição, edição e remoção condicionada.
-- Importação de participantes via CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), detecção flexível de colunas (nome, e-mail, instituição, telefone, CPF, passaporte), criação ou atualização de contas, senha temporária e resumo do processamento.
+- Importação de participantes via CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas (nome, e-mail, instituição, telefone, CPF, passaporte), criação ou atualização de contas, senha temporária e resumo do processamento.
 - Duas rotas de importação distintas: por evento (`/admin/events/:id/import-users`) cria usuários e inscreve no evento; por usuários (`/admin/users/import`) cria apenas usuários sem inscrição.
 - Relatório detalhado pessoa por pessoa na importação, com status individual (Sucesso, Falha, Ignorado), descrição detalhada e download em CSV.
 - Modelo CSV vazio com cabeçalho pré-preenchido disponível para download nas páginas de importação.
