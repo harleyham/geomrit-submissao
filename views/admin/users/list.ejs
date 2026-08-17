@@ -211,6 +211,8 @@
         Conta ativa define se ele pode entrar no sistema.
         Desativar a conta <strong>não remove</strong> automaticamente o papel de revisor.
         Um usuário com Revisor ligado e Conta ativa desligada será contado como <strong>revisor inativo</strong>.
+        Para bloquear o acesso preservando o histórico (inscrições, presenças, certificados), desligue o controle <strong>Conta ativa</strong>.
+        O botão <strong>Excluir</strong> é definitivo: remove também papéis em eventos, inscrições em atividades, presenças, crachá e revisões — reserve para cadastros por engado.
       </div>
       <form method="GET" class="filters">
         <div class="filter-group">
@@ -328,7 +330,7 @@
                 <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
               </form>
               <% if (u.email !== 'admin@admin.com') { %>
-              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir usuário <%= u.email %>?\nEsta ação não pode ser desfeita.')">
+              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir o usuário <%= u.email %>?\nEsta ação é definitiva e não pode ser desfeita: ela também remove os papéis em eventos, as inscrições em atividades, as presenças, o crachá (QR Code) e as atribuições de revisão do usuário.\nSe o objetivo for apenas bloquear o acesso, desligue o controle Conta ativa na listagem — o histórico é preservado.')>
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>

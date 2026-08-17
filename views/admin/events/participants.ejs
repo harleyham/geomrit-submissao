@@ -265,6 +265,9 @@
                     <span class="muted">Sem vínculo de conta</span>
                   <% } %>
                   <div style="margin-top:0.5rem;">
+                    <% if (participant.user_id) { %>
+                    <a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/qr-presenca/print" class="btn btn-ghost">Imprimir crachá</a>
+                    <% } %>
                     <a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/edit" class="btn btn-ghost">Editar</a>
                     <% if (participant.submitted_articles === 0) { %>
                       <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= participant.id %>" style="display:inline" onsubmit="return confirm('Remover a inscrição de <%= participant.name.replace(/'/g, "\\'") %>?');">

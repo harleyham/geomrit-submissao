@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const querystring = require('querystring');
 const session = require('express-session');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -47,10 +48,18 @@ app.set('views', path.join(__dirname, 'views'));
 // Rate limiting global
 app.use(defaultLimiter);
 
-// Middleware
-app.use(methodOverride('_method'));
+// Middleware: o method-override roda DEPOIS dos parsers de body. Nesta versão do pacote,
+// getter por string lê apenas a query (?_method=); para o hidden input _method dos
+// formulários (ex.: exclusões via _method=DELETE) é preciso getter por função.
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(methodOverride((req) => {
+  if (req.body && typeof req.body._method === 'string') {
+    return req.body._method;
+  }
+  const queryIndex = (req.url || '').indexOf('?');
+  return queryIndex === -1 ? undefined : querystring.parse(req.url.slice(queryIndex + 1))._method;
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 

@@ -72,8 +72,8 @@ O sistema deve permitir:
 - Reset total do banco de dados (`/admin/db/reset`) via painel admin, acessível **exclusivamente** para `admin@admin.com`. Apaga todas as tabelas, arquivos de upload (artigos, certificados, fundos) e recria o banco limpo com schema, indexes, triggers e seed do administrador padrão. Necessário reinício do servidor para recarregar a conexão.
 - Middleware `requireSuperAdmin` em `security/super-admin.js` que restringe funcionalidades sensíveis ao `admin@admin.com`. Usuários com perfil de administrador em eventos são bloqueados com 403.
 - Fluxo de aprovação de usuários corrigido: ao aprovar um cadastro (`/admin/users/:id/approve`), o sistema agora redefine `password_changed = 0` e `profile_completed = 0`, obrigando o usuário a trocar a senha e completar o perfil no primeiro login.
-- Correção crítica: `method-override('_method')` movido para antes do `express.urlencoded` no `server.js`, permitindo que formulários com `_method=DELETE` funcionem corretamente para exclusão de usuários.
-- Correção na função `updateUser`: se o campo `name` não for enviado pelo formulário de edição, o valor existente do banco é preservado, evitando erro `NOT NULL constraint failed`.
+- Correção da exclusão de usuários/participantes via `_method=DELETE` (17/08): o `method-override` agora usa getter por função em `server.js` (lê `_method` do body, com fallback para a query) e roda **depois** dos parsers de body — na versão instalada do pacote, getter por string lia apenas a query, então o hidden input `_method` nunca era processado e os botões "Excluir" caíam no handler de atualização (`SqliteError: NOT NULL constraint failed: users.name`).
+- Correção na função `updateUser`: se os campos `name`/`email` não forem enviados pelo formulário, os valores existentes do banco são preservados, evitando erro `NOT NULL constraint failed`.
 - Correção do formulário de cadastro público: `validateAndHandle` agora recebe `...v.registration` (spread operator) em vez de `v.registration` como array, resolvendo `TypeError: v.run is not a function`.
 - Middleware `validateAndHandle` agora inclui `.catch()` para evitar requisições penduradas quando Promise rejections ocorrem.
 - Partial `csrf-inject` adicionado ao formulário de criação/edição de eventos (`views/admin/events/form.ejs`), resolvendo erro de token CSRF ao criar eventos.
@@ -650,6 +650,7 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 | `POST /admin/events/:id/close` | Encerra o evento (published → encerrado) |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
+| `GET /admin/events/:id/participants/:registrationId/qr-presenca/print` | Impressão do crachá (PDF) de um participante, direto do credenciamento, sem encaminhamento para a área do participante (exige conta vinculada) |
 | `/admin/events/:id/import-users` | Importação de participantes via CSV, XLS ou XLSX (cria usuário + inscreve no evento) |
 | `/admin/events/:id/import-template` | Download do modelo CSV vazio para importação de participantes |
 | `/admin/events/:id/import-download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
@@ -846,6 +847,8 @@ Observações operacionais:
 - Página pública de atividades com contador e etapas de presença: em `/evento/:id/atividades`, o card de cada atividade com etapas passa a exibir quantas presenças o usuário possui e quais etapas frequentou (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3"), em `routes/public.js` e `views/public/event-activities.ejs`.
 - Presença por QR Code do crachá: código pessoal por usuário e por evento (`event_qr_codes`) exibido em `/evento/:id/qr-presenca` e imprimível em PDF via `/evento/:id/qr-presenca/print`; na chamada da atividade, o operador lê o QR pela câmera (jsQR local, sem CDN) ou digita o código (`POST .../attendance/qr`) e a presença é registrada no papel resolvido, com auditoria `via_qr`; botão "QR de presença" na área do participante.
 - Correção da CSP `script-src-attr 'none'` (default do helmet 8) que bloqueava todos os `onclick` inline da aplicação (13 views), incluindo os `confirm()` das ações perigosas de backup/restore/reset do admin: `scriptSrcAttr: ["'unsafe-inline'"]` adicionado às direções do helmet em `server.js`.
+- Credenciamento: botão "Imprimir crachá" na coluna "Conta" da listagem de participantes (`/admin/events/:id/participants`) gera o PDF direto via `GET /admin/events/:id/participants/:registrationId/qr-presenca/print`, sem encaminhamento para a área do participante (evita o bug conhecido de conta admin interpretada como participante). O layout do crachá foi extraído para o serviço compartilhado `services/cracha.js` (`renderCrachaPdf`, `ensureEventQrToken`, `getEventQrRoles`, `QR_ROLE_LABELS`), agora usado tanto pela rota pública de autoimpressão quanto pela rota admin; participantes sem conta vinculada não têm crachá (400 com mensagem explicativa).
+- Exclusão de usuários e participantes corrigida e com aviso de impacto: o `method-override` (getter por função, depois dos parsers de body) faz o `_method=DELETE` dos formulários chegar à rota DELETE correta (antes caía em `updateUser` com `NOT NULL constraint failed: users.name`); o `confirm()` do "Excluir" usuário detalha que a ação remove papéis em eventos, inscrições em atividades, presenças, crachá e revisões, e sugere desligar "Conta ativa" (inativação, que preserva o histórico) quando o objetivo for apenas bloquear acesso; nota da listagem orienta o mesmo; `updateUser` preserva `name`/`email` existentes quando o body não os envia.
 
 ### Segurança reforçada (V0.1)
 
@@ -858,7 +861,7 @@ Observações operacionais:
 - Consultas por código funcionais: rotas de consulta de artigo e certificado por código extraem corretamente os parâmetros de `req.body` antes do `.bind()` SQL.
 - Acesso super-administrador: middleware `requireSuperAdmin` restringe funcionalidades sensíveis (reset de banco, backup e restauração) ao `admin@admin.com`. Outros administradores recebem 403.
 - Tratamento de erros assíncronos: `validateAndHandle` inclui `.catch()` para evitar requisições penduradas. Handler global de `unhandledRejection` loga erros não tratados.
-- `method-override` configurado corretamente antes do body parser, permitindo formulários POST com `_method=DELETE` para exclusão de recursos.
+- `method-override` configurado com getter por função (lê `_method` do body, fallback para query) e posicionado **depois** dos parsers de body, permitindo formulários POST com `_method=DELETE` para exclusão de usuários e participantes.
 
 ### Parcial ou pendente de validação
 

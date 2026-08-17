@@ -590,13 +590,14 @@ function updateUser(req, res) {
   const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer, formacao_area, formacao_curso, formacao_titulacao, formacao_status } = req.body;
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
-  const user = db.prepare('SELECT id, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
+  const user = db.prepare('SELECT id, name, email, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
 
   if (!user) {
     return res.redirect('/admin/users?error=Usuário não encontrado');
   }
 
   const displayName = name || user.name;
+  const displayEmail = email || user.email;
   const nextIsAdmin = is_admin ? 1 : 0;
   if (isRemovingLastActiveAdmin(user, nextIsAdmin, user.is_public)) {
     return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
@@ -624,8 +625,8 @@ function updateUser(req, res) {
         is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, password_changed=0, updated_at=datetime('now', '-3 hours'),
         formacao_area=?, formacao_curso=?, formacao_titulacao=?, formacao_status=?
       WHERE id=?
-    `).bind(
-      displayName, email, hash,
+     `).bind(
+       displayName, displayEmail, hash,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
       formacao_area || null, formacao_curso || null, formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null), formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null),
@@ -637,8 +638,8 @@ function updateUser(req, res) {
         is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, updated_at=datetime('now', '-3 hours'),
         formacao_area=?, formacao_curso=?, formacao_titulacao=?, formacao_status=?
       WHERE id=?
-    `).bind(
-      displayName, email,
+     `).bind(
+       displayName, displayEmail,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
       nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
       formacao_area || null, formacao_curso || null, formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null), formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null),

@@ -51,6 +51,29 @@ Versão atual registrada: **V0.1**.
 - Verificação: servidor de teste na porta 3099; header `Content-Security-Policy` passa a incluir `script-src-attr 'unsafe-inline'`.
 - Status: **implementado e validado** (efetiva após reinício do servidor — o servidor em execução na porta 3000 ainda roda com a CSP anterior).
 
+### Credenciamento: botão "Imprimir crachá" por participante na listagem admin
+
+- Requisito do usuário: em `/admin/events/:id/participants`, a coluna "Conta" deve ter botão de impressão do crachá **por participante**, gerando o PDF direto — o encaminhamento para a área do participante leva a um bug conhecido (com a conta de admin logada, o sistema interpreta como a área do participante do admin).
+- `services/cracha.js` (novo): extraída a lógica do crachá de `routes/public.js` — `QR_TOKEN_ALPHABET`/`generateQrToken`/`ensureEventQrToken`, `getEventQrRoles`, `QR_ROLE_LABELS` e `renderCrachaPdf(res, { event, registration, roles, token, nameFallback })` (layout PDF idêntico ao anterior: A4, card 420x600, QR do token, código em destaque).
+- `routes/public.js`: helpers locais removidos (importados do serviço); a rota `GET /evento/:id/qr-presenca/print` passou a usar `renderCrachaPdf` (comportamento inalterado).
+- `routes/events.js`: nova rota `GET /:id/participants/:registrationId/qr-presenca/print` — valida os IDs com `parseInt`, 404 para evento/inscrição inexistente no evento, 400 quando a inscrição não tem conta vinculada (o código do crachá é por usuário/evento), senão emite o PDF do participante via `renderCrachaPdf`.
+- `views/admin/events/participants.ejs`: botão "Imprimir crachá" na coluna "Conta" (linha de ações, antes de "Editar"), exibido apenas quando `participant.user_id` existe; link GET sem `onclick`, imune à CSP.
+- Validação: realizada pelo usuário (17/08).
+- Status: **implementado e validado**.
+
+### Correção: exclusão de usuário/participante via `_method=DELETE` (erro NOT NULL)
+
+- Relatório do usuário (17/08): ao clicar em "Excluir" em `/admin/users`, erro `SqliteError: NOT NULL constraint failed: users.name` em `updateUser` (routes/users.js:646).
+- Causa raiz: na versão instalada do `method-override`, getter por string que não começa com `X-` lê **somente a query string** (`createQueryGetter`), nunca o body. O hidden input `_method=DELETE` dos formulários nunca era processado (a ordem dos middlewares em `server.js` era sintoma, não causa); o POST caía em `router.post('/:id(\\d+)')` → `updateUser` com body vazio (`{ _csrf, _method }`). `validateAndHandle` prossegue via `next()` em falhas de validação de não-XHR, e o SELECT de `user` no `updateUser` não trazia `name`/`email`, então `name || user.name` gerava `undefined` → bind NULL → `NOT NULL constraint failed`.
+- Correções:
+  - `server.js`: `methodOverride` com **getter por função** — lê `req.body._method` (string) e, se ausente, `_method` na query (mantém compatibilidade com `?_method=`); posicionado **depois** de `express.json`/`express.urlencoded` (o getter por função precisa do body parseado).
+  - `routes/users.js` (`updateUser`): SELECT passa a incluir `name`/`email`; binds usam `displayName = name || user.name` e `displayEmail = email || user.email` (body parcial não mais zera/quebra o registro).
+  - `views/admin/users/list.ejs`: `confirm()` do "Excluir" (usuários aprovados) passa a detalhar o impacto definitivo — remove papéis em eventos, inscrições em atividades, presenças, crachá (QR Code) e atribuições de revisão — e sugere desligar o controle "Conta ativa" quando o objetivo for só bloquear acesso (histórico preservado); nota da seção reforça: desativar preserva histórico, excluir é definitivo (reservado para cadastros por engado).
+  - Decisão do usuário: **inabilitar ("Conta ativa") é a operação principal**; exclusão permanece para cadastros por engado, com o aviso acima.
+  - Efeito colateral positivo: a remoção de participante (`/admin/events/:id/participants/:registrationId`, mesmo padrão `_method=DELETE`) — igualmente quebrada — também passou a funcionar.
+- Validação E2E (17/08, sandbox isolada na porta 3099 + snapshot do banco via `better-sqlite3 .backup()`): (a) POST `/admin/users/:id` com só `_csrf`+`_method=DELETE` → 302 `success=Usuário excluído` e linha removida do banco (antes: 500 NOT NULL); (b) update normal com form completo → 302 e dados persistidos (name/email/institution); (c) remoção de participante via `_method=DELETE` → 302 `Participante removido com sucesso`.
+- Status: **implementado e validado** (efetiva após reinício do servidor).
+
 ## 2026-08-16
 
 ### Atividades: intervalo de datas e etapas (presença por etapa)
@@ -1130,6 +1153,6 @@ Versão atual registrada: **V0.1**.
 - Link para a palestra/aula
 - Implementar Campo para os participantes avaliarem as Etapas, Tarefas e Eventos
 - Existe um bug que é quando um adm acessa a página de usuário, os comandos que ele (admin) dá são interpretados como a conta do admin. No caso é paa interpretar como se o prórpio usuário estivesse acessando sua área.
-- Em um caso em que há um credenciamento e impressão dos crachas dos participantes, é necessário ter na tela http://127.0.0.1:3000/admin/events/1/participants um botao para cada participante para impressão do crachá
+- Em um caso em que há um credenciamento e impressão dos crachas dos participantes, é necessário ter na tela http://127.0.0.1:3000/admin/events/1/participants um botao para cada participante para impressão do crachá — **aplicado em 17/08** (ver seção "Credenciamento: botão 'Imprimir crachá' por participante na listagem admin" acima)
 - Alerta de segurança: o mesmo script-src-attr 'none' está bloqueando todos os onclick inline da app (13 views). Nos <a onclick="return confirm()"> do admin (backup/restore/reset), o clique navega sem o confirm — as ações perigosas perdem a confirmação. A correção global é adicionar scriptSrcAttr: ["'unsafe-inline'"] na config do helmet em server.js (1 linha) — **aplicado e validado em 17/08** (ver seção "Correção: CSP `script-src-attr 'none'`" acima)
  - Necessidade de implementar local ( http://127.0.0.1:3000/admin/events/1/edit e http://127.0.0.1:3000/admin/events/new )para upload de imagem com logo do evento. Será utilizado na impressão dos crachás e QR Code de presença

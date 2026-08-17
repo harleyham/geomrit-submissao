@@ -9,6 +9,7 @@ const xlsx = require('xlsx');
 const { ZipArchive } = require('archiver');
 const { db, recordParticipantAudit } = require('../db');
 const { renderCertificatePdf, getBackgroundPath } = require('../services/certificates');
+const { ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
@@ -842,6 +843,35 @@ router.get('/:id/participants', (req, res) => {
     success: req.query.success || null,
     error: req.query.error || null
   });
+});
+
+// Credenciamento: imprime o crachá do participante direto (PDF), sem encaminhamento para a área do participante
+router.get('/:id/participants/:registrationId/qr-presenca/print', async (req, res) => {
+  let aborted = false;
+  res.on('close', () => { aborted = true; });
+  try {
+    const eventId = parseInt(req.params.id, 10);
+    const registrationId = parseInt(req.params.registrationId, 10);
+    if (!Number.isInteger(eventId) || eventId <= 0 || !Number.isInteger(registrationId) || registrationId <= 0) {
+      return res.status(400).render('error', { title: 'Parâmetros inválidos', message: 'Os parâmetros da solicitação não são válidos.' });
+    }
+    const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+    if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+    const registration = db.prepare('SELECT * FROM event_registrations WHERE id = ? AND event_id = ?').get(registrationId, eventId);
+    if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado', message: 'A inscrição solicitada não existe neste evento.' });
+    if (!registration.user_id) {
+      return res.status(400).render('error', { title: 'Sem vínculo de conta', message: 'Este participante não possui conta vinculada. O crachá com QR Code de presença exige conta para emitir o código pessoal.' });
+    }
+    const token = ensureEventQrToken(event.id, registration.user_id);
+    const roles = getEventQrRoles(event.id, registration.user_id);
+    if (aborted) return;
+    await renderCrachaPdf(res, { event, registration, roles, token });
+  } catch (err) {
+    console.error('participant cracha print error:', err);
+    const detail = err && err.message ? err.message : String(err);
+    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar o crachá', message: `Não foi possível gerar o crachá para impressão. Detalhes: ${detail}` });
+    else res.end();
+  }
 });
 
 router.get('/:id/import-template', (req, res) => {
