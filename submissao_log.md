@@ -4,6 +4,18 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-17
+
+### Página pública de atividades: contador e etapas de presença
+
+- Requisito do usuário: no card de cada atividade em `/evento/:id/atividades` (ex.: "Minicurso 1"), mostrar **quantas presenças** o usuário tem na atividade e **quais etapas** já marcou presença.
+- `routes/public.js` (GET `/evento/:id/atividades`):
+  - A query principal passa a computar `sessions_total` (`COUNT(*)` de `activity_sessions` por atividade).
+  - Nova consulta auxiliar lista as etapas frequentadas pelo usuário no evento (join de `activity_attendance_records` com `activity_sessions`, `role='participant'`, ordenado por `sequence_no`) e monta o mapa `attendedSessionsByActivity`; cada atividade recebe `attended_sessions` (nomes das etapas) e `sessions_total` normalizado (número).
+- `views/public/event-activities.ejs`: para atividades com etapas, o badge `.present` passa a exibir "**N de M presenças — Etapa1 · Etapa2…**" (contagem + relação das etapas frequentadas); atividades sem etapas mantêm o texto anterior ("Presença registrada — inscrição preservada").
+- Verificação em sandbox (cópia do projeto + banco real): "Minicurso 1" (5 etapas) renderiza "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3"; "Palestras" (sem etapas) não exibe contador. A inscrição de atividades com presença continua preservada (checkbox bloqueado).
+- Status: **implementado e validado**.
+
 ## 2026-08-16
 
 ### Atividades: intervalo de datas e etapas (presença por etapa)

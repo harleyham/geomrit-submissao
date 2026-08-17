@@ -94,7 +94,7 @@ O sistema deve permitir:
 - Listagem de eventos publicados.
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
-- Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas.
+- Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
 - Submissão de artigo com geração de código de acesso.
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive em contas com perfil de revisor.
 - Perfil do participante em `/author/profile` com atualização de dados cadastrais (nome, e-mail, instituição, CPF, passaporte, país, telefone), formação acadêmica e troca opcional de senha.
@@ -546,6 +546,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 - Uma pessoa só pode receber presença em papel que já possua no evento; `participant` decorre de sua inscrição em `event_registrations`.
 - Uma atividade pode ser dividida em **etapas** (`activity_sessions`) — ex.: aulas de um minicurso ou períodos de um seminário. Quando existem etapas, a chamada, a lista de presença impressa e a carga horária do certificado passam a ser por etapa; a atividade sem etapas funciona como uma única etapa geral (registro com `session_id` nulo).
 - Cada etapa tem data e carga horária próprias; a data da etapa é validada contra o intervalo de início/fim da atividade. A carga horária do certificado soma as cargas das etapas em que a pessoa esteve presente.
+- Na página pública de atividades (`/evento/:id/atividades`), cada atividade com etapas exibe a contagem de presenças do usuário e a relação das etapas já frequentadas (em ordem de sequência); a inscrição de atividades frequentadas permanece preservada e não removível.
 - O intervalo da atividade (`date_start`/`date_end`) substitui a data única anterior; a presença e a ordenação usam `date_start`.
 - Atividades habilitadas para certificação são consolidadas por pessoa e por papel. Para o papel de participante, somente contam atividades em que coexistam inscrição e presença. Uma mesma pessoa pode receber certificados distintos de participante, palestrante, professor ou apresentador, cada um contendo apenas suas atividades e sua carga horária correspondentes.
 - O certificado de revisor é a exceção: sua elegibilidade decorre de ao menos um parecer enviado no evento.
@@ -608,7 +609,7 @@ Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de 
 | `/author` | Página do participante |
 | `/author/profile` | Perfil do participante: dados cadastrais, formação acadêmica e troca de senha |
 | `/author/certificates` | Consulta e download autenticado de certificados emitidos |
-| `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito |
+| `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito; exibe contagem de presenças e etapas frequentadas por atividade |
 | `/presenca/:eventId/:activityId` | Registro de presença por QR Code em atividade sem etapas (exige login) |
 | `/presenca/:eventId/:activityId/:sessionId` | Registro de presença por QR Code em etapa específica (exige login) |
 | `/cadastro` | Solicitação de cadastro público |
@@ -826,6 +827,7 @@ Observações operacionais:
 - Cor do texto do certificado selecionada por paleta embutida de 64 cores (grade 8x8) no lugar do picker nativo do navegador: o botão exibe a amostra da cor atual e abre a grade por papel de certificado; a escolha atualiza o campo oculto `text_color`, a amostra e a prévia do certificado.
 - Elegibilidade de certificados por percentual de presença: o campo "Presenças mínimas" foi substituído por "Presença mínima (%)" (inteiro 0-100, default 75, revisor fixo em 0). Cada atividade certificável é qualificada individualmente por papel: apresentações oral/pôster e mesas-redondas qualificam com qualquer presença; palestras, seminários, minicursos e outras exigem presença em pelo menos o percentual configurado das etapas da atividade (atividade sem etapas qualifica com qualquer presença). A pessoa é elegível quando possui ao menos uma atividade qualificada no papel (participante continua exigindo inscrição); somente atividades qualificadas entram no certificado e na carga horária.
 - Presença por QR Code: botão "QR Presença" na listagem de atividades (por etapa, ou único para atividade sem etapas) imprime folha letter com evento, atividade, data, etapa e QR Code centralizado apontando para a página pública de presença; origem do link extraída do campo "URL do Evento" (ou host de quem imprime). Na página, o usuário autenticado (login com retorno automático via `?next=`) escolhe o papel exercido e marca presença — só no dia da etapa ou no período da atividade, UTC-3 — gravando em `activity_attendance_records` (idempotente, `marked_by` = o próprio usuário), integrando-se à chamada e aos certificados.
+- Página pública de atividades com contador e etapas de presença: em `/evento/:id/atividades`, o card de cada atividade com etapas passa a exibir quantas presenças o usuário possui e quais etapas frequentou (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3"), em `routes/public.js` e `views/public/event-activities.ejs`.
 
 ### Segurança reforçada (V0.1)
 

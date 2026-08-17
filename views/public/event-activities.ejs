@@ -85,7 +85,11 @@
                 <span>
                   <strong><%= activity.name %></strong>
                   <small><%= activityDateRange(activity) %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small>
-                  <% if (activity.present) { %><span class="present">Presença registrada — inscrição preservada</span><% } %>
+                  <% if (activity.sessions_total > 0) { %>
+                    <span class="present"><%= activity.attended_sessions.length %> de <%= activity.sessions_total %> presenças<% if (activity.attended_sessions.length) { %> — <%= activity.attended_sessions.join(' · ') %><% } %></span>
+                  <% } else if (activity.present) { %>
+                    <span class="present">Presença registrada — inscrição preservada</span>
+                  <% } %>
                 </span>
               </label>
             <% }) %>

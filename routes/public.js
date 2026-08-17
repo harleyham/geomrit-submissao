@@ -1236,11 +1236,26 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
   if (!registration) return res.redirect(`/evento/${event.id}/inscricao`);
   const activities = db.prepare(`SELECT ea.*,
       CASE WHEN EXISTS (SELECT 1 FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id AND pae.registration_id=?) THEN 1 ELSE 0 END AS enrolled,
-      CASE WHEN EXISTS (SELECT 1 FROM activity_attendance_records aar WHERE aar.activity_id=ea.id AND aar.user_id=? AND aar.role='participant') THEN 1 ELSE 0 END AS present
+      CASE WHEN EXISTS (SELECT 1 FROM activity_attendance_records aar WHERE aar.activity_id=ea.id AND aar.user_id=? AND aar.role='participant') THEN 1 ELSE 0 END AS present,
+      (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id=ea.id) AS sessions_total
     FROM event_activities ea
     WHERE ea.event_id=?
       AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0
     ORDER BY ea.date_start,ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id);
+  const attendedSessionsByActivity = {};
+  db.prepare(`SELECT s.activity_id AS activity_id, s.name AS session_name
+    FROM activity_attendance_records aar
+    JOIN activity_sessions s ON s.id=aar.session_id
+    WHERE aar.user_id=? AND aar.role='participant'
+      AND s.activity_id IN (SELECT id FROM event_activities WHERE event_id=?)
+    ORDER BY s.sequence_no, s.session_date, s.id`).all(req.session.userId, event.id).forEach((session) => {
+      if (!attendedSessionsByActivity[session.activity_id]) attendedSessionsByActivity[session.activity_id] = [];
+      attendedSessionsByActivity[session.activity_id].push(session.session_name);
+    });
+  activities.forEach((activity) => {
+    activity.sessions_total = Number(activity.sessions_total) || 0;
+    activity.attended_sessions = attendedSessionsByActivity[activity.id] || [];
+  });
   return res.render('public/event-activities', {
     title: `Minhas atividades - ${event.name}`, event: withAreaMeta(event), registration, activities,
     success: req.query.success || null, error: req.query.error || null

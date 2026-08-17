@@ -35,6 +35,6 @@
     "xlsx": "^0.18.5"
   },
   "allowScripts": {
-    "better-sqlite3@11.10.0": true
+    "better-sqlite3@13.0.3": true
   }
 }
