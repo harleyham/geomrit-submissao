@@ -74,6 +74,19 @@ Versão atual registrada: **V0.1**.
 - Validação E2E (17/08, sandbox isolada na porta 3099 + snapshot do banco via `better-sqlite3 .backup()`): (a) POST `/admin/users/:id` com só `_csrf`+`_method=DELETE` → 302 `success=Usuário excluído` e linha removida do banco (antes: 500 NOT NULL); (b) update normal com form completo → 302 e dados persistidos (name/email/institution); (c) remoção de participante via `_method=DELETE` → 302 `Participante removido com sucesso`.
 - Status: **implementado e validado** (efetiva após reinício do servidor).
 
+### Inativação de conta com efeitos práticos (is_public=0)
+
+- Relatório do usuário (17/08): inabilitar um usuário não tinha efeito prático — inscrito em uma atividade e inabilitado, "continuava ativo nas atividades". A flag `is_public` só bloqueava o login.
+- Semântica adotada (consistente com a decisão anterior de preservar histórico na inativação): inativação = bloquear acesso e impedir **novas** presenças; presenças/inscrições já registradas e elegibilidade de certificados são preservadas; correções (desmarcar) continuam permitidas.
+- Mudanças:
+  - `routes/auth.js`: novo middleware `requireActiveAccount` (exportado) — em todo request autenticado, se `is_public=0` destrói a sessão e redireciona para `/login?error=...` com aviso; `GET /login` passa a exibir o `error` da query.
+  - `server.js`: `requireActiveAccount` aplicado globalmente, antes de `requireOnboarding`.
+  - `routes/events.js` (chamada): a query da listagem passa a trazer `account_active` (`MAX(COALESCE(u.is_public,0))` com `LEFT JOIN users`); `applyAttendanceMark` (manual + QR do crachá) rejeita conta inativa com erro explicativo; "Marcar presença (todos)" pula contas inativas (contabilizadas em "ignoradas"); "Desmarcar (todos)" continua removendo (correção).
+  - `views/admin/events/activity-attendance.ejs`: badge "Conta inativa" na linha da pessoa, sem botão "Marcar/Atualizar" (o "Remover" permanece); nota "Presença bloqueada — conta inativa" no lugar do botão.
+  - `routes/events.js` (participantes) + `views/admin/events/participants.ejs`: badge "Conta inativa" na coluna "Conta" da listagem do evento.
+- Validação E2E (17/08, sandbox isolada porta 3099 + snapshot do banco): usuário ativo acessa `/evento/1/atividades` (200) → inabilitado no banco → próximo request cai em `302 /login?error=Conta inativa...`; chamada exibe badge/nota e sem botão de marcar; marcação manual e scan do crachá do inativo rejeitados com o erro explicativo; "Marcar (todos)" pulou o inativo (0 marcadas, 4 ignoradas, sem registro); reativado → marcação manual OK; inabilitado → "Desmarcar (todos)" removeu a presença existente (correção permitida); listagem de participantes exibiu o badge; reativado → login volta a funcionar.
+- Status: **implementado e validado** (efetiva após reinício do servidor).
+
 ## 2026-08-16
 
 ### Atividades: intervalo de datas e etapas (presença por etapa)

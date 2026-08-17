@@ -401,6 +401,7 @@ function getEventParticipantSummary(eventId, filters = {}, pagination = null) {
       u.name as linked_user_name,
       u.email as linked_user_email,
       u.is_reviewer as linked_user_is_reviewer,
+      COALESCE(u.is_public, 0) AS account_active,
       COALESCE(sa.submitted_count, 0) as submitted_articles,
       COALESCE(aa.approved_count, 0) as approved_articles,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.registration_id=er.id) AS enrolled_activities,
@@ -1569,12 +1570,14 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
       UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
       UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, u.institution, NULL, 'reviewer'
         FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
-    ) SELECT ep.person_user_id AS user_id, MAX(ep.name) AS name, MAX(ep.email) AS email, MAX(ep.institution) AS institution, MAX(ep.registration_id) AS registration_id, GROUP_CONCAT(DISTINCT ep.role) AS roles,
-      CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present,
-      COALESCE(aar.role, '') AS activity_role
-    FROM event_people ep
-    LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id ${sessionCondition}
-    GROUP BY ep.person_user_id ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.event_id, activity.id, ...sessionParams)
+     ) SELECT ep.person_user_id AS user_id, MAX(ep.name) AS name, MAX(ep.email) AS email, MAX(ep.institution) AS institution, MAX(ep.registration_id) AS registration_id, GROUP_CONCAT(DISTINCT ep.role) AS roles,
+       CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present,
+       COALESCE(aar.role, '') AS activity_role,
+       MAX(COALESCE(u.is_public, 0)) AS account_active
+     FROM event_people ep
+     LEFT JOIN users u ON u.id = ep.person_user_id
+     LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id ${sessionCondition}
+     GROUP BY ep.person_user_id ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.event_id, activity.id, ...sessionParams)
     .filter((person) => String(person.roles).split(',').some((role) => allowedRoles.includes(role)));
   const roleLabels = Object.fromEntries(Object.entries(CERTIFICATE_ROLES).map(([role, meta]) => [role, meta.label]));
   people.forEach((person) => {
@@ -1783,6 +1786,10 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
 // Marca presença de uma pessoa em uma atividade/etapa.
 // Compartilhado pelo botão "Marcar presença" da chamada e pela leitura do QR Code do crachá.
 function applyAttendanceMark(activity, userId, role, sessionId, actorUserId, extraDetails) {
+  const account = db.prepare('SELECT is_public FROM users WHERE id=?').get(userId);
+  if (!account || !account.is_public) {
+    return { ok: false, error: 'Conta inativa: não é possível marcar presença para esta pessoa. Se for o caso, reative a conta em /admin/users (o histórico existente é preservado).' };
+  }
   const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
   const participantEnrollment = registration && role === 'participant' && db.prepare(`SELECT 1 FROM participant_activity_enrollments
     WHERE activity_id=? AND registration_id=? AND user_id=?`).get(activity.id, registration.id, userId);
@@ -1906,7 +1913,8 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
 
   const eligibleUsers = db.prepare(`
     SELECT DISTINCT ep.user_id, ep.name, ep.email,
-      (SELECT id FROM event_registrations er WHERE er.event_id=? AND er.user_id=ep.user_id LIMIT 1) AS registration_id
+      (SELECT id FROM event_registrations er WHERE er.event_id=? AND er.user_id=ep.user_id LIMIT 1) AS registration_id,
+      (SELECT COALESCE(MAX(u.is_public), 0) FROM users u WHERE u.id=ep.user_id) AS account_active
     FROM (
       SELECT er.user_id, er.name, er.email, er.id AS registration_id, 'participant' AS role
         FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
@@ -1940,6 +1948,7 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
     const selectedRole = allowedRoles.find(r => priorityRoles.includes(r)) || allowedRoles[0];
     eligibleUsers.forEach(user => {
       if (!user.user_id) { skipped++; return; }
+      if (!user.account_active) { skipped++; return; }
       const hasRoleInEvent = selectedRole === 'participant'
         ? Boolean(user.registration_id)
         : selectedRole === 'reviewer'

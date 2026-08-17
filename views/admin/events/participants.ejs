@@ -260,6 +260,9 @@
                 </td>
                 <td>
                   <% if (participant.user_id) { %>
+                    <% if (!participant.account_active) { %>
+                      <span class="badge" style="background:rgba(248,113,113,0.12);color:#fca5a5;border:1px solid rgba(248,113,113,0.3)">Conta inativa</span>
+                    <% } %>
                     <a href="/admin/users/<%= participant.user_id %>/participant" class="btn btn-ghost">Abrir área</a>
                   <% } else { %>
                     <span class="muted">Sem vínculo de conta</span>

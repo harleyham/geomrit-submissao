@@ -129,6 +129,17 @@ function renderCompleteProfile(res, user, formData, error = null) {
   });
 }
 
+// Conta inativa (is_public=0) não mantém sessão: qualquer request autenticado
+// de um usuário inabilitado derruba a sessão e volta para o login.
+function requireActiveAccount(req, res, next) {
+  if (!req.session || !req.session.userId) return next();
+  const user = db.prepare('SELECT is_public FROM users WHERE id = ?').get(req.session.userId);
+  if (user && !user.is_public) {
+    return req.session.destroy(() => res.redirect('/login?error=' + encodeURIComponent('Sua conta está inativa. Se precisar desta conta, solicite à organização do evento que ela seja reativada.')));
+  }
+  next();
+}
+
 function requireOnboarding(req, res, next) {
   if (!req.session || !req.session.userId) return next();
   const user = db.prepare('SELECT password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
@@ -190,7 +201,7 @@ router.get('/', (req, res) => {
     return res.redirect(authenticatedDestination(req));
   }
   res.render('login', {
-    error: null,
+    error: req.query.error ? decodeURIComponent(req.query.error) : null,
     year: new Date().getFullYear()
   });
 });
@@ -665,4 +676,4 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
   return res.redirect(authenticatedDestination(req));
 });
 
-module.exports = { router, requireAuth, requireOnboarding };
+module.exports = { router, requireAuth, requireOnboarding, requireActiveAccount };
