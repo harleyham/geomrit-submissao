@@ -15,7 +15,7 @@ Versão atual registrada: **V0.1**.
   - `server.js`: novo middleware (antes de `requireActiveAccount`) — em requests fora de `/admin/*`, mantém a sessão com a identidade do usuário pré-visualizado (revalidando a cada request que ele exista e esteja ativo; senão restaura o admin); em qualquer request em `/admin/*`, restaura `realIdentity` e limpa `previewUserId`/`realIdentity` (a saída da prévia é automática ao voltar ao painel).
 - `views/public/author-dashboard.ejs`: o aviso da prévia passa a explicar que as ações são registradas em nome do usuário visualizado, com link "Sair da visualização".
 - Validação E2E (18/08, servidor real): sem prévia o admin (não inscrito no evento 1) recebe 403 em `/evento/1/qr-presenca`; com a prévia do usuário 2 a mesma rota retorna 200 com o token QR do usuário 2; `POST /evento/1/atividades` (avaliação) gravou em nome do usuário 2 (auditoria `participant_activities_updated_self_service`), sem tocar a conta do admin; ao voltar a `/admin/users` a identidade do admin foi restaurada (403 de novo no QR); prévia de usuário inativo retornou 400 "Conta inativa". Estado original restaurado após os testes.
-- Status: **implementado e validado**; ainda não commitado.
+- Status: **implementado, validado e commitado em `a301f8e`**.
 
 ### Participante: edição de perfis por evento no formulário de edição do participante
 
@@ -58,7 +58,7 @@ Versão atual registrada: **V0.1**.
 - `views/admin/events/activity-attendance.ejs`: seção "Avaliações dos participantes" na chamada, com lista nome + data + texto.
 - `views/admin/reports/list.ejs`: card "Participantes que avaliaram" nas estatísticas e, por atividade com avaliações, botão "Ver avaliações (n)" (toggle, oculto por padrão) com a lista.
 - Validação E2E (18/08, sandbox isolada na porta 3102 + backup do banco real): **36/36 checks** — login do participante; textareas apenas para atividades inscritas; gravação de duas avaliações no mesmo POST; `evaluation_99` (não inscrita) ignorado; texto vazio remove a avaliação; atualização sobrescreve; >2000 rejeitado com mensagem e valor anterior preservado; evento encerrado: página 200, sem checkboxes, aviso e botão presentes, inscrições preservadas e avaliação atualizável; admin: chamada exibe a seção com as avaliações e o estado vazio para atividade sem avaliações; relatório: card "Participantes que avaliaram" com DISTINCT correto (3 linhas, 2 usuários distintos), contagens por atividade corretas (2 e 1) e blocos ocultos por padrão.
-- Status: **implementado e validado** (Ciclo 3 do `plano.md` concluído); ainda não commitado.
+- Status: **implementado, validado e commitado em `700114f`** (Ciclo 3 do `plano.md` concluído).
 
 ## 2026-08-17
 
@@ -110,7 +110,7 @@ Versão atual registrada: **V0.1**.
 - Validação E2E (17/08, sandbox isolada na porta 3010): **38/38 checks passaram** — público (redirect de anônimo, página do crachá 200 com QR em PNG dataURL, token de 10 caracteres estável e distinto por evento, 403 sem inscrição/papel, 404 para evento inexistente/draft, jsQR servido localmente); admin (scan do crachá com `marked_user_id` no redirect, registro com papel/sessão corretos, auditoria `via_qr`, idempotência de rescan, presença nas 5 etapas, atividade sem etapas com sessão nula, rejeição de código malformado/inexistente/de outro evento, resolução de papel teacher/speaker/participant, bloqueio de não-admin no POST, destaque da linha `row-marked`, elegibilidade no painel de certificados); impressão (PDF do crachá 200 com QR embutido, 403 sem vínculo).
 - Correção feita durante a validação: `views/admin/events/activity-attendance.ejs` usava ternário dentro de `<%= %>`, o que escapava as aspas e renderizava `class=&#34;row-marked&#34;` — trocado por `<% if (markedUserId === p.user_id) { %> class="row-marked"<% } %>` (atributo renderizado literalmente).
 - Impressão do crachá (reportado pelo usuário em 17/08: o botão "Imprimir crachá" não fazia nada): o `onclick="window.print()"` inline era bloqueado pela CSP do helmet 8 (default `script-src-attr 'none'`). Substituído pelo padrão do sistema — link "Imprimir crachá" para a nova rota `GET /evento/:id/qr-presenca/print` (`routes/public.js`), que gera **PDF** (PDFKit) com o conteúdo do crachá (nome, instituição, papéis, QR do token, código em destaque e observações), `Content-Disposition: inline`; mesmos guards da página (404 para draft/inexistente, 403 sem inscrição/papel). Nota: `doc.text()` desta versão do pdfkit retorna o documento — o layout acompanha `doc.y` após cada chamada.
-- Status: **implementado e validado (E2E 38/38 em 17/08); fluxo do crachá commitado em `804e40c` — impressão do crachá (PDF) ainda não commitada**.
+- Status: **implementado e validado (E2E 38/38 em 17/08); fluxo do crachá commitado em `804e40c` — impressão do crachá (PDF) commitada em `61ac481`**.
 
 ### Correção: CSP `script-src-attr 'none'` bloqueando `onclick` inline em toda a app
 
@@ -170,7 +170,7 @@ Versão atual registrada: **V0.1**.
 - `views/admin/events/form.ejs`: form principal passa a ter `enctype="multipart/form-data"`; campo "Logo do Evento" (`input type="file"`, aceita PNG/JPEG) com prévia imediata do arquivo selecionado, nome do arquivo, preview do logo atual e checkbox "Remover logo atual" na edição.
 - `views/public/home.ejs` e `views/public/event.ejs`: exibem o logo no card do evento (home) e no topo da página pública do evento, quando `logo_path` existe.
 - Diagnóstico concluído: o `fileFilter` chamava `cb(null)` para MIME válido, sem o segundo argumento exigido pelo Multer; por isso o arquivo era silenciosamente ignorado, `req.file` permanecia vazio, `logo_path` ficava nulo e a pasta não recebia a imagem. Corrigido para `cb(null, true)`.
-- Status: **corrigido e validado tecnicamente; pendente de validação funcional pelo usuário após reinício do servidor; ainda não commitado**.
+- Status: **corrigido, validado (validação funcional confirmada pelo usuário em 18/08 após reinício do servidor) e commitado em `700114f`**.
 
 ### Ajuste de plano: troca da ordem de execução entre Fase 2 e Fase 3
 

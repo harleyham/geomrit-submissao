@@ -103,7 +103,7 @@ Nomenclatura: "aulas" foram implementadas como **etapas** (`activity_sessions`) 
 ---
 
 ## Ciclo 3 — Avaliação de atividades (participante)
-Status geral: **CONCLUÍDO ✔** (aprovado em 17/08; implementado e validado E2E 36/36 em 18/08; ainda não commitado).
+Status geral: **CONCLUÍDO ✔** (aprovado em 17/08; implementado e validado E2E 36/36 em 18/08; commitado em 18/08 em `700114f`).
 
 ### 3.1 Modelo de dados — avaliações — CONCLUÍDO ✔
 - Tabela `activity_evaluations` (`event_id`, `activity_id`, `user_id`, `evaluation`, `created_at`, `updated_at`; `UNIQUE(activity_id,user_id)`; FKs `ON DELETE CASCADE`) em `services/db-reset.js` + inclusão na lista `TABLES` (reset).
@@ -149,3 +149,4 @@ Status geral: **PENDENTE**.
 - Fluxo do QR do crachá (1.5b/1.6b/1.7b) implementado e validado E2E (36/36, 17/08); commitado em 18/08.
 - `parseCsvFile` em `routes/users.js` está morto (importação usa `xlsx`) — mantido, fora de escopo.
 - Logo do evento (17/08) foi implementado **fora dos ciclos**: upload no formulário do evento, prévia imediata em `new`/`edit`, exibição nas páginas públicas e nos PDFs (crachá, lista de presença, folha com QR Code). O `fileFilter` do Multer foi corrigido para aceitar explicitamente PNG/JPEG e permitir a gravação em `uploads/event-logos/`; validações técnicas de sintaxe, templates e schema concluídas, e validação funcional pelo usuário confirmada após o reinício do servidor (18/08) — ver `submissao_log.md`.
+- Correção da prévia da área do participante (18/08) foi implementada **fora dos ciclos**: impersonação por sessão — as ações na prévia (`GET /admin/users/:id/participant`) são registradas em nome do usuário visualizado, e a identidade do admin é restaurada automaticamente em qualquer request em `/admin/*`; validação E2E no servidor real concluída e commitado em `a301f8e` — ver `submissao_log.md`.
