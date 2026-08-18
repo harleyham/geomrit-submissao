@@ -116,7 +116,8 @@ No credenciamento, use **Imprimir crachá** na linha do participante. O crachá 
 2. Clique em **Nova atividade**.
 3. Informe nome, tipo, intervalo/data, carga horária e se a atividade emite certificado.
 4. Defina os papéis elegíveis.
-5. Salve.
+5. (Opcional) Informe o **link da transmissão de vídeo** (ex.: YouTube). Ele aparece ao lado do nome da atividade na página pública do evento; deixe vazio para remover.
+6. Salve.
 
 Tipos comuns: palestra, seminário, mesa-redonda, minicurso e apresentação oral ou pôster.
 

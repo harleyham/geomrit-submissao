@@ -330,7 +330,7 @@ function initializeDbSchema(db) {
       FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
-    CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,date_start DATE,date_end DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,date_start DATE,date_end DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',video_url TEXT,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,name TEXT NOT NULL,sequence_no INTEGER NOT NULL DEFAULT 1,session_date DATE,workload_hours REAL DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_evaluations (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,activity_id INTEGER NOT NULL,user_id INTEGER NOT NULL,evaluation TEXT NOT NULL,created_at DATETIME DEFAULT (datetime('now','-3 hours')),updated_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,user_id),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS participant_activity_enrollments (
@@ -456,6 +456,7 @@ function initializeDbSchema(db) {
     const activityDateColumns = db.prepare('PRAGMA table_info(event_activities)').all().map((column) => column.name);
     if (!activityDateColumns.includes('date_start')) db.exec('ALTER TABLE event_activities ADD COLUMN date_start DATE');
     if (!activityDateColumns.includes('date_end')) db.exec('ALTER TABLE event_activities ADD COLUMN date_end DATE');
+    if (!activityDateColumns.includes('video_url')) db.exec('ALTER TABLE event_activities ADD COLUMN video_url TEXT');
     db.exec('UPDATE event_activities SET date_start=activity_date WHERE date_start IS NULL AND activity_date IS NOT NULL');
   } catch (e) {}
   try {

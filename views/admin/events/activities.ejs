@@ -40,6 +40,7 @@
         <input name="date_start" type="date" title="Data de início" value="<%= activityForm.date_start || '' %>">
         <input name="date_end" type="date" title="Data de fim" value="<%= activityForm.date_end || '' %>">
         <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária (total, se sem etapas)" value="<%= activityForm.workload_hours ?? '' %>">
+        <input name="video_url" type="url" title="Link da transmissão de vídeo" placeholder="Link da transmissão de vídeo (ex.: YouTube)" value="<%= activityForm.video_url || '' %>">
         <h3>Papéis elegíveis na chamada</h3>
         <% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach((role) => { %>
           <label><input type="checkbox" name="eligible_roles" value="<%= role[0] %>" <%= selectedRoles.includes(role[0]) ? 'checked' : '' %>> <%= role[1] %></label>
@@ -78,6 +79,7 @@
             <a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>">Editar</a>
             <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions">Etapas<% if (hasSessions) { %> (<%= activity.session_count %>)<% } %></a>
             <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Marcar Presença</a>
+            <% if (activity.video_url) { %><a href="<%= activity.video_url %>" target="_blank" rel="noopener noreferrer">Vídeo</a><% } %>
             <% if (hasSessions) { %>
               <% (activity.sessions || []).forEach((session) => { %>
                 <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance-print?session_id=<%= session.id %>" class="btn-secondary" style="margin-left:4px;font-size:11px;padding:2px 8px;text-decoration:none;border:1px solid #334155;border-radius:4px">Imp. Lista · <%= session.name %></a>

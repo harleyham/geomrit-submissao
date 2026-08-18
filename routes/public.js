@@ -929,6 +929,12 @@ router.get('/evento/:id', (req, res) => {
 
   const eventWithMeta = withSubmissionMeta(event);
   const isClosed = event.status === 'encerrado';
+  const activities = db.prepare(`
+    SELECT id,name,activity_type,date_start,date_end,video_url
+    FROM event_activities
+    WHERE event_id=?
+    ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE
+  `).all(req.params.id);
   let timeline = buildEventTimeline(eventWithMeta, {
     registration,
     session: req.session
@@ -950,7 +956,8 @@ router.get('/evento/:id', (req, res) => {
     event: eventWithMeta,
     title: event.name,
     registration,
-    timeline
+    timeline,
+    activities
   });
 });
 

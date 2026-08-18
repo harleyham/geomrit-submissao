@@ -6,6 +6,18 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-18
 
+### Card de atividades com link de transmissão no evento público
+
+- Requisito do usuário: na página pública do evento (`/evento/:id`), um novo card deve exibir as atividades do evento ordenadas por data e hora, com um espaço ao lado do nome de cada atividade para o link da transmissão de vídeo (backlog "Link para a palestra/aula").
+- `services/db-reset.js`: coluna `video_url TEXT` em `event_activities` (schema + migração idempotente `ALTER TABLE ... ADD COLUMN` para bases existentes).
+- `routes/events.js`: criação e edição de atividade passam a gravar `video_url` (trim; vazio → `NULL`; acima de 500 caracteres é rejeitado com mensagem de erro — o handler revalida porque o `validateAndHandle` segue com `next()` em falhas de formulários não-XHR); a listagem administrativa exibe ação "Vídeo" para atividades com link.
+- `security/validation.js`: `activityForm` valida `video_url` opcional (máximo 500 caracteres).
+- `routes/public.js`: `GET /evento/:id` passa a consultar as atividades do evento ordenadas por data (sem data por último) e nome, incluindo `video_url`, e as envia ao template.
+- `views/public/event.ejs`: novo card "Atividades do Evento" após o cronograma — colunas Data | Atividade | Transmissão; o botão "Assistir transmissão" abre o link em nova aba (`rel="noopener noreferrer"`); atividade sem link exibe o espaço vazio (—).
+- `views/admin/events/activities.ejs`: campo "Link da transmissão de vídeo" no formulário de cadastro/edição (pré-preenchido na edição) e ação "Vídeo" na listagem.
+- Validação E2E (18/08, sandbox isolado na porta 3104 + backup do banco real): **20/20 checks** — migração da coluna no boot; card público com atividades ordenadas por data; link existente exibe o botão com a URL correta em nova aba; espaço vazio sem link; data em formato BR; form admin com valor pré-preenchido; "Vídeo" na listagem; criação, edição e limpeza do link (vazio → `NULL`); link >500 caracteres rejeitado com erro e nada gravado.
+- Status: **implementado e validado**; servidor reiniciado e a página `http://127.0.0.1:3000/evento/1` exibe o card (atividade sem link exibe o espaço vazio até o admin configurar).
+
 ### Bug: prévia da Área do Participante interpretava os comandos como a conta do admin
 
 - Bug reportado: ao acessar a página de um usuário ("Área do Participante", `GET /admin/users/:id/participant`), os comandos que o admin dava eram interpretados como a conta do admin, e não como o usuário sendo visualizado.
@@ -1283,5 +1295,5 @@ Versão atual registrada: **V0.1**.
 - http://127.0.0.1:3000/admin/dashboard -> Não tem um contador do número total de usuários do sistema
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
-- Link para a palestra/aula
+- Link para a palestra/aula — **aplicado em 18/08** (ver seção "Card de atividades com link de transmissão no evento público" acima)
 - Na página de relatório de Evento, deve haver a opção de exportação de arquivo .md, a fim de ser avaliado por uma IA

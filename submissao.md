@@ -67,6 +67,7 @@ O sistema deve permitir:
 - Relatório detalhado pessoa por pessoa na importação, com status individual (Sucesso, Falha, Ignorado), descrição detalhada e download em CSV.
 - Modelo CSV vazio com cabeçalho pré-preenchido disponível para download nas páginas de importação.
 - Seleção explícita das atividades na inscrição pública ou administrativa, com edição posterior pelo participante em `/evento/:id/atividades` ou pelo administrador no cadastro da participação.
+- Cadastro e edição de atividades com campo opcional de link da transmissão de vídeo (máximo de 500 caracteres; vazio remove o link), exibido na listagem administrativa (ação "Vídeo") e no card público "Atividades do Evento".
 - Controle de presença simples por evento e chamada por atividade, com ações explícitas para marcar, atualizar ou remover presença.
 - Chamada da atividade com seção "Avaliações dos participantes" (nome, data e texto de cada avaliação registrada na atividade, com estado vazio quando não há avaliações).
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
@@ -97,6 +98,7 @@ O sistema deve permitir:
 - Listagem de eventos publicados.
 - Logo do evento exibida no card do evento na página inicial e no topo da página pública do evento (quando configurada).
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
+- Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; espaço vazio quando não há link).
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
 - Avaliação de atividades: em `/evento/:id/atividades`, o participante inscrito registra uma avaliação por atividade (texto livre de até 2000 caracteres); com o evento encerrado, as inscrições ficam travadas, mas as avaliações das atividades já inscritas continuam editáveis.
@@ -294,6 +296,7 @@ Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "�
 - `date_start` / `date_end` — intervalo da atividade (a coluna `activity_date` é legada, mantida apenas por compatibilidade; os dados foram migrados para `date_start`)
 - `workload_hours` — carga horária total (usada quando a atividade não tem etapas)
 - `certificate_enabled`
+- `video_url` — link da transmissão de vídeo (opcional, máximo 500 caracteres; exibido ao lado do nome da atividade na página pública do evento)
 
 ### `activity_sessions`
 

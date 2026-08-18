@@ -1557,15 +1557,20 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
   const dateStart = req.body.date_start || null;
   const dateEnd = req.body.date_end || null;
+  const videoUrlRaw = String(req.body.video_url || '').trim();
+  if (videoUrlRaw.length > 500) {
+    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
+  }
+  const videoUrl = videoUrlRaw || null;
   const rangeError = activityDateRangeError(dateStart, dateEnd);
   if (rangeError) {
     return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(rangeError)}`);
   }
   db.prepare(`INSERT INTO event_activities
-    (event_id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,eligible_roles,certificate_role)
-    VALUES(?,?,?,?,?,?,?,?,?)`).run(
+    (event_id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url)
+    VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
     event.id, name, activityType, dateStart, dateEnd, workloadHours,
-    certificateEnabled, eligibleRoles.join(','), eligibleRoles[0]
+    certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl
   );
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
 });
@@ -1591,14 +1596,19 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
   const dateStart = req.body.date_start || null;
   const dateEnd = req.body.date_end || null;
+  const videoUrlRaw = String(req.body.video_url || '').trim();
+  if (videoUrlRaw.length > 500) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
+  }
+  const videoUrl = videoUrlRaw || null;
   const rangeError = activityDateRangeError(dateStart, dateEnd);
   if (rangeError) {
     return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(rangeError)}`);
   }
   db.prepare(`UPDATE event_activities SET name=?,activity_type=?,date_start=?,date_end=?,workload_hours=?,
-    certificate_enabled=?,eligible_roles=?,certificate_role=? WHERE id=?`).run(
+    certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=? WHERE id=?`).run(
     name, activityType, dateStart, dateEnd, workloadHours, certificateEnabled,
-    eligibleRoles.join(','), eligibleRoles[0], activity.id
+    eligibleRoles.join(','), eligibleRoles[0], videoUrl, activity.id
   );
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade atualizada.')}`);
 });
