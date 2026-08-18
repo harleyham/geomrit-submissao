@@ -62,7 +62,7 @@ Status geral: **CONCLUÍDO (código + verificação)**; documentação e verific
 ---
 
 ## Ciclo 2 — Fase 1: Aulas + QR Code
-Status geral: **CONCLUÍDO (código)**. A maior parte foi entregue e validada em 16–17/08 (ver `submissao_log.md`); o fluxo do QR do crachá (1.5b/1.6b/1.7b) está implementado e validado E2E (36/36, 17/08); ainda não commitado.
+Status geral: **CONCLUÍDO (código)**. A maior parte foi entregue e validada em 16–17/08 (ver `submissao_log.md`); o fluxo do QR do crachá (1.5b/1.6b/1.7b) está implementado e validado E2E (36/36, 17/08); commitado em 18/08.
 Nomenclatura: "aulas" foram implementadas como **etapas** (`activity_sessions`) de uma atividade, conforme alinhado em 16/08.
 
 ### 1.1 Modelo de dados — etapas — CONCLUÍDO ✔
@@ -84,16 +84,16 @@ Nomenclatura: "aulas" foram implementadas como **etapas** (`activity_sessions`) 
 ### 1.5 QR Code — impressão — CONCLUÍDO ✔
 - (a) Folha letter por etapa com QR do link de presença (`GET .../checkin-print`) — 16/08; dependência `qrcode` instalada.
 - (b) Crachá com QR **pessoal** do participante: token por usuário/evento em `event_qr_codes`, exibido em `/evento/:id/qr-presenca` e imprimível em PDF via `/evento/:id/qr-presenca/print` (padrão das rotas de impressão; o `onclick` de `window.print()` era bloqueado pela CSP `script-src-attr 'none'` do helmet 8) — implementado e validado E2E (17/08), commitado em `61ac481`.
-- (c) Credenciamento: botão "Imprimir crachá" por participante na coluna "Conta" de `/admin/events/:id/participants` (`GET .../participants/:registrationId/qr-presenca/print`), PDF direto sem passar pela área do participante (bug de conta admin); layout extraído para `services/cracha.js` — implementado e validado (17/08), não commitado.
+- (c) Credenciamento: botão "Imprimir crachá" por participante na coluna "Conta" de `/admin/events/:id/participants` (`GET .../participants/:registrationId/qr-presenca/print`), PDF direto sem passar pela área do participante (bug de conta admin); layout extraído para `services/cracha.js` — implementado e validado (17/08), commitado em 18/08.
 
 ### 1.6 Leitura do QR — CONCLUÍDO ✔
 - (a) Participante: câmera própria abre o link da folha → auto-check-in em `/presenca/...` — 16/08.
-- (b) Operador: câmera + **jsQR servido localmente** (`public/lib/jsQR.min.js`, sem CDN por causa da CSP) + fallback de digitação manual, na própria página de chamada — implementado e validado E2E (17/08), **ainda não commitado**.
+- (b) Operador: câmera + **jsQR servido localmente** (`public/lib/jsQR.min.js`, sem CDN por causa da CSP) + fallback de digitação manual, na própria página de chamada — implementado e validado E2E (17/08), commitado em 18/08.
 - Não há rota `/presenca-qr` separada: a leitura do operador está embutida em `.../attendance` (mesma etapa selecionada).
 
 ### 1.7 Fluxo de check-in — CONCLUÍDO ✔
 - **Auto-check-in:** `/presenca/:eventId/:activityId(/:sessionId)` — login com retorno via `?next=`, papel exercido, janela de data (dia da etapa / período da atividade, UTC-3) — 16/08.
-- **Proxy por admin:** `POST .../attendance/qr` marca a presença da pessoa do crachá, com papel resolvido automaticamente e auditoria `via_qr` — implementado e validado E2E (17/08), **ainda não commitado**.
+- **Proxy por admin:** `POST .../attendance/qr` marca a presença da pessoa do crachá, com papel resolvido automaticamente e auditoria `via_qr` — implementado e validado E2E (17/08), commitado em 18/08.
 - HTTPS: a câmera exige HTTPS (ou localhost); fallback de digitação manual coberto. A origem do link da folha vem do campo "URL do Evento" (decisão que substituiu o `BASE_URL` do plano).
 
 ### 1.8 Integração — CONCLUÍDO ✔
@@ -146,6 +146,6 @@ Status geral: **PENDENTE**.
 - `qrcode` já está em `package.json` (instalada na Fase 1, 16/08); `nodemailer` ainda não (instalar na Fase 3).
 - `jsQR` é servido localmente em `public/lib/jsQR.min.js` (sem CDN, por causa da CSP).
 - QR/câmera depende de HTTPS em produção; o fallback de digitação manual do código do crachá cobre contextos sem câmera.
-- Fluxo do QR do crachá (1.5b/1.6b/1.7b) implementado e validado E2E (36/36, 17/08); ainda não commitado.
+- Fluxo do QR do crachá (1.5b/1.6b/1.7b) implementado e validado E2E (36/36, 17/08); commitado em 18/08.
 - `parseCsvFile` em `routes/users.js` está morto (importação usa `xlsx`) — mantido, fora de escopo.
-- Logo do evento (17/08) foi implementado **fora dos ciclos**: upload no formulário do evento, prévia imediata em `new`/`edit`, exibição nas páginas públicas e nos PDFs (crachá, lista de presença, folha com QR Code). O `fileFilter` do Multer foi corrigido para aceitar explicitamente PNG/JPEG e permitir a gravação em `uploads/event-logos/`; validações técnicas de sintaxe, templates e schema concluídas, restando validação funcional pelo usuário após reiniciar o servidor — ver `submissao_log.md`.
+- Logo do evento (17/08) foi implementado **fora dos ciclos**: upload no formulário do evento, prévia imediata em `new`/`edit`, exibição nas páginas públicas e nos PDFs (crachá, lista de presença, folha com QR Code). O `fileFilter` do Multer foi corrigido para aceitar explicitamente PNG/JPEG e permitir a gravação em `uploads/event-logos/`; validações técnicas de sintaxe, templates e schema concluídas, e validação funcional pelo usuário confirmada após o reinício do servidor (18/08) — ver `submissao_log.md`.

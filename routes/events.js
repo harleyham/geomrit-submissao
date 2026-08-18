@@ -2446,9 +2446,10 @@ function getApprovedEventArticles(eventId) {
 function requestedEventRoles(body = {}) {
   const allowed = ['speaker', 'teacher', 'oral_presenter', 'poster_presenter'];
   const selected = Array.isArray(body.event_roles) ? body.event_roles : [body.event_roles];
+  const parseArticleId = (value) => { const parsed = parseInt(value, 10); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; };
   return allowed.filter((role) => selected.includes(role)).map((role) => ({
     role,
-    articleId: role === 'oral_presenter' ? parseInt(body.oral_article_id, 10) : role === 'poster_presenter' ? parseInt(body.poster_article_id, 10) : null
+    articleId: role === 'oral_presenter' ? parseArticleId(body.oral_article_id) : role === 'poster_presenter' ? parseArticleId(body.poster_article_id) : null
   }));
 }
 
@@ -2458,7 +2459,7 @@ function validateAndSaveParticipantEventRoles(eventId, userId, body, actorUserId
   for (const item of roles) {
     if (item.role === 'oral_presenter' || item.role === 'poster_presenter') {
       const type = item.role === 'oral_presenter' ? 'oral' : 'poster';
-      const article = db.prepare("SELECT id FROM articles WHERE id=? AND event_id=? AND status='approved' AND type=?").get(item.articleId, eventId, type);
+      const article = item.articleId ? db.prepare("SELECT id FROM articles WHERE id=? AND event_id=? AND status='approved' AND type=?").get(item.articleId, eventId, type) : null;
       if (!article) return `Selecione um artigo aprovado na modalidade ${type === 'oral' ? 'oral' : 'pôster'} para o papel de apresentador.`;
     }
   }
@@ -2664,6 +2665,12 @@ function updateParticipant(req, res) {
     return renderParticipantFormError(res, event, registration, formData, 'Participantes com artigo submetido não podem ser rebaixados para participante sem artigo.');
   }
 
+  const previousEventRoles = registration.user_id ? getParticipantEventRoles(event.id, registration.user_id) : [];
+  if (registration.user_id) {
+    const rolesError = validateAndSaveParticipantEventRoles(event.id, registration.user_id, req.body, req.session.userId);
+    if (rolesError) return renderParticipantFormError(res, event, registration, formData, rolesError);
+  }
+
   try {
     const previousActivityIds = getParticipantActivityIds(registration.id);
     db.transaction(() => {
@@ -2686,8 +2693,8 @@ function updateParticipant(req, res) {
         action: 'participant_updated_manually',
         details: {
           previous: { name: registration.name, email: registration.email, institution: registration.institution,
-            registration_type: registration.registration_type, activity_ids: previousActivityIds },
-          current: formData
+            registration_type: registration.registration_type, activity_ids: previousActivityIds, event_roles: previousEventRoles },
+          current: { ...formData, event_roles: registration.user_id ? requestedEventRoles(req.body) : [] }
         }
       });
     })();

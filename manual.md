@@ -102,11 +102,11 @@ Durante a inclusão ou edição:
 
 1. selecione uma conta existente ou crie uma nova;
 2. confirme a inscrição no evento;
-3. atribua os papéis efetivamente exercidos no evento;
+3. na edição de um participante com conta vinculada, marque os papéis operacionais que a pessoa exerce no evento (palestrante, professor, apresentador oral ou pôster, com o artigo aprovado correspondente);
 4. informe as atividades nas quais a pessoa participará, quando aplicável;
 5. salve.
 
-Os papéis disponíveis incluem participante, administrador, revisor, palestrante, professor, apresentador oral e apresentador pôster. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento.
+Os papéis disponíveis no evento incluem participante, administrador, revisor, palestrante, professor, apresentador oral e apresentador pôster. O formulário de edição do participante edita os papéis operacionais; administrador, revisor e participante são atribuídos na edição do usuário (`/admin/users/:id/edit`), na seção **Perfis por evento**, escolhendo o evento. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento.
 
 No credenciamento, use **Imprimir crachá** na linha do participante. O crachá contém o QR pessoal usado pelo operador para localizar a pessoa na chamada.
 

@@ -6,6 +6,26 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-18
 
+### Participante: edição de perfis por evento no formulário de edição do participante
+
+- Requisito do usuário: na edição do participante (`/admin/events/:id/participants/:registrationId/edit`), além dos dados e das atividades da inscrição, permitir editar também os perfis do usuário para aquele evento (como a seção "Perfis por evento" de `/admin/users/:id/edit`).
+- `routes/events.js`:
+  - `updateParticipant`: quando a inscrição possui conta vinculada, passa a chamar `validateAndSaveParticipantEventRoles` (função existente, até então nunca utilizada) antes da transação principal; erro de validação (ex.: apresentador sem artigo aprovado) bloqueia o salvamento inteiro com a mensagem exibida no formulário.
+  - `requestedEventRoles`: o ID do artigo é normalizado (inteiro positivo ou `null`), evitando bind de `NaN` no SQLite.
+  - `validateAndSaveParticipantEventRoles`: papel de apresentador (oral/pôster) sem artigo selecionado agora retorna erro de validação em vez de consultar o banco com `NaN`.
+  - Auditoria `participant_updated_manually` passa a registrar `event_roles` anterior e atual nos detalhes.
+- `views/admin/events/participant-form.ejs`: nova seção "Perfis no evento (da conta vinculada)" (apenas na edição com conta vinculada): checkboxes Palestrante, Professor, Apresentador Oral e Apresentador Pôster (pré-marcados com os perfis atuais, usando a classe CSS `event-role-option` já existente) + seletores de artigo aprovado oral/pôster (pré-selecionados); o link para "Perfis por evento" do usuário permanece (papéis de administrador, revisor e participante continuam sendo administrados lá).
+- Escopo (decisão confirmada com o usuário): o formulário de participante gerencia apenas os papéis operacionais (speaker, teacher, oral_presenter, poster_presenter), conforme o design já documentado em `validateAndSaveParticipantEventRoles`; os demais papéis são preservados intactos.
+- Validação E2E (18/08, servidor real): a seção renderiza com o perfil atual pré-marcado (Professor para o usuário 2); POST marcando "Palestrante" salvou o papel preservando Professor/Participante; Apresentador Oral sem artigo retornou 400 com a mensagem e nada foi gravado; auditoria registrou anterior/atual; estado original restaurado após os testes.
+- Status: **implementado e validado**.
+
+### Crachá em PDF: remoção dos rótulos "QR DE PRESENÇA" e "CÓDIGO DO CRACHÁ"
+
+- Requisito do usuário: no PDF do crachá (rotas pública e admin), retirar o texto "QR DE PRESENÇA" e o texto "CÓDIGO DO CRACHÁ".
+- `services/cracha.js` (`renderCrachaPdf`): removidas as duas chamadas de `doc.text(...)` e os ajustes de `y` subsequentes; o layout ficou logo → nome do evento → linha → nome → instituição → papéis → QR → código em destaque → rodapé.
+- Validação: PDF gerado diretamente via serviço e texto extraído (`pdftotext`) — os dois rótulos não aparecem mais; o código segue logo abaixo do QR.
+- Status: **implementado e validado**.
+
 ### Relatório: status "Conta inativa" na coluna Participação
 
 - Requisito do usuário: no relatório do evento (`/admin/reports?eventId=`), os inscritos com conta inativa (`is_public = 0`) devem ter esse status exibido na coluna "Participação".
@@ -1251,12 +1271,9 @@ Versão atual registrada: **V0.1**.
 - Quando implementar envio de email, colocar "Master switch" para ligar/desligar envio de email na fase de desenvolvimento
 - http://127.0.0.1:3000/admin/dashboard -> Não tem um contador do número total de usuários do sistema
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
-- Vindo da Área do participante, clicando em "Alterar Meus Dados" vai para http://127.0.0.1:3000/author/profile. O formulário não é completo para alterar todas as informações do usuário.
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
 - Link para a palestra/aula
 - Implementar Campo para os participantes avaliarem as Etapas, Tarefas e Eventos — **aplicado em 18/08** (ver seção "Avaliação de atividades pelo participante (Ciclo 3)" acima)
 - Existe um bug que é quando um adm acessa a página de usuário, os comandos que ele (admin) dá são interpretados como a conta do admin. No caso é paa interpretar como se o prórpio usuário estivesse acessando sua área.
 - Em um caso em que há um credenciamento e impressão dos crachas dos participantes, é necessário ter na tela http://127.0.0.1:3000/admin/events/1/participants um botao para cada participante para impressão do crachá — **aplicado em 17/08** (ver seção "Credenciamento: botão 'Imprimir crachá' por participante na listagem admin" acima)
-- Alerta de segurança: o mesmo script-src-attr 'none' está bloqueando todos os onclick inline da app (13 views). Nos <a onclick="return confirm()"> do admin (backup/restore/reset), o clique navega sem o confirm — as ações perigosas perdem a confirmação. A correção global é adicionar scriptSrcAttr: ["'unsafe-inline'"] na config do helmet em server.js (1 linha) — **aplicado e validado em 17/08** (ver seção "Correção: CSP `script-src-attr 'none'`" acima)
-- Upload e prévia de logo em `/admin/events/new` e `/admin/events/:id/edit`, com uso nos crachás, listas de presença e folhas com QR Code — **implementado; falha do filtro de upload corrigida em 17/08; pendente de validação funcional após reinício**.
-- Na página de re;latório de Evento, deve haver a opção de exportação de arquivo .md com tuso do evento, a fim de ser avaliado por uma IA
+- Na página de relatório de Evento, deve haver a opção de exportação de arquivo .md, a fim de ser avaliado por uma IA

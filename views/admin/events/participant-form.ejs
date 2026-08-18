@@ -243,7 +243,34 @@
           <% } %>
         </div>
 
-        <% if (registration && registration.user_id) { %><p class="help-text">Os papéis da pessoa neste evento são administrados em <a href="/admin/users/<%= registration.user_id %>/edit?event_id=<%= event.id %>">Perfis por evento</a>.</p><% } %>
+        <% if (registration && registration.user_id) { %>
+        <div style="border-top:1px solid rgba(148,163,184,0.1);padding-top:1rem;margin-top:1rem;">
+          <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Perfis no evento (da conta vinculada)</p>
+          <p class="help-text" style="margin-bottom:0.5rem;">Selecione os papéis desta pessoa exclusivamente neste evento. Papéis de administrador, revisor e participante continuam em <a href="/admin/users/<%= registration.user_id %>/edit?event_id=<%= event.id %>" style="color:#93c5fd;">Perfis por evento</a>.</p>
+          <label class="event-role-option"><input type="checkbox" name="event_roles" value="speaker" <%= (eventRoles || []).some((item) => item.role === 'speaker') ? 'checked' : '' %>><span>Palestrante</span></label>
+          <label class="event-role-option"><input type="checkbox" name="event_roles" value="teacher" <%= (eventRoles || []).some((item) => item.role === 'teacher') ? 'checked' : '' %>><span>Professor</span></label>
+          <label class="event-role-option"><input type="checkbox" name="event_roles" value="oral_presenter" <%= (eventRoles || []).some((item) => item.role === 'oral_presenter') ? 'checked' : '' %>><span>Apresentador Oral</span></label>
+          <div class="form-group">
+            <label for="oral_article_id">Artigo oral aprovado</label>
+            <select id="oral_article_id" name="oral_article_id">
+              <option value="">Selecione</option>
+              <% (approvedArticles || []).filter((a) => a.type === 'oral').forEach((a) => { %>
+                <option value="<%= a.id %>" <%= (eventRoles || []).some((r) => r.role === 'oral_presenter' && Number(r.article_id) === Number(a.id)) ? 'selected' : '' %>><%= a.title %></option>
+              <% }) %>
+            </select>
+          </div>
+          <label class="event-role-option"><input type="checkbox" name="event_roles" value="poster_presenter" <%= (eventRoles || []).some((item) => item.role === 'poster_presenter') ? 'checked' : '' %>><span>Apresentador Pôster</span></label>
+          <div class="form-group">
+            <label for="poster_article_id">Artigo pôster aprovado</label>
+            <select id="poster_article_id" name="poster_article_id">
+              <option value="">Selecionar</option>
+              <% (approvedArticles || []).filter((a) => a.type === 'poster').forEach((a) => { %>
+                <option value="<%= a.id %>" <%= (eventRoles || []).some((r) => r.role === 'poster_presenter' && Number(r.article_id) === Number(a.id)) ? 'selected' : '' %>><%= a.title %></option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+        <% } %>
 
         <div class="actions">
           <a href="/admin/events/<%= event.id %>/participants" class="btn btn-secondary">Cancelar</a>

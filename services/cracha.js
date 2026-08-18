@@ -64,8 +64,6 @@ async function renderCrachaPdf(res, { event, registration, roles, token, nameFal
   } else {
     y = cardY + 36;
   }
-  doc.fontSize(10).font('Helvetica').fillColor('#475569').text('QR DE PRESENÇA', cardX, y, { width: cardW, align: 'center', characterSpacing: 3 });
-  y = doc.y + 14;
   doc.fontSize(17).font('Helvetica-Bold').fillColor('#0f172a').text(event.name, cardX + 30, y, { width: cardW - 60, align: 'center' });
   y = doc.y + 10;
   doc.moveTo(cardX + 30, y).lineTo(cardX + cardW - 30, y).lineWidth(1).strokeColor('#cbd5e1').stroke();
@@ -84,8 +82,6 @@ async function renderCrachaPdf(res, { event, registration, roles, token, nameFal
   const qrX = cardX + (cardW - qrSize) / 2;
   doc.image(qrBuffer, qrX, y, { width: qrSize, height: qrSize });
   y += qrSize + 22;
-  doc.fontSize(9).font('Helvetica').fillColor('#475569').text('CÓDIGO DO CRACHÁ', cardX, y, { width: cardW, align: 'center', characterSpacing: 2 });
-  y = doc.y + 14;
   doc.font('Courier-Bold').fontSize(18).fillColor('#0f172a').text(token, cardX, y, { width: cardW, align: 'center', characterSpacing: 5 });
   y = doc.y + 12;
   doc.fontSize(8.5).font('Helvetica').fillColor('#64748b').text('Apresente este código na chamada das atividades. Válido apenas para este evento e sem acesso à sua conta.', cardX + 40, y, { width: cardW - 80, align: 'center' });
