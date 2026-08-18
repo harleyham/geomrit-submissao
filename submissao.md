@@ -43,6 +43,7 @@ O sistema deve permitir:
 - Dashboard com cards e listas de pendências para artigos sem revisor, em análise, prontos para deliberação final, pedidos de subsídio e solicitações de cadastro.
 - Dashboard com contadores `Total de Usuários`, `Eventos Realizados` e `Inscritos em Eventos Futuros`.
 - CRUD de eventos.
+- Logo do evento: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição, com prévia imediata e nome do arquivo selecionado, preview do logo persistido e checkbox "Remover logo atual"; arquivo em `uploads/event-logos/` e exibido nas páginas públicas, no relatório do evento (`/admin/reports?eventId=`, no cabeçalho da tela e no cabeçalho de impressão/PDF) e nos materiais impressos do evento (crachá, lista de presença e folha com QR Code).
 - Encerramento de evento publicado por ação explícita (status `encerrado`), com badge âmbar e botão "Encerrar" na listagem administrativa.
 - Configuração de múltiplas áreas/trilhas por evento.
 - Configuração explícita de evento com ou sem submissão de artigos.
@@ -59,6 +60,7 @@ O sistema deve permitir:
 - Página administrativa por evento para analisar pedidos de subsídio, ler documentos anexados e registrar aprovação ou reprovação.
 - Impressão do relatório do evento em PDF pelo navegador.
 - Seleção de seções do relatório antes da impressão em PDF.
+- Relatório do evento com card "Participantes que avaliaram" (participantes distintos) e, por atividade, contagem de avaliações com botão "Ver avaliações (n)" que expande a lista (nome, data e texto).
 - Gestão administrativa de participantes por evento, com criação de conta, inscrição, edição e remoção condicionada.
 - Importação de participantes via CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas (nome, e-mail, instituição, telefone, CPF, passaporte), criação ou atualização de contas, senha temporária e resumo do processamento.
 - Duas rotas de importação distintas: por evento (`/admin/events/:id/import-users`) cria usuários e inscreve no evento; por usuários (`/admin/users/import`) cria apenas usuários sem inscrição.
@@ -66,6 +68,7 @@ O sistema deve permitir:
 - Modelo CSV vazio com cabeçalho pré-preenchido disponível para download nas páginas de importação.
 - Seleção explícita das atividades na inscrição pública ou administrativa, com edição posterior pelo participante em `/evento/:id/atividades` ou pelo administrador no cadastro da participação.
 - Controle de presença simples por evento e chamada por atividade, com ações explícitas para marcar, atualizar ou remover presença.
+- Chamada da atividade com seção "Avaliações dos participantes" (nome, data e texto de cada avaliação registrada na atividade, com estado vazio quando não há avaliações).
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
 - Configuração de certificados por evento e por papel, com elegibilidade por presença no papel correspondente ou, para revisores, por parecer enviado; emissão, reemissão versionada e download autenticado em PDF.
 - Biblioteca administrativa de fundos PNG/JPEG para certificados, com seleção de fundo existente ou upload de novo arquivo.
@@ -92,9 +95,11 @@ O sistema deve permitir:
 ### Público
 
 - Listagem de eventos publicados.
+- Logo do evento exibida no card do evento na página inicial e no topo da página pública do evento (quando configurada).
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
+- Avaliação de atividades: em `/evento/:id/atividades`, o participante inscrito registra uma avaliação por atividade (texto livre de até 2000 caracteres); com o evento encerrado, as inscrições ficam travadas, mas as avaliações das atividades já inscritas continuam editáveis.
 - Submissão de artigo com geração de código de acesso.
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive em contas com perfil de revisor.
 - Perfil do participante em `/author/profile` com atualização de dados cadastrais (nome, e-mail, instituição, CPF, passaporte, país, telefone), formação acadêmica e troca opcional de senha.
@@ -191,6 +196,8 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 - `review_end`
 - `certificates_start`
 - `certificates_end`
+- `logo_path`
+- `logo_original_name`
 - `created_at`
 - `updated_at`
 
@@ -320,6 +327,20 @@ Registra em quais atividades cada participante está inscrito. Este vínculo é 
 - `enrolled_by`
 - `created_at`
 - `updated_at`
+
+### `activity_evaluations`
+
+Avaliações de atividades registradas pelos participantes (texto livre opcional, uma por atividade inscrita).
+
+- `id`
+- `event_id`
+- `activity_id`
+- `user_id`
+- `evaluation`
+- `created_at`
+- `updated_at`
+
+Única por `(activity_id, user_id)`; FKs para `events`, `event_activities` e `users` com `ON DELETE CASCADE`. Texto vazio remove a avaliação; o limite de 2000 caracteres é validado no backend.
 
 ### `activity_certificate_rules`
 
@@ -464,6 +485,12 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 - Na criação e edição do evento, `review_start` só pode ocorrer após o fim de `submission_end`.
 - Na criação e edição do evento, `review_end` não pode ser anterior a `review_start`.
 - Na criação e edição do evento, `certificates_end` não pode ser anterior a `certificates_start`.
+- O logo do evento é uma imagem PNG ou JPEG com até 5 MB, armazenada em `uploads/event-logos/` com nome `<timestamp>-<hex>.<ext>`; persistem em `events` apenas o caminho relativo (`logo_path`) e o nome original (`logo_original_name`).
+- O filtro de upload deve aceitar explicitamente os arquivos válidos com o contrato `fileFilter(req, file, cb)` do Multer (`cb(null, true)`); tipos diferentes de `image/png` e `image/jpeg` são rejeitados com mensagem amigável.
+- Ao selecionar um arquivo em `new` ou `edit`, a interface cria uma prévia local imediata com `URL.createObjectURL`, exibe o nome do arquivo e, na edição, desmarca automaticamente a remoção do logo atual.
+- O envio de novo logo na edição substitui o atual e remove o arquivo anterior do disco; o checkbox "Remover logo atual" remove o arquivo e zera as colunas.
+- A exclusão do evento remove o arquivo do logo, se existir.
+- Nos PDFs (crachá, lista de presença e folha com QR Code), o logo só é renderizado quando existe; sem ele, o layout original é preservado (no crachá, o QR é reduzido de 240 para 216pt quando o logo está presente).
 
 ### Usuários
 
@@ -503,6 +530,9 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 - O relatório lista participantes com nome, e-mail, órgão/instituição e situação de participação.
 - O relatório pode ser impresso/exportado para PDF por meio da impressão do navegador.
 - Antes da impressão, a administração pode marcar quais seções do relatório serão incluídas no PDF.
+- O relatório exibe o card "Participantes que avaliaram" com a contagem de participantes distintos (`COUNT(DISTINCT user_id)`), e não o total de avaliações.
+- Por atividade, o relatório exibe a contagem de avaliações e o botão "Ver avaliações (n)", que expande a lista (nome, data e texto) oculta por padrão; atividades sem avaliações não exibem o botão.
+- Na coluna "Participação" da listagem de participantes do relatório, inscrições com conta inativa (`is_public = 0`) exibem o badge "Conta inativa", mantendo os badges de papéis/situação existentes; inscrições sem conta vinculada não são afetadas.
 - A listagem administrativa de artigos permite baixar, em um único arquivo ZIP, os PDFs submetidos de um evento.
 
 ### Revisão
@@ -536,6 +566,9 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 - A administração pode criar, editar e remover inscrições manualmente. Toda inscrição manual possui conta vinculada: o admin seleciona uma conta ativa existente ou cria uma conta com senha temporária, obrigando a troca no primeiro acesso; uma inscrição com artigo submetido não pode ser removida diretamente.
 - Na inclusão administrativa, quando o evento possui atividades, deve ser selecionada ao menos uma atividade. Os vínculos ficam em `participant_activity_enrollments` e podem ser alterados posteriormente no formulário de edição do participante.
 - Na inscrição pública, o próprio participante seleciona as atividades e pode alterá-las depois em `/evento/:id/atividades`; uma atividade com presença já registrada não pode ser removida. O administrador mantém a mesma possibilidade de edição no cadastro do participante.
+- Em `/evento/:id/atividades`, cada atividade inscrita exibe um campo de avaliação (máximo 2000 caracteres); texto vazio (apenas espaços) remove a avaliação existente, e o envio acima do limite é rejeitado sem gravar nada.
+- Campos de avaliação de atividades não inscritas pelo participante são ignorados no backend (anti-tampering), tanto em evento publicado quanto encerrado.
+- Com o evento encerrado, a página de atividades permanece acessível com inscrições travadas (sem checkboxes de envio) e apenas as avaliações das atividades já inscritas podem ser salvas; as inscrições existentes são preservadas.
 - Há unicidade por evento para e-mail normalizado e, quando informado, para a conta de usuário vinculada.
 - Ao excluir administrativamente o último artigo submetido de uma pessoa no evento, a inscrição é preservada e reclassificada de `author` para `listener`; se ainda houver outro artigo submetido, ela permanece como `author`.
 - Criações, edições, remoções manuais e a reconciliação decorrente da exclusão de artigo são gravadas em `participant_audit_logs`.
@@ -568,7 +601,7 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 
 ### Autenticação e senha
 
-- Usuários inativos (`is_public = 0`) não conseguem autenticar, e a inativação tem efeito prático imediato: qualquer sessão ativa é derrubada no próximo request (middleware `requireActiveAccount` global, redireciona ao login com aviso), a chamada da atividade exibe o badge "Conta inativa" sem botão de marcar presença, e a marcação de presença (manual, QR do crachá ou em lote "Marcar todos") é bloqueada no backend para a conta inativa — o histórico existente (inscrições, presenças já registradas, elegibilidade) é preservado, e a desmarcação/correção continua permitida. A listagem de participantes do evento também exibe o badge "Conta inativa".
+- Usuários inativos (`is_public = 0`) não conseguem autenticar, e a inativação tem efeito prático imediato: qualquer sessão ativa é derrubada no próximo request (middleware `requireActiveAccount` global, redireciona ao login com aviso). Os usuários inativos **não aparecem** na chamada da atividade nem na lista de presença impressa (PDF), e a impressão do crachá (credenciamento) é bloqueada com mensagem explicativa — a marcação de presença (manual, QR do crachá ou em lote "Marcar todos") permanece bloqueada no backend para a conta inativa. O histórico existente (inscrições, presenças já registradas, elegibilidade) é preservado, e a desmarcação/correção continua permitida. A listagem de participantes do evento continua exibindo o badge "Conta inativa" (visibilidade administrativa para reativação), com o botão "Imprimir crachá" oculto para a pessoa.
 - Os formulários com senha possuem controle visual para mostrar ou ocultar caracteres.
 - Contas com perfil de revisor podem acessar `/author` e `/submeter/:eventId`, mantendo também o fluxo de revisão.
 - Contas com múltiplos perfis mantêm redirecionamento prioritário para `/admin/dashboard`, mas a interface expõe links para `/reviewer` e `/author`.
@@ -631,6 +664,7 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 | `/consultar` | Consulta por código |
 | `/consultar-certificado` | Verificação pública de certificado por código |
 | `/revisores` | Corpo de revisores |
+| `/uploads/event-logos/<arquivo>` | Servimento estático do logo do evento (PNG/JPEG) |
 
 ### Autenticação
 
@@ -688,6 +722,7 @@ artigos/
 ├── server.js
 ├── db.js
 ├── uploads/
+├── services/
 ├── routes/
 │   ├── auth.js
 │   ├── events.js
@@ -850,6 +885,7 @@ Observações operacionais:
 - Credenciamento: botão "Imprimir crachá" na coluna "Conta" da listagem de participantes (`/admin/events/:id/participants`) gera o PDF direto via `GET /admin/events/:id/participants/:registrationId/qr-presenca/print`, sem encaminhamento para a área do participante (evita o bug conhecido de conta admin interpretada como participante). O layout do crachá foi extraído para o serviço compartilhado `services/cracha.js` (`renderCrachaPdf`, `ensureEventQrToken`, `getEventQrRoles`, `QR_ROLE_LABELS`), agora usado tanto pela rota pública de autoimpressão quanto pela rota admin; participantes sem conta vinculada não têm crachá (400 com mensagem explicativa).
 - Exclusão de usuários e participantes corrigida e com aviso de impacto: o `method-override` (getter por função, depois dos parsers de body) faz o `_method=DELETE` dos formulários chegar à rota DELETE correta (antes caía em `updateUser` com `NOT NULL constraint failed: users.name`); o `confirm()` do "Excluir" usuário detalha que a ação remove papéis em eventos, inscrições em atividades, presenças, crachá e revisões, e sugere desligar "Conta ativa" (inativação, que preserva o histórico) quando o objetivo for apenas bloquear acesso; nota da listagem orienta o mesmo; `updateUser` preserva `name`/`email` existentes quando o body não os envia.
 - Inativação de conta (`is_public = 0`) com efeitos práticos: middleware global `requireActiveAccount` derruba a sessão ativa de um usuário inabilitado no próximo request (login com aviso); chamada da atividade exibe "Conta inativa" e bloqueia o botão de marcar; marcação manual, scan do crachá e "Marcar presença (todos)" são rejeitados no backend para conta inativa (desmarcar/corrigir permanece permitido); listagem de participantes exibe o badge. Histórico (inscrições, presenças existentes, elegibilidade) é preservado.
+- Logo do evento: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição do evento (`enctype="multipart/form-data"`, campo `logo`), com prévia imediata do arquivo selecionado, preview persistido e checkbox "Remover logo atual"; arquivo em `uploads/event-logos/` (`<timestamp>-<hex>.<ext>`) via `multer`, cujo `fileFilter` aceita imagens válidas com `cb(null, true)`; colunas `logo_path`/`logo_original_name` em `events` (migração idempotente em `services/db-reset.js`); servido em `/uploads/event-logos/` (`server.js`) e exibido no card da home, na página pública do evento, no crachá (`services/cracha.js`, QR reduzido para 216pt com logo), na lista de presença e na folha com QR Code — renderização centralizada em `services/event-logo.js` (`drawEventLogo` com `fit`, `getEventLogoAbsPath` com proteção contra path traversal); o arquivo é removido ao substituir o logo, ao marcar "Remover logo atual" e ao excluir o evento.
 
 ### Segurança reforçada (V0.1)
 
@@ -903,7 +939,7 @@ Observações operacionais:
 
 ## Planejamento Proposto
 
-> Plano aprovado para a próxima evolução (4 ciclos: Fase 0 Quick Wins, Fase 1 Aulas + QR Code, Fase 2 Auditoria, Fase 3 E-mails) registrado em `plano.md`. Esta seção preserva o diagnóstico e os épicos incrementais anteriores.
+> Plano aprovado para a próxima evolução (4 ciclos: Fase 0 Quick Wins, Fase 1 Aulas + QR Code, Fase 3 E-mails, Fase 2 Auditoria — ordem de execução ajustada em 17/08) registrado em `plano.md`. Esta seção preserva o diagnóstico e os épicos incrementais anteriores.
 
 ### Diagnóstico por objetivo
 

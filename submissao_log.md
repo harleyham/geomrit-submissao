@@ -4,7 +4,44 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-18
+
+### Relatório: status "Conta inativa" na coluna Participação
+
+- Requisito do usuário: no relatório do evento (`/admin/reports?eventId=`), os inscritos com conta inativa (`is_public = 0`) devem ter esse status exibido na coluna "Participação".
+- `routes/reports.js`: a query de participantes passou a fazer `LEFT JOIN users` e retorna `account_status` (o `is_public` da conta vinculada; `NULL` quando a inscrição não possui conta vinculada).
+- `views/admin/reports/list.ejs`: quando `account_status = 0`, a célula de "Participação" exibe o badge "Conta inativa" (mesmo estilo vermelho da listagem de participantes), mantendo os badges existentes (papéis e/ou situação de participação).
+- Validação E2E (18/08, sandbox isolada na porta 3103 + backup do banco real): **8/8 checks** — os 3 inscritos inativos do evento 1 exibem o badge, o inscrito ativo não exibe, total de badges = 3 e o badge de situação pré-existente permanece.
+- Status: **implementado e validado** (efetiva após reinício do servidor).
+
+### Avaliação de atividades pelo participante (Ciclo 3)
+
+- Requisito (item do backlog "Implementar Campo para os participantes avaliarem as Etapas, Tarefas e Eventos"): o participante inscrito em atividades registra avaliação por atividade, visível ao administrador na chamada da atividade e no relatório do evento.
+- `services/db-reset.js`: nova tabela `activity_evaluations` (`event_id`, `activity_id`, `user_id`, `evaluation`, `created_at`, `updated_at`; `UNIQUE(activity_id,user_id)`; FKs para `events`/`event_activities`/`users` com `ON DELETE CASCADE`) com índices por evento+atividade e por usuário; incluída na lista `TABLES` do reset.
+- `routes/public.js`:
+  - `GET /evento/:id/atividades`: cada atividade inscrita exibe textarea com a avaliação existente; evento `encerrado` mantém a página acessível (200, não 404) com aviso "somente as avaliações podem ser editadas", sem checkboxes de inscrição enviáveis e botão "Salvar avaliações".
+  - `POST /evento/:id/atividades`: evento publicado valida as atividades enviadas e grava inscrições + avaliações no mesmo request; evento encerrado ignora `activity_ids` (inscrições preservadas) e processa apenas avaliações das atividades já inscritas; campos `evaluation_<id>` de atividades não inscritas são ignorados (anti-tampering); texto acima de 2000 caracteres é rejeitado com mensagem e nada é gravado; texto vazio (apenas espaços) remove a avaliação existente (upsert `ON CONFLICT(activity_id,user_id) DO UPDATE`, com `updated_at` em UTC-3).
+- `routes/events.js`: a chamada da atividade (`GET .../attendance`) passa a renderizar a seção "Avaliações dos participantes" (nome + data + texto), com estado vazio "Nenhuma avaliação registrada para esta atividade".
+- `routes/reports.js`: `evaluatorsCount` (`COUNT(DISTINCT user_id)`) e mapa de avaliações por atividade (nome + texto + data, ordenado por atividade e nome) passados ao template.
+- `views/public/event-activities.ejs`: textareas `evaluation_<activityId>` por atividade inscrita (valor persistido), aviso e botão "Salvar avaliações" no estado encerrado.
+- `views/admin/events/activity-attendance.ejs`: seção "Avaliações dos participantes" na chamada, com lista nome + data + texto.
+- `views/admin/reports/list.ejs`: card "Participantes que avaliaram" nas estatísticas e, por atividade com avaliações, botão "Ver avaliações (n)" (toggle, oculto por padrão) com a lista.
+- Validação E2E (18/08, sandbox isolada na porta 3102 + backup do banco real): **36/36 checks** — login do participante; textareas apenas para atividades inscritas; gravação de duas avaliações no mesmo POST; `evaluation_99` (não inscrita) ignorado; texto vazio remove a avaliação; atualização sobrescreve; >2000 rejeitado com mensagem e valor anterior preservado; evento encerrado: página 200, sem checkboxes, aviso e botão presentes, inscrições preservadas e avaliação atualizável; admin: chamada exibe a seção com as avaliações e o estado vazio para atividade sem avaliações; relatório: card "Participantes que avaliaram" com DISTINCT correto (3 linhas, 2 usuários distintos), contagens por atividade corretas (2 e 1) e blocos ocultos por padrão.
+- Status: **implementado e validado** (Ciclo 3 do `plano.md` concluído); ainda não commitado.
+
 ## 2026-08-17
+
+### Manual inicial do sistema
+
+- Criado `manual.md` como guia operacional inicial, cobrindo introdução, instalação, primeiro acesso, usuários, eventos, participantes e papéis, atividades, etapas, presença/QR Code, certificados, dashboard, relatórios, fluxo recomendado e solução de problemas.
+- `README.md` passou a apontar para o manual; o documento será ampliado posteriormente com capturas de tela, FAQ e procedimentos de implantação.
+
+### Correção: upload e prévia do logo do evento
+
+- Corrigido o `fileFilter` do Multer usado pelo logo do evento: imagens PNG/JPEG válidas agora são aceitas explicitamente com `cb(null, true)` e gravadas em `uploads/event-logos/`.
+- Os formulários de criação e edição de evento agora mostram imediatamente a prévia e o nome do arquivo selecionado, antes de salvar.
+- Ao selecionar uma nova imagem na edição, a opção de remover o logo atual é desmarcada automaticamente.
+- Verificações locais concluídas: sintaxe de `routes/events.js` e `services/event-logo.js`, compilação EJS dos formulários e páginas públicas, presença das colunas `logo_path` e `logo_original_name` no schema e `git diff --check`; validação funcional pelo usuário requer reinício do servidor.
 
 ### Correção: importação CSV com quebras de linha CRLF ("arquivo vazio")
 
@@ -86,6 +123,59 @@ Versão atual registrada: **V0.1**.
   - `routes/events.js` (participantes) + `views/admin/events/participants.ejs`: badge "Conta inativa" na coluna "Conta" da listagem do evento.
 - Validação E2E (17/08, sandbox isolada porta 3099 + snapshot do banco): usuário ativo acessa `/evento/1/atividades` (200) → inabilitado no banco → próximo request cai em `302 /login?error=Conta inativa...`; chamada exibe badge/nota e sem botão de marcar; marcação manual e scan do crachá do inativo rejeitados com o erro explicativo; "Marcar (todos)" pulou o inativo (0 marcadas, 4 ignoradas, sem registro); reativado → marcação manual OK; inabilitado → "Desmarcar (todos)" removeu a presença existente (correção permitida); listagem de participantes exibiu o badge; reativado → login volta a funcionar.
 - Status: **implementado e validado** (efetiva após reinício do servidor).
+
+### Logo do evento (PNG/JPEG) nas páginas públicas e nos PDFs
+
+- Requisito do usuário: cada evento pode ter um logo (PNG/JPEG, até 5 MB), exibido nas páginas públicas e nos materiais impressos do evento (crachá, lista de presença, folha com QR Code).
+- `services/event-logo.js` (novo): `getEventLogoAbsPath(event)` resolve o `logo_path` para caminho absoluto com proteção contra path traversal (aceita apenas valores com prefixo `uploads/event-logos/` e nome de arquivo único; retorna `null` se o arquivo não existir); `removeEventLogoFile(logoPath)` remove o arquivo do disco ignorando falhas; `drawEventLogo(doc, event, { x, y, width, height })` desenha o logo centralizado na caixa via `doc.image(..., { fit })` sem alterar o cursor do documento — falha de renderização é logada e o PDF continua sem o logo (retorna `false`).
+- `services/db-reset.js`: `events` ganha `logo_path` e `logo_original_name` (TEXT) no schema + migração idempotente (`ALTER TABLE ... ADD COLUMN` quando ausente).
+- `routes/events.js`:
+  - Nova instância `multer` `eventLogoUpload` (diskStorage em `uploads/event-logos/`, nome `<timestamp>-<hex>.<ext>`, limite 5 MB, `fileFilter` só `image/png`/`image/jpeg`) e wrapper `runEventLogoUpload` que converte erro de upload em `req.logoUploadError` (removendo o arquivo gravado em caso de falha, para o form ser re-renderizado sem 500).
+  - `POST /` (criar) e `POST /:id` (editar): `runEventLogoUpload` na cadeia; criação grava `logo_path`/`logo_original_name`; edição substitui o logo atual (removendo o arquivo antigo do disco) quando há arquivo enviado, e o remove quando o checkbox `remove_logo` está marcado; em erro de validação, o arquivo já enviado é removido.
+  - `DELETE /:id`: remove o arquivo do logo antes de excluir o evento.
+  - `GET /:id/activities/:activityId/attendance-print` e `GET /:id/activities/:activityId/checkin-print`: desenham o logo no topo da página via `drawEventLogo` e deslocam o título quando presente; sem logo o layout é inalterado.
+- `services/cracha.js` (`renderCrachaPdf`): quando o evento tem logo, desenha no topo do card (altura 46pt) e reduz o QR de 240 para 216pt para manter o card no limite; sem logo o layout original é preservado.
+- `server.js`: `app.use('/uploads/event-logos', express.static(...))` para servir o logo (junto às demais estáticas, antes da sessão).
+- `views/admin/events/form.ejs`: form principal passa a ter `enctype="multipart/form-data"`; campo "Logo do Evento" (`input type="file"`, aceita PNG/JPEG) com prévia imediata do arquivo selecionado, nome do arquivo, preview do logo atual e checkbox "Remover logo atual" na edição.
+- `views/public/home.ejs` e `views/public/event.ejs`: exibem o logo no card do evento (home) e no topo da página pública do evento, quando `logo_path` existe.
+- Diagnóstico concluído: o `fileFilter` chamava `cb(null)` para MIME válido, sem o segundo argumento exigido pelo Multer; por isso o arquivo era silenciosamente ignorado, `req.file` permanecia vazio, `logo_path` ficava nulo e a pasta não recebia a imagem. Corrigido para `cb(null, true)`.
+- Status: **corrigido e validado tecnicamente; pendente de validação funcional pelo usuário após reinício do servidor; ainda não commitado**.
+
+### Ajuste de plano: troca da ordem de execução entre Fase 2 e Fase 3
+
+- Decisão do usuário (17/08): executar **Fase 3 (E-mails)** antes de **Fase 2 (Auditoria)**; os nomes das fases foram mantidos.
+- `plano.md`: linha "Ordem" das decisões atualizada para `Fase 0 → Fase 1 (Aulas+QR) → Fase 3 (E-mails) → Fase 2 (Auditoria)` e seções dos ciclos reordenadas (Ciclo 3 agora cobre E-mails, Ciclo 4 cobre Auditoria).
+- `submissao.md`: referência ao plano na seção "Planejamento Proposto" atualizada para a nova ordem.
+
+### Conta inativa: oculta nas listas de presença e sem ações aplicáveis
+
+- Requisito do usuário (17/08): usuários inativos (`is_public = 0`) não devem aparecer nas listas de presença nem ser alvo de qualquer outra ação (antes apareciam na chamada com badge "Conta inativa" e botão bloqueado).
+- `routes/events.js`:
+  - Chamada da atividade (`GET .../attendance`): a query de pessoas agora faz `JOIN users` + `HAVING COALESCE(u.is_public, 0) = 1` — inativos saem da listagem por completo.
+  - Lista de presença em PDF (`GET .../attendance-print`): a subquery carrega `MAX(ep.user_id)` e aplica `LEFT JOIN users ... AND (u.id IS NULL OR u.is_public = 1)` — inativos saem do PDF; inscrições sem conta vinculada continuam listadas.
+  - Impressão do crachá via credenciamento (`GET .../participants/:registrationId/qr-presenca/print`): nova guarda retorna 400 com mensagem "Conta inativa" quando `is_public = 0`.
+- `views/admin/events/activity-attendance.ejs`: removidos o badge "Conta inativa", a nota "Presença bloqueada — conta inativa" e o CSS associado (ramos inacessíveis após o filtro na query).
+- `views/admin/events/participants.ejs`: botão "Imprimir crachá" passa a exigir `account_active`; o badge "Conta inativa" permanece — é a visão de gestão onde a reativação ocorre.
+- Regras de backend mantidas (sem mudança): marcação manual e scan do crachá rejeitam conta inativa via `applyAttendanceMark`; "Marcar presença (todos)" continua ignorando inativos; "Desmarcar (todos)" continua permitindo correção; histórico (inscrições, presenças registradas, elegibilidade) preservado.
+- Validação E2E (17/08, sandbox isolada na porta 3100 + backup do banco real): **22/22 checks** — chamada lista somente contas ativas (usuários inativos pré-existentes e o usuário testado somem ao inativar e voltam ao reativar); PDF da lista inclui/exclui o e-mail conforme o estado (verificação por decodificação dos glifos hex do PDFKit); crachá 400 inativo / 200 PDF ativo; marcação manual e scan do crachá rejeitados; lote "Marcar (todos)" ignora inativo sem criar registro; listagem de participantes mantém o badge e oculta/exibe o botão "Imprimir crachá" conforme o estado.
+- Status: **implementado e validado** (efetiva após reinício do servidor em produção).
+
+### Logo do evento no relatório do evento
+
+- Requisito do usuário (17/08): o relatório em `/admin/reports?eventId=` deve incluir o logo do evento.
+- `views/admin/reports/list.ejs`:
+  - Cabeçalho de impressão (`print-only`, usado pelo "Imprimir em PDF"): `<img>` do logo acima do título, somente quando `event.logo_path` existe.
+  - Cabeçalho da tela (`page-header`): logo ao lado do título, com o mesmo tratamento condicional.
+  - CSS `.report-logo` (tela) e `.report-logo-print` (impressão): `object-fit: contain`, fundo branco e cantos arredondados, no padrão das páginas públicas.
+- Sem mudança de rota: `routes/reports.js` já passa o `event` completo ao template e o arquivo é servido pela estática `/uploads/event-logos/` (`server.js`).
+- Validação E2E (17/08, sandbox isolada na porta 3101 + backup do banco real): **7/7 checks** — relatório 200 com `<img>` no cabeçalho da tela e no de impressão, arquivo do logo servido (200 image/jpeg), evento sem logo não renderiza a tag e seções do relatório intactas.
+- Status: **implementado e validado** (efetiva após reinício do servidor).
+
+### Correção: logo (e título) duplicados no PDF do relatório
+
+- Relatório do usuário (17/08): com o logo adicionado, o PDF imprimível exibia o logo duas vezes — o cabeçalho de tela (`.page-header`, que já continha o segundo logo) não era ocultado na impressão, duplicando também o título.
+- `views/admin/reports/list.ejs`: `@media print` passa a ocultar `.page-header` (junto a topbar, `.no-print`, footer e `.report-selection`). Na tela o cabeçalho permanece; no PDF o único cabeçalho é o `print-only` (logo + "Evento — Relatório do Evento" + "Gerado em"). Nada se perde: a seção "Informações do Evento" já traz nome, localização, período, área e website.
+- Status: **corrigido** (CSS de impressão; efetiva após reinício do servidor).
 
 ## 2026-08-16
 
@@ -1164,8 +1254,9 @@ Versão atual registrada: **V0.1**.
 - Vindo da Área do participante, clicando em "Alterar Meus Dados" vai para http://127.0.0.1:3000/author/profile. O formulário não é completo para alterar todas as informações do usuário.
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
 - Link para a palestra/aula
-- Implementar Campo para os participantes avaliarem as Etapas, Tarefas e Eventos
+- Implementar Campo para os participantes avaliarem as Etapas, Tarefas e Eventos — **aplicado em 18/08** (ver seção "Avaliação de atividades pelo participante (Ciclo 3)" acima)
 - Existe um bug que é quando um adm acessa a página de usuário, os comandos que ele (admin) dá são interpretados como a conta do admin. No caso é paa interpretar como se o prórpio usuário estivesse acessando sua área.
 - Em um caso em que há um credenciamento e impressão dos crachas dos participantes, é necessário ter na tela http://127.0.0.1:3000/admin/events/1/participants um botao para cada participante para impressão do crachá — **aplicado em 17/08** (ver seção "Credenciamento: botão 'Imprimir crachá' por participante na listagem admin" acima)
 - Alerta de segurança: o mesmo script-src-attr 'none' está bloqueando todos os onclick inline da app (13 views). Nos <a onclick="return confirm()"> do admin (backup/restore/reset), o clique navega sem o confirm — as ações perigosas perdem a confirmação. A correção global é adicionar scriptSrcAttr: ["'unsafe-inline'"] na config do helmet em server.js (1 linha) — **aplicado e validado em 17/08** (ver seção "Correção: CSP `script-src-attr 'none'`" acima)
- - Necessidade de implementar local ( http://127.0.0.1:3000/admin/events/1/edit e http://127.0.0.1:3000/admin/events/new )para upload de imagem com logo do evento. Será utilizado na impressão dos crachás e QR Code de presença
+- Upload e prévia de logo em `/admin/events/new` e `/admin/events/:id/edit`, com uso nos crachás, listas de presença e folhas com QR Code — **implementado; falha do filtro de upload corrigida em 17/08; pendente de validação funcional após reinício**.
+- Na página de re;latório de Evento, deve haver a opção de exportação de arquivo .md com tuso do evento, a fim de ser avaliado por uma IA

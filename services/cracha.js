@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 const { db } = require('../db');
+const { drawEventLogo } = require('./event-logo');
 
 const QR_TOKEN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
@@ -56,7 +57,13 @@ async function renderCrachaPdf(res, { event, registration, roles, token, nameFal
   const cardY = 120;
   doc.roundedRect(cardX, cardY, cardW, cardH, 12).lineWidth(1.5).strokeColor('#0f172a').stroke();
 
-  let y = cardY + 36;
+  let y = cardY + 24;
+  const hasLogo = drawEventLogo(doc, event, { x: cardX + 30, y, width: cardW - 60, height: 46 });
+  if (hasLogo) {
+    y += 46 + 12;
+  } else {
+    y = cardY + 36;
+  }
   doc.fontSize(10).font('Helvetica').fillColor('#475569').text('QR DE PRESENÇA', cardX, y, { width: cardW, align: 'center', characterSpacing: 3 });
   y = doc.y + 14;
   doc.fontSize(17).font('Helvetica-Bold').fillColor('#0f172a').text(event.name, cardX + 30, y, { width: cardW - 60, align: 'center' });
@@ -73,7 +80,7 @@ async function renderCrachaPdf(res, { event, registration, roles, token, nameFal
     doc.fontSize(11).font('Helvetica').fillColor('#334155').text(displayRoles.join(' · '), cardX + 30, y, { width: cardW - 60, align: 'center' });
     y = doc.y + 20;
   }
-  const qrSize = 240;
+  const qrSize = hasLogo ? 216 : 240;
   const qrX = cardX + (cardW - qrSize) / 2;
   doc.image(qrBuffer, qrX, y, { width: qrSize, height: qrSize });
   y += qrSize + 22;

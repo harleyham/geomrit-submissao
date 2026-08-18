@@ -65,8 +65,6 @@
     .badge-role-speaker { background: rgba(251,146,60,0.15); color: #fdba74; border: 1px solid rgba(251,146,60,0.25); }
     .badge-role-oral { background: rgba(56,189,248,0.15); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.25); }
     .badge-role-poster { background: rgba(192,132,252,0.15); color: #d8b4fe; border: 1px solid rgba(192,132,252,0.25); }
-    .badge-inactive { background: rgba(248,113,113,0.12); color: #fca5a5; border: 1px solid rgba(248,113,113,0.3); }
-    .inactive-note { color: #64748b; font-size: 0.78rem; font-style: italic; }
     .form-inline { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
     .form-inline input[type="number"] { width: 90px; }
     .person-name { font-weight: 600; color: #f1f5f9; }
@@ -81,6 +79,12 @@
     #qr-camera-close { position: absolute; top: 1.2rem; right: 1.4rem; background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.25); color: #e2e8f0; }
     .roles-tags { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .empty-state { text-align: center; padding: 2rem; color: #64748b; }
+    .evaluations-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .evaluation-item { padding: 0.9rem 1rem; border: 1px solid rgba(148,163,184,0.15); border-radius: 10px; background: rgba(15,23,42,0.3); }
+    .evaluation-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 0.4rem; }
+    .evaluation-head strong { color: #f1f5f9; }
+    .evaluation-head span { color: #64748b; font-size: 0.78rem; }
+    .evaluation-item p { color: #cbd5e1; font-size: 0.88rem; line-height: 1.55; white-space: pre-wrap; }
     @media (max-width: 768px) {
       .main-content { padding: 1rem; }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -192,11 +196,7 @@
               <% participants.forEach(p => { %>
                 <tr id="person-row-<%= p.user_id %>"<% if (markedUserId === p.user_id) { %> class="row-marked"<% } %>>
                   <td>
-                    <div class="person-name"><%= p.name %>
-                      <% if (!p.account_active) { %>
-                        <span class="badge badge-inactive">Conta inativa</span>
-                      <% } %>
-                    </div>
+                    <div class="person-name"><%= p.name %></div>
                     <div class="person-email"><%= p.email %></div>
                   </td>
                   <td>
@@ -230,12 +230,8 @@
                     <% if (selectedSession) { %><input type="hidden" name="session_id" value="<%= selectedSession.id %>"><% } %>
                     <% if (p.present && p.activity_role) { %>
                       <span class="badge badge-present">Presente</span>
-                      <% if (p.account_active) { %>
-                        <button type="submit" name="action" value="present" class="btn-primary btn-sm">Atualizar</button>
-                      <% } %>
+                      <button type="submit" name="action" value="present" class="btn-primary btn-sm">Atualizar</button>
                       <button type="submit" name="action" value="absent" class="btn-danger btn-sm">Remover</button>
-                    <% } else if (!p.account_active) { %>
-                      <span class="inactive-note">Presença bloqueada — conta inativa</span>
                     <% } else { %>
                       <button type="submit" name="action" value="present" class="btn-success btn-sm">Marcar presença</button>
                     <% } %>
@@ -245,6 +241,26 @@
               <% }) %>
             </tbody>
           </table>
+        <% } %>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>Avaliações dos participantes</h2>
+      </div>
+      <div class="section-body">
+        <% if (!evaluations.length) { %>
+          <div class="empty-state">Nenhuma avaliação registrada para esta atividade.</div>
+        <% } else { %>
+          <div class="evaluations-list">
+            <% evaluations.forEach((ev) => { %>
+              <div class="evaluation-item">
+                <div class="evaluation-head"><strong><%= ev.name %></strong><span><%= formatBRDate(ev.updated_at) %></span></div>
+                <p><%= ev.evaluation %></p>
+              </div>
+            <% }) %>
+          </div>
         <% } %>
       </div>
     </section>

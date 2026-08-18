@@ -9,6 +9,8 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 ## Funcionalidades
 
 - **Gestão de eventos**: CRUD de eventos, cronograma público, janelas de inscrição/submissão/certificados e administração restrita aos eventos atribuídos ao usuário
+- **Logo do evento**: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição, com prévia imediata do arquivo selecionado e substituição/remoção na edição; exibido nas páginas públicas (card na home e página do evento) e nos materiais impressos (crachá, lista de presença e folha com QR Code)
+- **Avaliação de atividades**: participante inscrito avalia cada atividade em `/evento/:id/atividades` (texto livre de até 2000 caracteres; com o evento encerrado, as inscrições ficam travadas e apenas as avaliações continuam editáveis); o administrador vê as avaliações na chamada da atividade e no relatório do evento (card "Participantes que avaliaram" e lista expansível por atividade)
 - **Importação de participantes**: importação administrativa de planilhas CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas, criação/atualização de contas, relatório pessoa por pessoa com status (Sucesso/Falha/Ignorado) e download em CSV; via evento (`/admin/events/:id/import-users`) também inscreve os participantes automaticamente; via usuários (`/admin/users/import`) cria apenas contas sem inscrição
 - **Submissão de artigos**: formulário público, rascunhos, múltiplos revisores, parecer individual, deliberação final administrativa
 - **Revisão**: painel do revisor com artigos pendentes, envio de parecer e recomendação
@@ -54,7 +56,7 @@ artigos/
 ├── db.js                # Schema SQLite e helpers de consulta
 ├── package.json         # Dependências
 ├── security/            # Módulos de segurança (CSRF, rate limiting, validação)
-├── uploads/             # Arquivos enviados (certificados, artigos)
+├── uploads/             # Arquivos enviados (certificados, artigos, logos de eventos)
 ├── assets/Fundos/       # Fundos padrão de certificado
 ├── routes/              # Rotas da API
 │   ├── auth.js
@@ -69,6 +71,8 @@ artigos/
 ```
 
 ## Download e Instalação
+
+Consulte o [Manual do Sistema](manual.md) para o procedimento operacional completo, incluindo usuários, eventos, atividades, etapas, presença, certificados, dashboard e relatórios.
 
 ### 1. Clonar o repositório
 

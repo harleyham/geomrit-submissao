@@ -10,6 +10,7 @@ const { ZipArchive } = require('archiver');
 const { db, recordParticipantAudit } = require('../db');
 const { renderCertificatePdf, getBackgroundPath } = require('../services/certificates');
 const { ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
+const { removeEventLogoFile, drawEventLogo } = require('../services/event-logo');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
@@ -202,6 +203,37 @@ const certificateBackgroundUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, ['image/png', 'image/jpeg'].includes(file.mimetype))
 });
+
+const eventLogoDir = path.join(__dirname, '..', 'uploads', 'event-logos');
+if (!fs.existsSync(eventLogoDir)) fs.mkdirSync(eventLogoDir, { recursive: true });
+const eventLogoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, eventLogoDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`)
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!['image/png', 'image/jpeg'].includes(file.mimetype)) {
+      return cb(new Error('LOGO_INVALID_TYPE'));
+    }
+    cb(null, true);
+  }
+});
+
+// Executa o upload do logo e converte erros em mensagem amigável (req.logoUploadError),
+// removendo o arquivo em caso de falha, para o form poder ser re-renderizado sem 500.
+function runEventLogoUpload(req, res, next) {
+  eventLogoUpload.single('logo')(req, res, (error) => {
+    if (error) {
+      if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+      req.logoUploadError = error.code === 'LIMIT_FILE_SIZE'
+        ? 'O logo do evento excede 5 MB.'
+        : 'O logo do evento deve ser uma imagem PNG ou JPEG (máximo 5 MB).';
+      return next();
+    }
+    next();
+  });
+}
 
 const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
 if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: true });
@@ -626,7 +658,7 @@ router.get('/new', (req, res) => {
 });
 
 // Criar evento
-router.post('/', strictLimiter, (req, res, next) => {
+router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
@@ -638,6 +670,37 @@ router.post('/', strictLimiter, (req, res, next) => {
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
   const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
+
+  if (req.logoUploadError) {
+    return renderEventForm(res, {
+      event: withAreaMeta({
+        name,
+        short_name,
+        description,
+        date_start,
+        date_end,
+        location,
+        url,
+        area: normalizedArea,
+        has_article_submission: hasArticleSubmission,
+        offers_subsidy: offersSubsidy,
+        status: normalizedStatus,
+        institution,
+        language,
+        registration_start,
+        registration_end,
+        submission_start: normalizedSubmissionStart,
+        submission_end: normalizedSubmissionEnd,
+        review_start: normalizedReviewStart,
+        review_end: normalizedReviewEnd,
+        certificates_start,
+        certificates_end
+      }),
+      title: 'Novo Evento',
+      error: req.logoUploadError
+    });
+  }
+
   const validationError = validateEventDates({
     date_start,
     date_end,
@@ -653,6 +716,7 @@ router.post('/', strictLimiter, (req, res, next) => {
   });
 
   if (validationError) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
     return renderEventForm(res, {
       event: withAreaMeta({
         name,
@@ -683,9 +747,9 @@ router.post('/', strictLimiter, (req, res, next) => {
   }
 
   const createdEvent = db.prepare(`
-    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null).run();
+    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.file ? `uploads/event-logos/${req.file.filename}` : null, req.file ? req.file.originalname : null).run();
   db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(createdEvent.lastInsertRowid, req.session.userId, req.session.userId);
   res.redirect('/admin/events');
 });
@@ -698,7 +762,7 @@ router.get('/:id/edit', (req, res) => {
 });
 
 // Atualizar evento (POST direto)
-router.post('/:id', strictLimiter, (req, res, next) => {
+router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
@@ -710,21 +774,9 @@ router.post('/:id', strictLimiter, (req, res, next) => {
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
   const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
-  const validationError = validateEventDates({
-    date_start,
-    date_end,
-    registration_start,
-    registration_end,
-    has_article_submission: hasArticleSubmission,
-    submission_start: normalizedSubmissionStart,
-    submission_end: normalizedSubmissionEnd,
-    review_start: normalizedReviewStart,
-    review_end: normalizedReviewEnd,
-    certificates_start,
-    certificates_end
-  });
+  const currentLogo = db.prepare('SELECT logo_path, logo_original_name FROM events WHERE id=?').get(req.params.id) || {};
 
-  if (validationError) {
+  if (req.logoUploadError) {
     return renderEventForm(res, {
       event: withAreaMeta({
         id: req.params.id,
@@ -748,22 +800,86 @@ router.post('/:id', strictLimiter, (req, res, next) => {
         review_start: normalizedReviewStart,
         review_end: normalizedReviewEnd,
         certificates_start,
-        certificates_end
+        certificates_end,
+        logo_path: currentLogo.logo_path || null,
+        logo_original_name: currentLogo.logo_original_name || null
+      }),
+      title: 'Editar Evento',
+      error: req.logoUploadError
+    });
+  }
+
+  const validationError = validateEventDates({
+    date_start,
+    date_end,
+    registration_start,
+    registration_end,
+    has_article_submission: hasArticleSubmission,
+    submission_start: normalizedSubmissionStart,
+    submission_end: normalizedSubmissionEnd,
+    review_start: normalizedReviewStart,
+    review_end: normalizedReviewEnd,
+    certificates_start,
+    certificates_end
+  });
+
+  if (validationError) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+    return renderEventForm(res, {
+      event: withAreaMeta({
+        id: req.params.id,
+        name,
+        short_name,
+        description,
+        date_start,
+        date_end,
+        location,
+        url,
+        area: normalizedArea,
+        has_article_submission: hasArticleSubmission,
+        offers_subsidy: offersSubsidy,
+        status: normalizedStatus,
+        institution,
+        language,
+        registration_start,
+        registration_end,
+        submission_start: normalizedSubmissionStart,
+        submission_end: normalizedSubmissionEnd,
+        review_start: normalizedReviewStart,
+        review_end: normalizedReviewEnd,
+        certificates_start,
+        certificates_end,
+        logo_path: currentLogo.logo_path || null,
+        logo_original_name: currentLogo.logo_original_name || null
       }),
       title: 'Editar Evento',
       error: validationError
     });
   }
 
+  let logoPath = currentLogo.logo_path || null;
+  let logoOriginalName = currentLogo.logo_original_name || null;
+  if (req.file) {
+    if (logoPath) removeEventLogoFile(logoPath);
+    logoPath = `uploads/event-logos/${req.file.filename}`;
+    logoOriginalName = req.file.originalname;
+  } else if (req.body.remove_logo) {
+    if (logoPath) removeEventLogoFile(logoPath);
+    logoPath = null;
+    logoOriginalName = null;
+  }
+
   db.prepare(`
-    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, updated_at=datetime('now', '-3 hours')
+    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.params.id).run();
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName, req.params.id).run();
   res.redirect('/admin/events');
 });
 
 // Deletar evento
 router.delete('/:id', (req, res) => {
+  const event = db.prepare('SELECT logo_path FROM events WHERE id = ?').get(req.params.id);
+  if (event && event.logo_path) removeEventLogoFile(event.logo_path);
   db.prepare('DELETE FROM events WHERE id = ?').bind(req.params.id).run();
   res.redirect('/admin/events');
 });
@@ -862,6 +978,10 @@ router.get('/:id/participants/:registrationId/qr-presenca/print', async (req, re
     if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado', message: 'A inscrição solicitada não existe neste evento.' });
     if (!registration.user_id) {
       return res.status(400).render('error', { title: 'Sem vínculo de conta', message: 'Este participante não possui conta vinculada. O crachá com QR Code de presença exige conta para emitir o código pessoal.' });
+    }
+    const account = db.prepare('SELECT is_public FROM users WHERE id=?').get(registration.user_id);
+    if (!account || !account.is_public) {
+      return res.status(400).render('error', { title: 'Conta inativa', message: 'A conta deste participante está inativa e o crachá com QR Code de presença não pode ser emitido. Se for o caso, reative a conta em /admin/users.' });
     }
     const token = ensureEventQrToken(event.id, registration.user_id);
     const roles = getEventQrRoles(event.id, registration.user_id);
@@ -1570,22 +1690,26 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
       UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
       UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, u.institution, NULL, 'reviewer'
         FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
-     ) SELECT ep.person_user_id AS user_id, MAX(ep.name) AS name, MAX(ep.email) AS email, MAX(ep.institution) AS institution, MAX(ep.registration_id) AS registration_id, GROUP_CONCAT(DISTINCT ep.role) AS roles,
-       CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present,
-       COALESCE(aar.role, '') AS activity_role,
-       MAX(COALESCE(u.is_public, 0)) AS account_active
-     FROM event_people ep
-     LEFT JOIN users u ON u.id = ep.person_user_id
-     LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id ${sessionCondition}
-     GROUP BY ep.person_user_id ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.event_id, activity.id, ...sessionParams)
+      ) SELECT ep.person_user_id AS user_id, MAX(ep.name) AS name, MAX(ep.email) AS email, MAX(ep.institution) AS institution, MAX(ep.registration_id) AS registration_id, GROUP_CONCAT(DISTINCT ep.role) AS roles,
+        CASE WHEN aar.id IS NULL THEN 0 ELSE 1 END AS present,
+        COALESCE(aar.role, '') AS activity_role
+      FROM event_people ep
+      JOIN users u ON u.id = ep.person_user_id
+      LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id ${sessionCondition}
+      GROUP BY ep.person_user_id
+      HAVING COALESCE(u.is_public, 0) = 1
+      ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.event_id, activity.id, ...sessionParams)
     .filter((person) => String(person.roles).split(',').some((role) => allowedRoles.includes(role)));
   const roleLabels = Object.fromEntries(Object.entries(CERTIFICATE_ROLES).map(([role, meta]) => [role, meta.label]));
   people.forEach((person) => {
     const assignedRoles = String(person.roles || '').split(',').map((role) => role.trim()).filter(Boolean);
     person.available_activity_roles = allowedRoles.filter((role) => assignedRoles.includes(role));
   });
+  const evaluations = db.prepare(`SELECT u.name, a.evaluation, a.updated_at
+    FROM activity_evaluations a JOIN users u ON u.id=a.user_id
+    WHERE a.activity_id=? ORDER BY u.name COLLATE NOCASE`).all(activity.id);
   res.render('admin/events/activity-attendance', {
-    title: `Presença - ${activity.name}`, event, activity, participants: people,
+    title: `Presença - ${activity.name}`, event, activity, participants: people, evaluations,
     sessions, selectedSession, roleLabels,
     success: req.query.success || null,
     error: req.query.error || null,
@@ -1602,12 +1726,13 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   const selectedSession = resolveSession(activity.id, req.query.session_id) || sessions[0] || null;
 
   const participants = db.prepare(`
-    SELECT name, email, institution
+    SELECT p.name, p.email, p.institution
     FROM (
       SELECT DISTINCT
         ep.name,
         ep.email,
-        MAX(ep.institution) AS institution
+        MAX(ep.institution) AS institution,
+        MAX(ep.user_id) AS user_id
       FROM (
         SELECT er.user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role
           FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
@@ -1617,9 +1742,11 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
           FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
       ) ep
       GROUP BY ep.name, ep.email
-    )
-    WHERE email != 'admin@admin.com'
-    ORDER BY name COLLATE NOCASE
+    ) p
+    LEFT JOIN users u ON u.id = p.user_id
+    WHERE p.email != 'admin@admin.com'
+      AND (u.id IS NULL OR u.is_public = 1)
+    ORDER BY p.name COLLATE NOCASE
   `).all(activity.id, activity.event_id, activity.event_id, activity.event_id);
 
   const PDFDocument = require('pdfkit');
@@ -1647,6 +1774,11 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
     return `${dd}-${mm}-${yyyy}`;
   }
 
+  const logoStartY = doc.y;
+  if (drawEventLogo(doc, event, { x: (doc.page.width - 150) / 2, y: logoStartY, width: 150, height: 45 })) {
+    doc.y = logoStartY + 45 + 10;
+    doc.x = 60;
+  }
   doc.fontSize(18).text(event.name, { align: 'center' });
   doc.moveDown(0.5);
   doc.fontSize(14).text(printTitle, { align: 'center' });
@@ -1752,6 +1884,11 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
       headerDate = parts.length === 2 && parts[0] !== parts[1] ? `${parts[0]} a ${parts[1]}` : parts[0] || 'A definir';
     } else headerDate = 'A definir';
 
+    const logoStartY = doc.y;
+    if (drawEventLogo(doc, event, { x: (doc.page.width - 170) / 2, y: logoStartY, width: 170, height: 52 })) {
+      doc.y = logoStartY + 52 + 12;
+      doc.x = 60;
+    }
     doc.fontSize(10).font('Helvetica').text('FOLHA DE PRESENÇA — QR CODE', 60, doc.y, { align: 'center', characterSpacing: 2 });
     doc.moveDown(1.2);
     doc.fontSize(20).font('Helvetica-Bold').text(event.name, { align: 'center' });

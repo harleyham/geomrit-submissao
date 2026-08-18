@@ -18,7 +18,7 @@ Documento vivo: atualizar o `Status` de cada item conforme a execução.
 - Evento encerrado: status **`'encerrado'`** explícito (não reutilizar `draft`/`published`).
 - "Não possui curso de graduação": disponível em **todas** as áreas de formação; ao selecioná-la, **esconder** Titulação e Status.
 - Módulos novos nesta roadmap: **somente e-mails** (Fase 3).
-- Ordem: **Fase 0 → Fase 1 (Aulas+QR) → Fase 2 (Auditoria) → Fase 3 (E-mails)**.
+- Ordem: **Fase 0 → Fase 1 (Aulas+QR) → Avaliação de atividades → Fase 3 (E-mails) → Fase 2 (Auditoria)** (ordem ajustada em 17/08 a pedido do usuário: troca E-mails/Auditoria e inserção da Avaliação de atividades como próxima execução; nomes das fases mantidos).
 
 ---
 
@@ -102,11 +102,27 @@ Nomenclatura: "aulas" foram implementadas como **etapas** (`activity_sessions`) 
 
 ---
 
-## Ciclo 3 — Fase 2: Auditoria
-Status geral: **PENDENTE**.
-- Trilha de auditoria (quem fez o quê e quando) nas operações relevantes
-  (criação/edição/exclusão de usuários, eventos, inscrições, presenças).
-- Tabela de eventos de auditoria + registro nos handlers existentes + listagem admin.
+## Ciclo 3 — Avaliação de atividades (participante)
+Status geral: **CONCLUÍDO ✔** (aprovado em 17/08; implementado e validado E2E 36/36 em 18/08; ainda não commitado).
+
+### 3.1 Modelo de dados — avaliações — CONCLUÍDO ✔
+- Tabela `activity_evaluations` (`event_id`, `activity_id`, `user_id`, `evaluation`, `created_at`, `updated_at`; `UNIQUE(activity_id,user_id)`; FKs `ON DELETE CASCADE`) em `services/db-reset.js` + inclusão na lista `TABLES` (reset).
+- Avaliação opcional/removível (texto vazio remove a linha); máximo 2000 caracteres.
+
+### 3.2 Página pública de atividades (`/evento/:id/atividades`) — CONCLUÍDO ✔
+- Campo de avaliação (textarea) em cada atividade **inscrita**; evento `encerrado` mantém a página acessível com inscrições travadas (checkboxes sem envio) e apenas avaliações editáveis.
+- `POST /evento/:id/atividades` (mesma rota): publicado salva inscrição + avaliações; encerrado ignora `activity_ids` e processa apenas avaliações das atividades já inscritas; IDs não inscritos ignorados (anti-tampering).
+
+### 3.3 Visão administrativa — CONCLUÍDO ✔
+- Chamada da atividade: seção "Avaliações dos participantes" (nome + data + texto, estado vazio).
+
+### 3.4 Relatório do evento (`/admin/reports?eventId=`) — CONCLUÍDO ✔
+- Card "Participantes que avaliaram" nas estatísticas: `COUNT(DISTINCT user_id)` por evento (participantes distintos, não total de avaliações).
+- Card "Atividades do Evento": por atividade, contagem de avaliações + botão "Ver avaliações (n)" que expande a lista (nome + data + texto).
+
+### 3.5 Documentação e validação — CONCLUÍDO ✔
+- `submissao.md` + `submissao_log.md` + `README.md` — 18/08.
+- Validação E2E em sandbox isolada (script Node) — 36/36 checks, sandbox porta 3102, 18/08.
 
 ---
 
@@ -118,9 +134,18 @@ Status geral: **PENDENTE**.
 
 ---
 
+## Ciclo 5 — Fase 2: Auditoria
+Status geral: **PENDENTE**.
+- Trilha de auditoria (quem fez o quê e quando) nas operações relevantes
+  (criação/edição/exclusão de usuários, eventos, inscrições, presenças).
+- Tabela de eventos de auditoria + registro nos handlers existentes + listagem admin.
+
+---
+
 ## Riscos / observações
 - `qrcode` já está em `package.json` (instalada na Fase 1, 16/08); `nodemailer` ainda não (instalar na Fase 3).
 - `jsQR` é servido localmente em `public/lib/jsQR.min.js` (sem CDN, por causa da CSP).
 - QR/câmera depende de HTTPS em produção; o fallback de digitação manual do código do crachá cobre contextos sem câmera.
 - Fluxo do QR do crachá (1.5b/1.6b/1.7b) implementado e validado E2E (36/36, 17/08); ainda não commitado.
 - `parseCsvFile` em `routes/users.js` está morto (importação usa `xlsx`) — mantido, fora de escopo.
+- Logo do evento (17/08) foi implementado **fora dos ciclos**: upload no formulário do evento, prévia imediata em `new`/`edit`, exibição nas páginas públicas e nos PDFs (crachá, lista de presença, folha com QR Code). O `fileFilter` do Multer foi corrigido para aceitar explicitamente PNG/JPEG e permitir a gravação em `uploads/event-logos/`; validações técnicas de sintaxe, templates e schema concluídas, restando validação funcional pelo usuário após reiniciar o servidor — ver `submissao_log.md`.

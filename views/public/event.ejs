@@ -18,6 +18,7 @@
     .main-content { max-width: 1120px; margin: 0 auto; padding: 2rem; }
     .event-shell { background: rgba(30,41,59,0.58); border: 1px solid rgba(148,163,184,0.1); border-radius: 18px; padding: 2rem; margin-bottom: 1.5rem; }
     .event-header .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.9rem; }
+    .event-header .event-logo { display: block; max-height: 96px; max-width: 320px; object-fit: contain; background: #fff; border-radius: 10px; padding: 10px; margin-bottom: 1rem; }
     .event-header h1 { font-size: 2rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.4rem; }
     .event-meta { color: #94a3b8; font-size: 0.94rem; line-height: 1.7; }
     .event-description { color: #cbd5e1; line-height: 1.7; font-size: 0.95rem; margin-top: 1rem; }
@@ -78,6 +79,9 @@
   <main class="main-content">
     <div class="event-shell">
       <div class="event-header">
+        <% if (event.logo_path) { %>
+          <img src="/uploads/event-logos/<%= String(event.logo_path).split('/').pop() %>" alt="" class="event-logo">
+        <% } %>
         <span class="area"><%= event.area_display %></span>
         <h1><%= event.name %></h1>
         <div class="event-meta">

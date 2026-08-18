@@ -1231,7 +1231,7 @@ function getOwnedEventRegistration(eventId, req) {
 }
 
 router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => {
-  const event = db.prepare("SELECT * FROM events WHERE id=? AND status='published'").get(req.params.id);
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const registration = getOwnedEventRegistration(event.id, req);
   if (!registration) return res.redirect(`/evento/${event.id}/inscricao`);
@@ -1253,40 +1253,99 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
       if (!attendedSessionsByActivity[session.activity_id]) attendedSessionsByActivity[session.activity_id] = [];
       attendedSessionsByActivity[session.activity_id].push(session.session_name);
     });
+  const evaluationsByActivity = {};
+  db.prepare('SELECT activity_id, evaluation FROM activity_evaluations WHERE user_id=? AND event_id=?')
+    .all(req.session.userId, event.id).forEach((row) => {
+      evaluationsByActivity[row.activity_id] = row.evaluation;
+    });
   activities.forEach((activity) => {
     activity.sessions_total = Number(activity.sessions_total) || 0;
     activity.attended_sessions = attendedSessionsByActivity[activity.id] || [];
+    activity.evaluation = evaluationsByActivity[activity.id] || '';
   });
   return res.render('public/event-activities', {
     title: `Minhas atividades - ${event.name}`, event: withAreaMeta(event), registration, activities,
+    isClosed: event.status === 'encerrado',
     success: req.query.success || null, error: req.query.error || null
   });
 });
 
+const EVALUATION_MAX_LENGTH = 2000;
+
+// Coleta e valida os campos evaluation_<activityId> apenas para as atividades informadas.
+function normalizeActivityEvaluations(activityIds, body) {
+  const evaluations = [];
+  for (const activityId of activityIds) {
+    const raw = body[`evaluation_${activityId}`];
+    if (raw === undefined) continue;
+    const text = String(raw).trim();
+    if (text.length > EVALUATION_MAX_LENGTH) {
+      return { error: `A avaliação deve ter no máximo ${EVALUATION_MAX_LENGTH} caracteres.` };
+    }
+    evaluations.push({ activityId, text });
+  }
+  return { evaluations };
+}
+
+function saveActivityEvaluation(eventId, activityId, userId, text) {
+  if (text) {
+    db.prepare(`INSERT INTO activity_evaluations (event_id,activity_id,user_id,evaluation,updated_at)
+      VALUES (?,?,?,?,datetime('now','-3 hours'))
+      ON CONFLICT(activity_id,user_id) DO UPDATE SET evaluation=excluded.evaluation,updated_at=excluded.updated_at`)
+      .run(eventId, activityId, userId, text);
+  } else {
+    db.prepare('DELETE FROM activity_evaluations WHERE activity_id=? AND user_id=?').run(activityId, userId);
+  }
+}
+
 router.post('/evento/:id/atividades', registrationLimiter, requireNonAdminAuthorAccess, (req, res) => {
-  const event = db.prepare("SELECT * FROM events WHERE id=? AND status='published'").get(req.params.id);
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const registration = getOwnedEventRegistration(event.id, req);
   if (!registration) return res.redirect(`/evento/${event.id}/inscricao`);
-  const submitted = Array.isArray(req.body.activity_ids) ? req.body.activity_ids : [req.body.activity_ids];
-  const activityIds = [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
-  const validationError = validateRegistrationActivities(event.id, activityIds);
-  if (validationError) return res.redirect(`/evento/${event.id}/atividades?error=${encodeURIComponent(validationError)}`);
+  const isClosed = event.status === 'encerrado';
+  const backTo = (params) => `/evento/${event.id}/atividades?${params}`;
+
+  let targetActivityIds;
+  if (isClosed) {
+    targetActivityIds = db.prepare('SELECT activity_id FROM participant_activity_enrollments WHERE registration_id=? AND user_id=?')
+      .all(registration.id, req.session.userId).map((row) => Number(row.activity_id));
+  } else {
+    const submitted = Array.isArray(req.body.activity_ids) ? req.body.activity_ids : [req.body.activity_ids];
+    const activityIds = [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
+    const validationError = validateRegistrationActivities(event.id, activityIds);
+    if (validationError) return res.redirect(backTo(`error=${encodeURIComponent(validationError)}`));
+    targetActivityIds = activityIds;
+  }
+
+  const evalResult = normalizeActivityEvaluations(targetActivityIds, req.body);
+  if (evalResult.error) return res.redirect(backTo(`error=${encodeURIComponent(evalResult.error)}`));
+
+  const applyEvaluations = () => {
+    evalResult.evaluations.forEach(({ activityId, text }) => saveActivityEvaluation(event.id, activityId, req.session.userId, text));
+  };
+
+  if (isClosed) {
+    db.transaction(applyEvaluations)();
+    return res.redirect(backTo(`success=${encodeURIComponent('Avaliações atualizadas.')}`));
+  }
+
   const attendedIds = db.prepare(`SELECT activity_id FROM activity_attendance_records
     WHERE user_id=? AND role='participant' AND activity_id IN (SELECT id FROM event_activities WHERE event_id=?)`)
     .all(req.session.userId, event.id).map((row) => Number(row.activity_id));
-  const removingAttended = attendedIds.some((id) => !activityIds.includes(id));
+  const removingAttended = attendedIds.some((id) => !targetActivityIds.includes(id));
   if (removingAttended) {
-    return res.redirect(`/evento/${event.id}/atividades?error=${encodeURIComponent('Não é possível remover uma atividade que já possui presença registrada.')}`);
+    return res.redirect(backTo(`error=${encodeURIComponent('Não é possível remover uma atividade que já possui presença registrada.')}`));
   }
   db.transaction(() => {
-    saveRegistrationActivities(registration.id, req.session.userId, activityIds);
+    saveRegistrationActivities(registration.id, req.session.userId, targetActivityIds);
+    applyEvaluations();
     recordParticipantAudit({
       eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
-      action: 'participant_activities_updated_self_service', details: { activity_ids: activityIds }
+      action: 'participant_activities_updated_self_service', details: { activity_ids: targetActivityIds }
     });
   })();
-  return res.redirect(`/evento/${event.id}/atividades?success=${encodeURIComponent('Inscrição nas atividades atualizada.')}`);
+  return res.redirect(backTo(`success=${encodeURIComponent('Inscrição nas atividades atualizada.')}`));
 });
 
 // Presença por QR Code do participante (um código por usuário e por evento) — helpers em services/cracha.js

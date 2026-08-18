@@ -62,6 +62,7 @@ app.use(methodOverride((req) => {
 }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
+app.use('/uploads/event-logos', express.static(path.join(__dirname, 'uploads', 'event-logos')));
 
 // Sessão
 app.use(session({

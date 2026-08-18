@@ -35,6 +35,7 @@ function clearCertificateEmissions() {
 const TABLES = [
   'activity_attendance_records',
   'activity_certificate_rules',
+  'activity_evaluations',
   'activity_sessions',
   'admins',
   'admins_old',
@@ -121,6 +122,8 @@ function initializeDbSchema(db) {
       review_end DATE,
       certificates_start DATE,
       certificates_end DATE,
+      logo_path TEXT,
+      logo_original_name TEXT,
       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
     );
@@ -329,6 +332,7 @@ function initializeDbSchema(db) {
 
     CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',activity_date DATE,date_start DATE,date_end DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,name TEXT NOT NULL,sequence_no INTEGER NOT NULL DEFAULT 1,session_date DATE,workload_hours REAL DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS activity_evaluations (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,activity_id INTEGER NOT NULL,user_id INTEGER NOT NULL,evaluation TEXT NOT NULL,created_at DATETIME DEFAULT (datetime('now','-3 hours')),updated_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,user_id),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS participant_activity_enrollments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       activity_id INTEGER NOT NULL,
@@ -562,6 +566,8 @@ function initializeDbSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_event_user_roles_event ON event_user_roles(event_id, role);
     CREATE INDEX IF NOT EXISTS idx_participant_activity_registration ON participant_activity_enrollments(registration_id, activity_id);
     CREATE INDEX IF NOT EXISTS idx_participant_activity_user ON participant_activity_enrollments(user_id, activity_id);
+    CREATE INDEX IF NOT EXISTS idx_activity_evaluations_event ON activity_evaluations(event_id, activity_id);
+    CREATE INDEX IF NOT EXISTS idx_activity_evaluations_user ON activity_evaluations(user_id);
     CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_email
       ON event_registrations(event_id, LOWER(TRIM(email)))
       WHERE TRIM(email) != '';
@@ -708,6 +714,8 @@ function initializeDbSchema(db) {
     if (!eventColumns.includes('review_end')) db.exec('ALTER TABLE events ADD COLUMN review_end DATE');
     if (!eventColumns.includes('certificates_start')) db.exec('ALTER TABLE events ADD COLUMN certificates_start DATE');
     if (!eventColumns.includes('certificates_end')) db.exec('ALTER TABLE events ADD COLUMN certificates_end DATE');
+    if (!eventColumns.includes('logo_path')) db.exec('ALTER TABLE events ADD COLUMN logo_path TEXT');
+    if (!eventColumns.includes('logo_original_name')) db.exec('ALTER TABLE events ADD COLUMN logo_original_name TEXT');
     db.prepare(`
       UPDATE events
       SET has_article_submission = CASE

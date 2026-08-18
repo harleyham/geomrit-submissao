@@ -59,6 +59,11 @@ router.get('/', requireAuth, (req, res) => {
     FROM certificate_emissions
     WHERE event_id = ? AND status = 'issued'
   `).bind(eventId).get().count || 0;
+  const evaluatorsCount = db.prepare(`
+    SELECT COUNT(DISTINCT user_id) as count
+    FROM activity_evaluations
+    WHERE event_id = ?
+  `).bind(eventId).get().count || 0;
 
   // Artigos aprovados separados por tipo
   const articlesOral = db.prepare(`
@@ -130,7 +135,8 @@ router.get('/', requireAuth, (req, res) => {
         WHEN COALESCE(aa.approved_articles, 0) > 0 THEN 'Artigo aprovado'
         WHEN er.registration_type = 'listener' THEN 'Participante'
         ELSE 'Inscrito com artigo'
-      END as participation_label
+      END as participation_label,
+      CASE WHEN er.user_id IS NULL THEN NULL ELSE COALESCE(u.is_public, 0) END as account_status
     FROM event_registrations er
     LEFT JOIN approved_authors aa
       ON aa.participant_key = CASE
@@ -138,6 +144,7 @@ router.get('/', requireAuth, (req, res) => {
         ELSE 'email:' || LOWER(TRIM(er.email))
       END
     LEFT JOIN user_roles ur ON ur.user_id = er.user_id
+    LEFT JOIN users u ON u.id = er.user_id
     WHERE er.event_id = ?
     ORDER BY
       CASE
@@ -161,6 +168,18 @@ router.get('/', requireAuth, (req, res) => {
   const totalEnrollments = activities.reduce((sum, a) => sum + a.enrolled_count, 0);
   const totalAttendance = activities.reduce((sum, a) => sum + (a.attendees_count || 0), 0);
   const certifiedActivities = activities.filter(a => a.certificate_enabled).length;
+
+  const evaluationsByActivity = {};
+  db.prepare(`SELECT a.activity_id, u.name, a.evaluation, a.updated_at
+    FROM activity_evaluations a JOIN users u ON u.id=a.user_id
+    WHERE a.event_id = ?
+    ORDER BY a.activity_id, u.name COLLATE NOCASE`).all(eventId).forEach((row) => {
+    if (!evaluationsByActivity[row.activity_id]) evaluationsByActivity[row.activity_id] = [];
+    evaluationsByActivity[row.activity_id].push(row);
+  });
+  activities.forEach((activity) => {
+    activity.evaluations = evaluationsByActivity[activity.id] || [];
+  });
 
   const activityTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', other:'Outra' };
   const typeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','other'];
@@ -223,6 +242,7 @@ router.get('/', requireAuth, (req, res) => {
     authorRegistrations,
     listenerRegistrations,
     certificatesIssued,
+    evaluatorsCount,
     articlesOral,
     articlesPoster,
     articlesOralRejected,

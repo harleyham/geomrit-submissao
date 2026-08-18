@@ -49,6 +49,10 @@
     .form-actions { display: flex; gap: 0.75rem; justify-content: space-between; align-items: center; margin-top: 2rem; flex-wrap: wrap; }
     .form-actions-main { display: flex; gap: 0.75rem; justify-content: flex-end; flex-wrap: wrap; }
     .help-text { color: #64748b; font-size: 0.75rem; margin-top: 0.375rem; }
+    .logo-preview { margin-top: 0.75rem; display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
+    .logo-preview[hidden] { display: none; }
+    .logo-preview-image { max-height: 96px; max-width: 280px; object-fit: contain; background: #fff; border-radius: 8px; padding: 6px; }
+    .logo-preview-name { color: #94a3b8; font-size: 0.8rem; overflow-wrap: anywhere; }
     .alert { margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 10px; font-size: 0.9rem; }
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
@@ -83,7 +87,7 @@
       </form>
     <% } %>
 
-    <form method="POST" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>">
+    <form method="POST" enctype="multipart/form-data" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="section">
         <% if (error) { %>
@@ -92,6 +96,22 @@
         <div class="form-group">
           <label for="name">Nome do Evento *</label>
           <input type="text" id="name" name="name" required value="<%= event ? event.name : '' %>">
+        </div>
+        <div class="form-group">
+          <label for="logo">Logo do Evento</label>
+          <input type="file" id="logo" name="logo" accept="image/png,image/jpeg,.png,.jpg,.jpeg">
+          <div class="help-text">Imagem PNG ou JPEG com até 5 MB. Exibida na página de eventos, no crachá, nas listas de presença e nas folhas com QR Code.</div>
+          <div id="logo-preview" class="logo-preview" <%= event && event.logo_path ? '' : 'hidden' %>>
+            <img id="logo-preview-image" class="logo-preview-image" src="<%= event && event.logo_path ? '/uploads/event-logos/' + String(event.logo_path).split('/').pop() : '' %>" alt="Prévia do logo do evento">
+            <div>
+              <div id="logo-preview-name" class="logo-preview-name"><%= event && event.logo_original_name ? event.logo_original_name : '' %></div>
+              <% if (event && event.logo_path) { %>
+              <label style="display:flex;align-items:center;gap:0.5rem;color:#94a3b8;font-size:0.875rem;font-weight:500;cursor:pointer;margin:0;">
+                <input type="checkbox" id="remove_logo" name="remove_logo" value="1" style="width:auto;"> Remover logo atual
+              </label>
+              <% } %>
+            </div>
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -233,6 +253,28 @@
       var submissionEnd = document.getElementById('submission_end');
       var reviewStart = document.getElementById('review_start');
       var reviewEnd = document.getElementById('review_end');
+      var logoInput = document.getElementById('logo');
+      var logoPreview = document.getElementById('logo-preview');
+      var logoPreviewImage = document.getElementById('logo-preview-image');
+      var logoPreviewName = document.getElementById('logo-preview-name');
+      var removeLogo = document.getElementById('remove_logo');
+      var previewObjectUrl = null;
+
+      if (logoInput && logoPreview && logoPreviewImage) {
+        logoInput.addEventListener('change', function() {
+          var file = logoInput.files && logoInput.files[0];
+          if (!file) return;
+          if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+          previewObjectUrl = URL.createObjectURL(file);
+          logoPreviewImage.src = previewObjectUrl;
+          logoPreviewName.textContent = file.name;
+          logoPreview.hidden = false;
+          if (removeLogo) removeLogo.checked = false;
+        });
+        window.addEventListener('beforeunload', function() {
+          if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        });
+      }
 
       if (!toggle || !settings) return;
 
