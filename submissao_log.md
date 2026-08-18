@@ -6,6 +6,17 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-18
 
+### Bug: prévia da Área do Participante interpretava os comandos como a conta do admin
+
+- Bug reportado: ao acessar a página de um usuário ("Área do Participante", `GET /admin/users/:id/participant`), os comandos que o admin dava eram interpretados como a conta do admin, e não como o usuário sendo visualizado.
+- Causa: a prévia renderizava `public/author-dashboard` com `previewMode`, mas os links/formulários daquela página apontam para rotas públicas que usam `req.session.userId` — a conta do admin logado.
+- Correção (impersonação por sessão, escopo da prévia):
+  - `routes/users.js` (`GET /:id/participant`): grava `session.realIdentity` (backup da identidade do admin: `userId`, `userName`, `userEmail`, `userInstitution`, `isPublic`, `isAdmin`, `isReviewer`) e `session.previewUserId`, e aplica a identidade do usuário pré-visualizado à sessão; usuário inativo (`is_public = 0`) retorna 400 "Conta inativa" em vez do dashboard (evita ações ambíguas).
+  - `server.js`: novo middleware (antes de `requireActiveAccount`) — em requests fora de `/admin/*`, mantém a sessão com a identidade do usuário pré-visualizado (revalidando a cada request que ele exista e esteja ativo; senão restaura o admin); em qualquer request em `/admin/*`, restaura `realIdentity` e limpa `previewUserId`/`realIdentity` (a saída da prévia é automática ao voltar ao painel).
+- `views/public/author-dashboard.ejs`: o aviso da prévia passa a explicar que as ações são registradas em nome do usuário visualizado, com link "Sair da visualização".
+- Validação E2E (18/08, servidor real): sem prévia o admin (não inscrito no evento 1) recebe 403 em `/evento/1/qr-presenca`; com a prévia do usuário 2 a mesma rota retorna 200 com o token QR do usuário 2; `POST /evento/1/atividades` (avaliação) gravou em nome do usuário 2 (auditoria `participant_activities_updated_self_service`), sem tocar a conta do admin; ao voltar a `/admin/users` a identidade do admin foi restaurada (403 de novo no QR); prévia de usuário inativo retornou 400 "Conta inativa". Estado original restaurado após os testes.
+- Status: **implementado e validado**; ainda não commitado.
+
 ### Participante: edição de perfis por evento no formulário de edição do participante
 
 - Requisito do usuário: na edição do participante (`/admin/events/:id/participants/:registrationId/edit`), além dos dados e das atividades da inscrição, permitir editar também os perfis do usuário para aquele evento (como a seção "Perfis por evento" de `/admin/users/:id/edit`).
@@ -1273,7 +1284,4 @@ Versão atual registrada: **V0.1**.
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
 - Link para a palestra/aula
-- Implementar Campo para os participantes avaliarem as Etapas, Tarefas e Eventos — **aplicado em 18/08** (ver seção "Avaliação de atividades pelo participante (Ciclo 3)" acima)
-- Existe um bug que é quando um adm acessa a página de usuário, os comandos que ele (admin) dá são interpretados como a conta do admin. No caso é paa interpretar como se o prórpio usuário estivesse acessando sua área.
-- Em um caso em que há um credenciamento e impressão dos crachas dos participantes, é necessário ter na tela http://127.0.0.1:3000/admin/events/1/participants um botao para cada participante para impressão do crachá — **aplicado em 17/08** (ver seção "Credenciamento: botão 'Imprimir crachá' por participante na listagem admin" acima)
 - Na página de relatório de Evento, deve haver a opção de exportação de arquivo .md, a fim de ser avaliado por uma IA

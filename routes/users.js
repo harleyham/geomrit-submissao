@@ -468,7 +468,7 @@ router.post('/:id/event-roles', requireAuth, (req, res) => {
 router.get('/:id/participant', requireAuth, (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const previewUser = db.prepare(`
-    SELECT id, name, email
+    SELECT id, name, email, institution, is_public, is_admin, is_reviewer
     FROM users
     WHERE id = ?
   `).bind(userId).get();
@@ -476,6 +476,30 @@ router.get('/:id/participant', requireAuth, (req, res) => {
   if (!previewUser) {
     return res.status(404).render('error', { title: 'Usuário não encontrado', message: 'O usuário solicitado não foi encontrado.' });
   }
+
+  if (!previewUser.is_public) {
+    return res.status(400).render('error', { title: 'Conta inativa', message: 'A conta deste usuário está inativa. Reative-a em /admin/users para visualizar a área do participante.' });
+  }
+
+  // Prévia: as rotas públicas passam a agir em nome do usuário pré-visualizado
+  // (middleware em server.js restaura a identidade do admin em /admin/*).
+  req.session.realIdentity = {
+    userId: req.session.userId,
+    userName: req.session.userName,
+    userEmail: req.session.userEmail,
+    userInstitution: req.session.userInstitution,
+    isPublic: req.session.isPublic,
+    isAdmin: req.session.isAdmin,
+    isReviewer: req.session.isReviewer
+  };
+  req.session.previewUserId = previewUser.id;
+  req.session.userId = previewUser.id;
+  req.session.userName = previewUser.name;
+  req.session.userEmail = previewUser.email;
+  req.session.userInstitution = previewUser.institution || '';
+  req.session.isPublic = true;
+  req.session.isAdmin = !!previewUser.is_admin;
+  req.session.isReviewer = !!previewUser.is_reviewer;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

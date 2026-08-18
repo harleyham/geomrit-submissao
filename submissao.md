@@ -150,6 +150,10 @@ A sessão persiste:
 
 Quando o usuário está autenticado, a interface deve exibir ação explícita de logout (`Sair`) nas páginas navegáveis do fluxo correspondente.
 
+### Prévia da área do participante (impersonação por sessão)
+
+Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "Área do Participante" na listagem de usuários), a sessão do admin passa a agir em nome do usuário pré-visualizado: `session.previewUserId` guarda o alvo e `session.realIdentity` guarda a identidade real do admin (`userId`, `userName`, `userEmail`, `userInstitution`, `isPublic`, `isAdmin`, `isReviewer`). Um middleware global mantém a identidade do alvo nos requests fora de `/admin/*` (revalidando a cada request que o alvo exista e esteja ativo) e a restaura automaticamente em qualquer request em `/admin/*` (a saída da prévia é voltar ao painel). Assim, inscrições, avaliações, submissões e demais ações realizadas na prévia são registradas em nome do usuário visualizado, e não do admin. Prévia de usuário inativo (`is_public = 0`) retorna 400 "Conta inativa".
+
 ## Modelo de Dados Principal
 
 ### `users`

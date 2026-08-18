@@ -129,6 +129,54 @@ const reportsRouter = require('./routes/reports');
 const publicRouter = require('./routes/public');
 const reviewerRoutes = require('./routes/reviewer');
 
+// Prévia da área do participante: enquanto o admin visualiza um usuário
+// (session.previewUserId, gravado em GET /admin/users/:id/participant), as
+// rotas públicas agem em nome do usuário pré-visualizado. Qualquer request em
+// /admin/* sai da visualização e restaura a identidade real do admin.
+const previewTargetQuery = db.prepare('SELECT id, name, email, institution, is_public, is_admin, is_reviewer FROM users WHERE id = ?');
+app.use((req, res, next) => {
+  const session = req.session;
+  if (!session || !session.previewUserId) return next();
+  const real = session.realIdentity;
+  if (!real) {
+    delete session.previewUserId;
+    return next();
+  }
+  const inAdminArea = req.path.startsWith('/admin');
+  const realActive = db.prepare('SELECT is_public FROM users WHERE id = ?').get(real.userId);
+  if (inAdminArea || !realActive || !realActive.is_public) {
+    Object.assign(session, real);
+    delete session.previewUserId;
+    delete session.realIdentity;
+    return next();
+  }
+  const target = previewTargetQuery.get(session.previewUserId);
+  if (!target || !target.is_public) {
+    Object.assign(session, real);
+    delete session.previewUserId;
+    delete session.realIdentity;
+    return next();
+  }
+  if (session.userId !== target.id) {
+    session.userId = target.id;
+    session.userName = target.name;
+    session.userEmail = target.email;
+    session.userInstitution = target.institution || '';
+    session.isPublic = true;
+    session.isAdmin = !!target.is_admin;
+    session.isReviewer = !!target.is_reviewer;
+    if (res.locals) {
+      res.locals.userId = target.id;
+      res.locals.userName = target.name;
+      res.locals.userEmail = target.email;
+      res.locals.isPublic = true;
+      res.locals.isAdmin = !!target.is_admin;
+      res.locals.isReviewer = !!target.is_reviewer;
+    }
+  }
+  next();
+});
+
 // Roteamento
 app.use('/login', authRouter);
 

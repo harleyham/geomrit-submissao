@@ -114,7 +114,7 @@
         </div>
         <% if (previewMode) { %>
           <div class="alert" style="margin-top:1rem; margin-bottom:0; background:rgba(59,130,246,0.1); border:1px solid rgba(96,165,250,0.2); color:#bfdbfe;">
-            Visualização administrativa em modo leitura.
+            Visualização administrativa como <strong><%= previewUser && previewUser.email ? previewUser.email : 'este usuário' %></strong>: as ações realizadas nesta página são registradas em nome deste usuário. <a href="/admin/users" style="color:#93c5fd;">Sair da visualização</a>
           </div>
         <% } %>
         <div style="margin-top:1.25rem;display:flex;gap:0.75rem;flex-wrap:wrap;">
