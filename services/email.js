@@ -32,6 +32,18 @@ function getPendingEmailCount(eventId = null) {
   return db.prepare("SELECT COUNT(*) AS count FROM email_outbox WHERE event_id=? AND status IN ('queued','failed')").get(eventId).count;
 }
 
+function getPendingEmails(limit = 100) {
+  const safeLimit = Math.min(500, Math.max(1, Number.parseInt(limit, 10) || 100));
+  return db.prepare(`SELECT eo.id,eo.recipient_email,eo.recipient_name,eo.message_type,eo.subject,
+    eo.status,eo.attempts,eo.available_at,eo.next_attempt_at,eo.last_error,eo.created_at,
+    e.id AS event_id,e.name AS event_name
+    FROM email_outbox eo
+    LEFT JOIN events e ON e.id=eo.event_id
+    WHERE eo.status IN ('queued','failed')
+    ORDER BY COALESCE(eo.next_attempt_at,eo.available_at),eo.id
+    LIMIT ?`).all(safeLimit);
+}
+
 function getGlobalIdentity() {
   const address = text(process.env.MAIL_FROM_ADDRESS, text(process.env.SMTP_USER, 'eventos@ham.eng.br'));
   return {
@@ -455,7 +467,7 @@ function isValidHttpUrl(value) {
 }
 
 module.exports = {
-  getSystemEmailSettings, getPendingEmailCount, getGlobalIdentity, getEventIdentity,
+  getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getGlobalIdentity, getEventIdentity,
   setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail,
   queueAccountRequested, queueAccountApproved, queueImportedAccount, queueImportedRegistration,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,

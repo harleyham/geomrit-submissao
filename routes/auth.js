@@ -11,7 +11,7 @@ const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('.
 const { resetDatabase } = require('../services/db-reset');
 const { createBackupZip, restoreFromZip, backupFileName } = require('../services/backup');
 const { requireSuperAdmin } = require('../security/super-admin');
-const { getSystemEmailSettings, getPendingEmailCount, setSystemEmailEnabled } = require('../services/email');
+const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, setSystemEmailEnabled } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
 fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
@@ -209,6 +209,7 @@ router.get('/', (req, res) => {
 
 // Dashboard admin
 router.get('/dashboard', requireAuth, (req, res) => {
+  const isSuperAdmin = req.session.userEmail === 'admin@admin.com';
   const brToday = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
   const totalEvents = db.prepare('SELECT COUNT(*) as count FROM events').get().count;
   const publishedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'published'").get().count;
@@ -386,6 +387,7 @@ router.get('/dashboard', requireAuth, (req, res) => {
     pendingRegistrationRequests,
     systemEmailSettings: getSystemEmailSettings(),
     pendingEmailCount: getPendingEmailCount(),
+    pendingEmails: isSuperAdmin ? getPendingEmails() : [],
     year: new Date().getFullYear(),
     query: req.query
   });

@@ -78,6 +78,12 @@
 
     .empty { padding: 3rem; text-align: center; color: #64748b; }
     .empty p { margin-top: 0.5rem; font-size: 0.875rem; }
+    .table-scroll { overflow-x: auto; }
+    .email-queue-summary { cursor: pointer; color: #93c5fd; font-size: .875rem; font-weight: 600; padding: 1rem 1.5rem; border-top: 1px solid rgba(148,163,184,.1); }
+    .email-queue-summary:hover { background: rgba(59,130,246,.06); }
+    .email-error { color: #fca5a5; display: block; margin-top: .25rem; max-width: 34rem; white-space: normal; }
+    .email-status-queued { background: rgba(59,130,246,.15); color: #93c5fd; }
+    .email-status-failed { background: rgba(239,68,68,.15); color: #fca5a5; }
 
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
     a { color: #60a5fa; text-decoration: none; }
@@ -378,6 +384,30 @@
             <button type="submit" class="btn <%= systemEmailSettings.email_enabled ? 'btn-danger' : 'btn-success' %>"><%= systemEmailSettings.email_enabled ? 'Desativar todos os e-mails' : 'Ativar envio global' %></button>
           </form>
         </div>
+        <% if (pendingEmailCount > 0) { %>
+        <details>
+          <summary class="email-queue-summary">Ver mensagens pendentes (<%= pendingEmailCount %>)</summary>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>ID</th><th>Destinatário</th><th>Mensagem</th><th>Evento</th><th>Status</th><th>Agendamento</th></tr></thead>
+              <tbody>
+                <% const emailTypeLabels = { account_requested: 'Solicitação de cadastro', account_approved: 'Cadastro aprovado', imported_account: 'Conta criada', imported_account_registration: 'Conta e inscrição', imported_registration: 'Inscrição no evento', event_reminder: 'Lembrete do evento', certificate_issued: 'Certificado emitido', certificate_reissued: 'Certificado reemitido', video_link_changed: 'Alteração de transmissão' }; %>
+                <% pendingEmails.forEach(email => { %>
+                <tr>
+                  <td>#<%= email.id %></td>
+                  <td><strong><%= email.recipient_name || '-' %></strong><br><small><%= email.recipient_email %></small></td>
+                  <td><%= emailTypeLabels[email.message_type] || email.message_type %><br><small><%= email.subject %></small></td>
+                  <td><% if (email.event_id) { %><a href="/admin/events/<%= email.event_id %>/edit"><%= email.event_name || ('Evento #' + email.event_id) %></a><% } else { %>Sistema<% } %></td>
+                  <td><span class="badge email-status-<%= email.status %>"><%= email.status === 'failed' ? 'Falha / nova tentativa' : 'Na fila' %></span><br><small><%= email.attempts %> tentativa(s)</small><% if (email.last_error) { %><small class="email-error"><%= email.last_error %></small><% } %></td>
+                  <td><small>Criada: <%= email.created_at || '-' %><br>Disponível: <%= email.available_at || '-' %><% if (email.next_attempt_at) { %><br>Próxima tentativa: <%= email.next_attempt_at %><% } %></small></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+          <% if (pendingEmailCount > pendingEmails.length) { %><p style="padding:1rem 1.5rem;color:#94a3b8;">Exibindo as primeiras <%= pendingEmails.length %> de <%= pendingEmailCount %> mensagens.</p><% } %>
+        </details>
+        <% } %>
       </div>
       <% if (query && query.reset === 'success') { %>
       <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">

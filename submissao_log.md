@@ -6,6 +6,12 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-20
 
+### Dashboard: detalhamento das mensagens de e-mail pendentes
+
+- O card "Envio global de e-mails", restrito ao superadministrador, ganhou a ação expansível "Ver mensagens pendentes".
+- A listagem mostra destinatário, tipo/assunto, evento, estado (`queued` ou `failed`), tentativas, horários de disponibilidade/retentativa e o último erro, sem expor o payload ou tokens da mensagem.
+- A consulta exibe até 100 mensagens por ordem de processamento e informa quando há mais registros.
+
 ### Correção: e-mail na inclusão manual de participante
 
 - A inclusão em `/admin/events/:id/participants` não acionava o serviço de e-mail, embora criasse a conta e a inscrição normalmente.
