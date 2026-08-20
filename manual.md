@@ -87,8 +87,9 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 3. Defina o status: **Rascunho**, **Publicado** ou **Encerrado**.
 4. Configure as janelas de inscrição, submissão, análise e certificados.
 5. Indique se o evento aceita artigos e se oferece subsídio.
-6. Selecione um logo PNG/JPEG de até 5 MB. A tela mostra a prévia imediatamente.
-7. Salve o evento.
+6. Defina **Inscrições abertas ao público?**: mantenha ativo para permitir a inscrição do público no site; desative para que apenas a administração cadastre os participantes (a linha "Inscrições" sai do cronograma público e a página de inscrição exibe a mensagem correspondente).
+7. Selecione um logo PNG/JPEG de até 5 MB. A tela mostra a prévia imediatamente.
+8. Salve o evento.
 
 Ao criar o evento, o usuário criador recebe automaticamente o papel de administrador daquele evento. Um evento publicado aparece na página inicial. Ao encerrá-lo, a página pública e os certificados permanecem acessíveis, mas novas inscrições e submissões são bloqueadas.
 

@@ -4,6 +4,25 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-20
+
+### Inscrição pública ou somente pela administração (`public_registration`)
+
+- Requisito do usuário: assim como há a chave de submissão de artigos, o evento deve permitir selecionar se as inscrições serão feitas pelo público ou somente pela administração.
+- `services/db-reset.js`: coluna `public_registration INTEGER DEFAULT 1` em `events` (schema + migração idempotente `ALTER TABLE ... ADD COLUMN` para bases existentes — eventos existentes permanecem com inscrição pública).
+- `views/admin/events/form.ejs`: novo toggle "Inscrições abertas ao público?" no formulário de criação/edição de evento (mesmo padrão visual do toggle de submissão); pré-marcado por padrão, inclusive para eventos anteriores à coluna.
+- `routes/events.js`: criação e edição de evento leem o checkbox `public_registration` e persistem `1`/`0` (campo ausente = `0`); o valor é preservado no re-render em caso de erro de validação/upload.
+- `routes/public.js` (`getRegistrationWindow`): quando `public_registration = 0`, a janela de inscrição retorna sempre fechada com a mensagem "As inscrições deste evento são realizadas somente pela administração." — o formulário público (`/evento/:id/inscricao`) é exibido com o botão de envio desabilitado e o `POST` é bloqueado na mesma verificação.
+- Cadastro administrativo de participantes (formulário/importação) não é afetado: a administração continua inscrevendo normalmente.
+- Status: **implementado** (efetiva após reinício do servidor; migração aplicada na inicialização; validado via HTTP com usuário de teste em janela aberta/fechada).
+
+### Cronograma público: linha "Inscrições" oculta quando a inscrição é somente pela administração
+
+- Requisito do usuário: em `/evento/:id`, eventos com inscrição somente pela administração não devem exibir a linha "Inscrições" no Cronograma.
+- `routes/public.js` (`buildEventTimeline`): o item "Inscrições" só é adicionado ao cronograma quando `public_registration !== 0`; as demais linhas (Submissão Artigos, Análise Submissão, Evento, Certificados) não mudam.
+- A inserção das linhas de submissão deixou de usar índice fixo (`splice(1, 0, ...)`) e passou a usar `timeline.indexOf(eventItem)`, mantendo a ordem correta (`Inscrições → Submissão Artigos → Análise Submissão → Evento → Certificados`) com ou sem a linha de inscrições.
+- Status: **implementado** (efetiva após reinício do servidor; validado em `/evento/2` com o toggle ligado e desligado e em evento com submissão configurada).
+
 ## 2026-08-19
 
 ### Listagem administrativa de atividades: ordenação por data

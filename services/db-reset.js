@@ -113,6 +113,7 @@ function initializeDbSchema(db) {
       language TEXT,
       has_article_submission INTEGER DEFAULT 0,
       offers_subsidy INTEGER DEFAULT 0,
+      public_registration INTEGER DEFAULT 1,
       status TEXT NOT NULL DEFAULT 'draft',
       registration_start DATE,
       registration_end DATE,
@@ -711,6 +712,7 @@ function initializeDbSchema(db) {
     const eventColumns = db.prepare("PRAGMA table_info(events)").all().map(c => c.name);
     if (!eventColumns.includes('has_article_submission')) db.exec('ALTER TABLE events ADD COLUMN has_article_submission INTEGER DEFAULT 0');
     if (!eventColumns.includes('offers_subsidy')) db.exec('ALTER TABLE events ADD COLUMN offers_subsidy INTEGER DEFAULT 0');
+    if (!eventColumns.includes('public_registration')) db.exec('ALTER TABLE events ADD COLUMN public_registration INTEGER DEFAULT 1');
     if (!eventColumns.includes('institution')) db.exec('ALTER TABLE events ADD COLUMN institution TEXT');
     if (!eventColumns.includes('language')) db.exec('ALTER TABLE events ADD COLUMN language TEXT');
     if (!eventColumns.includes('registration_start')) db.exec('ALTER TABLE events ADD COLUMN registration_start DATE');

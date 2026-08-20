@@ -159,6 +159,16 @@
         </div>
         <div class="toggle-row">
           <div class="toggle-copy">
+            <strong>Inscrições abertas ao público?</strong>
+            <span>Ative para permitir que qualquer pessoa se inscreva no evento. Desative para que apenas a administração cadastre os participantes.</span>
+          </div>
+          <label class="switch" for="public_registration">
+            <input type="checkbox" id="public_registration" name="public_registration" value="1" <%= !event || event.public_registration !== 0 ? 'checked' : '' %>>
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-copy">
             <strong>Este evento terá submissão de artigos?</strong>
             <span>Ative para configurar as datas de submissão e análise das submissões.</span>
           </div>

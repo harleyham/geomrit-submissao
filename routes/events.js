@@ -661,11 +661,12 @@ router.get('/new', (req, res) => {
 router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
-  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
+  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration } = req.body;
   const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
+  const publicRegistration = public_registration ? 1 : 0;
   const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
@@ -684,6 +685,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
         area: normalizedArea,
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
+        public_registration: publicRegistration,
         status: normalizedStatus,
         institution,
         language,
@@ -729,6 +731,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
         area: normalizedArea,
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
+        public_registration: publicRegistration,
         status: normalizedStatus,
         institution,
         language,
@@ -747,9 +750,9 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
   }
 
   const createdEvent = db.prepare(`
-    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.file ? `uploads/event-logos/${req.file.filename}` : null, req.file ? req.file.originalname : null).run();
+    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.file ? `uploads/event-logos/${req.file.filename}` : null, req.file ? req.file.originalname : null).run();
   db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(createdEvent.lastInsertRowid, req.session.userId, req.session.userId);
   res.redirect('/admin/events');
 });
@@ -765,11 +768,12 @@ router.get('/:id/edit', (req, res) => {
 router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
-  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission } = req.body;
+  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration } = req.body;
   const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
+  const publicRegistration = public_registration ? 1 : 0;
   const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
@@ -790,6 +794,7 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         area: normalizedArea,
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
+        public_registration: publicRegistration,
         status: normalizedStatus,
         institution,
         language,
@@ -838,6 +843,7 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         area: normalizedArea,
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
+        public_registration: publicRegistration,
         status: normalizedStatus,
         institution,
         language,
@@ -870,9 +876,9 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   }
 
   db.prepare(`
-    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?, updated_at=datetime('now', '-3 hours')
+    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName, req.params.id).run();
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName, req.params.id).run();
   res.redirect('/admin/events');
 });
 

@@ -48,6 +48,7 @@ O sistema deve permitir:
 - Listagem administrativa de eventos: botão "Página pública" na coluna Ações (abre em nova aba) levando à página pública `/evento/:id`, exibido apenas para eventos publicados/encerrados (a rota pública retorna 404 para rascunhos).
 - Configuração de múltiplas áreas/trilhas por evento.
 - Configuração explícita de evento com ou sem submissão de artigos.
+- Configuração explícita de evento com inscrições abertas ao público ou realizadas somente pela administração (toggle "Inscrições abertas ao público?", coluna `events.public_registration`, padrão público).
 - Configuração de subsídio a participantes por evento.
 - Acompanhamento de inscrições, participação e elegibilidade para certificados de participação por evento.
 - Gestão de usuários em `/admin/users`.
@@ -103,6 +104,7 @@ O sistema deve permitir:
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
 - Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; espaço vazio quando não há transmissão). Atividades com etapas exibem uma sub-linha por etapa (data e nome indentados); a etapa mostra o próprio vídeo quando configurado, senão herda o vídeo da atividade (com o aviso de transmissão prevista quando a flag da etapa ou da atividade está definida).
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
+- Inscrição somente pela administração: quando o evento tem `public_registration = 0`, a página `/evento/:id/inscricao` exibe a mensagem "As inscrições deste evento são realizadas somente pela administração." com o botão de envio desabilitado, o `POST` é bloqueado e a linha "Inscrições" não aparece no cronograma público da página do evento (participantes já inscritos continuam vendo "Minhas participações").
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
 - Avaliação de atividades: em `/evento/:id/atividades`, o participante inscrito registra uma avaliação por atividade (texto livre de até 2000 caracteres); com o evento encerrado, as inscrições ficam travadas, mas as avaliações das atividades já inscritas continuam editáveis.
 - Submissão de artigo com geração de código de acesso.
@@ -194,6 +196,7 @@ Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "�
 - `area`
 - `has_article_submission`
 - `offers_subsidy`
+- `public_registration`
 - `registration_start`
 - `registration_end`
 - `status`
@@ -467,11 +470,14 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 
 - Apenas eventos com `status = 'published'` aparecem na listagem pública inicial.
 - O status `encerrado` é um terceiro estado explícito (além de `draft` e `published`), atribuído por ação administrativa (`POST /admin/events/:id/close`), somente a partir do estado `published`.
-- O cronograma público do evento é organizado por `Inscrições`, `Submissão Artigos`, `Análise Submissão`, `Evento` e `Certificados`.
+- O cronograma público do evento é organizado por `Inscrições`, `Submissão Artigos`, `Análise Submissão`, `Evento` e `Certificados`; a linha `Inscrições` só aparece quando o evento tem inscrições abertas ao público (`public_registration = 1`).
 - Cada etapa do cronograma pode ter período próprio configurado na administração do evento.
 - A submissão pública depende da janela configurada em `submission_start` e `submission_end`.
 - Eventos com `has_article_submission = 0` não exibem linhas de submissão e análise no cronograma público.
 - A inscrição pública depende da janela configurada em `registration_start` e `registration_end`.
+- O evento registra em `public_registration` se as inscrições são abertas ao público (`1`, padrão) ou realizadas somente pela administração (`0`).
+- Quando `public_registration = 0`, a inscrição pública fica bloqueada independentemente das janelas: o formulário público é exibido desabilitado com a mensagem "As inscrições deste evento são realizadas somente pela administração.", o `POST /evento/:id/inscricao` é rejeitado e o cronograma público omite a linha `Inscrições`.
+- A administração cadastra participantes normalmente (formulário/importação) mesmo com `public_registration = 0`.
 - A área de certificados de participação depende da janela configurada em `certificates_start` e `certificates_end`.
 - Um evento sem `submission_start` e `submission_end` não é tratado como submissão fechada, mas como evento sem submissão de artigos configurada.
 - Quando uma etapa do cronograma não possui janela configurada, a página pública do evento não exibe botão de ação para essa etapa.

@@ -142,6 +142,7 @@ function getEventStatus(event) {
 }
 
 function getRegistrationStatus(event) {
+  if (event.public_registration === 0) return 'Somente administração';
   const window = getRegistrationWindow(event);
   if (!window.isConfigured) return 'A definir';
   if (!window.isOpen) return window.start && new Date() < window.start ? 'Programada' : 'Encerrada';
@@ -172,6 +173,16 @@ function getRegistrationWindow(event) {
   const now = new Date();
   const start = event.registration_start ? new Date(`${event.registration_start}T00:00:00`) : null;
   const end = event.registration_end ? new Date(`${event.registration_end}T23:59:59`) : null;
+
+  if (event.public_registration === 0) {
+    return {
+      isOpen: false,
+      isConfigured: true,
+      message: 'As inscrições deste evento são realizadas somente pela administração.',
+      start,
+      end
+    };
+  }
 
   if (!start || !end) {
     return {
@@ -267,31 +278,33 @@ function buildEventTimeline(event, options = {}) {
       ? (submissionStart && new Date() < submissionStart ? 'Programada' : 'Encerrada')
       : 'Nao configurada';
 
-  const timeline = [
-    {
+  const timeline = [];
+  if (event.public_registration !== 0) {
+    timeline.push({
       label: 'Inscrições',
       startLabel: formatDisplayDate(registrationStart) || 'A definir',
       endLabel: formatDisplayDate(registrationEnd) || 'A definir',
       status: getRegistrationStatus(event)
-    },
-    {
-      label: 'Evento',
-      startLabel: formatDisplayDate(eventStart) || 'A definir',
-      endLabel: formatDisplayDate(eventEnd) || 'A definir',
-      status: getEventStatus(event)
-    },
-    {
-      label: 'Certificados',
-      startLabel: formatDisplayDate(certificatesStart) || 'A definir',
-      endLabel: formatDisplayDate(certificatesEnd) || 'A definir',
-      status: (!certificatesStart || !certificatesEnd)
-        ? 'A definir'
-        : (new Date() < certificatesStart ? 'Programada' : (new Date() > certificatesEnd ? 'Encerrada' : 'Disponivel'))
-    }
-  ];
+    });
+  }
+  const eventItem = {
+    label: 'Evento',
+    startLabel: formatDisplayDate(eventStart) || 'A definir',
+    endLabel: formatDisplayDate(eventEnd) || 'A definir',
+    status: getEventStatus(event)
+  };
+  timeline.push(eventItem);
+  timeline.push({
+    label: 'Certificados',
+    startLabel: formatDisplayDate(certificatesStart) || 'A definir',
+    endLabel: formatDisplayDate(certificatesEnd) || 'A definir',
+    status: (!certificatesStart || !certificatesEnd)
+      ? 'A definir'
+      : (new Date() < certificatesStart ? 'Programada' : (new Date() > certificatesEnd ? 'Encerrada' : 'Disponivel'))
+  });
 
   if (event.has_article_submission) {
-    timeline.splice(1, 0,
+    timeline.splice(timeline.indexOf(eventItem), 0,
       {
         label: 'Submissão Artigos',
         startLabel: formatDisplayDate(submissionStart) || 'A definir',
@@ -325,6 +338,10 @@ function buildEventTimeline(event, options = {}) {
         };
       }
 
+      if (event.public_registration === 0) {
+        return item;
+      }
+
       if (isAuthenticatedParticipant) {
         return {
           ...item,
@@ -356,7 +373,7 @@ function buildEventTimeline(event, options = {}) {
         };
       }
 
-      if (isAuthenticatedParticipant) {
+      if (isAuthenticatedParticipant && event.public_registration !== 0) {
         return {
           ...item,
           actionLabel: 'Inscrever-se',
