@@ -70,6 +70,7 @@ O sistema deve permitir:
 - Seleção explícita das atividades na inscrição pública ou administrativa, com edição posterior pelo participante em `/evento/:id/atividades` ou pelo administrador no cadastro da participação.
 - Cadastro e edição de atividades com campo opcional de link da transmissão de vídeo (máximo de 500 caracteres; vazio remove o link), exibido na listagem administrativa (ação "Vídeo") e no card público "Atividades do Evento".
 - Checkbox "Haverá transmissão de vídeo" ao lado do campo de link (`has_video`): marca a atividade como transmitida mesmo sem o link ainda disponível; o link preenchido impõe a flag automaticamente; a listagem administrativa exibe o rótulo "Transmissão" (sem link) quando a flag está definida sem URL.
+- Gestão de etapas: campo opcional de link da transmissão da etapa (máximo de 500 caracteres; vazio → usa o vídeo da atividade) e checkbox "Haverá transmissão de vídeo" (`activity_sessions.has_video`), no mesmo padrão da atividade; a listagem de etapas exibe "Vídeo" (com link) ou "Transmissão" (flag sem link).
 - Controle de presença simples por evento e chamada por atividade, com ações explícitas para marcar, atualizar ou remover presença.
 - Chamada da atividade com seção "Avaliações dos participantes" (nome, data e texto de cada avaliação registrada na atividade, com estado vazio quando não há avaliações).
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
@@ -100,7 +101,7 @@ O sistema deve permitir:
 - Listagem de eventos publicados.
 - Logo do evento exibida no card do evento na página inicial e no topo da página pública do evento (quando configurada).
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
-- Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; espaço vazio quando não há transmissão).
+- Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; espaço vazio quando não há transmissão). Atividades com etapas exibem uma sub-linha por etapa (data e nome indentados); a etapa mostra o próprio vídeo quando configurado, senão herda o vídeo da atividade (com o aviso de transmissão prevista quando a flag da etapa ou da atividade está definida).
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
 - Avaliação de atividades: em `/evento/:id/atividades`, o participante inscrito registra uma avaliação por atividade (texto livre de até 2000 caracteres); com o evento encerrado, as inscrições ficam travadas, mas as avaliações das atividades já inscritas continuam editáveis.
@@ -311,6 +312,8 @@ Etapas de uma atividade (ex.: aulas de um minicurso, períodos de um seminário)
 - `sequence_no` — ordem de exibição/chamada
 - `session_date` — data da etapa (validada contra o intervalo da atividade)
 - `workload_hours` — carga horária da etapa
+- `video_url` — link da transmissão de vídeo da etapa (opcional, máximo 500 caracteres; quando vazio, a exibição pública usa o vídeo da atividade)
+- `has_video` — flag de transmissão prevista (1/0): indica que a etapa terá transmissão de vídeo mesmo quando o link ainda não está disponível; é gravada como 1 automaticamente quando `video_url` está preenchido
 - `created_at`
 
 ### `activity_attendance_records`
@@ -897,6 +900,7 @@ Observações operacionais:
 - Inativação de conta (`is_public = 0`) com efeitos práticos: middleware global `requireActiveAccount` derruba a sessão ativa de um usuário inabilitado no próximo request (login com aviso); chamada da atividade exibe "Conta inativa" e bloqueia o botão de marcar; marcação manual, scan do crachá e "Marcar presença (todos)" são rejeitados no backend para conta inativa (desmarcar/corrigir permanece permitido); listagem de participantes exibe o badge. Histórico (inscrições, presenças existentes, elegibilidade) é preservado.
 - Logo do evento: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição do evento (`enctype="multipart/form-data"`, campo `logo`), com prévia imediata do arquivo selecionado, preview persistido e checkbox "Remover logo atual"; arquivo em `uploads/event-logos/` (`<timestamp>-<hex>.<ext>`) via `multer`, cujo `fileFilter` aceita imagens válidas com `cb(null, true)`; colunas `logo_path`/`logo_original_name` em `events` (migração idempotente em `services/db-reset.js`); servido em `/uploads/event-logos/` (`server.js`) e exibido no card da home, na página pública do evento, no crachá (`services/cracha.js`, QR reduzido para 216pt com logo), na lista de presença e na folha com QR Code — renderização centralizada em `services/event-logo.js` (`drawEventLogo` com `fit`, `getEventLogoAbsPath` com proteção contra path traversal); o arquivo é removido ao substituir o logo, ao marcar "Remover logo atual" e ao excluir o evento.
 - Listagem administrativa de atividades (`/admin/events/:id/activities`): a ordenação dentro de cada card de tipo de atividade passou a ser por data de início (`date_start`; atividades sem data por último, com desempate por nome), substituindo a ordenação alfabética por nome — alinhada à query da rota (`ORDER BY ea.date_start, ea.name`), que antes era sobrescrita pelo sort do template.
+- Correção do período do evento deslocado um dia na área do participante (`/author` e prévia `/admin/users/:id/participant`): `new Date('YYYY-MM-DD')` interpretava a data como meia-noite UTC e, em UTC-3, renderizava o dia anterior; o `withSubmissionMeta` de `routes/public.js` e `routes/users.js` passa a parsear a data como meia-noite local (padrão do `formatBRDate`), e a tabela "Minhas Participações" de `views/public/author-dashboard.ejs` usa o helper `formatBRDate`.
 
 ### Segurança reforçada (V0.1)
 

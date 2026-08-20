@@ -1651,9 +1651,15 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(dateError)}`);
   }
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  const videoUrlRaw = String(req.body.video_url || '').trim();
+  if (videoUrlRaw.length > 500) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('Link da transmissão da etapa muito longo (máximo de 500 caracteres).')}`);
+  }
+  const sessionVideoUrl = videoUrlRaw || null;
+  const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const nextSequence = db.prepare('SELECT COALESCE(MAX(sequence_no),0) + 1 AS next FROM activity_sessions WHERE activity_id=?').get(activity.id).next;
-  db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,workload_hours) VALUES (?,?,?,?,?)')
-    .run(activity.id, name, nextSequence, sessionDate, workloadHours);
+  db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,workload_hours,video_url,has_video) VALUES (?,?,?,?,?,?,?)')
+    .run(activity.id, name, nextSequence, sessionDate, workloadHours, sessionVideoUrl, hasVideo);
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa adicionada.')}`);
 });
 
@@ -1672,8 +1678,14 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(dateError)}`);
   }
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
-  db.prepare('UPDATE activity_sessions SET name=?,session_date=?,workload_hours=? WHERE id=?')
-    .run(name, sessionDate, workloadHours, session.id);
+  const videoUrlRaw = String(req.body.video_url || '').trim();
+  if (videoUrlRaw.length > 500) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('Link da transmissão da etapa muito longo (máximo de 500 caracteres).')}`);
+  }
+  const sessionVideoUrl = videoUrlRaw || null;
+  const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
+  db.prepare('UPDATE activity_sessions SET name=?,session_date=?,workload_hours=?,video_url=?,has_video=? WHERE id=?')
+    .run(name, sessionDate, workloadHours, sessionVideoUrl, hasVideo, session.id);
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa atualizada.')}`);
 });
 

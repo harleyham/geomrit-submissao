@@ -108,7 +108,7 @@ function withSubmissionMeta(event) {
   const submission = getSubmissionWindow(event);
   const formatDate = (value) => {
     if (!value) return null;
-    const date = new Date(value);
+    const date = new Date(String(value).slice(0, 10) + 'T00:00:00');
     return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('pt-BR');
   };
 
@@ -935,6 +935,17 @@ router.get('/evento/:id', (req, res) => {
     WHERE event_id=?
     ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE
   `).all(req.params.id);
+  const sessionsByActivity = {};
+  db.prepare(`
+    SELECT id,activity_id,name,session_date,video_url,has_video
+    FROM activity_sessions
+    WHERE activity_id IN (SELECT id FROM event_activities WHERE event_id=?)
+    ORDER BY sequence_no, id
+  `).all(req.params.id).forEach((session) => {
+    if (!sessionsByActivity[session.activity_id]) sessionsByActivity[session.activity_id] = [];
+    sessionsByActivity[session.activity_id].push(session);
+  });
+  activities.forEach((activity) => { activity.sessions = sessionsByActivity[activity.id] || []; });
   let timeline = buildEventTimeline(eventWithMeta, {
     registration,
     session: req.session

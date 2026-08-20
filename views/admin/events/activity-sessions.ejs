@@ -37,6 +37,8 @@
         <input name="name" required placeholder="Nome da etapa (ex.: Aula 1, Período da manhã)" value="<%= editingSession ? editingSession.name : '' %>">
         <input name="session_date" type="date" value="<%= editingSession ? editingSession.session_date || '' : '' %>">
         <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária" value="<%= editingSession && editingSession.workload_hours ? editingSession.workload_hours : '' %>">
+        <input name="video_url" type="url" placeholder="Link da transmissão da etapa (opcional — se vazio, usa o vídeo da atividade)" value="<%= editingSession ? editingSession.video_url || '' : '' %>">
+        <label style="font-size:13px;color:#94a3b8"><input type="checkbox" name="has_video" value="1" style="margin:0 6px 0 0" <%= editingSession && (editingSession.has_video || editingSession.video_url) ? 'checked' : '' %>> Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)</label>
         <button type="submit"><%= editingSession ? 'Salvar etapa' : 'Adicionar etapa' %></button>
         <% if (editingSession) { %><a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions" class="btn-secondary">Cancelar</a><% } %>
       </form>
@@ -49,7 +51,7 @@
       <% } else { %>
         <table>
           <thead>
-            <tr><th style="width:40px">#</th><th>Nome</th><th>Data</th><th>Carga</th><th style="width:140px">Ações</th></tr>
+            <tr><th style="width:40px">#</th><th>Nome</th><th>Data</th><th>Carga</th><th>Transmissão</th><th style="width:140px">Ações</th></tr>
           </thead>
           <tbody>
             <% sessions.forEach((session) => { %>
@@ -58,6 +60,15 @@
                 <td><strong><%= session.name %></strong></td>
                 <td><%= session.session_date ? formatBRDate(session.session_date) : 'A definir' %></td>
                 <td><%= Number(session.workload_hours) > 0 ? session.workload_hours + 'h' : '—' %></td>
+                <td>
+                  <% if (session.video_url) { %>
+                    <a href="<%= session.video_url %>" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;text-decoration:none">Vídeo</a>
+                  <% } else if (session.has_video) { %>
+                    <span style="color:#93c5fd">Transmissão</span>
+                  <% } else { %>
+                    <span style="color:#64748b">—</span>
+                  <% } %>
+                </td>
                 <td>
                   <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions?edit_session_id=<%= session.id %>" style="color:#93c5fd;text-decoration:none">Editar</a>
                   <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions/<%= session.id %>/delete" style="display:inline">

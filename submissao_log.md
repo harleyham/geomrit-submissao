@@ -28,6 +28,35 @@ Versão atual registrada: **V0.1**.
 - `views/admin/events/list.ejs`: nova ação "Página pública" no início da coluna Ações, aberta em nova aba (`target="_blank" rel="noopener noreferrer"`), exibida apenas para eventos `published`/`encerrado` — a rota pública `GET /evento/:id` (`routes/public.js`) retorna 404 para rascunhos, então o botão não aparece para `draft`.
 - Status: **implementado** (efetiva após reinício do servidor).
 
+### Correção: período do evento deslocado um dia na área do participante
+
+- Relatório do usuário: em `/admin/users/:id/participant` (prévia admin) e `/author`, o período do evento aparecia com o dia anterior ao cadastrado.
+- Causa raiz: `new Date('YYYY-MM-DD')` (data ISO sem horário) é interpretada como meia-noite **UTC**; em UTC-3 (Brasil), `toLocaleDateString('pt-BR')` renderizava o dia anterior.
+- `routes/public.js` e `routes/users.js` (`withSubmissionMeta`): `formatDate` passou a parsear `String(value).slice(0,10) + 'T00:00:00'` (meia-noite local, mesmo padrão do `formatBRDate` de `server.js`).
+- `views/public/author-dashboard.ejs`: a tabela "Minhas Participações" usava `new Date(...).toLocaleDateString()` no navegador (mesmo bug); passou a usar o helper `formatBRDate`.
+- Obs.: o mesmo padrão ainda existe em `views/public/home.ejs` e em `formatDisplayDate` (cronograma público) — não alterado nesta rodada.
+- Status: **corrigido** (efetiva após reinício do servidor).
+
+### Etapas no card público do evento com vídeo por etapa
+
+- Requisito do usuário: `/evento/:id` deve mostrar as etapas de cada atividade; as etapas podem ter vídeos diferentes do da atividade.
+- `services/db-reset.js`: coluna `video_url TEXT` em `activity_sessions` (schema + migração idempotente `ALTER TABLE ... ADD COLUMN`).
+- `routes/events.js`: criação e edição de etapa gravam `video_url` (trim; vazio → `NULL`; acima de 500 caracteres é rejeitado).
+- `views/admin/events/activity-sessions.ejs`: campo "Link da transmissão da etapa (opcional — se vazio, usa o vídeo da atividade)" no formulário e coluna "Transmissão" na listagem ("Vídeo" quando há link).
+- `routes/public.js` (`GET /evento/:id`): consulta `activity_sessions` do evento e anexa a cada atividade como `sessions` (ordem `sequence_no`).
+- `views/public/event.ejs`: o card "Atividades do Evento" renderiza sub-linha por etapa (data, nome indentado, classe CSS `session-row`); a etapa exibe o próprio vídeo quando configurado, senão herda o vídeo da atividade.
+- Status: **implementado** (efetiva após reinício do servidor; migração aplicada na inicialização).
+
+### Transmissão prevista sem link por etapa (`activity_sessions.has_video`)
+
+- Requisito do usuário: o formulário da etapa deve ter o mesmo checkbox/chave da atividade para informar que haverá transmissão ainda que o link só seja conhecido depois.
+- `services/db-reset.js`: coluna `has_video INTEGER DEFAULT 0` em `activity_sessions` (schema + migração idempotente).
+- `routes/events.js`: criação e edição de etapa gravam `has_video` (checkbox `= '1'`); `video_url` preenchido impõe `has_video = 1` automaticamente.
+- `views/admin/events/activity-sessions.ejs`: checkbox "Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)" ao lado do campo de link (pré-marcado quando há flag ou link); a coluna "Transmissão" da listagem exibe "Transmissão" quando a flag está definida sem link.
+- `routes/public.js`: a query de etapas inclui `has_video`.
+- `views/public/event.ejs`: prioridade da linha da etapa — vídeo próprio da etapa → aviso "Transmissão prevista — link a ser divulgado" (flag da etapa) → vídeo da atividade → aviso (flag da atividade) → espaço vazio.
+- Status: **implementado** (efetiva após reinício do servidor; migração aplicada na inicialização).
+
 ## 2026-08-18
 
 ### Card de atividades com link de transmissão no evento público
@@ -1320,5 +1349,6 @@ Versão atual registrada: **V0.1**.
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
 - Na página de relatório de Evento, deve haver a opção de exportação de arquivo .md, a fim de ser avaliado por uma IA
-- Em http://127.0.0.1:3000/evento/2 deve mostrar as etapas de cada Atividade. As Etapas podem ter videos diferentes do da Atividade
+- Implementar uma forma de a partir do PDF com as informações do Evento, puplicar como se fosse o site do Evento. Últil para eventos pequenos ou que não tem a capacidade de fazer um site especifico
+- Deve tar alguma lógica para um evento que não terá incrições pelos usuários, apenas pela administração do evento
 

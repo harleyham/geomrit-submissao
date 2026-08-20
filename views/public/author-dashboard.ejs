@@ -263,8 +263,8 @@
               <tr>
                 <td><strong style="color:#f8fafc;"><%= participation.event_name %></strong></td>
                 <td>
-                  <%= participation.date_start ? new Date(participation.date_start).toLocaleDateString('pt-BR') : 'TBD' %>
-                  <% if (participation.date_end) { %> - <%= new Date(participation.date_end).toLocaleDateString('pt-BR') %><% } %>
+                  <%= participation.date_start ? formatBRDate(participation.date_start) : 'TBD' %>
+                  <% if (participation.date_end) { %> - <%= formatBRDate(participation.date_end) %><% } %>
                 </td>
                 <td><%= participation.location || '-' %></td>
                 <td>

@@ -250,7 +250,7 @@ function withSubmissionMeta(event) {
   const submission = getSubmissionWindow(event);
   const formatDate = (value) => {
     if (!value) return null;
-    const date = new Date(value);
+    const date = new Date(String(value).slice(0, 10) + 'T00:00:00');
     return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('pt-BR');
   };
 
