@@ -6,6 +6,12 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-20
 
+### Correção: e-mail na inclusão manual de participante
+
+- A inclusão em `/admin/events/:id/participants` não acionava o serviço de e-mail, embora criasse a conta e a inscrição normalmente.
+- Contas novas agora enfileiram a mensagem combinada de criação de conta e inscrição, com link de definição de senha; contas existentes enfileiram a confirmação de inscrição no evento.
+- O envio continua condicionado aos switches global e do evento. Falhas ao enfileirar são registradas sem desfazer a inclusão do participante.
+
 ### Fase 3: módulo de e-mails transacionais
 
 - Dependência `nodemailer`; serviço `services/email.js` com SMTP Zoho configurável, fila SQLite, retentativa exponencial, recuperação de envio interrompido e worker/agendador iniciado pelo `server.js`.

@@ -14,7 +14,7 @@ const { removeEventLogoFile, drawEventLogo } = require('../services/event-logo')
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { getSystemEmailSettings, getPendingEmailCount, setEventEmailEnabled, queueCertificateIssued,
   queueVideoLinkNotifications, isValidHttpUrl, createImportBatch, getImportBatchEmailSummary,
-  authorizeImportBatch } = require('../services/email');
+  authorizeImportBatch, queueImportedAccount, queueImportedRegistration } = require('../services/email');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
 
@@ -2698,6 +2698,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
     }
   }
 
+  let registrationId = null;
   try {
     const createParticipantAndRegistration = db.transaction(() => {
       if (formData.account_mode === 'new') {
@@ -2711,7 +2712,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
           bcrypt.hashSync(temporaryPassword, 10),
           formData.institution || null
         );
-        linkedUser = { id: newUser.lastInsertRowid };
+        linkedUser = { id: newUser.lastInsertRowid, name: formData.name, email: formData.email };
       }
 
       const result = db.prepare(`
@@ -2719,6 +2720,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
           event_id, user_id, name, email, institution, phone, registration_type, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
       `).run(event.id, linkedUser.id, formData.name, formData.email, formData.institution, formData.phone, formData.registration_type);
+      registrationId = result.lastInsertRowid;
       db.prepare("UPDATE users SET is_participant=1, updated_at=datetime('now','-3 hours') WHERE id=?").run(linkedUser.id);
       saveParticipantActivities(result.lastInsertRowid, linkedUser.id, formData.activity_ids, req.session.userId);
 
@@ -2736,6 +2738,17 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
       return renderParticipantFormError(res, event, null, formData, 'Já existe uma inscrição para este e-mail ou conta neste evento.');
     }
     throw error;
+  }
+
+  try {
+    const dedupeKey = `manual-registration:${event.id}:${registrationId}`;
+    if (formData.account_mode === 'new') {
+      queueImportedAccount({ user: linkedUser, event, registration: true, dedupeKey });
+    } else {
+      queueImportedRegistration({ user: linkedUser, event, dedupeKey });
+    }
+  } catch (error) {
+    console.error('[email] Falha ao enfileirar inclusão manual de participante:', error.message);
   }
 
   res.redirect(`/admin/events/${event.id}/participants?success=${encodeURIComponent('Participante adicionado com sucesso.')}`);
