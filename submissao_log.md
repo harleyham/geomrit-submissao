@@ -4,6 +4,30 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-19
+
+### Listagem administrativa de atividades: ordenação por data
+
+- Requisito do usuário: em `/admin/events/:id/activities`, as atividades apareciam ordenadas alfabeticamente por nome dentro de cada card de tipo de atividade; devem ser ordenadas por data.
+- `views/admin/events/activities.ejs`: o comparador de `sortedActivities` passou a ordenar por `date_start` (atividades sem data por último, via sentinel `9999-99-99`), com desempate por nome. A query da rota (`routes/events.js`, `ORDER BY ea.date_start, ea.name`) já retornava nessa ordem, mas o sort do template a sobrescrevia; o agrupamento em cards por tipo de atividade é mantido.
+- Status: **implementado** (efetiva após reinício do servidor).
+
+### Transmissão prevista sem link (`has_video`) nas atividades
+
+- Requisito do usuário: ao lado do campo do link da transmissão no formulário de atividades, deve haver um checkbox/chave indicando que haverá transmissão, mesmo que o link ainda não seja conhecido; o sistema deve informar que haverá transmissão e, quando o link existir, exibi-lo.
+- `services/db-reset.js`: coluna `has_video INTEGER DEFAULT 0` em `event_activities` (schema + migração idempotente `ALTER TABLE ... ADD COLUMN`).
+- `routes/events.js`: criação e edição de atividade gravam `has_video` (checkbox `= '1'`); `video_url` preenchido impõe `has_video = 1` automaticamente; link vazio preserva a flag conforme o checkbox.
+- `views/admin/events/activities.ejs`: checkbox "Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)" ao lado do campo de link (pré-marcado quando há flag ou link); na listagem, atividade com `has_video` e sem link exibe o rótulo "Transmissão" (estilo de ação, sem link) no lugar do botão "Vídeo".
+- `routes/public.js`: a query de atividades do evento público passa a incluir `has_video`.
+- `views/public/event.ejs`: no card "Atividades do Evento", a coluna Transmissão exibe o botão "Assistir transmissão" com link (quando há `video_url`), o aviso "Transmissão prevista — link a ser divulgado" (quando `has_video` sem link) ou o espaço vazio (sem transmissão).
+- Status: **implementado** (efetiva após reinício do servidor; migração aplicada na inicialização).
+
+### Botão "Página pública" na listagem administrativa de eventos
+
+- Requisito do usuário: em `/admin/events`, cada evento deve ter um botão levando à sua página pública (`/evento/:id`).
+- `views/admin/events/list.ejs`: nova ação "Página pública" no início da coluna Ações, aberta em nova aba (`target="_blank" rel="noopener noreferrer"`), exibida apenas para eventos `published`/`encerrado` — a rota pública `GET /evento/:id` (`routes/public.js`) retorna 404 para rascunhos, então o botão não aparece para `draft`.
+- Status: **implementado** (efetiva após reinício do servidor).
+
 ## 2026-08-18
 
 ### Card de atividades com link de transmissão no evento público
@@ -1295,5 +1319,6 @@ Versão atual registrada: **V0.1**.
 - http://127.0.0.1:3000/admin/dashboard -> Não tem um contador do número total de usuários do sistema
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
-- Link para a palestra/aula — **aplicado em 18/08** (ver seção "Card de atividades com link de transmissão no evento público" acima)
 - Na página de relatório de Evento, deve haver a opção de exportação de arquivo .md, a fim de ser avaliado por uma IA
+- Em http://127.0.0.1:3000/evento/2 deve mostrar as etapas de cada Atividade. As Etapas podem ter videos diferentes do da Atividade
+

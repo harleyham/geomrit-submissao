@@ -41,6 +41,7 @@
         <input name="date_end" type="date" title="Data de fim" value="<%= activityForm.date_end || '' %>">
         <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária (total, se sem etapas)" value="<%= activityForm.workload_hours ?? '' %>">
         <input name="video_url" type="url" title="Link da transmissão de vídeo" placeholder="Link da transmissão de vídeo (ex.: YouTube)" value="<%= activityForm.video_url || '' %>">
+        <label style="margin-left:10px;font-size:13px;color:#94a3b8"><input type="checkbox" name="has_video" value="1" style="margin:0 6px 0 0" <%= activityForm.has_video || activityForm.video_url ? 'checked' : '' %>> Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)</label>
         <h3>Papéis elegíveis na chamada</h3>
         <% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach((role) => { %>
           <label><input type="checkbox" name="eligible_roles" value="<%= role[0] %>" <%= selectedRoles.includes(role[0]) ? 'checked' : '' %>> <%= role[1] %></label>
@@ -55,7 +56,12 @@
       const typeClasses = { lecture:'badge-lecture', seminar:'badge-seminar', roundtable:'badge-roundtable', course:'badge-course', oral_presentation:'badge-oral_presentation', poster_presentation:'badge-poster_presentation', other:'badge-other' };
       const activityRolesMap = { participant:'Participante', reviewer:'Revisor', speaker:'Palestrante', teacher:'Professor', oral_presenter:'Apresentador Oral', poster_presenter:'Apresentador Pôster' };
       const activitiesByType = {};
-      const sortedActivities = [...(activities||[])].sort((a,b) => String(a.name||'').localeCompare(String(b.name||''), 'pt-BR'));
+      const sortedActivities = [...(activities||[])].sort((a,b) => {
+        const da = a.date_start ? String(a.date_start) : '9999-99-99';
+        const db = b.date_start ? String(b.date_start) : '9999-99-99';
+        if (da !== db) return da < db ? -1 : 1;
+        return String(a.name||'').localeCompare(String(b.name||''), 'pt-BR');
+      });
       sortedActivities.forEach((a) => { const t = a.activity_type || 'other'; if (!activitiesByType[t]) activitiesByType[t] = []; activitiesByType[t].push(a); });
       const typeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','other'];
     %>
@@ -79,7 +85,7 @@
             <a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>">Editar</a>
             <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions">Etapas<% if (hasSessions) { %> (<%= activity.session_count %>)<% } %></a>
             <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Marcar Presença</a>
-            <% if (activity.video_url) { %><a href="<%= activity.video_url %>" target="_blank" rel="noopener noreferrer">Vídeo</a><% } %>
+            <% if (activity.video_url) { %><a href="<%= activity.video_url %>" target="_blank" rel="noopener noreferrer">Vídeo</a><% } else if (activity.has_video) { %><span style="flex:1;text-align:center;background:#1e293b;color:#93c5fd;border:1px solid #334155;border-radius:6px;padding:5px 10px;font-size:12px">Transmissão</span><% } %>
             <% if (hasSessions) { %>
               <% (activity.sessions || []).forEach((session) => { %>
                 <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance-print?session_id=<%= session.id %>" class="btn-secondary" style="margin-left:4px;font-size:11px;padding:2px 8px;text-decoration:none;border:1px solid #334155;border-radius:4px">Imp. Lista · <%= session.name %></a>

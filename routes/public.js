@@ -930,7 +930,7 @@ router.get('/evento/:id', (req, res) => {
   const eventWithMeta = withSubmissionMeta(event);
   const isClosed = event.status === 'encerrado';
   const activities = db.prepare(`
-    SELECT id,name,activity_type,date_start,date_end,video_url
+    SELECT id,name,activity_type,date_start,date_end,video_url,has_video
     FROM event_activities
     WHERE event_id=?
     ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE

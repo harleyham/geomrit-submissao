@@ -1562,15 +1562,16 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
     return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
   }
   const videoUrl = videoUrlRaw || null;
+  const hasVideo = videoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const rangeError = activityDateRangeError(dateStart, dateEnd);
   if (rangeError) {
     return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(rangeError)}`);
   }
   db.prepare(`INSERT INTO event_activities
-    (event_id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url)
-    VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
+    (event_id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(
     event.id, name, activityType, dateStart, dateEnd, workloadHours,
-    certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl
+    certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo
   );
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
 });
@@ -1601,14 +1602,15 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
     return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
   }
   const videoUrl = videoUrlRaw || null;
+  const hasVideo = videoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const rangeError = activityDateRangeError(dateStart, dateEnd);
   if (rangeError) {
     return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(rangeError)}`);
   }
   db.prepare(`UPDATE event_activities SET name=?,activity_type=?,date_start=?,date_end=?,workload_hours=?,
-    certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=? WHERE id=?`).run(
+    certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=? WHERE id=?`).run(
     name, activityType, dateStart, dateEnd, workloadHours, certificateEnabled,
-    eligibleRoles.join(','), eligibleRoles[0], videoUrl, activity.id
+    eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, activity.id
   );
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade atualizada.')}`);
 });

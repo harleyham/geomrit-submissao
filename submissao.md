@@ -45,6 +45,7 @@ O sistema deve permitir:
 - CRUD de eventos.
 - Logo do evento: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição, com prévia imediata e nome do arquivo selecionado, preview do logo persistido e checkbox "Remover logo atual"; arquivo em `uploads/event-logos/` e exibido nas páginas públicas, no relatório do evento (`/admin/reports?eventId=`, no cabeçalho da tela e no cabeçalho de impressão/PDF) e nos materiais impressos do evento (crachá, lista de presença e folha com QR Code).
 - Encerramento de evento publicado por ação explícita (status `encerrado`), com badge âmbar e botão "Encerrar" na listagem administrativa.
+- Listagem administrativa de eventos: botão "Página pública" na coluna Ações (abre em nova aba) levando à página pública `/evento/:id`, exibido apenas para eventos publicados/encerrados (a rota pública retorna 404 para rascunhos).
 - Configuração de múltiplas áreas/trilhas por evento.
 - Configuração explícita de evento com ou sem submissão de artigos.
 - Configuração de subsídio a participantes por evento.
@@ -68,6 +69,7 @@ O sistema deve permitir:
 - Modelo CSV vazio com cabeçalho pré-preenchido disponível para download nas páginas de importação.
 - Seleção explícita das atividades na inscrição pública ou administrativa, com edição posterior pelo participante em `/evento/:id/atividades` ou pelo administrador no cadastro da participação.
 - Cadastro e edição de atividades com campo opcional de link da transmissão de vídeo (máximo de 500 caracteres; vazio remove o link), exibido na listagem administrativa (ação "Vídeo") e no card público "Atividades do Evento".
+- Checkbox "Haverá transmissão de vídeo" ao lado do campo de link (`has_video`): marca a atividade como transmitida mesmo sem o link ainda disponível; o link preenchido impõe a flag automaticamente; a listagem administrativa exibe o rótulo "Transmissão" (sem link) quando a flag está definida sem URL.
 - Controle de presença simples por evento e chamada por atividade, com ações explícitas para marcar, atualizar ou remover presença.
 - Chamada da atividade com seção "Avaliações dos participantes" (nome, data e texto de cada avaliação registrada na atividade, com estado vazio quando não há avaliações).
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
@@ -98,7 +100,7 @@ O sistema deve permitir:
 - Listagem de eventos publicados.
 - Logo do evento exibida no card do evento na página inicial e no topo da página pública do evento (quando configurada).
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
-- Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; espaço vazio quando não há link).
+- Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; espaço vazio quando não há transmissão).
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
 - Avaliação de atividades: em `/evento/:id/atividades`, o participante inscrito registra uma avaliação por atividade (texto livre de até 2000 caracteres); com o evento encerrado, as inscrições ficam travadas, mas as avaliações das atividades já inscritas continuam editáveis.
@@ -297,6 +299,7 @@ Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "�
 - `workload_hours` — carga horária total (usada quando a atividade não tem etapas)
 - `certificate_enabled`
 - `video_url` — link da transmissão de vídeo (opcional, máximo 500 caracteres; exibido ao lado do nome da atividade na página pública do evento)
+- `has_video` — flag de transmissão prevista (1/0): indica que a atividade terá transmissão de vídeo mesmo quando o link ainda não está disponível; é gravada como 1 automaticamente quando `video_url` está preenchido
 
 ### `activity_sessions`
 
@@ -893,6 +896,7 @@ Observações operacionais:
 - Exclusão de usuários e participantes corrigida e com aviso de impacto: o `method-override` (getter por função, depois dos parsers de body) faz o `_method=DELETE` dos formulários chegar à rota DELETE correta (antes caía em `updateUser` com `NOT NULL constraint failed: users.name`); o `confirm()` do "Excluir" usuário detalha que a ação remove papéis em eventos, inscrições em atividades, presenças, crachá e revisões, e sugere desligar "Conta ativa" (inativação, que preserva o histórico) quando o objetivo for apenas bloquear acesso; nota da listagem orienta o mesmo; `updateUser` preserva `name`/`email` existentes quando o body não os envia.
 - Inativação de conta (`is_public = 0`) com efeitos práticos: middleware global `requireActiveAccount` derruba a sessão ativa de um usuário inabilitado no próximo request (login com aviso); chamada da atividade exibe "Conta inativa" e bloqueia o botão de marcar; marcação manual, scan do crachá e "Marcar presença (todos)" são rejeitados no backend para conta inativa (desmarcar/corrigir permanece permitido); listagem de participantes exibe o badge. Histórico (inscrições, presenças existentes, elegibilidade) é preservado.
 - Logo do evento: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição do evento (`enctype="multipart/form-data"`, campo `logo`), com prévia imediata do arquivo selecionado, preview persistido e checkbox "Remover logo atual"; arquivo em `uploads/event-logos/` (`<timestamp>-<hex>.<ext>`) via `multer`, cujo `fileFilter` aceita imagens válidas com `cb(null, true)`; colunas `logo_path`/`logo_original_name` em `events` (migração idempotente em `services/db-reset.js`); servido em `/uploads/event-logos/` (`server.js`) e exibido no card da home, na página pública do evento, no crachá (`services/cracha.js`, QR reduzido para 216pt com logo), na lista de presença e na folha com QR Code — renderização centralizada em `services/event-logo.js` (`drawEventLogo` com `fit`, `getEventLogoAbsPath` com proteção contra path traversal); o arquivo é removido ao substituir o logo, ao marcar "Remover logo atual" e ao excluir o evento.
+- Listagem administrativa de atividades (`/admin/events/:id/activities`): a ordenação dentro de cada card de tipo de atividade passou a ser por data de início (`date_start`; atividades sem data por último, com desempate por nome), substituindo a ordenação alfabética por nome — alinhada à query da rota (`ORDER BY ea.date_start, ea.name`), que antes era sobrescrita pelo sort do template.
 
 ### Segurança reforçada (V0.1)
 

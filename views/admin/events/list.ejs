@@ -105,6 +105,9 @@
               </td>
               <td><span class="badge badge-<%= e.status %>"><%= e.status === 'published' ? 'Publicado' : (e.status === 'encerrado' ? 'Encerrado' : 'Rascunho') %></span></td>
               <td class="actions">
+                <% if (e.status !== 'draft') { %>
+                  <a href="/evento/<%= e.id %>" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">Página pública</a>
+                <% } %>
                 <a href="/admin/events/<%= e.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
                 <a href="/admin/events/<%= e.id %>/participants" class="btn btn-ghost btn-sm">Participantes</a>
                 <a href="/admin/events/<%= e.id %>/activities" class="btn btn-ghost btn-sm">Atividades</a>
