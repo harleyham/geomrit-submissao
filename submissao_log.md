@@ -6,6 +6,12 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-20
 
+### E-mail de confirmação de inscrição: link para a Área do Participante
+
+- O botão do e-mail enviado a uma conta existente após a confirmação da inscrição deixou de apontar para a página pública do evento.
+- O destino agora é `https://teste.ham.eng.br/author`, com o texto "Acessar Área do Participante".
+- O fluxo de contas novas continua usando o link individual de definição de senha antes do primeiro acesso.
+
 ### Correção: pontos removidos de endereços Gmail
 
 - Os validadores usavam `normalizeEmail()` do `express-validator`, cuja configuração padrão remove pontos da parte local de endereços Gmail (por exemplo, `harley.ham@gmail.com` virava `harleyham@gmail.com`).

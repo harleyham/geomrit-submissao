@@ -191,7 +191,7 @@ function queueImportedRegistration({ user, event, dedupeKey }) {
     eventId: event.id, userId: user.id, recipientEmail: user.email, recipientName: user.name,
     messageType: 'imported_registration', templateName: 'imported-registration',
     subject: `Sua inscrição em ${event.name} foi confirmada`, identity, dedupeKey,
-    payload: { name: user.name, eventName: event.name, eventUrl: `${appBaseUrl()}/evento/${event.id}`, platformName: identity.platformName }
+    payload: { name: user.name, eventName: event.name, platformName: identity.platformName }
   });
 }
 
