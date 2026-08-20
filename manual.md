@@ -225,7 +225,19 @@ Abra `/admin/reports` e selecione o evento. O relatório consolida:
 - Se uma ação administrativa retornar acesso negado, confirme se o usuário possui o papel `admin` naquele evento.
 - Se uma conta não conseguir acessar o painel, verifique aprovação, conta ativa, troca de senha e conclusão do perfil.
 
-## 15. Próximas melhorias do manual
+## 15. E-mails transacionais
+
+O envio possui dois níveis de autorização: o **master switch global**, restrito ao superadministrador, e o switch de cada evento. Ambos começam desligados. O global pode ser alterado no dashboard ou em `/admin/events`; o switch do evento também aparece na listagem e no card **Identidade dos e-mails** da criação/edição.
+
+Ao desligar um switch, mensagens pendentes do respectivo escopo são canceladas e não retornam ao reativar. O sistema nunca bloqueia cadastro, aprovação, emissão ou importação por indisponibilidade do SMTP.
+
+O card do evento permite definir nome da plataforma, nome exibido do remetente, assinatura e e-mail de contato (`Reply-To`). Mensagens do evento usam seu logo quando configurado; sem logo, não há imagem padrão.
+
+As importações não enviam mensagens automaticamente. Na página de resultado, revise o relatório e use **Autorizar envio dos acessos** ou **Autorizar e-mails aos participantes**. Novas contas recebem link individual de uso único para definir senha, válido por 72 horas; senhas não são enviadas por e-mail.
+
+Configure o Zoho por variáveis de ambiente (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`) e defina `APP_BASE_URL` com a URL pública da instalação.
+
+## 16. Próximas melhorias do manual
 
 - adicionar capturas de tela de cada fluxo;
 - incluir procedimentos de backup e restauração;

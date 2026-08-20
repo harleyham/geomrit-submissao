@@ -31,6 +31,19 @@
       <div class="stat-card"><div class="stat-value" style="color:#a78bfa"><%= registered %></div><div class="stat-label">Inscritos</div></div>
     </div>
 
+    <% if (emailMessage) { %><div class="alert alert-success"><%= emailMessage %></div><% } %>
+    <% if (emailError) { %><div class="alert alert-error"><%= emailError %></div><% } %>
+    <% if (emailSummary && emailSummary.counts.total > 0) { %>
+    <div class="card">
+      <h2>Envio de e-mails aos participantes</h2>
+      <p style="color:#94a3b8">Novas contas e inscrições: <strong><%= emailSummary.counts.account_registration %></strong> · Contas existentes recém-inscritas: <strong><%= emailSummary.counts.registration %></strong>.</p>
+      <% if (emailSummary.batch.email_authorized_at) { %><div class="alert alert-success">E-mails deste lote já autorizados.</div>
+      <% } else if (!systemEmailSettings.email_enabled) { %><div class="alert alert-error">O master switch global de e-mails está desativado.</div>
+      <% } else if (!event.email_enabled) { %><div class="alert alert-error">Os e-mails deste evento estão desativados. Ative o switch em Eventos ou na edição do evento.</div>
+      <% } else { %><form method="POST" action="/admin/events/<%= event.id %>/import-authorize-emails" onsubmit="return confirm('Autorizar <%= emailSummary.counts.total %> e-mail(s) deste lote?')"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn-primary">Autorizar e-mails aos participantes</button></form><% } %>
+    </div>
+    <% } %>
+
     <% if (report && report.length) { %>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">

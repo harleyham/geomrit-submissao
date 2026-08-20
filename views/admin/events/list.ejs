@@ -45,6 +45,11 @@
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
     a { color: #60a5fa; text-decoration: none; }
+    .email-switch { display:inline-flex;align-items:center;gap:.55rem; }
+    .email-switch button { width:44px;height:24px;border:0;border-radius:999px;padding:3px;background:#475569;cursor:pointer; }
+    .email-switch button::after { content:'';display:block;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s; }
+    .email-switch button.on { background:#16a34a; }
+    .email-switch button.on::after { transform:translateX(20px); }
   </style>
 </head>
 <body>
@@ -70,11 +75,17 @@
       <a href="/admin/events/new" class="btn btn-primary">+ Novo Evento</a>
     </div>
 
+    <% if (message) { %><div style="padding:1rem 1.25rem;margin-bottom:1rem;border-radius:10px;background:rgba(59,130,246,.1);border:1px solid rgba(96,165,250,.25);color:#bfdbfe;"><%= message %></div><% } %>
+    <div style="padding:1rem 1.25rem;margin-bottom:1.25rem;border-radius:12px;background:<%= systemEmailSettings.email_enabled ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.08)' %>;border:1px solid <%= systemEmailSettings.email_enabled ? 'rgba(74,222,128,.22)' : 'rgba(248,113,113,.22)' %>;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+      <div><strong>Master switch global: <span style="color:<%= systemEmailSettings.email_enabled ? '#86efac' : '#fca5a5' %>"><%= systemEmailSettings.email_enabled ? 'Ativado' : 'Desativado' %></span></strong><br><small style="color:#94a3b8"><%= pendingEmailCount %> mensagem(ns) pendente(s). O switch global prevalece sobre todos os eventos.</small></div>
+      <% if (userEmail === 'admin@admin.com') { %><form method="POST" action="/admin/email-settings/toggle" onsubmit="return <%= systemEmailSettings.email_enabled ? "confirm('Desativar todos os e-mails e cancelar as mensagens pendentes?')" : 'true' %>;"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="return_to" value="events"><input type="hidden" name="enabled" value="<%= systemEmailSettings.email_enabled ? '0' : '1' %>"><button class="btn <%= systemEmailSettings.email_enabled ? 'btn-danger' : 'btn-primary' %>" type="submit"><%= systemEmailSettings.email_enabled ? 'Desativar global' : 'Ativar global' %></button></form><% } %>
+    </div>
+
     <div class="section">
       <div class="section-body">
         <table>
           <thead>
-            <tr><th>Nome</th><th>Áreas</th><th>Data do Evento</th><th>Submissão</th><th>Inscritos</th><th>Subsídios</th><th>Status</th><th>Ações</th></tr>
+            <tr><th>Nome</th><th>Áreas</th><th>Data do Evento</th><th>Submissão</th><th>Inscritos</th><th>Subsídios</th><th>E-mails</th><th>Status</th><th>Ações</th></tr>
           </thead>
           <tbody>
             <% events.forEach(e => { %>
@@ -102,6 +113,10 @@
                 <% } else { %>
                   <span style="color:#64748b;">Não oferece</span>
                 <% } %>
+              </td>
+              <td>
+                <form method="POST" action="/admin/events/<%= e.id %>/email-enabled" class="email-switch" onsubmit="return <%= e.email_enabled ? "confirm('Desativar os e-mails deste evento e cancelar as pendências?')" : 'true' %>;"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="enabled" value="<%= e.email_enabled ? '0' : '1' %>"><button type="submit" class="<%= e.email_enabled ? 'on' : '' %>" aria-label="<%= e.email_enabled ? 'Desativar' : 'Ativar' %> e-mails"></button></form>
+                <small style="color:<%= !systemEmailSettings.email_enabled ? '#fca5a5' : (e.email_enabled ? '#86efac' : '#94a3b8') %>"><%= !systemEmailSettings.email_enabled ? 'Bloqueado pelo global' : (e.email_enabled ? 'Ativado' : 'Desativado') %></small>
               </td>
               <td><span class="badge badge-<%= e.status %>"><%= e.status === 'published' ? 'Publicado' : (e.status === 'encerrado' ? 'Encerrado' : 'Rascunho') %></span></td>
               <td class="actions">

@@ -362,6 +362,23 @@
     </div>
 
     <% if (userEmail === 'admin@admin.com') { %>
+      <% if (query && query.message) { %>
+      <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(96,165,250,0.25);border-radius:12px;padding:1rem 1.25rem;margin-top:1.5rem;color:#bfdbfe;"><%= query.message %></div>
+      <% } %>
+      <div class="section" style="margin-top:1.5rem;">
+        <div class="section-header"><h2>Envio global de e-mails</h2></div>
+        <div class="section-body" style="padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+          <div>
+            <p style="color:<%= systemEmailSettings.email_enabled ? '#86efac' : '#fca5a5' %>;font-weight:700;margin:0 0 .35rem;"><%= systemEmailSettings.email_enabled ? 'Ativado' : 'Desativado' %></p>
+            <p style="color:#94a3b8;font-size:.875rem;margin:0;">Master switch do sistema. <%= pendingEmailCount %> mensagem(ns) pendente(s).</p>
+          </div>
+          <form method="POST" action="/admin/email-settings/toggle" onsubmit="return <%= systemEmailSettings.email_enabled ? "confirm('Desativar todos os e-mails e cancelar as mensagens pendentes?')" : 'true' %>;">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="return_to" value="dashboard">
+            <input type="hidden" name="enabled" value="<%= systemEmailSettings.email_enabled ? '0' : '1' %>">
+            <button type="submit" class="btn <%= systemEmailSettings.email_enabled ? 'btn-danger' : 'btn-success' %>"><%= systemEmailSettings.email_enabled ? 'Desativar todos os e-mails' : 'Ativar envio global' %></button>
+          </form>
+        </div>
+      </div>
       <% if (query && query.reset === 'success') { %>
       <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
         <p style="color:#34d399;font-weight:600;">Banco de dados resetado com sucesso. O servidor será reiniciado automaticamente.</p>

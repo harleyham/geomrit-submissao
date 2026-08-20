@@ -22,6 +22,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 - **Inscrição por atividade**: seleção explícita na inscrição pública ou inclusão administrativa, edição posterior pelo participante em `/evento/:id/atividades` ou pelo administrador e contadores de inscritos por atividade; na página pública, cada atividade com etapas mostra quantas presenças o participante já tem e quais etapas frequentou
 - **Certificados**: emissão em PDF por papel no evento (participante, revisor, palestrante, professor e apresentador oral/pôster), com fundo (thumbnails ordenadas alfabeticamente), texto, cor, prévia dinâmica, carga horária em horas-aula quando aplicável, reemissão versionada e botão "Salvar configuração geral" para replicar cor e fundo em todos os tipos de certificado; para participante, cada atividade contabilizada exige inscrição e presença; elegibilidade por "Presença mínima (%)": apresentações oral/pôster e mesas-redondas contam com qualquer presença, e palestras, seminários, minicursos e outras exigem o percentual de etapas presente na atividade
 - **Verificação pública**: consulta pública da autenticidade de certificados pelo código de verificação
+- **E-mails transacionais**: fila persistente via SMTP/Zoho com master switch global e por evento (ambos desligados por padrão), confirmação de cadastro/aprovação, lembrete no dia anterior, certificado emitido/reemitido, alterações de transmissão e autorização explícita após importações
 - **Vínculo de papéis por atividade**: seleção do papel que cada pessoa efetivamente exerce em cada atividade, sem alterar seus papéis administrativos no evento; presenças e cargas horárias são consolidadas separadamente para cada certificado
 
 ## Fluxo operacional de atividades e certificados
@@ -117,6 +118,17 @@ Ao fazer login pela primeira vez, será solicitada a troca de senha.
 |----------|-----------|--------|
 | `PORT` | Porta HTTP | `3000` |
 | `SESSION_SECRET` | Chave de sessão | `edigemia-ligem-secret-2027` |
+| `SMTP_HOST` | Servidor SMTP | `smtp.zoho.com` |
+| `SMTP_PORT` | Porta SMTP | `465` |
+| `SMTP_SECURE` | TLS direto (`true` na porta 465) | `true` |
+| `SMTP_USER` | Usuário SMTP | — |
+| `SMTP_PASS` | Senha de aplicativo SMTP | — |
+| `MAIL_FROM_ADDRESS` | Endereço real de envio | valor de `SMTP_USER` |
+| `MAIL_FROM_NAME` | Nome global do remetente | `Equipe de Eventos` |
+| `MAIL_PLATFORM_NAME` | Identidade global neutra | `Plataforma de Eventos` |
+| `MAIL_SIGNATURE` | Assinatura global | `Equipe de Eventos` |
+| `MAIL_REPLY_TO` | Contato global | valor do remetente |
+| `APP_BASE_URL` | URL pública usada nos links dos e-mails | `http://localhost:3000` |
 
 ## Observações
 

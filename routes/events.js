@@ -12,6 +12,9 @@ const { renderCertificatePdf, getBackgroundPath } = require('../services/certifi
 const { ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
 const { removeEventLogoFile, drawEventLogo } = require('../services/event-logo');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
+const { getSystemEmailSettings, getPendingEmailCount, setEventEmailEnabled, queueCertificateIssued,
+  queueVideoLinkNotifications, isValidHttpUrl, createImportBatch, getImportBatchEmailSummary,
+  authorizeImportBatch } = require('../services/email');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
 
@@ -268,6 +271,20 @@ function normalizeEventStatus(status) {
   return EVENT_STATUSES.includes(status) ? status : 'draft';
 }
 
+function normalizeEventEmailSettings(body) {
+  const settings = {
+    email_enabled: body.email_enabled ? 1 : 0,
+    email_platform_name: String(body.email_platform_name || '').trim().slice(0, 160),
+    email_sender_name: String(body.email_sender_name || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 160),
+    email_signature: String(body.email_signature || '').trim().slice(0, 1000),
+    email_contact: String(body.email_contact || '').trim().toLowerCase().slice(0, 254)
+  };
+  if (settings.email_contact && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.email_contact)) {
+    settings.error = 'Informe um e-mail de contato válido para as mensagens do evento.';
+  }
+  return settings;
+}
+
 function getKnownAreas() {
   const rows = db.prepare("SELECT area FROM events WHERE area IS NOT NULL AND area != ''").all();
   return Array.from(new Set(rows.flatMap((row) => parseAreaList(row.area)))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -329,6 +346,7 @@ function renderEventForm(res, { event, title, error = null }) {
   return res.render('admin/events/form', {
     event,
     areas: getKnownAreas(),
+    systemEmailSettings: getSystemEmailSettings(),
     title,
     error
   });
@@ -649,7 +667,23 @@ router.get('/', (req, res) => {
     subsidy_request_count: subsidyRequestByEventId.get(event.id) || 0,
     registered_count: (authorRegistrationByEventId.get(event.id) || 0) + (listenerRegistrationByEventId.get(event.id) || 0)
   }));
-  res.render('admin/events/list', { events, title: 'Eventos' });
+  res.render('admin/events/list', {
+    events, title: 'Eventos',
+    systemEmailSettings: getSystemEmailSettings(),
+    pendingEmailCount: getPendingEmailCount(),
+    message: req.query.message || null
+  });
+});
+
+router.post('/:id/email-enabled', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id,name FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const enabled = req.body.enabled === '1';
+  const cancelled = setEventEmailEnabled(event.id, enabled, req.session.userId);
+  recordParticipantAudit({ eventId: event.id, actorUserId: req.session.userId,
+    action: enabled ? 'event_email_enabled' : 'event_email_disabled', details: { cancelled_count: cancelled } });
+  const message = enabled ? `E-mails de ${event.name} ativados.` : `E-mails de ${event.name} desativados; ${cancelled} pendência(s) cancelada(s).`;
+  res.redirect(`/admin/events?message=${encodeURIComponent(message)}`);
 });
 
 // Novo evento
@@ -667,6 +701,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
   const publicRegistration = public_registration ? 1 : 0;
+  const emailSettings = normalizeEventEmailSettings(req.body);
   const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
@@ -686,6 +721,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         public_registration: publicRegistration,
+        ...emailSettings,
         status: normalizedStatus,
         institution,
         language,
@@ -717,7 +753,9 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
     certificates_end
   });
 
-  if (validationError) {
+  const formError = emailSettings.error || validationError;
+
+  if (formError) {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
     return renderEventForm(res, {
       event: withAreaMeta({
@@ -732,6 +770,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         public_registration: publicRegistration,
+        ...emailSettings,
         status: normalizedStatus,
         institution,
         language,
@@ -745,14 +784,20 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
         certificates_end
       }),
       title: 'Novo Evento',
-      error: validationError
+      error: formError
     });
   }
 
   const createdEvent = db.prepare(`
-    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, req.file ? `uploads/event-logos/${req.file.filename}` : null, req.file ? req.file.originalname : null).run();
+    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration,
+      email_enabled,email_platform_name,email_sender_name,email_signature,email_contact,status, institution, language, registration_start, registration_end,
+      submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration,
+    emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
+    normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
+    normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null,
+    req.file ? `uploads/event-logos/${req.file.filename}` : null, req.file ? req.file.originalname : null).run();
   db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(createdEvent.lastInsertRowid, req.session.userId, req.session.userId);
   res.redirect('/admin/events');
 });
@@ -774,11 +819,12 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
   const publicRegistration = public_registration ? 1 : 0;
+  const emailSettings = normalizeEventEmailSettings(req.body);
   const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
   const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
-  const currentLogo = db.prepare('SELECT logo_path, logo_original_name FROM events WHERE id=?').get(req.params.id) || {};
+  const currentLogo = db.prepare('SELECT logo_path, logo_original_name, email_enabled FROM events WHERE id=?').get(req.params.id) || {};
 
   if (req.logoUploadError) {
     return renderEventForm(res, {
@@ -795,6 +841,7 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         public_registration: publicRegistration,
+        ...emailSettings,
         status: normalizedStatus,
         institution,
         language,
@@ -828,7 +875,9 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
     certificates_end
   });
 
-  if (validationError) {
+  const formError = emailSettings.error || validationError;
+
+  if (formError) {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
     return renderEventForm(res, {
       event: withAreaMeta({
@@ -844,6 +893,7 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         public_registration: publicRegistration,
+        ...emailSettings,
         status: normalizedStatus,
         institution,
         language,
@@ -859,7 +909,7 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         logo_original_name: currentLogo.logo_original_name || null
       }),
       title: 'Editar Evento',
-      error: validationError
+      error: formError
     });
   }
 
@@ -876,9 +926,19 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   }
 
   db.prepare(`
-    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, status=?, institution=?, language=?, registration_start=?, registration_end=?, submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?, updated_at=datetime('now', '-3 hours')
+    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?,
+      email_enabled=?,email_platform_name=?,email_sender_name=?,email_signature=?,email_contact=?,status=?, institution=?, language=?, registration_start=?, registration_end=?,
+      submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd, normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName, req.params.id).run();
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration,
+    emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
+    normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
+    normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName, req.params.id).run();
+  if (Number(currentLogo.email_enabled || 0) !== emailSettings.email_enabled) {
+    const cancelled = setEventEmailEnabled(req.params.id, emailSettings.email_enabled, req.session.userId);
+    recordParticipantAudit({ eventId: Number(req.params.id), actorUserId: req.session.userId,
+      action: emailSettings.email_enabled ? 'event_email_enabled' : 'event_email_disabled', details: { cancelled_count: cancelled, source: 'event_form' } });
+  }
   res.redirect('/admin/events');
 });
 
@@ -1022,7 +1082,7 @@ router.get('/:id/import-users', (req, res) => {
 });
 
 router.post('/:id/import-users', strictLimiter, importUpload.single('import_file'), (req, res) => {
-  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
   if (!req.file || !req.file.path) {
@@ -1122,7 +1182,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
   const findUserByPassport = db.prepare("SELECT id, name, email, passport FROM users WHERE passport IS NOT NULL AND passport != ''");
   const findUserByEmail = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?");
 
-   const defaultPassword = bcrypt.hashSync('import-2027', 10);
+   const defaultPassword = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   let imported = 0;
   let skipped = 0;
   let updated = 0;
@@ -1218,10 +1278,11 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
   const errors = report.filter(r => r.status === 'error').length;
   const successes = report.filter(r => r.status === 'success').length;
 
+  const batchId = createImportBatch({ batchType: 'event_registrations', eventId: event.id, importedBy: req.session.userId, report });
   req.session.importResult = {
     eventId: event.id, eventName: event.name,
     imported, skipped, updated, registered, alreadyRegistered,
-    errors, successes, report, success: report.length > 0
+    errors, successes, report, success: report.length > 0, batchId
   };
   return res.redirect(`/admin/events/${event.id}/import-result`);
 });
@@ -1255,8 +1316,25 @@ router.get('/:id/import-result', (req, res) => {
     imported: data.imported, skipped: data.skipped, updated: data.updated,
     registered: data.registered, alreadyRegistered: data.alreadyRegistered,
     errors: data.errors, successes: data.successes,
-    report: data.report, success: data.success
+    report: data.report, success: data.success,
+    emailSummary: data.batchId ? getImportBatchEmailSummary(data.batchId) : null,
+    systemEmailSettings: getSystemEmailSettings(),
+    emailMessage: req.query.email_message || null,
+    emailError: req.query.email_error || null
   });
+});
+
+router.post('/:id/import-authorize-emails', strictLimiter, (req, res) => {
+  const data = req.session.importResult;
+  if (!data || String(data.eventId) !== String(req.params.id) || !data.batchId) {
+    return res.redirect(`/admin/events/${req.params.id}/import-users?error=${encodeURIComponent('Nenhum lote disponível para autorização.')}`);
+  }
+  try {
+    const queued = authorizeImportBatch(data.batchId, req.session.userId);
+    return res.redirect(`/admin/events/${req.params.id}/import-result?email_message=${encodeURIComponent(`${queued} e-mail(s) enfileirado(s).`)}`);
+  } catch (error) {
+    return res.redirect(`/admin/events/${req.params.id}/import-result?email_error=${encodeURIComponent(error.message)}`);
+  }
 });
 
 function getRoleActivityAttendance(eventId, userId, role) {
@@ -1567,6 +1645,9 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   if (videoUrlRaw.length > 500) {
     return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
   }
+  if (!isValidHttpUrl(videoUrlRaw)) {
+    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Informe um link de transmissão HTTP ou HTTPS válido.')}`);
+  }
   const videoUrl = videoUrlRaw || null;
   const hasVideo = videoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const rangeError = activityDateRangeError(dateStart, dateEnd);
@@ -1607,6 +1688,9 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   if (videoUrlRaw.length > 500) {
     return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
   }
+  if (!isValidHttpUrl(videoUrlRaw)) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Informe um link de transmissão HTTP ou HTTPS válido.')}`);
+  }
   const videoUrl = videoUrlRaw || null;
   const hasVideo = videoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const rangeError = activityDateRangeError(dateStart, dateEnd);
@@ -1618,6 +1702,8 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
     name, activityType, dateStart, dateEnd, workloadHours, certificateEnabled,
     eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, activity.id
   );
+  const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
+  queueVideoLinkNotifications({ event, activity: { ...activity, name }, oldUrl: activity.video_url, newUrl: videoUrl });
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade atualizada.')}`);
 });
 router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
@@ -1661,11 +1747,18 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
   if (videoUrlRaw.length > 500) {
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('Link da transmissão da etapa muito longo (máximo de 500 caracteres).')}`);
   }
+  if (!isValidHttpUrl(videoUrlRaw)) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('Informe um link de transmissão HTTP ou HTTPS válido.')}`);
+  }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const nextSequence = db.prepare('SELECT COALESCE(MAX(sequence_no),0) + 1 AS next FROM activity_sessions WHERE activity_id=?').get(activity.id).next;
-  db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,workload_hours,video_url,has_video) VALUES (?,?,?,?,?,?,?)')
+  const createdSession = db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,workload_hours,video_url,has_video) VALUES (?,?,?,?,?,?,?)')
     .run(activity.id, name, nextSequence, sessionDate, workloadHours, sessionVideoUrl, hasVideo);
+  if (sessionVideoUrl) {
+    const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
+    queueVideoLinkNotifications({ event, activity, session: { id: createdSession.lastInsertRowid, name, session_date: sessionDate }, oldUrl: null, newUrl: sessionVideoUrl });
+  }
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa adicionada.')}`);
 });
 
@@ -1688,10 +1781,15 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
   if (videoUrlRaw.length > 500) {
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('Link da transmissão da etapa muito longo (máximo de 500 caracteres).')}`);
   }
+  if (!isValidHttpUrl(videoUrlRaw)) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('Informe um link de transmissão HTTP ou HTTPS válido.')}`);
+  }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   db.prepare('UPDATE activity_sessions SET name=?,session_date=?,workload_hours=?,video_url=?,has_video=? WHERE id=?')
     .run(name, sessionDate, workloadHours, sessionVideoUrl, hasVideo, session.id);
+  const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
+  queueVideoLinkNotifications({ event, activity, session: { ...session, name, session_date: sessionDate }, oldUrl: session.video_url, newUrl: sessionVideoUrl });
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa atualizada.')}`);
 });
 
@@ -1700,6 +1798,10 @@ router.post('/:id/activities/:activityId/sessions/:sessionId/delete', strictLimi
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const session = db.prepare('SELECT * FROM activity_sessions WHERE id = ? AND activity_id = ?').get(req.params.sessionId, activity.id);
   if (!session) return res.status(404).render('error', { title: 'Etapa não encontrada' });
+  if (session.video_url) {
+    const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
+    queueVideoLinkNotifications({ event, activity, session, oldUrl: session.video_url, newUrl: null });
+  }
   db.prepare('DELETE FROM activity_sessions WHERE id=?').run(session.id);
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa removida.')}`);
 });
@@ -2246,7 +2348,7 @@ router.post('/:id/certificates/:role/:userId/issue', strictLimiter, (req, res) =
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   const role = CERTIFICATE_ROLES[req.params.role] ? req.params.role : null;
   if (!event || !role) return res.status(404).render('error', { title: 'Certificado não encontrado' });
-  try { const emissionId = issueCertificate(event, role, req.params.userId, req.session.userId); recordParticipantAudit({ eventId: event.id, actorUserId: req.session.userId, action: 'certificate_issued', details: { emission_id: emissionId, role, user_id: req.params.userId } }); }
+  try { const emissionId = issueCertificate(event, role, req.params.userId, req.session.userId); recordParticipantAudit({ eventId: event.id, actorUserId: req.session.userId, action: 'certificate_issued', details: { emission_id: emissionId, role, user_id: req.params.userId } }); queueCertificateIssued(event, emissionId); }
   catch (error) { return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent(error.message)}`); }
   res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Certificado emitido com sucesso.')}`);
 });
@@ -2272,6 +2374,7 @@ router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
             action: 'certificate_issued_batch',
             details: { emission_id: emissionId, role, user_id: candidate.user_id }
           });
+          queueCertificateIssued(event, emissionId);
           issued += 1;
         } catch (_) {
           skipped += 1;
@@ -2294,7 +2397,7 @@ router.post('/:id/certificates/:role/:userId/reissue', strictLimiter, (req, res)
   if (!event || !role) return res.status(404).render('error', { title: 'Certificado não encontrado' });
   const previous = db.prepare(`SELECT id FROM certificate_emissions WHERE event_id=? AND user_id=? AND certificate_role=? AND status='issued' ORDER BY version DESC LIMIT 1`).get(event.id, req.params.userId, role);
   if (!previous) return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Não há certificado ativo para reemitir.')}`);
-  try { const emissionId = issueCertificate(event, role, req.params.userId, req.session.userId, previous.id); db.prepare("UPDATE certificate_emissions SET status='reissued' WHERE id=?").run(previous.id); recordParticipantAudit({ eventId:event.id, actorUserId:req.session.userId, action:'certificate_reissued', details:{ previous_emission_id:previous.id, emission_id:emissionId, role, user_id:req.params.userId } }); }
+  try { const emissionId = issueCertificate(event, role, req.params.userId, req.session.userId, previous.id); db.prepare("UPDATE certificate_emissions SET status='reissued' WHERE id=?").run(previous.id); recordParticipantAudit({ eventId:event.id, actorUserId:req.session.userId, action:'certificate_reissued', details:{ previous_emission_id:previous.id, emission_id:emissionId, role, user_id:req.params.userId } }); queueCertificateIssued(event, emissionId); }
   catch (error) { return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent(error.message)}`); }
   res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Certificado reemitido com nova versão.')}`);
 });

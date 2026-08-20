@@ -53,6 +53,10 @@ const TABLES = [
   'event_qr_codes',
   'event_user_roles',
   'events',
+  'email_outbox',
+  'email_settings_log',
+  'import_batch_entries',
+  'import_batches',
   'notifications',
   'participant_activity_enrollments',
   'participant_audit_logs',
@@ -64,6 +68,8 @@ const TABLES = [
   'subsidy_documents',
   'subsidy_requests',
   'user_preferences',
+  'user_setup_tokens',
+  'system_settings',
   'users',
 ];
 
@@ -114,6 +120,11 @@ function initializeDbSchema(db) {
       has_article_submission INTEGER DEFAULT 0,
       offers_subsidy INTEGER DEFAULT 0,
       public_registration INTEGER DEFAULT 1,
+      email_enabled INTEGER NOT NULL DEFAULT 0,
+      email_platform_name TEXT,
+      email_sender_name TEXT,
+      email_signature TEXT,
+      email_contact TEXT,
       status TEXT NOT NULL DEFAULT 'draft',
       registration_start DATE,
       registration_end DATE,
@@ -128,6 +139,100 @@ function initializeDbSchema(db) {
       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
     );
+
+    CREATE TABLE IF NOT EXISTS system_settings (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      email_enabled INTEGER NOT NULL DEFAULT 0,
+      updated_by INTEGER,
+      updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      FOREIGN KEY(updated_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+    INSERT OR IGNORE INTO system_settings (id,email_enabled) VALUES (1,0);
+
+    CREATE TABLE IF NOT EXISTS email_settings_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enabled INTEGER NOT NULL,
+      changed_by INTEGER,
+      cancelled_count INTEGER NOT NULL DEFAULT 0,
+      scope TEXT NOT NULL DEFAULT 'system',
+      event_id INTEGER,
+      created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      FOREIGN KEY(changed_by) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS user_setup_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at DATETIME NOT NULL,
+      used_at DATETIME,
+      revoked_at DATETIME,
+      created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS import_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_type TEXT NOT NULL,
+      event_id INTEGER,
+      imported_by INTEGER,
+      email_authorized_at DATETIME,
+      email_authorized_by INTEGER,
+      created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY(imported_by) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY(email_authorized_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS import_batch_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_id INTEGER NOT NULL,
+      user_id INTEGER,
+      registration_id INTEGER,
+      recipient_name TEXT,
+      recipient_email TEXT,
+      outcome TEXT NOT NULL,
+      email_kind TEXT,
+      email_status TEXT NOT NULL DEFAULT 'not_applicable',
+      created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      FOREIGN KEY(batch_id) REFERENCES import_batches(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS email_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER,
+      user_id INTEGER,
+      setup_token_id INTEGER,
+      recipient_email TEXT NOT NULL,
+      recipient_name TEXT,
+      message_type TEXT NOT NULL,
+      template_name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      from_name TEXT,
+      reply_to TEXT,
+      logo_path TEXT,
+      group_key TEXT,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'queued',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      available_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      next_attempt_at DATETIME,
+      last_error TEXT,
+      sent_at DATETIME,
+      cancelled_at DATETIME,
+      created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY(setup_token_id) REFERENCES user_setup_tokens(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_outbox_worker ON email_outbox(status,available_at,next_attempt_at);
+    CREATE INDEX IF NOT EXISTS idx_email_outbox_event ON email_outbox(event_id,status);
+    CREATE INDEX IF NOT EXISTS idx_import_batch_entries_batch ON import_batch_entries(batch_id,email_kind);
 
     CREATE TABLE IF NOT EXISTS articles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -713,6 +818,11 @@ function initializeDbSchema(db) {
     if (!eventColumns.includes('has_article_submission')) db.exec('ALTER TABLE events ADD COLUMN has_article_submission INTEGER DEFAULT 0');
     if (!eventColumns.includes('offers_subsidy')) db.exec('ALTER TABLE events ADD COLUMN offers_subsidy INTEGER DEFAULT 0');
     if (!eventColumns.includes('public_registration')) db.exec('ALTER TABLE events ADD COLUMN public_registration INTEGER DEFAULT 1');
+    if (!eventColumns.includes('email_enabled')) db.exec('ALTER TABLE events ADD COLUMN email_enabled INTEGER NOT NULL DEFAULT 0');
+    if (!eventColumns.includes('email_platform_name')) db.exec('ALTER TABLE events ADD COLUMN email_platform_name TEXT');
+    if (!eventColumns.includes('email_sender_name')) db.exec('ALTER TABLE events ADD COLUMN email_sender_name TEXT');
+    if (!eventColumns.includes('email_signature')) db.exec('ALTER TABLE events ADD COLUMN email_signature TEXT');
+    if (!eventColumns.includes('email_contact')) db.exec('ALTER TABLE events ADD COLUMN email_contact TEXT');
     if (!eventColumns.includes('institution')) db.exec('ALTER TABLE events ADD COLUMN institution TEXT');
     if (!eventColumns.includes('language')) db.exec('ALTER TABLE events ADD COLUMN language TEXT');
     if (!eventColumns.includes('registration_start')) db.exec('ALTER TABLE events ADD COLUMN registration_start DATE');

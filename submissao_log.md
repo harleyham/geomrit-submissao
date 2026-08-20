@@ -6,6 +6,48 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-20
 
+### Fase 3: módulo de e-mails transacionais
+
+- Dependência `nodemailer`; serviço `services/email.js` com SMTP Zoho configurável, fila SQLite, retentativa exponencial, recuperação de envio interrompido e worker/agendador iniciado pelo `server.js`.
+- Novas tabelas: `system_settings`, `email_settings_log`, `email_outbox`, `user_setup_tokens`, `import_batches` e `import_batch_entries`; novas colunas de identidade e `email_enabled` em `events`. Master global e de evento iniciam desligados.
+- Dashboard e `/admin/events`: controle global restrito a `admin@admin.com`; listagem e formulário do evento possuem switch próprio. Desativação cancela pendências e revoga tokens ainda não enviados.
+- Templates EJS neutros: solicitação/aprovação, conta importada, conta+inscrição, inscrição, lembrete, certificado e transmissão. Logo do evento é incorporado somente quando existe; não há imagem fallback.
+- Gatilhos implementados: pedido/aprovação de conta, lembrete às 09h do dia anterior, emissão/reemissão, inclusão/alteração/remoção de link em atividade ou etapa (debounce de cinco minutos).
+- Correção após teste funcional: a criação direta de usuário em `/admin/users/new` também enfileira o aviso de conta aprovada; inicialmente apenas a aprovação de solicitação pública estava conectada ao gatilho.
+- Importações gerais e por evento criam lote persistente e mostram botão de autorização no resultado. Contas novas recebem link de definição de senha de uso único válido por 72h; a senha fixa de importação foi removida.
+- Configuração por ambiente: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, identidade global e `APP_BASE_URL`.
+- Status: **implementado**; master switches permanecem desligados até configuração das credenciais e ativação administrativa.
+- O arquivo .env contém os valores reais e secretos da instalação. Ele não deve ir para o GitHub.
+O projeto já possui no .gitignore:
+.env
+.env.local
+O .env.example pode ir para o GitHub porque contém apenas exemplos, sem senhas reais.
+Atenção: atualmente o sistema não carrega .env automaticamente. Com a versão atual do Node, execute usando:
+node --env-file=.env server.js
+Para produção, configure pelo menos:
+NODE_ENV=production
+SESSION_SECRET=chave-aleatoria-gerada
+APP_BASE_URL=https://www.ham.eng.br
+SMTP_HOST=smtp.zoho.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=eventos@ham.eng.br
+SMTP_PASS=senha-de-aplicativo-do-zoho
+MAIL_FROM_ADDRESS=eventos@ham.eng.br
+MAIL_FROM_NAME=Equipe de Eventos
+MAIL_PLATFORM_NAME=Plataforma de Eventos
+MAIL_SIGNATURE=Equipe de Eventos
+MAIL_REPLY_TO=eventos@ham.eng.br
+Gere o segredo da sessão com:
+openssl rand -hex 32
+Use uma senha de aplicativo do Zoho em SMTP_PASS, especialmente se a conta tiver autenticação em dois fatores. Não coloque a senha normal nem qualquer segredo no .env.example.
+ - Para testar o envio de email coloque a senha SMTP no arquivo local .env:
+SMTP_USER=eventos@ham.eng.br
+SMTP_PASS=SENHA_DE_APLICATIVO_DO_ZOHO
+Use preferencialmente uma senha de aplicativo criada no Zoho, não a senha normal da conta.
+
+
+
 ### Inscrição pública ou somente pela administração (`public_registration`)
 
 - Requisito do usuário: assim como há a chave de submissão de artigos, o evento deve permitir selecionar se as inscrições serão feitas pelo público ou somente pela administração.
@@ -1370,4 +1412,3 @@ Versão atual registrada: **V0.1**.
 - Na página de relatório de Evento, deve haver a opção de exportação de arquivo .md, a fim de ser avaliado por uma IA
 - Implementar uma forma de a partir do PDF com as informações do Evento, puplicar como se fosse o site do Evento. Últil para eventos pequenos ou que não tem a capacidade de fazer um site especifico
 - Deve tar alguma lógica para um evento que não terá incrições pelos usuários, apenas pela administração do evento
-

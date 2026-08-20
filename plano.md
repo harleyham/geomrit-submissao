@@ -127,10 +127,12 @@ Status geral: **CONCLUÍDO ✔** (aprovado em 17/08; implementado e validado E2E
 ---
 
 ## Ciclo 4 — Fase 3: E-mails
-Status geral: **PENDENTE**.
-- Novo módulo de e-mails (dependência `nodemailer` — ainda não está em `package.json`).
-- Configuração SMTP (env vars), templates EJS, fila/falha com log.
-- Gatilhos: confirmação de inscrição, confirmação de presença/aula, certificado disponível, etc.
+Status geral: **CONCLUÍDO (código)** — 20/08/2026.
+- `nodemailer` com SMTP configurável (Zoho por padrão), templates EJS HTML/texto e logo do evento incorporado quando existe.
+- Fila persistente `email_outbox`, retentativa exponencial, recuperação após reinício, deduplicação, supressão e cancelamento.
+- Master switch global (superadmin) e por evento, ambos desligados por padrão; desligar cancela pendências e não há replay automático.
+- Gatilhos: solicitação/aprovação de conta, lembrete às 09h do dia anterior, certificado/reemissão e inclusão/alteração/remoção de link de transmissão (atividade/etapa, consolidação de 5 minutos).
+- Importações: lote persistente, autorização explícita pós-relatório, mensagens combinadas por situação e link de definição de senha de uso único (72h).
 
 ---
 
@@ -143,7 +145,7 @@ Status geral: **PENDENTE**.
 ---
 
 ## Riscos / observações
-- `qrcode` já está em `package.json` (instalada na Fase 1, 16/08); `nodemailer` ainda não (instalar na Fase 3).
+- `qrcode` e `nodemailer` estão em `package.json`.
 - `jsQR` é servido localmente em `public/lib/jsQR.min.js` (sem CDN, por causa da CSP).
 - QR/câmera depende de HTTPS em produção; o fallback de digitação manual do código do crachá cobre contextos sem câmera.
 - Fluxo do QR do crachá (1.5b/1.6b/1.7b) implementado e validado E2E (36/36, 17/08); commitado em 18/08.

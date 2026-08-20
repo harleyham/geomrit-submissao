@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { db } = require('../db');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
@@ -10,6 +11,8 @@ const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
 const { strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
+const { queueAccountApproved, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
+  getSystemEmailSettings } = require('../services/email');
 
 const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
 if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: true });
@@ -400,7 +403,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
   }
 
   const hash = bcrypt.hashSync(password, 10);
-  db.prepare(`
+  const createdUser = db.prepare(`
     INSERT INTO users (name, email, password, cpf, passport, country, institution, phone, reviewer_areas,
       is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at, password_changed, created_at, updated_at,
       formacao_area, formacao_curso, formacao_titulacao, formacao_status, profile_completed)
@@ -424,6 +427,8 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
     formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null),
     formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null)
   ).run();
+
+  queueAccountApproved({ id: createdUser.lastInsertRowid, name: name || email, email });
 
   res.redirect('/admin/users?success=Usuário criado com sucesso');
 });
@@ -829,7 +834,7 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
 
 router.post('/:id/approve', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const user = db.prepare('SELECT id, approval_status FROM users WHERE id = ?').bind(id).get();
+  const user = db.prepare('SELECT id, name, email, approval_status FROM users WHERE id = ?').bind(id).get();
   if (!user) {
     return res.redirect('/admin/users?error=Usuário não encontrado');
   }
@@ -849,6 +854,8 @@ router.post('/:id/approve', requireAuth, (req, res) => {
         updated_at = datetime('now', '-3 hours')
     WHERE id = ?
   `).bind(req.session.userId, id).run();
+
+  queueAccountApproved(user);
 
   return res.redirect('/admin/users?success=Cadastro aprovado com sucesso');
 });
@@ -933,7 +940,7 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
   const findUserByPassport = db.prepare("SELECT id, name, email, passport FROM users WHERE passport IS NOT NULL AND passport != ''");
   const findUserByEmail = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?");
 
-  const defaultPassword = bcrypt.hashSync('import-2027', 10);
+  const defaultPassword = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   let imported = 0;
   let skipped = 0;
   let updated = 0;
@@ -1012,8 +1019,9 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
   const errors = report.filter(r => r.status === 'error').length;
   const successes = report.filter(r => r.status === 'success').length;
 
+  const batchId = createImportBatch({ batchType: 'users', importedBy: req.session.userId, report });
   req.session.importResult = {
-    imported, skipped, updated, errors, successes, report, success: report.length > 0
+    imported, skipped, updated, errors, successes, report, success: report.length > 0, batchId
   };
   return res.redirect('/admin/users/import/result');
 });
@@ -1039,8 +1047,23 @@ router.get('/import/result', requireAuth, (req, res) => {
   if (!data) return res.redirect('/admin/users/import');
   res.render('admin/users/import-users-result', {
     title: 'Resultado da Importação',
-    ...data
+    ...data,
+    emailSummary: data.batchId ? getImportBatchEmailSummary(data.batchId) : null,
+    systemEmailSettings: getSystemEmailSettings(),
+    emailMessage: req.query.email_message || null,
+    emailError: req.query.email_error || null
   });
+});
+
+router.post('/import/authorize-emails', requireAuth, strictLimiter, (req, res) => {
+  const data = req.session.importResult;
+  if (!data || !data.batchId) return res.redirect('/admin/users/import?error=' + encodeURIComponent('Nenhum lote disponível para autorização.'));
+  try {
+    const queued = authorizeImportBatch(data.batchId, req.session.userId);
+    return res.redirect('/admin/users/import/result?email_message=' + encodeURIComponent(`${queued} e-mail(s) enfileirado(s).`));
+  } catch (error) {
+    return res.redirect('/admin/users/import/result?email_error=' + encodeURIComponent(error.message));
+  }
 });
 
 router.get('/import-template', requireAuth, (req, res) => {

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const multer = require('multer');
 const { db, recordParticipantAudit } = require('../db');
 const bcrypt = require('bcryptjs');
@@ -11,6 +12,7 @@ const { registrationLimiter, strictLimiter } = require('../security/rate-limits'
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { body } = require('express-validator');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
+const { queueAccountRequested } = require('../services/email');
 
 const ABSTRACT_LIMIT = 2500;
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -2089,6 +2091,37 @@ router.get('/cadastro', (req, res) => {
   });
 });
 
+router.get('/definir-senha', (req, res) => {
+  const token = String(req.query.token || '').trim();
+  const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : '';
+  const valid = tokenHash && db.prepare(`SELECT 1 FROM user_setup_tokens WHERE token_hash=? AND used_at IS NULL AND revoked_at IS NULL
+    AND expires_at>datetime('now','-3 hours')`).get(tokenHash);
+  res.status(valid ? 200 : 400).render('set-password', {
+    title: 'Definir senha', token: valid ? token : '',
+    error: valid ? null : 'Este link é inválido, expirou ou já foi utilizado.', success: null
+  });
+});
+
+router.post('/definir-senha', strictLimiter, (req, res) => {
+  const token = String(req.body.token || '').trim();
+  const password = String(req.body.password || '');
+  const confirmation = String(req.body.confirm_password || '');
+  const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : '';
+  const setup = tokenHash && db.prepare(`SELECT * FROM user_setup_tokens WHERE token_hash=? AND used_at IS NULL AND revoked_at IS NULL
+    AND expires_at>datetime('now','-3 hours')`).get(tokenHash);
+  let error = null;
+  if (!setup) error = 'Este link é inválido, expirou ou já foi utilizado.';
+  else if (password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) error = 'A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula e número.';
+  else if (password !== confirmation) error = 'As senhas não conferem.';
+  if (error) return res.status(400).render('set-password', { title: 'Definir senha', token: setup ? token : '', error, success: null });
+  db.transaction(() => {
+    db.prepare("UPDATE users SET password=?,password_changed=1,updated_at=datetime('now','-3 hours') WHERE id=?")
+      .run(bcrypt.hashSync(password, 10), setup.user_id);
+    db.prepare("UPDATE user_setup_tokens SET used_at=datetime('now','-3 hours') WHERE id=?").run(setup.id);
+  })();
+  return res.render('set-password', { title: 'Senha definida', token: '', error: null, success: 'Senha definida com sucesso. Faça login para completar seu perfil.' });
+});
+
 router.post('/cadastro', registrationLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, [
     ...v.registration,
@@ -2150,7 +2183,7 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
   }
 
   const hash = bcrypt.hashSync(password, 10);
-  db.prepare(`
+  const created = db.prepare(`
     INSERT INTO users (
       name, email, password, cpf, passport, country, institution,
       is_admin, is_reviewer, is_public, approval_status, approved_at,
@@ -2166,6 +2199,7 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
     country || null,
     institution || null
   ).run();
+  queueAccountRequested({ id: created.lastInsertRowid, name, email });
 
   return res.render('public/register', {
     title: 'Solicitar Cadastro',

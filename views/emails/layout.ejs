@@ -1,0 +1,19 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#172033;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;"><%= platformName %></div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:24px 12px;"><tr><td align="center">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#fff;border:1px solid #dbe3ec;border-radius:14px;overflow:hidden;">
+      <tr><td align="center" style="padding:28px 30px 22px;border-bottom:1px solid #e8edf3;">
+        <% if (logoCid) { %><img src="cid:<%= logoCid %>" alt="Logo do evento" style="display:block;max-width:320px;max-height:140px;width:auto;height:auto;margin:0 auto 16px;"><% } %>
+        <div style="font-size:22px;font-weight:700;color:#0f3e48;"><%= platformName %></div>
+      </td></tr>
+      <tr><td style="padding:32px 38px;font-size:16px;line-height:1.65;"><%- bodyHtml %>
+        <p style="margin:30px 0 0;"><strong><%= signature %></strong></p>
+      </td></tr>
+      <tr><td align="center" style="padding:22px 28px;background:#f8fafc;border-top:1px solid #e8edf3;color:#64748b;font-size:12px;line-height:1.55;">
+        Este e-mail foi enviado para <%= recipientEmail %> por <%= platformName %>.<br>
+        <% if (contact) { %>Contato: <a href="mailto:<%= contact %>" style="color:#0f6b78;"><%= contact %></a><% } %>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>

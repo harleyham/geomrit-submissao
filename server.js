@@ -11,6 +11,7 @@ const { csrfProtection } = require('./security/csrf');
 const { defaultLimiter, adminLimiter } = require('./security/rate-limits');
 const { handleValidationErrors } = require('./security/validation');
 const { db } = require('./db');
+const { startEmailWorkers, stopEmailWorkers } = require('./services/email');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -217,6 +218,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Artigos LIGEM rodando em http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/login`);
+  startEmailWorkers();
 });
 
 function closeDb() {
@@ -225,6 +227,7 @@ function closeDb() {
 
 function shutdown(signal) {
   console.log(`${signal} recebido, encerrando o servidor...`);
+  stopEmailWorkers();
   closeDb();
   process.exit(0);
 }

@@ -11,6 +11,7 @@ const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('.
 const { resetDatabase } = require('../services/db-reset');
 const { createBackupZip, restoreFromZip, backupFileName } = require('../services/backup');
 const { requireSuperAdmin } = require('../security/super-admin');
+const { getSystemEmailSettings, getPendingEmailCount, setSystemEmailEnabled } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
 fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
@@ -383,9 +384,21 @@ router.get('/dashboard', requireAuth, (req, res) => {
     readyForDecisionArticles,
     pendingSubsidyRequests,
     pendingRegistrationRequests,
+    systemEmailSettings: getSystemEmailSettings(),
+    pendingEmailCount: getPendingEmailCount(),
     year: new Date().getFullYear(),
     query: req.query
   });
+});
+
+router.post('/email-settings/toggle', requireAuth, requireSuperAdmin, strictLimiter, (req, res) => {
+  const enabled = req.body.enabled === '1';
+  const cancelled = setSystemEmailEnabled(enabled, req.session.userId);
+  const message = enabled
+    ? 'Envio global de e-mails ativado.'
+    : `Envio global de e-mails desativado. ${cancelled} mensagem(ns) pendente(s) cancelada(s).`;
+  const returnTo = req.body.return_to === 'events' ? '/admin/events' : '/admin/dashboard';
+  return res.redirect(`${returnTo}?email=${enabled ? 'enabled' : 'disabled'}&message=${encodeURIComponent(message)}`);
 });
 
 router.get('/db/reset', requireAuth, requireSuperAdmin, (req, res) => {

@@ -1,0 +1,8 @@
+<p style="margin-top:0;">Olá, <strong><%= name %></strong>.</p>
+<p><% if (kind === 'removed') { %>O link de transmissão informado anteriormente foi removido. Um novo acesso poderá ser divulgado pela organização.<% } else if (kind === 'updated') { %>O link de transmissão foi atualizado.<% } else { %>O link de transmissão já está disponível.<% } %></p>
+<div style="margin:24px 0;padding:20px;border:1px solid #dbe3ec;border-radius:10px;background:#f8fafc;">
+  <div><strong>Evento:</strong> <%= eventName %></div><div><strong>Atividade:</strong> <%= activityName %></div>
+  <% if (sessionName) { %><div><strong>Etapa:</strong> <%= sessionName %><% if (sessionDate) { %> — <%= sessionDate %><% } %></div><% } %>
+</div>
+<% if (transmissionUrl) { %><p style="text-align:center;margin:28px 0;"><a href="<%= transmissionUrl %>" style="display:inline-block;background:#0f6b78;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;">Acessar transmissão</a></p><% } %>
+<p style="text-align:center;"><a href="<%= eventUrl %>" style="color:#0f6b78;">Ver página do evento</a></p>

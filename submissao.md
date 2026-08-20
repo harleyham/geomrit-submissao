@@ -49,6 +49,7 @@ O sistema deve permitir:
 - Configuração de múltiplas áreas/trilhas por evento.
 - Configuração explícita de evento com ou sem submissão de artigos.
 - Configuração explícita de evento com inscrições abertas ao público ou realizadas somente pela administração (toggle "Inscrições abertas ao público?", coluna `events.public_registration`, padrão público).
+- E-mails transacionais com fila persistente, master switch global e por evento, identidade editável por evento, logo opcional, retentativas e histórico de envio.
 - Configuração de subsídio a participantes por evento.
 - Acompanhamento de inscrições, participação e elegibilidade para certificados de participação por evento.
 - Gestão de usuários em `/admin/users`.
@@ -625,6 +626,17 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 - Contas com perfil de revisor podem acessar `/author` e `/submeter/:eventId`, mantendo também o fluxo de revisão.
 - Contas com múltiplos perfis mantêm redirecionamento prioritário para `/admin/dashboard`, mas a interface expõe links para `/reviewer` e `/author`.
 - O botão `Sair`, em destaque vermelho, deve estar disponível nas páginas do usuário autenticado para encerramento imediato da sessão.
+
+### E-mails
+
+- O master switch global (`system_settings.email_enabled`) prevalece sobre todos os demais e só pode ser alterado pelo superadministrador; o switch `events.email_enabled` controla cada evento. Ambos têm default `0`.
+- Desligar o global cancela toda mensagem pendente; desligar o evento cancela apenas suas pendências. Mensagens canceladas não são retomadas.
+- Solicitação e aprovação de conta usam identidade global neutra. Lembretes, certificados, importações do evento e transmissões usam identidade e logo do evento, quando existentes.
+- Tanto a aprovação de solicitação pública quanto a criação direta de usuário pelo administrador geram aviso de conta aprovada (quando o master global está ligado).
+- O lembrete é criado às 09h (America/Sao_Paulo) no dia anterior ao evento para inscritos ativos.
+- Alterações de transmissão notificam inscritos ativos da atividade; atividade e etapa são suportadas, remoção também notifica e mudanças feitas em até cinco minutos são consolidadas.
+- Importações exigem autorização explícita na tela de resultado. Novas contas usam token de definição de senha (hash no banco, uso único, 72 horas), sem senha no e-mail.
+- A fila persiste estados `queued`, `sending`, `sent`, `failed`, `cancelled` e `suppressed`; falha SMTP não desfaz a operação principal.
 
 ## Fluxos Principais
 

@@ -55,6 +55,8 @@
     .logo-preview-name { color: #94a3b8; font-size: 0.8rem; overflow-wrap: anywhere; }
     .alert { margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 10px; font-size: 0.9rem; }
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
+    .email-card { margin:1.5rem 0;padding:1.25rem;border:1px solid rgba(96,165,250,.2);border-radius:12px;background:rgba(30,64,175,.08); }
+    .email-card h2 { font-size:1.05rem;margin-bottom:.35rem;color:#f8fafc; }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
   </style>
 </head>
@@ -239,6 +241,20 @@
             <option value="1" <%= event && event.offers_subsidy ? 'selected' : '' %>>Sim</option>
           </select>
           <div class="help-text">Defina se o evento prevê algum tipo de apoio financeiro, bolsa ou subsídio para participantes.</div>
+        </div>
+        <div class="email-card">
+          <h2>Identidade dos e-mails</h2>
+          <p class="help-text" style="margin-bottom:1rem;">O master switch global está <strong style="color:<%= systemEmailSettings.email_enabled ? '#86efac' : '#fca5a5' %>"><%= systemEmailSettings.email_enabled ? 'ativado' : 'desativado' %></strong>. O evento também precisa estar habilitado para enviar mensagens.</p>
+          <div class="toggle-row">
+            <div class="toggle-copy"><strong>Habilitar e-mails deste evento?</strong><span>Desligado por padrão. Quando desligado, nenhum gatilho deste evento envia mensagens.</span></div>
+            <label class="switch" for="email_enabled"><input type="checkbox" id="email_enabled" name="email_enabled" value="1" <%= event && event.email_enabled ? 'checked' : '' %>><span class="switch-slider"></span></label>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="email_platform_name">Nome da plataforma</label><input type="text" maxlength="160" id="email_platform_name" name="email_platform_name" value="<%= event ? event.email_platform_name || '' : '' %>" placeholder="Padrão: nome do evento"></div>
+            <div class="form-group"><label for="email_sender_name">Nome do remetente</label><input type="text" maxlength="160" id="email_sender_name" name="email_sender_name" value="<%= event ? event.email_sender_name || '' : '' %>" placeholder="Padrão: nome do evento"></div>
+          </div>
+          <div class="form-group"><label for="email_signature">Assinatura</label><textarea maxlength="1000" id="email_signature" name="email_signature" rows="3" placeholder="Padrão: Equipe organizadora"><%= event ? event.email_signature || '' : '' %></textarea></div>
+          <div class="form-group" style="margin-bottom:0"><label for="email_contact">E-mail de contato (Reply-To)</label><input type="email" maxlength="254" id="email_contact" name="email_contact" value="<%= event ? event.email_contact || '' : '' %>" placeholder="Padrão: contato SMTP do sistema"><div class="help-text">O endereço SMTP real permanece configurado no servidor; respostas serão encaminhadas a este contato.</div></div>
         </div>
       </div>
       <div class="form-actions">

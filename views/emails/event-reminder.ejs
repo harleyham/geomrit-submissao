@@ -1,0 +1,9 @@
+<p style="margin-top:0;">Olá, <strong><%= name %></strong>.</p>
+<p>O evento em que você está inscrito acontece amanhã.</p>
+<div style="margin:24px 0;padding:20px;border:1px solid #dbe3ec;border-radius:10px;background:#f8fafc;">
+  <div style="font-size:19px;font-weight:700;margin-bottom:10px;"><%= eventName %></div>
+  <div><strong>Data:</strong> <%= dateStart %><% if (dateEnd && dateEnd !== dateStart) { %> a <%= dateEnd %><% } %></div>
+  <% if (location) { %><div><strong>Local:</strong> <%= location %></div><% } %>
+</div>
+<p style="text-align:center;margin:28px 0;"><a href="<%= eventUrl %>" style="display:inline-block;background:#0f6b78;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;">Acessar evento</a></p>
+<% if (siteUrl) { %><p style="text-align:center;"><a href="<%= siteUrl %>" style="color:#0f6b78;">Acessar site do evento</a></p><% } %>

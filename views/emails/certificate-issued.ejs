@@ -1,0 +1,7 @@
+<p style="margin-top:0;">Olá, <strong><%= name %></strong>.</p>
+<p><%= reissue ? 'Uma nova versão do seu certificado foi emitida.' : 'Seu certificado foi emitido e está disponível.' %></p>
+<div style="margin:24px 0;padding:20px;border:1px solid #dbe3ec;border-radius:10px;background:#f8fafc;">
+  <div><strong>Evento:</strong> <%= eventName %></div><div><strong>Tipo:</strong> <%= roleLabel %></div>
+  <div><strong>Versão:</strong> <%= version %></div><div><strong>Código:</strong> <%= certificateCode %></div>
+</div>
+<p style="text-align:center;margin:28px 0;"><a href="<%= certificatesUrl %>" style="display:inline-block;background:#0f6b78;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;">Acessar meus certificados</a></p>
