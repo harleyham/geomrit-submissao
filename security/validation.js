@@ -47,9 +47,13 @@ function sanitizeHtml(value) {
     .trim();
 }
 
+function sanitizeEmail(value) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : value;
+}
+
 const validators = {
   login: [
-    body('email').trim().isEmail().withMessage('Informe um e-mail válido.').normalizeEmail(),
+    body('email').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
     body('password').notEmpty().withMessage('A senha é obrigatória.')
   ],
   changePassword: [
@@ -64,7 +68,7 @@ const validators = {
   ],
   registration: [
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
-    body('email').trim().isEmail().withMessage('Informe um e-mail válido.').normalizeEmail(),
+    body('email').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
     body('institution').optional().trim().isLength({ max: 200 }),
     body('student_lattes_id').optional().matches(/^\d{16}$/).withMessage('O ID Lattes deve ter 16 dígitos numéricos.')
   ],
@@ -73,12 +77,12 @@ const validators = {
     body('area').trim().notEmpty().withMessage('A área/trilha é obrigatória.'),
     body('abstract').trim().notEmpty().withMessage('O resumo é obrigatório.').isLength({ max: 2500 }),
     body('keywords').trim().notEmpty().withMessage('As palavras-chave são obrigatórias.'),
-    body('email_submission').trim().isEmail().withMessage('Informe um e-mail de submissão válido.').normalizeEmail(),
+    body('email_submission').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail de submissão válido.'),
     body('ethics_confirmed').equals('on').withMessage('É necessário aceitar a declaração de ética.'),
     body('publication_authorized').equals('on').withMessage('É necessário autorizar a publicação.')
   ],
   userForm: [
-    body('email').trim().isEmail().withMessage('Informe um e-mail válido.').normalizeEmail(),
+    body('email').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
     body('password').optional().isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
     body('name').optional().trim().isLength({ max: 200 }),
     body('cpf').optional().trim(),
@@ -94,7 +98,7 @@ const validators = {
   ],
   participantForm: [
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
-    body('email').trim().isEmail().withMessage('Informe um e-mail válido.').normalizeEmail()
+    body('email').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.')
   ],
   reviewerForm: [
     body('recommendation').isIn(['approved', 'rejected', 'revision_requested']).withMessage('Recomendação inválida.'),
@@ -159,14 +163,14 @@ const validators = {
   ],
   eventRegistration: [
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
-    body('email').trim().isEmail().withMessage('Informe um e-mail válido.').normalizeEmail(),
+    body('email').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
     body('institution').optional().trim().isLength({ max: 200 }),
     body('phone').optional().trim().isLength({ max: 30 }),
     body('registration_type').optional().isIn(['listener', 'author']).withMessage('Tipo de participação inválido.')
   ],
   participantProfile: [
     body('name').optional().trim().isLength({ max: 200 }),
-    body('email').optional().trim().isEmail().withMessage('Informe um e-mail válido.').normalizeEmail(),
+    body('email').optional().customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
     body('institution').optional().trim().isLength({ max: 200 }),
     body('cpf').optional().trim(),
     body('passport').optional().trim().isLength({ max: 50 }),
