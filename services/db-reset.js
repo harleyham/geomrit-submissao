@@ -120,6 +120,7 @@ function initializeDbSchema(db) {
       has_article_submission INTEGER DEFAULT 0,
       offers_subsidy INTEGER DEFAULT 0,
       public_registration INTEGER DEFAULT 1,
+      registration_approval_mode TEXT NOT NULL DEFAULT 'automatic',
       email_enabled INTEGER NOT NULL DEFAULT 0,
       email_platform_name TEXT,
       email_sender_name TEXT,
@@ -296,6 +297,11 @@ function initializeDbSchema(db) {
       email TEXT NOT NULL,
       institution TEXT DEFAULT '',
       registration_type TEXT NOT NULL DEFAULT 'listener',
+      registration_status TEXT NOT NULL DEFAULT 'approved',
+      requested_activity_ids TEXT DEFAULT '[]',
+      registration_review_notes TEXT DEFAULT '',
+      registration_reviewed_at DATETIME,
+      registration_reviewed_by INTEGER,
       subsidy_requested INTEGER DEFAULT 0,
       student_level TEXT DEFAULT '',
       student_course TEXT DEFAULT '',
@@ -818,6 +824,7 @@ function initializeDbSchema(db) {
     if (!eventColumns.includes('has_article_submission')) db.exec('ALTER TABLE events ADD COLUMN has_article_submission INTEGER DEFAULT 0');
     if (!eventColumns.includes('offers_subsidy')) db.exec('ALTER TABLE events ADD COLUMN offers_subsidy INTEGER DEFAULT 0');
     if (!eventColumns.includes('public_registration')) db.exec('ALTER TABLE events ADD COLUMN public_registration INTEGER DEFAULT 1');
+    if (!eventColumns.includes('registration_approval_mode')) db.exec("ALTER TABLE events ADD COLUMN registration_approval_mode TEXT NOT NULL DEFAULT 'automatic'");
     if (!eventColumns.includes('email_enabled')) db.exec('ALTER TABLE events ADD COLUMN email_enabled INTEGER NOT NULL DEFAULT 0');
     if (!eventColumns.includes('email_platform_name')) db.exec('ALTER TABLE events ADD COLUMN email_platform_name TEXT');
     if (!eventColumns.includes('email_sender_name')) db.exec('ALTER TABLE events ADD COLUMN email_sender_name TEXT');
@@ -875,6 +882,11 @@ function initializeDbSchema(db) {
     if (!registrationColumns.includes('recommendation_letter_pdf_path')) db.exec("ALTER TABLE event_registrations ADD COLUMN recommendation_letter_pdf_path TEXT DEFAULT ''");
     if (!registrationColumns.includes('recommendation_letter_original_name')) db.exec("ALTER TABLE event_registrations ADD COLUMN recommendation_letter_original_name TEXT DEFAULT ''");
     if (!registrationColumns.includes('phone')) db.exec("ALTER TABLE event_registrations ADD COLUMN phone TEXT DEFAULT ''");
+    if (!registrationColumns.includes('registration_status')) db.exec("ALTER TABLE event_registrations ADD COLUMN registration_status TEXT NOT NULL DEFAULT 'approved'");
+    if (!registrationColumns.includes('requested_activity_ids')) db.exec("ALTER TABLE event_registrations ADD COLUMN requested_activity_ids TEXT DEFAULT '[]'");
+    if (!registrationColumns.includes('registration_review_notes')) db.exec("ALTER TABLE event_registrations ADD COLUMN registration_review_notes TEXT DEFAULT ''");
+    if (!registrationColumns.includes('registration_reviewed_at')) db.exec('ALTER TABLE event_registrations ADD COLUMN registration_reviewed_at DATETIME');
+    if (!registrationColumns.includes('registration_reviewed_by')) db.exec('ALTER TABLE event_registrations ADD COLUMN registration_reviewed_by INTEGER');
     db.prepare(`
       UPDATE event_registrations
       SET subsidy_status = CASE

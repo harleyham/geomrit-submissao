@@ -169,6 +169,14 @@
             <span class="switch-slider"></span>
           </label>
         </div>
+        <div class="form-group">
+          <label for="registration_approval_mode">Confirmação das inscrições públicas</label>
+          <select id="registration_approval_mode" name="registration_approval_mode">
+            <option value="automatic" <%= !event || event.registration_approval_mode !== 'review' ? 'selected' : '' %>>Inscrição automática — confirma imediatamente</option>
+            <option value="review" <%= event && event.registration_approval_mode === 'review' ? 'selected' : '' %>>Inscrição a ser analisada — administração aprova ou rejeita atividades</option>
+          </select>
+          <small style="display:block;margin-top:0.4rem;color:#94a3b8;">Na análise, a organização pode aprovar somente parte das atividades solicitadas.</small>
+        </div>
         <div class="toggle-row">
           <div class="toggle-copy">
             <strong>Este evento terá submissão de artigos?</strong>

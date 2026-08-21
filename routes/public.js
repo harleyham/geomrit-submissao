@@ -12,7 +12,7 @@ const { registrationLimiter, strictLimiter } = require('../security/rate-limits'
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { body } = require('express-validator');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
-const { queueAccountRequested } = require('../services/email');
+const { queueAccountRequested, queuePublicRegistrationSubmission } = require('../services/email');
 
 const ABSTRACT_LIMIT = 2500;
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -701,6 +701,13 @@ function getRegistrationActivityIds(registrationId) {
     .all(registrationId).map((row) => Number(row.activity_id));
 }
 
+function parseRequestedActivityIds(value) {
+  try {
+    const ids = JSON.parse(value || '[]');
+    return Array.isArray(ids) ? [...new Set(ids.map(Number).filter(Number.isInteger))] : [];
+  } catch (_) { return []; }
+}
+
 function validateRegistrationActivities(eventId, activityIds) {
   const activities = getPublicEventActivities(eventId);
   if (activities.length && !activityIds.length) return 'Selecione ao menos uma atividade para concluir a inscrição.';
@@ -801,6 +808,7 @@ function renderListenerRegistrationForm(res, event, options = {}) {
     formData: options.formData || {},
     alreadyRegistered: !!options.alreadyRegistered,
     registrationType: options.registrationType || null,
+    registrationStatus: options.registrationStatus || null,
     activities: getPublicEventActivities(event.id),
     registrationWindow: getRegistrationWindow(eventWithMeta)
   });
@@ -1035,7 +1043,7 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
   `).get(req.session.userId);
 
   const existingRegistration = db.prepare(`
-    SELECT id, registration_type, subsidy_requested, student_level, student_course, student_institution_name, student_institution_state,
+    SELECT id, registration_type, registration_status, requested_activity_ids, registration_review_notes, subsidy_requested, student_level, student_course, student_institution_name, student_institution_state,
            student_lattes_id, academic_history_original_name, motivation_letter_original_name, recommendation_letter_original_name,
            academic_history_pdf_path, motivation_letter_pdf_path, recommendation_letter_pdf_path, name, email, institution
     FROM event_registrations
@@ -1066,12 +1074,13 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
           academic_history_original_name: existingRegistration.academic_history_original_name || '',
           motivation_letter_original_name: existingRegistration.motivation_letter_original_name || '',
           recommendation_letter_original_name: existingRegistration.recommendation_letter_original_name || '',
-          activity_ids: getRegistrationActivityIds(existingRegistration.id)
+          activity_ids: existingRegistration.registration_status === 'pending' ? parseRequestedActivityIds(existingRegistration.requested_activity_ids) : getRegistrationActivityIds(existingRegistration.id)
         }
       : normalizeListenerRegistrationForm({}, req.session),
     alreadyRegistered: !!existingRegistration,
     registrationType: existingRegistration ? existingRegistration.registration_type : null,
-    success: existingRegistration
+    registrationStatus: existingRegistration ? existingRegistration.registration_status : null,
+    success: existingRegistration && existingRegistration.registration_status === 'approved'
       ? existingRegistration.registration_type === 'author'
         ? 'Você já está inscrito neste evento como apresentador.'
         : 'Você já está inscrito.'
@@ -1089,7 +1098,7 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
   const uploadedFiles = getUploadedRegistrationFiles(req);
 
   const existingRegistration = db.prepare(`
-    SELECT id, registration_type, academic_history_pdf_path, academic_history_original_name,
+    SELECT id, registration_type, registration_status, requested_activity_ids, academic_history_pdf_path, academic_history_original_name,
            motivation_letter_pdf_path, motivation_letter_original_name,
            recommendation_letter_pdf_path, recommendation_letter_original_name
     FROM event_registrations
@@ -1154,6 +1163,14 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
   const documentMeta = buildRegistrationDocumentMeta(existingRegistration, uploadedFiles);
 
   if (existingRegistration) {
+    if (event.registration_approval_mode === 'review') {
+      removeUploadedRegistrationFiles(uploadedFiles);
+      return renderListenerRegistrationForm(res, event, {
+        error: 'As atividades desta inscrição são definidas pela análise da organização e não podem ser alteradas por esta página.',
+        formData: { ...formData, activity_ids: existingRegistration.registration_status === 'pending' ? parseRequestedActivityIds(existingRegistration.requested_activity_ids) : getRegistrationActivityIds(existingRegistration.id) },
+        alreadyRegistered: true, registrationType: existingRegistration.registration_type, registrationStatus: existingRegistration.registration_status
+      });
+    }
     const nextType = existingRegistration.registration_type === 'author' ? 'author' : 'listener';
     removeReplacedRegistrationFiles(existingRegistration, uploadedFiles);
     db.prepare(`
@@ -1190,7 +1207,13 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
       event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : '',
       existingRegistration.id
     );
-    saveRegistrationActivities(existingRegistration.id, req.session.userId, formData.activity_ids);
+    const awaitingReview = existingRegistration.registration_status === 'pending';
+    if (awaitingReview) {
+      db.prepare("UPDATE event_registrations SET requested_activity_ids=?,updated_at=datetime('now','-3 hours') WHERE id=?")
+        .run(JSON.stringify(formData.activity_ids), existingRegistration.id);
+    } else {
+      saveRegistrationActivities(existingRegistration.id, req.session.userId, formData.activity_ids);
+    }
     recordParticipantAudit({
       eventId: event.id, registrationId: existingRegistration.id, actorUserId: req.session.userId,
       action: 'participant_activities_updated_self_service', details: { activity_ids: formData.activity_ids }
@@ -1199,7 +1222,7 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
     return renderListenerRegistrationForm(res, event, {
       success: nextType === 'author'
         ? 'Sua participação já estava registrada como apresentador neste evento.'
-        : 'Sua inscrição como participante já estava registrada neste evento.',
+        : awaitingReview ? 'Sua solicitação de inscrição continua aguardando análise.' : 'Sua inscrição como participante já estava registrada neste evento.',
       formData: {
         ...formData,
         academic_history_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
@@ -1207,26 +1230,29 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
         recommendation_letter_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
       },
       alreadyRegistered: true,
-      registrationType: nextType
+      registrationType: nextType,
+      registrationStatus: existingRegistration.registration_status
     });
   }
 
   const registrationResult = db.prepare(`
     INSERT INTO event_registrations (
-      event_id, user_id, name, email, institution, registration_type, subsidy_requested, student_level,
+      event_id, user_id, name, email, institution, registration_type, registration_status, requested_activity_ids, subsidy_requested, student_level,
       student_course, student_institution_name, student_institution_state, student_lattes_id, subsidy_status,
       academic_history_pdf_path, academic_history_original_name,
       motivation_letter_pdf_path, motivation_letter_original_name,
       recommendation_letter_pdf_path, recommendation_letter_original_name,
       created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, 'listener', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+    VALUES (?, ?, ?, ?, ?, 'listener', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).run(
     event.id,
     req.session.userId,
     formData.name,
     formData.email,
     formData.institution,
+    event.registration_approval_mode === 'review' ? 'pending' : 'approved',
+    JSON.stringify(formData.activity_ids),
     event.offers_subsidy && formData.subsidy_requested ? 1 : 0,
     event.offers_subsidy && formData.subsidy_requested ? formData.student_level : '',
     event.offers_subsidy && formData.subsidy_requested ? formData.student_course : '',
@@ -1241,15 +1267,26 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
     event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_pdf_path : '',
       event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
   );
-  saveRegistrationActivities(registrationResult.lastInsertRowid, req.session.userId, formData.activity_ids);
+  if (event.registration_approval_mode !== 'review') {
+    saveRegistrationActivities(registrationResult.lastInsertRowid, req.session.userId, formData.activity_ids);
+  }
   recordParticipantAudit({
     eventId: event.id, registrationId: registrationResult.lastInsertRowid, actorUserId: req.session.userId,
-    action: 'participant_activities_selected_on_registration', details: { activity_ids: formData.activity_ids }
+    action: 'participant_activities_selected_on_registration', details: { activity_ids: formData.activity_ids, registration_status: event.registration_approval_mode === 'review' ? 'pending' : 'approved' }
   });
   db.prepare("UPDATE users SET is_participant=1, updated_at=datetime('now','-3 hours') WHERE id=?").run(req.session.userId);
+  try {
+    queuePublicRegistrationSubmission({
+      event,
+      registration: { id: registrationResult.lastInsertRowid, user_id: req.session.userId, name: formData.name, email: formData.email },
+      pendingReview: event.registration_approval_mode === 'review'
+    });
+  } catch (error) {
+    console.error('[email] Falha ao enfileirar confirmação da inscrição pública:', error.message);
+  }
 
   return renderListenerRegistrationForm(res, event, {
-    success: 'Inscrição realizada com sucesso.',
+    success: event.registration_approval_mode === 'review' ? 'Solicitação de inscrição enviada. Aguarde a análise da organização.' : 'Inscrição realizada com sucesso.',
       formData: {
         ...formData,
         academic_history_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.academic_history_original_name : '',
@@ -1257,7 +1294,8 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
       recommendation_letter_original_name: event.offers_subsidy && formData.subsidy_requested ? documentMeta.recommendation_letter_original_name : ''
     },
     alreadyRegistered: true,
-    registrationType: 'listener'
+    registrationType: 'listener',
+    registrationStatus: event.registration_approval_mode === 'review' ? 'pending' : 'approved'
   });
 });
 
@@ -1302,7 +1340,7 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
   });
   return res.render('public/event-activities', {
     title: `Minhas atividades - ${event.name}`, event: withAreaMeta(event), registration, activities,
-    isClosed: event.status === 'encerrado',
+    isClosed: event.status === 'encerrado', isPending: registration.registration_status === 'pending', isRejected: registration.registration_status === 'rejected', activitiesLockedByReview: event.registration_approval_mode === 'review',
     success: req.query.success || null, error: req.query.error || null
   });
 });
@@ -1340,11 +1378,15 @@ router.post('/evento/:id/atividades', registrationLimiter, requireNonAdminAuthor
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const registration = getOwnedEventRegistration(event.id, req);
   if (!registration) return res.redirect(`/evento/${event.id}/inscricao`);
+  if (registration.registration_status !== 'approved') {
+    return res.redirect(`/evento/${event.id}/atividades?error=${encodeURIComponent(registration.registration_status === 'pending' ? 'Sua inscrição ainda está aguardando análise.' : 'Sua inscrição não foi aprovada.')}`);
+  }
   const isClosed = event.status === 'encerrado';
+  const activitiesLockedByReview = event.registration_approval_mode === 'review';
   const backTo = (params) => `/evento/${event.id}/atividades?${params}`;
 
   let targetActivityIds;
-  if (isClosed) {
+  if (isClosed || activitiesLockedByReview) {
     targetActivityIds = db.prepare('SELECT activity_id FROM participant_activity_enrollments WHERE registration_id=? AND user_id=?')
       .all(registration.id, req.session.userId).map((row) => Number(row.activity_id));
   } else {
@@ -1362,7 +1404,7 @@ router.post('/evento/:id/atividades', registrationLimiter, requireNonAdminAuthor
     evalResult.evaluations.forEach(({ activityId, text }) => saveActivityEvaluation(event.id, activityId, req.session.userId, text));
   };
 
-  if (isClosed) {
+  if (isClosed || activitiesLockedByReview) {
     db.transaction(applyEvaluations)();
     return res.redirect(backTo(`success=${encodeURIComponent('Avaliações atualizadas.')}`));
   }
@@ -1743,6 +1785,8 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
       e.status as event_status,
       COALESCE(aa.approved_count, 0) as approved_articles,
       CASE
+        WHEN er.registration_status = 'pending' THEN 'Inscrição em análise'
+        WHEN er.registration_status = 'rejected' THEN 'Inscrição não aprovada'
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
         WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
         ELSE 'Participante inscrito'
@@ -1762,7 +1806,7 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
 
   const participationsWithMeta = participations.map((participation) => ({
     ...participation,
-    can_cancel: participation.registration_type === 'listener' && canCancelEventRegistration(participation.date_start)
+    can_cancel: participation.registration_status === 'approved' && participation.registration_type === 'listener' && canCancelEventRegistration(participation.date_start)
   }));
 
   const showSubsidyStatus = participationsWithMeta.some((p) => !!p.subsidy_requested);

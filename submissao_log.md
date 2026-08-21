@@ -4,7 +4,36 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-21
+
+### Triagem de inscrições públicas e notificações
+
+- Cada evento pode confirmar inscrições públicas automaticamente ou submetê-las à análise da organização.
+- Solicitações sob análise ficam pendentes, não entram no total de inscritos e mantêm as atividades solicitadas até a decisão. A administração pode aprovar integralmente, aprovar parcialmente por atividade ou recusar a solicitação.
+- A área administrativa exibe o total **Em análise** em laranja quando houver pendências; as áreas públicas mostram o estado correto sem indicar inscrição confirmada antes da aprovação.
+- Depois da análise, as atividades decididas ficam bloqueadas para alteração pelo participante. Alterações posteriores permanecem disponíveis à administração.
+- Foram incluídos e-mails para o recebimento da solicitação, o resultado da análise (inclusive atividades da aprovação parcial) e alterações administrativas na lista de atividades.
+
 ## 2026-08-20
+
+### E-mail ao alterar atividades de participante pela administração
+
+- Quando o administrador altera a lista de atividades de uma inscrição, o participante recebe uma mensagem com a relação atual de atividades.
+- A mensagem só é enfileirada quando houve alteração real na seleção e respeita os switches de e-mail global e do evento.
+
+### Triagem: atividades aprovadas ficam bloqueadas para alteração pelo participante
+
+- Em eventos com inscrição analisada, os checkboxes de atividades exibidos em `/evento/:id/inscricao` e `/evento/:id/atividades` ficam somente para leitura; o servidor também bloqueia alterações forçadas.
+
+### Inscrição administrativa: pesquisa de conta já cadastrada
+
+- A escolha de uma conta existente na inclusão de participante deixou de usar um combobox com toda a base de usuários.
+- O formulário agora pesquisa por nome, e-mail, instituição ou CPF, a partir de dois caracteres, e mostra até 20 contas ativas, aprovadas e ainda não inscritas no evento.
+
+### Correção: telefone ao inscrever conta já cadastrada em evento
+
+- No formulário administrativo de inclusão de participante, a seleção de uma conta existente agora preenche o telefone armazenado no cadastro da conta.
+- A rota de gravação também usa o telefone atual da conta selecionada, garantindo que a inscrição persista o dado correto independentemente do navegador.
 
 ### E-mail de confirmação de inscrição: link para a Área do Participante
 
@@ -45,7 +74,7 @@ Versão atual registrada: **V0.1**.
 O projeto já possui no .gitignore:
 .env
 .env.local
-O .env.example pode ir para o GitHub porque contém apenas exemplos, sem senhas reais.
+O repositório não mantém arquivo `.env.example`; crie o `.env` localmente a partir das variáveis documentadas, sem versionar segredos.
 Atenção: atualmente o sistema não carrega .env automaticamente. Com a versão atual do Node, execute usando:
 node --env-file=.env server.js
 Para produção, configure pelo menos:
@@ -64,7 +93,7 @@ MAIL_SIGNATURE=Equipe de Eventos
 MAIL_REPLY_TO=eventos@ham.eng.br
 Gere o segredo da sessão com:
 openssl rand -hex 32
-Use uma senha de aplicativo do Zoho em SMTP_PASS, especialmente se a conta tiver autenticação em dois fatores. Não coloque a senha normal nem qualquer segredo no .env.example.
+Use uma senha de aplicativo do Zoho em SMTP_PASS, especialmente se a conta tiver autenticação em dois fatores. Não coloque a senha normal nem qualquer segredo em arquivo versionado.
  - Para testar o envio de email coloque a senha SMTP no arquivo local .env:
 SMTP_USER=eventos@ham.eng.br
 SMTP_PASS=SENHA_DE_APLICATIVO_DO_ZOHO
@@ -1428,11 +1457,8 @@ Use preferencialmente uma senha de aplicativo criada no Zoho, não a senha norma
 
 - Deve haver distinção entre Participantes Presenciais / Remotos?
 - Internacionalização
-- Mandar emails
-- Quando implementar envio de email, colocar "Master switch" para ligar/desligar envio de email na fase de desenvolvimento
 - http://127.0.0.1:3000/admin/dashboard -> Não tem um contador do número total de usuários do sistema
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
 - Na página de relatório de Evento, deve haver a opção de exportação de arquivo .md, a fim de ser avaliado por uma IA
 - Implementar uma forma de a partir do PDF com as informações do Evento, puplicar como se fosse o site do Evento. Últil para eventos pequenos ou que não tem a capacidade de fazer um site especifico
-- Deve tar alguma lógica para um evento que não terá incrições pelos usuários, apenas pela administração do evento

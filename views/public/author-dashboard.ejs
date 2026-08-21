@@ -268,7 +268,7 @@
                 </td>
                 <td><%= participation.location || '-' %></td>
                 <td>
-                  <span class="badge <%= participation.approved_articles > 0 ? 'badge-approved' : participation.registration_type === 'author' ? 'badge-review' : 'badge-open' %>">
+                  <span class="badge <%= participation.registration_status === 'pending' ? 'badge-pending' : participation.registration_status === 'rejected' ? 'badge-rejected' : participation.approved_articles > 0 ? 'badge-approved' : participation.registration_type === 'author' ? 'badge-review' : 'badge-open' %>">
                     <%= participation.participation_label %>
                   </span>
                 </td>
@@ -286,8 +286,10 @@
                 <td>
                   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                     <a href="/evento/<%= participation.event_id %>" class="btn btn-secondary">Detalhes</a>
-                    <a href="/evento/<%= participation.event_id %>/atividades" class="btn btn-secondary">Minhas atividades</a>
-                    <a href="/evento/<%= participation.event_id %>/qr-presenca" class="btn btn-secondary">QR de presença</a>
+                    <% if (participation.registration_status === 'approved') { %>
+                      <a href="/evento/<%= participation.event_id %>/atividades" class="btn btn-secondary">Minhas atividades</a>
+                      <a href="/evento/<%= participation.event_id %>/qr-presenca" class="btn btn-secondary">QR de presença</a>
+                    <% } %>
                     <% if (participation.registration_type === 'listener') { %>
                       <a href="/evento/<%= participation.event_id %>/inscricao" class="btn btn-secondary">Ver Inscrição</a>
                       <% if (participation.can_cancel) { %>

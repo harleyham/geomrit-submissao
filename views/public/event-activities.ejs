@@ -70,6 +70,8 @@
       <p class="lead"><strong><%= event.name %></strong><br><%= isClosed ? 'O evento está encerrado. Você ainda pode avaliar as atividades em que participou.' : 'Escolha as atividades das quais participará. A presença será registrada separadamente pela organização.' %></p>
 
       <% if (isClosed) { %><div class="notice">Inscrições nas atividades encerradas — somente as avaliações podem ser editadas.</div><% } %>
+      <% if (isPending) { %><div class="notice">Sua inscrição está aguardando análise da organização. As atividades serão liberadas após a aprovação.</div><% } %>
+      <% if (isRejected) { %><div class="alert error">Sua inscrição não foi aprovada. Entre em contato com a organização para mais informações.</div><% } %>
       <% if (success) { %><div class="alert success"><%= success %></div><% } %>
       <% if (error) { %><div class="alert error"><%= error %></div><% } %>
 
@@ -82,7 +84,7 @@
             <% activities.forEach((activity) => { %>
               <div class="activity-wrap">
                 <label class="activity">
-                  <% if (isClosed) { %>
+                  <% if (isPending || isRejected || isClosed || activitiesLockedByReview) { %>
                     <input type="checkbox" <%= activity.enrolled ? 'checked' : '' %> disabled aria-label="Inscrições encerradas">
                   <% } else if (activity.present) { %>
                     <input type="hidden" name="activity_ids" value="<%= activity.id %>">
@@ -100,7 +102,7 @@
                     <% } %>
                   </span>
                 </label>
-                <% if (activity.enrolled) { %>
+                <% if (activity.enrolled && !isPending && !isRejected) { %>
                   <div class="evaluation">
                     <textarea name="evaluation_<%= activity.id %>" rows="2" maxlength="2000" placeholder="Sua avaliação desta atividade (opcional)"><%= activity.evaluation %></textarea>
                   </div>
@@ -108,10 +110,10 @@
               </div>
             <% }) %>
           </div>
-          <p class="help"><%= isClosed ? 'Você pode avaliar as atividades em que está inscrito.' : 'O certificado considera somente atividades certificáveis nas quais você esteja inscrito e tenha presença registrada. Atividades já frequentadas não podem ser removidas.' %></p>
+          <p class="help"><%= isClosed || activitiesLockedByReview ? 'Você pode avaliar as atividades em que está inscrito.' : 'O certificado considera somente atividades certificáveis nas quais você esteja inscrito e tenha presença registrada. Atividades já frequentadas não podem ser removidas.' %></p>
           <div class="actions">
             <a class="btn" href="/author">Cancelar</a>
-            <button class="btn primary" type="submit"><%= isClosed ? 'Salvar avaliações' : 'Salvar atividades' %></button>
+            <% if (!isPending && !isRejected) { %><button class="btn primary" type="submit"><%= isClosed || activitiesLockedByReview ? 'Salvar avaliações' : 'Salvar atividades' %></button><% } %>
           </div>
         </form>
       <% } %>

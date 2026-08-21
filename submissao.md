@@ -49,6 +49,7 @@ O sistema deve permitir:
 - Configuração de múltiplas áreas/trilhas por evento.
 - Configuração explícita de evento com ou sem submissão de artigos.
 - Configuração explícita de evento com inscrições abertas ao público ou realizadas somente pela administração (toggle "Inscrições abertas ao público?", coluna `events.public_registration`, padrão público).
+- Configuração de confirmação automática ou de análise administrativa da inscrição pública, com aprovação total, parcial ou recusa das atividades solicitadas.
 - E-mails transacionais com fila persistente, master switch global e por evento, identidade editável por evento, logo opcional, retentativas e histórico de envio.
 - Configuração de subsídio a participantes por evento.
 - Acompanhamento de inscrições, participação e elegibilidade para certificados de participação por evento.
@@ -198,6 +199,7 @@ Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "�
 - `has_article_submission`
 - `offers_subsidy`
 - `public_registration`
+- `registration_approval_mode`
 - `registration_start`
 - `registration_end`
 - `status`
@@ -254,6 +256,11 @@ Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "�
 - `institution`
 - `phone`
 - `registration_type`
+- `registration_status`
+- `requested_activity_ids`
+- `registration_review_notes`
+- `registration_reviewed_at`
+- `registration_reviewed_by`
 - `subsidy_requested`
 - `student_level`
 - `student_course`
@@ -479,6 +486,7 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 - O evento registra em `public_registration` se as inscrições são abertas ao público (`1`, padrão) ou realizadas somente pela administração (`0`).
 - Quando `public_registration = 0`, a inscrição pública fica bloqueada independentemente das janelas: o formulário público é exibido desabilitado com a mensagem "As inscrições deste evento são realizadas somente pela administração.", o `POST /evento/:id/inscricao` é rejeitado e o cronograma público omite a linha `Inscrições`.
 - A administração cadastra participantes normalmente (formulário/importação) mesmo com `public_registration = 0`.
+- O modo `registration_approval_mode` define se a inscrição pública é aprovada automaticamente (`automatic`) ou fica pendente para decisão administrativa (`review`).
 - A área de certificados de participação depende da janela configurada em `certificates_start` e `certificates_end`.
 - Um evento sem `submission_start` e `submission_end` não é tratado como submissão fechada, mas como evento sem submissão de artigos configurada.
 - Quando uma etapa do cronograma não possui janela configurada, a página pública do evento não exibe botão de ação para essa etapa.
@@ -586,6 +594,8 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 - A administração pode criar, editar e remover inscrições manualmente. Toda inscrição manual possui conta vinculada: o admin seleciona uma conta ativa existente ou cria uma conta com senha temporária, obrigando a troca no primeiro acesso; uma inscrição com artigo submetido não pode ser removida diretamente.
 - Na inclusão administrativa, quando o evento possui atividades, deve ser selecionada ao menos uma atividade. Os vínculos ficam em `participant_activity_enrollments` e podem ser alterados posteriormente no formulário de edição do participante.
 - Na inscrição pública, o próprio participante seleciona as atividades e pode alterá-las depois em `/evento/:id/atividades`; uma atividade com presença já registrada não pode ser removida. O administrador mantém a mesma possibilidade de edição no cadastro do participante.
+- Em eventos sujeitos à análise, a inscrição pública inicia como `pending`, preserva as atividades solicitadas sem criar vínculos efetivos e não conta como inscrita. A administração pode recusá-la, aprová-la integralmente ou aprová-la parcialmente; somente as atividades aprovadas criam vínculos em `participant_activity_enrollments`.
+- Após uma decisão em evento sujeito à análise, o participante não pode alterar os checkboxes de atividades pela área pública; a administração continua podendo ajustar a inscrição e o participante recebe aviso por e-mail quando isso ocorre.
 - Em `/evento/:id/atividades`, cada atividade inscrita exibe um campo de avaliação (máximo 2000 caracteres); texto vazio (apenas espaços) remove a avaliação existente, e o envio acima do limite é rejeitado sem gravar nada.
 - Campos de avaliação de atividades não inscritas pelo participante são ignorados no backend (anti-tampering), tanto em evento publicado quanto encerrado.
 - Com o evento encerrado, a página de atividades permanece acessível com inscrições travadas (sem checkboxes de envio) e apenas as avaliações das atividades já inscritas podem ser salvas; as inscrições existentes são preservadas.
@@ -636,6 +646,8 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 - O lembrete é criado às 09h (America/Sao_Paulo) no dia anterior ao evento para inscritos ativos.
 - Alterações de transmissão notificam inscritos ativos da atividade; atividade e etapa são suportadas, remoção também notifica e mudanças feitas em até cinco minutos são consolidadas.
 - Importações exigem autorização explícita na tela de resultado. Novas contas usam token de definição de senha (hash no banco, uso único, 72 horas), sem senha no e-mail.
+- A inscrição pública gera mensagem de confirmação imediata no modo automático ou de recebimento para análise no modo sujeito à análise. A decisão administrativa gera mensagem de aprovação, aprovação parcial (com as atividades aprovadas) ou recusa.
+- Alterações administrativas nas atividades de uma inscrição geram mensagem ao participante somente quando a seleção efetivamente muda.
 - A fila persiste estados `queued`, `sending`, `sent`, `failed`, `cancelled` e `suppressed`; falha SMTP não desfaz a operação principal.
 
 ## Fluxos Principais
@@ -681,12 +693,12 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 |------|------------|
 | `/` | Página inicial com eventos publicados |
 | `/evento/:id` | Detalhes do evento |
-| `/evento/:id/inscricao` | Inscrição do participante no evento |
+| `/evento/:id/inscricao` | Inscrição do participante no evento, automática ou sujeita à análise conforme configuração do evento |
 | `/submeter/:eventId` | Formulário de submissão |
 | `/author` | Página do participante |
 | `/author/profile` | Perfil do participante: dados cadastrais, formação acadêmica e troca de senha |
 | `/author/certificates` | Consulta e download autenticado de certificados emitidos |
-| `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito; exibe contagem de presenças e etapas frequentadas por atividade |
+| `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito; em eventos sujeitos à análise, mantém as atividades decididas pela organização somente para leitura |
 | `/evento/:id/qr-presenca` | Crachá do participante: QR Code pessoal de presença (código estável por evento), exibível na tela (exige login e inscrição ou papel no evento) |
 | `/evento/:id/qr-presenca/print` | Crachá do participante em **PDF** pronto para impressão (mesmos guards da página) — padrão das demais rotas de impressão do sistema |
 | `/presenca/:eventId/:activityId` | Registro de presença por QR Code em atividade sem etapas (exige login) |
@@ -715,6 +727,7 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 | `POST /admin/events/:id/close` | Encerra o evento (published → encerrado) |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
+| `/admin/events/:id/participants/:registrationId/review` | Análise da solicitação de inscrição: aprova todas, algumas ou nenhuma das atividades solicitadas |
 | `GET /admin/events/:id/participants/:registrationId/qr-presenca/print` | Impressão do crachá (PDF) de um participante, direto do credenciamento, sem encaminhamento para a área do participante (exige conta vinculada) |
 | `/admin/events/:id/import-users` | Importação de participantes via CSV, XLS ou XLSX (cria usuário + inscreve no evento) |
 | `/admin/events/:id/import-template` | Download do modelo CSV vazio para importação de participantes |
@@ -940,7 +953,6 @@ Observações operacionais:
 
 ### Fora do escopo atual
 
-- Notificações por e-mail.
 - Exportação estruturada de relatórios em CSV ou Excel.
 - API externa.
 - Internacionalização.

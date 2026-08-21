@@ -14,7 +14,7 @@ const { removeEventLogoFile, drawEventLogo } = require('../services/event-logo')
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { getSystemEmailSettings, getPendingEmailCount, setEventEmailEnabled, queueCertificateIssued,
   queueVideoLinkNotifications, isValidHttpUrl, createImportBatch, getImportBatchEmailSummary,
-  authorizeImportBatch, queueImportedAccount, queueImportedRegistration } = require('../services/email');
+  authorizeImportBatch, queueImportedAccount, queueImportedRegistration, queueRegistrationReviewDecision, queueParticipantActivitiesUpdated } = require('../services/email');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
 
@@ -372,6 +372,16 @@ function getListenerRegistrationCountByEvent() {
     SELECT event_id, COUNT(*) as count
     FROM event_registrations
     WHERE registration_type = 'listener'
+      AND COALESCE(registration_status, 'approved') = 'approved'
+    GROUP BY event_id
+  `).all();
+}
+
+function getPendingRegistrationCountByEvent() {
+  return db.prepare(`
+    SELECT event_id, COUNT(*) as count
+    FROM event_registrations
+    WHERE registration_type = 'listener' AND registration_status = 'pending'
     GROUP BY event_id
   `).all();
 }
@@ -658,12 +668,14 @@ function getParticipantRegistrationForEvent(eventId, registrationId) {
 router.get('/', (req, res) => {
   const authorRegistrationByEventId = new Map(getAuthorRegistrationCountByEvent().map((row) => [row.event_id, row.count]));
   const listenerRegistrationByEventId = new Map(getListenerRegistrationCountByEvent().map((row) => [row.event_id, row.count]));
+  const pendingRegistrationByEventId = new Map(getPendingRegistrationCountByEvent().map((row) => [row.event_id, row.count]));
   const subsidyRequestByEventId = new Map(getSubsidyRequestCountByEvent().map((row) => [row.event_id, row.count]));
   const events = db.prepare(`SELECT e.* FROM events e JOIN event_user_roles eur ON eur.event_id=e.id
     WHERE eur.user_id=? AND eur.role='admin' ORDER BY e.date_start DESC`).all(req.session.userId).map((event) => ({
     ...withAreaMeta(event),
     author_registered_count: authorRegistrationByEventId.get(event.id) || 0,
     listener_registered_count: listenerRegistrationByEventId.get(event.id) || 0,
+    pending_registration_count: pendingRegistrationByEventId.get(event.id) || 0,
     subsidy_request_count: subsidyRequestByEventId.get(event.id) || 0,
     registered_count: (authorRegistrationByEventId.get(event.id) || 0) + (listenerRegistrationByEventId.get(event.id) || 0)
   }));
@@ -695,12 +707,13 @@ router.get('/new', (req, res) => {
 router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
-  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration } = req.body;
+  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
   const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
   const publicRegistration = public_registration ? 1 : 0;
+  const registrationApprovalMode = registration_approval_mode === 'review' ? 'review' : 'automatic';
   const emailSettings = normalizeEventEmailSettings(req.body);
   const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
@@ -721,6 +734,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         public_registration: publicRegistration,
+        registration_approval_mode: registrationApprovalMode,
         ...emailSettings,
         status: normalizedStatus,
         institution,
@@ -770,6 +784,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         public_registration: publicRegistration,
+        registration_approval_mode: registrationApprovalMode,
         ...emailSettings,
         status: normalizedStatus,
         institution,
@@ -789,11 +804,11 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
   }
 
   const createdEvent = db.prepare(`
-    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration,
+    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration, registration_approval_mode,
       email_enabled,email_platform_name,email_sender_name,email_signature,email_contact,status, institution, language, registration_start, registration_end,
       submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration,
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
     emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
     normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
     normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null,
@@ -813,12 +828,13 @@ router.get('/:id/edit', (req, res) => {
 router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
-  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration } = req.body;
+  const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
   const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
   const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
   const publicRegistration = public_registration ? 1 : 0;
+  const registrationApprovalMode = registration_approval_mode === 'review' ? 'review' : 'automatic';
   const emailSettings = normalizeEventEmailSettings(req.body);
   const normalizedSubmissionStart = hasArticleSubmission ? (submission_start || null) : null;
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
@@ -841,6 +857,7 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         public_registration: publicRegistration,
+        registration_approval_mode: registrationApprovalMode,
         ...emailSettings,
         status: normalizedStatus,
         institution,
@@ -893,6 +910,7 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         has_article_submission: hasArticleSubmission,
         offers_subsidy: offersSubsidy,
         public_registration: publicRegistration,
+        registration_approval_mode: registrationApprovalMode,
         ...emailSettings,
         status: normalizedStatus,
         institution,
@@ -926,11 +944,11 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   }
 
   db.prepare(`
-    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?,
+    UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, registration_approval_mode=?,
       email_enabled=?,email_platform_name=?,email_sender_name=?,email_signature=?,email_contact=?,status=?, institution=?, language=?, registration_start=?, registration_end=?,
       submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration,
+  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
     emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
     normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
     normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName, req.params.id).run();
@@ -2519,21 +2537,35 @@ router.get('/:id/participants/new', (req, res) => {
     event,
     registration: null,
     formData: { name: '', email: '', institution: '', registration_type: 'listener', account_mode: 'new', existing_user_id: '', activity_ids: [] },
-    availableUsers: getUsersForParticipantSelection(),
+    selectedExistingUser: null,
     activities: getActivitiesForParticipantForm(event.id),
     error: null
   });
 });
 
-function getUsersForParticipantSelection() {
+function getParticipantSelectableUser(userId) {
   return db.prepare(`
-    SELECT id, name, email, institution, is_public, approval_status
+    SELECT id, name, email, institution, phone
     FROM users
-    WHERE is_public = 1
-      AND approval_status = 'approved'
-    ORDER BY name COLLATE NOCASE, email COLLATE NOCASE
-  `).all();
+    WHERE id=? AND is_public=1 AND approval_status='approved'
+  `).get(userId);
 }
+
+router.get('/:id/participants/user-search', strictLimiter, (req, res) => {
+  const query = String(req.query.q || '').trim().slice(0, 200);
+  if (query.length < 2) return res.json({ users: [] });
+  const term = `%${query.toLowerCase()}%`;
+  const users = db.prepare(`
+    SELECT u.id,u.name,u.email,u.institution,u.phone
+    FROM users u
+    WHERE u.is_public=1 AND u.approval_status='approved'
+      AND NOT EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id=? AND er.user_id=u.id)
+      AND (LOWER(u.name) LIKE ? OR LOWER(u.email) LIKE ? OR LOWER(COALESCE(u.institution,'')) LIKE ? OR LOWER(COALESCE(u.cpf,'')) LIKE ?)
+    ORDER BY u.name COLLATE NOCASE,u.email COLLATE NOCASE
+    LIMIT 20
+  `).all(req.params.id, term, term, term, term);
+  return res.json({ users });
+});
 
 function getActivitiesForParticipantForm(eventId) {
   return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled
@@ -2543,6 +2575,13 @@ function getActivitiesForParticipantForm(eventId) {
 function normalizeActivityIds(value) {
   const submitted = Array.isArray(value) ? value : [value];
   return [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
+}
+
+function parseRequestedActivityIds(value) {
+  try {
+    const ids = JSON.parse(value || '[]');
+    return Array.isArray(ids) ? [...new Set(ids.map(Number).filter(Number.isInteger))] : [];
+  } catch (_) { return []; }
 }
 
 function getParticipantActivityIds(registrationId) {
@@ -2614,7 +2653,7 @@ function renderParticipantFormError(res, event, registration, formData, error) {
     event,
     registration,
     formData,
-    availableUsers: getUsersForParticipantSelection(),
+    selectedExistingUser: formData.account_mode === 'existing' ? getParticipantSelectableUser(formData.existing_user_id) : null,
     activities: getActivitiesForParticipantForm(event.id),
     eventRoles: getParticipantEventRoles(event.id, registration && registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
@@ -2662,7 +2701,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
       return renderParticipantFormError(res, event, null, formData, 'Selecione uma conta já cadastrada para inscrevê-la no evento.');
     }
     linkedUser = db.prepare(`
-      SELECT id, name, email, institution
+      SELECT id, name, email, institution, phone
       FROM users
       WHERE id = ? AND is_public = 1 AND approval_status = 'approved'
       LIMIT 1
@@ -2674,6 +2713,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
     formData.name = linkedUser.name;
     formData.email = String(linkedUser.email || '').trim().toLowerCase();
     formData.institution = linkedUser.institution || '';
+    formData.phone = linkedUser.phone || '';
   }
 
   const validationError = validateParticipantForm(formData);
@@ -2754,6 +2794,49 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
   res.redirect(`/admin/events/${event.id}/participants?success=${encodeURIComponent('Participante adicionado com sucesso.')}`);
 });
 
+router.get('/:id/participants/:registrationId/review', (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id));
+  const registration = event && getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
+  if (!event || !registration) return res.status(404).render('error', { title: 'Solicitação não encontrada' });
+  if (registration.registration_status !== 'pending') return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Esta inscrição não está aguardando análise.')}`);
+  const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
+  const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)));
+  return res.render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities, error: null });
+});
+
+router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id));
+  const registration = event && getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
+  if (!event || !registration) return res.status(404).render('error', { title: 'Solicitação não encontrada' });
+  if (registration.registration_status !== 'pending') return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Esta inscrição não está aguardando análise.')}`);
+  const decision = req.body.decision === 'rejected' ? 'rejected' : 'approved';
+  const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
+  const approvedIds = normalizeActivityIds(req.body.activity_ids);
+  const invalid = approvedIds.some((id) => !requestedIds.includes(id));
+  if (invalid || (decision === 'approved' && !approvedIds.length && requestedIds.length)) {
+    const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)));
+    return res.status(400).render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities,
+      error: invalid ? 'Selecione apenas atividades solicitadas pela pessoa.' : 'Selecione ao menos uma atividade para aprovar, ou rejeite a solicitação.' });
+  }
+  const notes = String(req.body.registration_review_notes || '').trim().slice(0, 2000);
+  db.transaction(() => {
+    if (decision === 'approved') saveParticipantActivities(registration.id, registration.user_id, approvedIds, req.session.userId);
+    db.prepare(`UPDATE event_registrations SET registration_status=?,registration_review_notes=?,registration_reviewed_at=datetime('now','-3 hours'),
+      registration_reviewed_by=?,updated_at=datetime('now','-3 hours') WHERE id=?`)
+      .run(decision, notes, req.session.userId, registration.id);
+    recordParticipantAudit({ eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+      action: 'registration_request_reviewed', details: { decision, requested_activity_ids: requestedIds, approved_activity_ids: decision === 'approved' ? approvedIds : [], notes } });
+  })();
+  try {
+    queueRegistrationReviewDecision({ event, registration: { ...registration, registration_review_notes: notes }, decision,
+      approvedActivities: activities.filter((activity) => approvedIds.includes(Number(activity.id))),
+      approvedAll: decision === 'approved' && approvedIds.length === requestedIds.length });
+  } catch (error) {
+    console.error('[email] Falha ao enfileirar decisão de inscrição:', error.message);
+  }
+  return res.redirect(`/admin/events/${event.id}/participants?success=${encodeURIComponent(decision === 'approved' ? 'Inscrição aprovada.' : 'Solicitação de inscrição rejeitada.')}`);
+});
+
 router.get('/:id/participants/:registrationId/edit', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -2781,7 +2864,7 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
       formacao_titulacao: registration.user_formacao_titulacao || '',
       formacao_status: registration.user_formacao_status || ''
     },
-    availableUsers: getUsersForParticipantSelection(),
+    selectedExistingUser: null,
     activities: getActivitiesForParticipantForm(event.id),
     eventRoles: getParticipantEventRoles(event.id, registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
@@ -2819,6 +2902,8 @@ function updateParticipant(req, res) {
 
   try {
     const previousActivityIds = getParticipantActivityIds(registration.id);
+    const activitiesChanged = previousActivityIds.length !== formData.activity_ids.length
+      || previousActivityIds.some((id) => !formData.activity_ids.includes(id));
     db.transaction(() => {
       db.prepare(`UPDATE event_registrations
         SET name=?,email=?,institution=?,phone=?,registration_type=?,updated_at=datetime('now','-3 hours')
@@ -2844,6 +2929,14 @@ function updateParticipant(req, res) {
         }
       });
     })();
+    if (activitiesChanged) {
+      const activities = getActivitiesForParticipantForm(event.id).filter((activity) => formData.activity_ids.includes(Number(activity.id)));
+      try {
+        queueParticipantActivitiesUpdated({ event, registration: { ...registration, name: formData.name, email: formData.email }, activities });
+      } catch (error) {
+        console.error('[email] Falha ao enfileirar alteração de atividades:', error.message);
+      }
+    }
   } catch (error) {
     if (error && String(error.message).includes('UNIQUE constraint failed')) {
       return renderParticipantFormError(res, event, registration, formData, 'Já existe uma inscrição para este e-mail ou conta neste evento.');

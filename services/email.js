@@ -195,6 +195,56 @@ function queueImportedRegistration({ user, event, dedupeKey }) {
   });
 }
 
+function queuePublicRegistrationSubmission({ event, registration, pendingReview = false }) {
+  if (!registration || !registration.email) return null;
+  const identity = getEventIdentity(event);
+  return enqueueEmail({
+    eventId: event.id, userId: registration.user_id || null,
+    recipientEmail: registration.email, recipientName: registration.name,
+    messageType: 'registration_submitted', templateName: 'registration-submitted',
+    subject: pendingReview ? `Recebemos sua solicitação de inscrição em ${event.name}` : `Sua inscrição em ${event.name} foi confirmada`,
+    identity, dedupeKey: `registration-submission:${registration.id}`,
+    payload: { name: registration.name, eventName: event.name, pendingReview, authorUrl: 'https://teste.ham.eng.br/author', platformName: identity.platformName }
+  });
+}
+
+function queueRegistrationReviewDecision({ event, registration, decision, approvedActivities = [], approvedAll = false }) {
+  if (!registration || !registration.email) return null;
+  const identity = getEventIdentity(event);
+  const rejected = decision === 'rejected';
+  const partial = !rejected && !approvedAll;
+  const subject = rejected
+    ? `Sua inscrição em ${event.name} não foi aprovada`
+    : partial
+      ? `Sua inscrição em ${event.name} foi parcialmente aprovada`
+      : `Sua inscrição em ${event.name} foi aprovada`;
+  return enqueueEmail({
+    eventId: event.id, userId: registration.user_id || null,
+    recipientEmail: registration.email, recipientName: registration.name,
+    messageType: 'registration_reviewed', templateName: 'registration-review-decision', subject, identity,
+    dedupeKey: `registration-review:${registration.id}`,
+    payload: {
+      name: registration.name, eventName: event.name, decision: rejected ? 'rejected' : (partial ? 'partial' : 'approved'),
+      approvedActivities: approvedActivities.map((activity) => activity.name), reviewNotes: registration.registration_review_notes || '',
+      authorUrl: 'https://teste.ham.eng.br/author', platformName: identity.platformName
+    }
+  });
+}
+
+function queueParticipantActivitiesUpdated({ event, registration, activities }) {
+  if (!registration || !registration.email) return null;
+  const identity = getEventIdentity(event);
+  return enqueueEmail({
+    eventId: event.id, userId: registration.user_id || null,
+    recipientEmail: registration.email, recipientName: registration.name,
+    messageType: 'participant_activities_updated', templateName: 'participant-activities-updated',
+    subject: `Suas atividades em ${event.name} foram atualizadas`, identity,
+    dedupeKey: `participant-activities:${registration.id}:${Date.now()}`,
+    payload: { name: registration.name, eventName: event.name, activities: activities.map((activity) => activity.name),
+      authorUrl: 'https://teste.ham.eng.br/author', platformName: identity.platformName }
+  });
+}
+
 function createImportBatch({ batchType, eventId = null, importedBy = null, report }) {
   const batch = db.prepare(`INSERT INTO import_batches (batch_type,event_id,imported_by,created_at)
     VALUES (?,?,?,datetime('now','-3 hours'))`).run(batchType, eventId, importedBy);
@@ -469,7 +519,8 @@ function isValidHttpUrl(value) {
 module.exports = {
   getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getGlobalIdentity, getEventIdentity,
   setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail,
-  queueAccountRequested, queueAccountApproved, queueImportedAccount, queueImportedRegistration,
+  queueAccountRequested, queueAccountApproved, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
+  queueRegistrationReviewDecision, queueParticipantActivitiesUpdated,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   queueCertificateIssued, queueVideoLinkNotifications, queueDueEventReminders,
   createSetupToken, startEmailWorkers, stopEmailWorkers, isValidHttpUrl, appBaseUrl

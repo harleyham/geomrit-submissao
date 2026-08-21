@@ -19,6 +19,19 @@ Documento vivo: atualizar o `Status` de cada item conforme a execução.
 - "Não possui curso de graduação": disponível em **todas** as áreas de formação; ao selecioná-la, **esconder** Titulação e Status.
 - Módulos novos nesta roadmap: **somente e-mails** (Fase 3).
 - Ordem: **Fase 0 → Fase 1 (Aulas+QR) → Avaliação de atividades → Fase 3 (E-mails) → Fase 2 (Auditoria)** (ordem ajustada em 17/08 a pedido do usuário: troca E-mails/Auditoria e inserção da Avaliação de atividades como próxima execução; nomes das fases mantidos).
+- Inscrições públicas podem ser de confirmação automática ou sujeitas à análise da organização, inclusive com aprovação parcial das atividades solicitadas.
+
+---
+
+## Entrega complementar — triagem de inscrições
+
+Status: **CONCLUÍDO (código + verificação técnica)**.
+
+- Eventos possuem o modo `registration_approval_mode`: `automatic` confirma a inscrição imediatamente; `review` registra a solicitação como pendente para análise administrativa.
+- A análise permite aprovar todas, algumas ou nenhuma das atividades solicitadas, registra responsável, data e observação e só cria vínculos de atividade para itens aprovados.
+- Solicitações pendentes não entram no contador de inscritos; a listagem administrativa mostra a coluna **Em análise** em laranja quando o total é diferente de zero.
+- A área do participante e as páginas públicas exibem corretamente os estados pendente, aprovado, parcialmente aprovado e recusado. Em eventos sujeitos à análise, a seleção de atividades decidida pela administração fica bloqueada ao participante.
+- Os gatilhos de e-mail cobrem o recebimento da solicitação, o resultado da análise e alterações posteriores de atividades feitas pela administração.
 
 ---
 

@@ -88,8 +88,9 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 4. Configure as janelas de inscrição, submissão, análise e certificados.
 5. Indique se o evento aceita artigos e se oferece subsídio.
 6. Defina **Inscrições abertas ao público?**: mantenha ativo para permitir a inscrição do público no site; desative para que apenas a administração cadastre os participantes (a linha "Inscrições" sai do cronograma público e a página de inscrição exibe a mensagem correspondente).
-7. Selecione um logo PNG/JPEG de até 5 MB. A tela mostra a prévia imediatamente.
-8. Salve o evento.
+7. Defina **Confirmação das inscrições públicas**: em **Automática**, a inscrição é confirmada assim que enviada; em **Sujeita à análise**, a organização precisa decidir sobre a solicitação.
+8. Selecione um logo PNG/JPEG de até 5 MB. A tela mostra a prévia imediatamente.
+9. Salve o evento.
 
 Ao criar o evento, o usuário criador recebe automaticamente o papel de administrador daquele evento. Um evento publicado aparece na página inicial. Ao encerrá-lo, a página pública e os certificados permanecem acessíveis, mas novas inscrições e submissões são bloqueadas.
 
@@ -111,6 +112,12 @@ Os papéis disponíveis no evento incluem participante, administrador, revisor, 
 
 No credenciamento, use **Imprimir crachá** na linha do participante. O crachá contém o QR pessoal usado pelo operador para localizar a pessoa na chamada.
 
+### Análise de solicitações de inscrição
+
+Quando o evento está configurado como **Sujeita à análise**, uma inscrição pública fica com o status **Aguardando análise** e ainda não integra o total de inscritos. Na listagem de eventos, a coluna **Em análise** mostra essas solicitações em laranja quando houver pendências.
+
+Abra a listagem de participantes e use **Analisar** para aprovar ou recusar a solicitação. É possível aprovar todas as atividades solicitadas, somente algumas delas ou nenhuma. A aprovação parcial informa ao participante exatamente quais atividades foram confirmadas. Após a decisão, a seleção de atividades fica somente para leitura para o participante; alterações posteriores devem ser feitas pela administração.
+
 ## 7. Criação de atividades
 
 1. Acesse `/admin/events/:id/activities`.
@@ -122,7 +129,7 @@ No credenciamento, use **Imprimir crachá** na linha do participante. O crachá 
 
 Tipos comuns: palestra, seminário, mesa-redonda, minicurso e apresentação oral ou pôster.
 
-O participante pode escolher atividades durante a inscrição ou posteriormente em `/evento/:id/atividades`. O administrador também pode fazer essa associação.
+O participante pode escolher atividades durante a inscrição ou posteriormente em `/evento/:id/atividades`. O administrador também pode fazer essa associação. Em eventos com inscrição sujeita à análise, a seleção aprovada pela organização não pode ser alterada pelo participante.
 
 Na mesma página, o participante pode registrar uma avaliação por atividade inscrita (texto livre de até 2000 caracteres; texto vazio remove a avaliação). Após o encerramento do evento, as inscrições ficam travadas, mas as avaliações continuam editáveis.
 
@@ -234,6 +241,8 @@ Ao desligar um switch, mensagens pendentes do respectivo escopo são canceladas 
 O card do evento permite definir nome da plataforma, nome exibido do remetente, assinatura e e-mail de contato (`Reply-To`). Mensagens do evento usam seu logo quando configurado; sem logo, não há imagem padrão.
 
 As importações não enviam mensagens automaticamente. Na página de resultado, revise o relatório e use **Autorizar envio dos acessos** ou **Autorizar e-mails aos participantes**. Novas contas recebem link individual de uso único para definir senha, válido por 72 horas; senhas não são enviadas por e-mail.
+
+Nas inscrições públicas, o participante recebe uma confirmação imediata ou um aviso de recebimento para análise, conforme a configuração do evento. Depois da análise, recebe o resultado como aprovado, parcialmente aprovado (com as atividades confirmadas) ou recusado. Também recebe aviso quando a administração altera suas atividades.
 
 Configure o Zoho por variáveis de ambiente (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`) e defina `APP_BASE_URL` com a URL pública da instalação.
 

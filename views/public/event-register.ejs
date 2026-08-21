@@ -29,6 +29,7 @@
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
     .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
     .status-box { margin-bottom: 1rem; padding: 1rem; border-radius: 12px; background: rgba(59,130,246,0.08); border: 1px solid rgba(96,165,250,0.18); color: #cbd5e1; line-height: 1.6; }
+    .status-box.pending { background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.3); color: #fde68a; }
     .subsidy-box { margin-top: 1.5rem; padding: 1.2rem; border-radius: 14px; background: rgba(14,116,144,0.08); border: 1px solid rgba(34,211,238,0.18); }
     .subsidy-box h2 { font-size: 1.05rem; margin-bottom: 0.4rem; color: #f8fafc; }
     .subsidy-box p { color: #94a3b8; line-height: 1.6; margin-bottom: 1rem; }
@@ -98,8 +99,12 @@
       <% } %>
 
       <% if (alreadyRegistered) { %>
-        <div class="status-box">
-          <% if (registrationType === 'author') { %>
+        <div class="status-box <%= registrationStatus === 'pending' ? 'pending' : '' %>">
+          <% if (registrationStatus === 'pending') { %>
+            Sua solicitação de inscrição está <strong>aguardando análise da organização</strong>. As atividades solicitadas ainda não estão confirmadas.
+          <% } else if (registrationStatus === 'rejected') { %>
+            Sua solicitação de inscrição não foi aprovada. Entre em contato com a organização caso precise de mais informações.
+          <% } else if (registrationType === 'author') { %>
             Sua participação neste evento já está registrada como <strong>apresentador</strong>.
           <% } else { %>
             Sua participação neste evento já está registrada como <strong>participante</strong>.
@@ -130,11 +135,11 @@
             <p style="color:#94a3b8;line-height:1.5;">Este evento ainda não possui atividades abertas para participantes.</p>
           <% } else { %>
             <div class="activity-grid">
-              <% activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); %>
-                <label class="activity-option"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %>><span><strong><%= activity.name %></strong><small><%= activityDateRange(activity) %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small></span></label>
+              <% const activitiesLockedByReview = alreadyRegistered && event.registration_approval_mode === 'review'; activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); %>
+                <label class="activity-option"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %> <%= activitiesLockedByReview ? 'disabled' : '' %>><span><strong><%= activity.name %></strong><small><%= activityDateRange(activity) %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small></span></label>
               <% }) %>
             </div>
-            <small style="display:block;color:#94a3b8;margin-top:.55rem;line-height:1.5;">Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas.</small>
+            <small style="display:block;color:#94a3b8;margin-top:.55rem;line-height:1.5;"><%= activitiesLockedByReview ? 'As atividades foram definidas pela análise da organização e não podem ser alteradas por esta página.' : 'Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas.' %></small>
           <% } %>
         </div>
 

@@ -1,0 +1,13 @@
+<p style="margin-top:0;">Olá, <strong><%= name %></strong>.</p>
+<% if (decision === 'rejected') { %>
+  <p>Após análise da organização, sua inscrição em <strong><%= eventName %></strong> não foi aprovada.</p>
+<% } else if (decision === 'partial') { %>
+  <p>Sua inscrição em <strong><%= eventName %></strong> foi <strong>parcialmente aprovada</strong>.</p>
+  <p>Você foi aprovado(a) para as seguintes atividades:</p>
+  <ul><% approvedActivities.forEach((activity) => { %><li><%= activity %></li><% }) %></ul>
+<% } else { %>
+  <p>Sua inscrição em <strong><%= eventName %></strong> foi <strong>aprovada</strong>.</p>
+  <% if (approvedActivities.length) { %><p>As atividades solicitadas foram aprovadas.</p><% } %>
+<% } %>
+<% if (reviewNotes) { %><p><strong>Observações da organização:</strong><br><%= reviewNotes %></p><% } %>
+<% if (decision !== 'rejected') { %><p style="text-align:center;margin:28px 0;"><a href="<%= authorUrl %>" style="display:inline-block;background:#0f6b78;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;">Acessar Área do Participante</a></p><% } %>

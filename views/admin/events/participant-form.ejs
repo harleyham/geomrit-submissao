@@ -43,6 +43,12 @@
     .activity-option input { width:auto !important; min-width:17px; height:17px; margin-top:.1rem; accent-color:#3b82f6; }
     .activity-option strong { display:block; color:#f8fafc; font-size:.88rem; }
     .activity-option small { display:block; color:#94a3b8; margin-top:.25rem; line-height:1.35; }
+    .user-search-results { margin-top:.5rem; border:1px solid rgba(148,163,184,.18); border-radius:10px; overflow:hidden; background:rgba(2,6,23,.5); }
+    .user-search-result { width:100%; padding:.7rem .85rem; border:0; border-top:1px solid rgba(148,163,184,.1); background:transparent; color:#e2e8f0; text-align:left; cursor:pointer; font:inherit; }
+    .user-search-result:first-child { border-top:0; }
+    .user-search-result:hover { background:rgba(59,130,246,.14); }
+    .user-search-result small { display:block; margin-top:.2rem; color:#94a3b8; }
+    .selected-user { margin-top:.6rem; padding:.7rem .85rem; border:1px solid rgba(52,211,153,.24); border-radius:10px; background:rgba(52,211,153,.08); color:#d1fae5; font-size:.85rem; }
     footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
     @media (max-width: 720px) { .meta-grid { grid-template-columns: 1fr; } }
   </style>
@@ -113,20 +119,12 @@
           </div>
 
           <div class="form-group" id="existing-user-group">
-            <label for="existing_user_id">Conta já cadastrada</label>
-            <select id="existing_user_id" name="existing_user_id">
-              <option value="">Selecione uma conta</option>
-              <% availableUsers.forEach((user) => { %>
-                <option
-                  value="<%= user.id %>"
-                  data-name="<%= user.name %>"
-                  data-email="<%= user.email %>"
-                  data-institution="<%= user.institution || '' %>"
-                  <%= String(formData.existing_user_id || '') === String(user.id) ? 'selected' : '' %>
-                ><%= user.name %> — <%= user.email %><%= user.is_public ? '' : ' (conta inativa)' %></option>
-              <% }) %>
-            </select>
-            <div class="help-text">Os dados da conta selecionada serão usados para criar a inscrição no evento.</div>
+            <label for="existing_user_search">Conta já cadastrada</label>
+            <input type="search" id="existing_user_search" autocomplete="off" placeholder="Pesquise por nome, e-mail, instituição ou CPF">
+            <input type="hidden" id="existing_user_id" name="existing_user_id" value="<%= formData.existing_user_id || '' %>">
+            <div id="existing-user-results" class="user-search-results" hidden></div>
+            <div id="selected-existing-user" class="selected-user" <%= selectedExistingUser ? '' : 'hidden' %>></div>
+            <div class="help-text">Digite ao menos 2 caracteres e escolha uma conta. Os dados da conta selecionada serão usados para criar a inscrição.</div>
           </div>
         <% } %>
 
@@ -283,34 +281,90 @@
   <% if (!registration) { %>
     <script>
       const accountModeSelect = document.getElementById('account_mode');
-      const existingUserSelect = document.getElementById('existing_user_id');
+      const existingUserId = document.getElementById('existing_user_id');
+      const existingUserSearch = document.getElementById('existing_user_search');
+      const existingUserResults = document.getElementById('existing-user-results');
+      const selectedExistingUser = document.getElementById('selected-existing-user');
       const existingUserGroup = document.getElementById('existing-user-group');
       const temporaryPasswordFields = document.getElementById('temporary-password-fields');
       const temporaryPassword = document.getElementById('temporary_password');
       const confirmTemporaryPassword = document.getElementById('confirm_temporary_password');
-      const syncAccountMode = () => {
-        const usesExistingAccount = accountModeSelect.value === 'existing';
-        const option = existingUserSelect.options[existingUserSelect.selectedIndex];
-        const isExistingUser = usesExistingAccount && !!(option && option.value);
+      let searchTimer = null;
+      let selectedUser = <%- JSON.stringify(selectedExistingUser || null) %>;
+      const setAccountFields = (user) => {
         const nameInput = document.getElementById('name');
         const emailInput = document.getElementById('email');
         const institutionInput = document.getElementById('institution');
+        const phoneInput = document.getElementById('phone');
+        selectedUser = user || null;
+        existingUserId.value = user ? user.id : '';
+        if (user) {
+          nameInput.value = user.name || '';
+          emailInput.value = user.email || '';
+          institutionInput.value = user.institution || '';
+          phoneInput.value = user.phone || '';
+          existingUserSearch.value = user.name + ' — ' + user.email;
+          selectedExistingUser.textContent = 'Conta selecionada: ' + user.name + ' — ' + user.email;
+          selectedExistingUser.hidden = false;
+        } else {
+          selectedExistingUser.textContent = '';
+          selectedExistingUser.hidden = true;
+        }
+        syncAccountMode();
+      };
+      const syncAccountMode = () => {
+        const usesExistingAccount = accountModeSelect.value === 'existing';
+        const isExistingUser = usesExistingAccount && !!selectedUser;
+        const nameInput = document.getElementById('name');
+        const emailInput = document.getElementById('email');
+        const institutionInput = document.getElementById('institution');
+        const phoneInput = document.getElementById('phone');
         existingUserGroup.style.display = usesExistingAccount ? 'block' : 'none';
-        existingUserSelect.disabled = !usesExistingAccount;
+        existingUserSearch.disabled = !usesExistingAccount;
         temporaryPasswordFields.style.display = usesExistingAccount ? 'none' : 'block';
         temporaryPassword.required = !usesExistingAccount;
         confirmTemporaryPassword.required = !usesExistingAccount;
-        if (isExistingUser) {
-          nameInput.value = option.dataset.name || '';
-          emailInput.value = option.dataset.email || '';
-          institutionInput.value = option.dataset.institution || '';
-        }
         nameInput.readOnly = isExistingUser;
         emailInput.readOnly = isExistingUser;
         institutionInput.readOnly = isExistingUser;
+        phoneInput.readOnly = isExistingUser;
+      };
+      const renderSearchResults = (users) => {
+        existingUserResults.replaceChildren();
+        if (!users.length) {
+          const empty = document.createElement('div');
+          empty.className = 'user-search-result';
+          empty.textContent = 'Nenhuma conta disponível foi encontrada.';
+          existingUserResults.appendChild(empty);
+        } else {
+          users.forEach((user) => {
+            const button = document.createElement('button');
+            button.type = 'button'; button.className = 'user-search-result';
+            const name = document.createElement('strong'); name.textContent = user.name;
+            const detail = document.createElement('small'); detail.textContent = user.email + (user.institution ? ' · ' + user.institution : '');
+            button.append(name, detail);
+            button.addEventListener('click', () => { existingUserResults.hidden = true; setAccountFields(user); });
+            existingUserResults.appendChild(button);
+          });
+        }
+        existingUserResults.hidden = false;
+      };
+      const searchUsers = () => {
+        const query = existingUserSearch.value.trim();
+        if (query.length < 2) { existingUserResults.hidden = true; return; }
+        fetch(`/admin/events/<%= event.id %>/participants/user-search?q=${encodeURIComponent(query)}`, { headers: { Accept: 'application/json' } })
+          .then((response) => response.ok ? response.json() : { users: [] })
+          .then((data) => renderSearchResults(Array.isArray(data.users) ? data.users : []))
+          .catch(() => renderSearchResults([]));
       };
       accountModeSelect.addEventListener('change', syncAccountMode);
-      existingUserSelect.addEventListener('change', syncAccountMode);
+      existingUserSearch.addEventListener('input', () => {
+        if (selectedUser) { selectedUser = null; existingUserId.value = ''; selectedExistingUser.hidden = true; }
+        clearTimeout(searchTimer); searchTimer = setTimeout(searchUsers, 250);
+        syncAccountMode();
+      });
+      existingUserSearch.addEventListener('focus', searchUsers);
+      if (selectedUser) setAccountFields(selectedUser);
       syncAccountMode();
     </script>
   <% } %>

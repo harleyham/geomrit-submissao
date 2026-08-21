@@ -567,6 +567,8 @@ router.get('/:id/participant', requireAuth, (req, res) => {
       e.status as event_status,
       COALESCE(aa.approved_count, 0) as approved_articles,
       CASE
+        WHEN er.registration_status = 'pending' THEN 'Inscrição em análise'
+        WHEN er.registration_status = 'rejected' THEN 'Inscrição não aprovada'
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
         WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
         ELSE 'Participante inscrito'

@@ -1,0 +1,8 @@
+<p style="margin-top:0;">Olá, <strong><%= name %></strong>.</p>
+<% if (pendingReview) { %>
+  <p>Recebemos sua solicitação de inscrição em <strong><%= eventName %></strong>.</p>
+  <p>A organização analisará sua solicitação e você receberá uma nova mensagem com o resultado.</p>
+<% } else { %>
+  <p>Sua inscrição em <strong><%= eventName %></strong> foi confirmada.</p>
+<% } %>
+<p style="text-align:center;margin:28px 0;"><a href="<%= authorUrl %>" style="display:inline-block;background:#0f6b78;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;">Acessar Área do Participante</a></p>

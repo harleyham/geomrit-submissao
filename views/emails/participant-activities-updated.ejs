@@ -1,0 +1,9 @@
+<p style="margin-top:0;">Olá, <strong><%= name %></strong>.</p>
+<p>A organização atualizou as atividades da sua participação em <strong><%= eventName %></strong>.</p>
+<% if (activities.length) { %>
+  <p>Suas atividades atuais são:</p>
+  <ul><% activities.forEach((activity) => { %><li><%= activity %></li><% }) %></ul>
+<% } else { %>
+  <p>No momento, não há atividades vinculadas à sua participação.</p>
+<% } %>
+<p style="text-align:center;margin:28px 0;"><a href="<%= authorUrl %>" style="display:inline-block;background:#0f6b78;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;">Acessar Área do Participante</a></p>
