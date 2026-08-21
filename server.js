@@ -1,3 +1,9 @@
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+if (nodeMajor < 22) {
+  console.error(`Node.js 22 ou superior é obrigatório. Versão atual: ${process.version}. Execute: nvm use`);
+  process.exit(1);
+}
+
 const express = require('express');
 const path = require('path');
 const querystring = require('querystring');

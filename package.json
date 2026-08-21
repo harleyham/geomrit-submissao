@@ -4,8 +4,8 @@
   "description": "Sistema de controle de submissão de artigos científicos para eventos LIGEM.Redes",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "bash scripts/start.sh",
+    "dev": "bash scripts/start.sh"
   },
   "keywords": [
     "artigos",

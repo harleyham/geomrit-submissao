@@ -4,13 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %></title>
-  <link rel="stylesheet" href="/css/style.css">
   <style>
     body { background:#0f172a; color:#e2e8f0; }
     .content-shell { width:min(1400px, calc(100% - 2rem)); margin:1.5rem auto; }
     .content-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
     .content-header h1 { margin:0; font-size:clamp(1.35rem, 3vw, 2rem); }
     .content-actions { display:flex; gap:0.75rem; flex-wrap:wrap; }
+    .btn { display:inline-flex; align-items:center; padding:0.625rem 1.25rem; border-radius:8px; font-size:0.875rem; font-weight:500; text-decoration:none; transition:background 0.15s; }
+    .btn-primary, .btn-primary:visited { background:#3b82f6; color:#fff; }
+    .btn-primary:hover { background:#2563eb; }
+    .btn-secondary, .btn-secondary:visited { background:rgba(148,163,184,0.12); color:#e2e8f0; border:1px solid rgba(148,163,184,0.18); }
+    .btn-secondary:hover { background:rgba(148,163,184,0.2); }
     .pdf-frame { display:block; width:100%; height:calc(100vh - 130px); min-height:640px; border:1px solid #334155; border-radius:12px; background:#fff; }
     .pdf-fallback { margin-top:0.75rem; color:#94a3b8; }
     @media (max-width:700px) { .content-shell { width:min(100% - 1rem, 1400px); margin:0.75rem auto; } .pdf-frame { height:75vh; min-height:480px; } }

@@ -171,7 +171,7 @@ O auto-check-in é feito pela URL `/presenca/:eventId/:activityId(/:sessionId)`.
 ## 10. Configuração e emissão de certificados
 
 1. Acesse `/admin/events/:id/certificates`.
-2. Configure cada papel de certificado: título, texto, fundo, cor e presença mínima.
+2. Configure cada papel de certificado: título, texto, fundo, cor e presença mínima. A cor é escolhida numa paleta de 64 tons (grade 8×8).
 3. Use a prévia antes de salvar.
 4. Use **Salvar configuração geral** para replicar fundo e cor aos papéis, mantendo textos individuais.
 5. Emita os certificados elegíveis.
@@ -202,6 +202,16 @@ O dashboard (`/admin/dashboard`) apresenta um resumo operacional:
 - solicitações de cadastro.
 
 Use os cards como atalhos para localizar pendências.
+
+### Backup, restauração e reset do banco
+
+A seção "Backup e Restaração" no dashboard concentra as operações de manutenção do banco de dados, acessíveis **exclusivamente** ao `admin@admin.com` (superadministrador):
+
+- **Baixar Backup**: gera um ZIP com o banco (`artigos.db`), a pasta `uploads/` completa e um `BACKUP_META.json` (versão, data, tamanhos). Útil para sincronizar o estado entre as máquinas de desenvolvimento.
+- **Restaurar Backup**: faz upload de um ZIP válido, confirma a ação digitando `RESTAURAR` e substitui o banco e os uploads. Antes de trocar, o sistema faz uma cópia de segurança do banco atual e rola de volta em caso de falha.
+- **Resetar Banco de Dados**: apaga todas as tabelas, arquivos de upload e recria o banco limpo, com schema, índices, triggers e o seed do administrador padrão.
+
+Backup e restauração não exigem reinício do servidor — a conexão é trocada em tempo de execução.
 
 ## 12. Estatísticas e relatórios
 
@@ -254,7 +264,6 @@ Configure o Zoho por variáveis de ambiente (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SEC
 ## 16. Próximas melhorias do manual
 
 - adicionar capturas de tela de cada fluxo;
-- incluir procedimentos de backup e restauração;
 - documentar o fluxo completo de submissão e revisão de artigos;
 - incluir perguntas frequentes para participantes e revisores;
 - registrar procedimentos de implantação em produção e configuração HTTPS;

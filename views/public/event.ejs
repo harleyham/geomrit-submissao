@@ -142,7 +142,7 @@
                   <% if (item.actionHref) { %>
                     <a
                       href="<%= item.actionHref %>"
-                      class="btn <%= item.actionTone === 'primary' ? 'btn-primary' : 'btn-ghost' %>"
+                      class="btn <%= item.actionTone === 'primary' ? 'btn-primary' : 'btn-secondary' %>"
                       <%= item.actionExternal ? 'target="_blank" rel="noopener noreferrer"' : '' %>
                     ><%= item.actionLabel %></a>
                   <% } else { %>

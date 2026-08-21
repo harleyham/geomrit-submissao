@@ -1476,4 +1476,3 @@ Use preferencialmente uma senha de aplicativo criada no Zoho, não a senha norma
 - A lógica de que um usuário admin e admin de todo o sistema não é boa. o usuário deve ser admin apenas dos eventos que ele cria ou que outro admin designe a ele
 - Chat durante o evento (mostrando o vídeo do Youtube na interface)
 - Na página de relatório de Evento, deve haver a opção de exportação de arquivo .md, a fim de ser avaliado por uma IA
-- Implementar uma forma de a partir do PDF com as informações do Evento, puplicar como se fosse o site do Evento. Últil para eventos pequenos ou que não tem a capacidade de fazer um site especifico
