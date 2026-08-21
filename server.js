@@ -31,7 +31,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:"],
       connectSrc: ["'self'"],
-      frameSrc: isProduction ? [] : ["'self'", 'blob:'],
+      frameSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"]

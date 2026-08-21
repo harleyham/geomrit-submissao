@@ -15,7 +15,7 @@
     .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
     .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
     .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
-    .main-content { max-width: 1120px; margin: 0 auto; padding: 2rem; }
+    .main-content { max-width: 1568px; margin: 0 auto; padding: 2rem; }
     .event-shell { background: rgba(30,41,59,0.58); border: 1px solid rgba(148,163,184,0.1); border-radius: 18px; padding: 2rem; margin-bottom: 1.5rem; }
     .event-header .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.9rem; }
     .event-header .event-logo { display: block; max-height: 96px; max-width: 320px; object-fit: contain; background: #fff; border-radius: 10px; padding: 10px; margin-bottom: 1rem; }
@@ -94,9 +94,14 @@
           <% } %>
         </div>
         <div class="event-link-card">
-          <span class="label">URL do Evento</span>
+          <span class="label"><%= event.content_pdf_path ? 'Conteúdo do Evento' : 'URL do Evento' %></span>
           <div class="value">
-            <% if (event.url && event.url.trim()) { %>
+            <% if (event.content_pdf_path) { %>
+              <a href="/evento/<%= event.id %>/conteudo">Abrir página do evento</a>
+              <% if (event.url && event.url.trim()) { %>
+                <span style="margin:0 0.5rem;color:#64748b;">•</span><a href="<%= event.url %>" target="_blank" rel="noopener noreferrer">Site externo</a>
+              <% } %>
+            <% } else if (event.url && event.url.trim()) { %>
               <a href="<%= event.url %>" target="_blank" rel="noopener noreferrer"><%= event.url %></a>
             <% } else { %>
               TBD
@@ -158,6 +163,7 @@
               <tr>
                 <th>Data</th>
                 <th>Atividade</th>
+                <th>Descrição / Ementa</th>
                 <th>Transmissão</th>
               </tr>
             </thead>
@@ -166,6 +172,7 @@
                 <tr>
                   <td class="muted"><%= activityDateRange(activity) || 'A definir' %></td>
                   <td class="timeline-label"><%= activity.name %></td>
+                  <td class="muted"><%= activity.description || '—' %></td>
                   <td class="timeline-action">
                     <% if (activity.video_url) { %>
                       <a href="<%= activity.video_url %>" target="_blank" rel="noopener noreferrer" class="btn btn-secondary activity-video">Assistir transmissão</a>
@@ -182,6 +189,7 @@
                 <tr class="session-row">
                   <td class="muted"><%= formatBRDate(session.session_date) || 'A definir' %></td>
                   <td class="timeline-label">— <%= session.name %></td>
+                  <td class="muted">—</td>
                   <td class="timeline-action">
                     <% if (sessionVideo) { %>
                       <a href="<%= sessionVideo %>" target="_blank" rel="noopener noreferrer" class="btn btn-secondary activity-video">Assistir transmissão</a>

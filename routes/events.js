@@ -209,30 +209,75 @@ const certificateBackgroundUpload = multer({
 
 const eventLogoDir = path.join(__dirname, '..', 'uploads', 'event-logos');
 if (!fs.existsSync(eventLogoDir)) fs.mkdirSync(eventLogoDir, { recursive: true });
-const eventLogoUpload = multer({
+const eventContentDir = path.join(__dirname, '..', 'uploads', 'event-content');
+if (!fs.existsSync(eventContentDir)) fs.mkdirSync(eventContentDir, { recursive: true });
+const eventAssetUpload = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, eventLogoDir),
+    destination: (req, file, cb) => cb(null, file.fieldname === 'event_pdf' ? eventContentDir : eventLogoDir),
     filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`)
   }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!['image/png', 'image/jpeg'].includes(file.mimetype)) {
+    if (file.fieldname === 'logo' && !['image/png', 'image/jpeg'].includes(file.mimetype)) {
       return cb(new Error('LOGO_INVALID_TYPE'));
+    }
+    if (file.fieldname === 'event_pdf' && (file.mimetype !== 'application/pdf' || path.extname(file.originalname || '').toLowerCase() !== '.pdf')) {
+      return cb(new Error('PDF_INVALID_TYPE'));
     }
     cb(null, true);
   }
 });
 
-// Executa o upload do logo e converte erros em mensagem amigável (req.logoUploadError),
+function uploadedEventAsset(req, fieldName) {
+  return req.files && req.files[fieldName] ? req.files[fieldName][0] : null;
+}
+
+function removeEventContentFile(relativePath) {
+  if (!relativePath) return;
+  const resolved = path.resolve(path.join(__dirname, '..'), relativePath);
+  if (resolved !== eventContentDir && resolved.startsWith(`${eventContentDir}${path.sep}`)) {
+    try { fs.unlinkSync(resolved); } catch (error) { if (error.code !== 'ENOENT') console.error('Falha ao remover PDF do evento:', error); }
+  }
+}
+
+// Executa os uploads do evento e converte erros em mensagem amigável,
 // removendo o arquivo em caso de falha, para o form poder ser re-renderizado sem 500.
-function runEventLogoUpload(req, res, next) {
-  eventLogoUpload.single('logo')(req, res, (error) => {
+function runEventAssetUpload(req, res, next) {
+  eventAssetUpload.fields([{ name: 'logo', maxCount: 1 }, { name: 'event_pdf', maxCount: 1 }])(req, res, (error) => {
     if (error) {
-      if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
-      req.logoUploadError = error.code === 'LIMIT_FILE_SIZE'
-        ? 'O logo do evento excede 5 MB.'
-        : 'O logo do evento deve ser uma imagem PNG ou JPEG (máximo 5 MB).';
+      Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
+      req.eventAssetUploadError = error.code === 'LIMIT_FILE_SIZE'
+        ? 'Um arquivo excede o limite permitido (logo: 5 MB; PDF: 50 MB).'
+        : error.message === 'PDF_INVALID_TYPE'
+          ? 'O conteúdo do evento deve ser um arquivo PDF válido (máximo 50 MB).'
+          : 'O logo do evento deve ser uma imagem PNG ou JPEG (máximo 5 MB).';
       return next();
+    }
+    const logo = uploadedEventAsset(req, 'logo');
+    if (logo && logo.size > 5 * 1024 * 1024) {
+      Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
+      req.eventAssetUploadError = 'O logo do evento excede 5 MB.';
+      return next();
+    }
+    const contentPdf = uploadedEventAsset(req, 'event_pdf');
+    if (contentPdf) {
+      let signature = '';
+      let descriptor;
+      try {
+        descriptor = fs.openSync(contentPdf.path, 'r');
+        const header = Buffer.alloc(5);
+        fs.readSync(descriptor, header, 0, 5, 0);
+        signature = header.toString('ascii');
+      } catch (_) {
+        signature = '';
+      } finally {
+        if (descriptor !== undefined) try { fs.closeSync(descriptor); } catch (_) {}
+      }
+      if (signature !== '%PDF-') {
+        Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
+        req.eventAssetUploadError = 'O conteúdo do evento deve ser um arquivo PDF válido (máximo 50 MB).';
+        return next();
+      }
     }
     next();
   });
@@ -704,7 +749,7 @@ router.get('/new', (req, res) => {
 });
 
 // Criar evento
-router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
+router.post('/', strictLimiter, runEventAssetUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
@@ -720,7 +765,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
   const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
 
-  if (req.logoUploadError) {
+  if (req.eventAssetUploadError) {
     return renderEventForm(res, {
       event: withAreaMeta({
         name,
@@ -749,7 +794,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
         certificates_end
       }),
       title: 'Novo Evento',
-      error: req.logoUploadError
+      error: req.eventAssetUploadError
     });
   }
 
@@ -770,7 +815,7 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
   const formError = emailSettings.error || validationError;
 
   if (formError) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+    Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
     return renderEventForm(res, {
       event: withAreaMeta({
         name,
@@ -803,16 +848,20 @@ router.post('/', strictLimiter, runEventLogoUpload, (req, res, next) => {
     });
   }
 
+  const logoFile = uploadedEventAsset(req, 'logo');
+  const contentPdfFile = uploadedEventAsset(req, 'event_pdf');
   const createdEvent = db.prepare(`
     INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration, registration_approval_mode,
       email_enabled,email_platform_name,email_sender_name,email_signature,email_contact,status, institution, language, registration_start, registration_end,
-      submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+      submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name,
+      content_pdf_path, content_pdf_original_name, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
     emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
     normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
     normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null,
-    req.file ? `uploads/event-logos/${req.file.filename}` : null, req.file ? req.file.originalname : null).run();
+    logoFile ? `uploads/event-logos/${logoFile.filename}` : null, logoFile ? logoFile.originalname : null,
+    contentPdfFile ? `uploads/event-content/${contentPdfFile.filename}` : null, contentPdfFile ? contentPdfFile.originalname : null).run();
   db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(createdEvent.lastInsertRowid, req.session.userId, req.session.userId);
   res.redirect('/admin/events');
 });
@@ -825,7 +874,7 @@ router.get('/:id/edit', (req, res) => {
 });
 
 // Atualizar evento (POST direto)
-router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
+router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
@@ -840,9 +889,9 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
   const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
-  const currentLogo = db.prepare('SELECT logo_path, logo_original_name, email_enabled FROM events WHERE id=?').get(req.params.id) || {};
+  const currentAssets = db.prepare('SELECT logo_path, logo_original_name, content_pdf_path, content_pdf_original_name, email_enabled FROM events WHERE id=?').get(req.params.id) || {};
 
-  if (req.logoUploadError) {
+  if (req.eventAssetUploadError) {
     return renderEventForm(res, {
       event: withAreaMeta({
         id: req.params.id,
@@ -870,11 +919,13 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         review_end: normalizedReviewEnd,
         certificates_start,
         certificates_end,
-        logo_path: currentLogo.logo_path || null,
-        logo_original_name: currentLogo.logo_original_name || null
+        logo_path: currentAssets.logo_path || null,
+        logo_original_name: currentAssets.logo_original_name || null,
+        content_pdf_path: currentAssets.content_pdf_path || null,
+        content_pdf_original_name: currentAssets.content_pdf_original_name || null
       }),
       title: 'Editar Evento',
-      error: req.logoUploadError
+      error: req.eventAssetUploadError
     });
   }
 
@@ -895,7 +946,7 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
   const formError = emailSettings.error || validationError;
 
   if (formError) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+    Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
     return renderEventForm(res, {
       event: withAreaMeta({
         id: req.params.id,
@@ -923,36 +974,54 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
         review_end: normalizedReviewEnd,
         certificates_start,
         certificates_end,
-        logo_path: currentLogo.logo_path || null,
-        logo_original_name: currentLogo.logo_original_name || null
+        logo_path: currentAssets.logo_path || null,
+        logo_original_name: currentAssets.logo_original_name || null,
+        content_pdf_path: currentAssets.content_pdf_path || null,
+        content_pdf_original_name: currentAssets.content_pdf_original_name || null
       }),
       title: 'Editar Evento',
       error: formError
     });
   }
 
-  let logoPath = currentLogo.logo_path || null;
-  let logoOriginalName = currentLogo.logo_original_name || null;
-  if (req.file) {
+  const logoFile = uploadedEventAsset(req, 'logo');
+  const contentPdfFile = uploadedEventAsset(req, 'event_pdf');
+  let logoPath = currentAssets.logo_path || null;
+  let logoOriginalName = currentAssets.logo_original_name || null;
+  if (logoFile) {
     if (logoPath) removeEventLogoFile(logoPath);
-    logoPath = `uploads/event-logos/${req.file.filename}`;
-    logoOriginalName = req.file.originalname;
+    logoPath = `uploads/event-logos/${logoFile.filename}`;
+    logoOriginalName = logoFile.originalname;
   } else if (req.body.remove_logo) {
     if (logoPath) removeEventLogoFile(logoPath);
     logoPath = null;
     logoOriginalName = null;
   }
 
+  let contentPdfPath = currentAssets.content_pdf_path || null;
+  let contentPdfOriginalName = currentAssets.content_pdf_original_name || null;
+  if (contentPdfFile) {
+    if (contentPdfPath) removeEventContentFile(contentPdfPath);
+    contentPdfPath = `uploads/event-content/${contentPdfFile.filename}`;
+    contentPdfOriginalName = contentPdfFile.originalname;
+  } else if (req.body.remove_event_pdf) {
+    if (contentPdfPath) removeEventContentFile(contentPdfPath);
+    contentPdfPath = null;
+    contentPdfOriginalName = null;
+  }
+
   db.prepare(`
     UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, registration_approval_mode=?,
       email_enabled=?,email_platform_name=?,email_sender_name=?,email_signature=?,email_contact=?,status=?, institution=?, language=?, registration_start=?, registration_end=?,
-      submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?, updated_at=datetime('now', '-3 hours')
+      submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?,
+      content_pdf_path=?, content_pdf_original_name=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
   `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
     emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
     normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
-    normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName, req.params.id).run();
-  if (Number(currentLogo.email_enabled || 0) !== emailSettings.email_enabled) {
+    normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName,
+    contentPdfPath, contentPdfOriginalName, req.params.id).run();
+  if (Number(currentAssets.email_enabled || 0) !== emailSettings.email_enabled) {
     const cancelled = setEventEmailEnabled(req.params.id, emailSettings.email_enabled, req.session.userId);
     recordParticipantAudit({ eventId: Number(req.params.id), actorUserId: req.session.userId,
       action: emailSettings.email_enabled ? 'event_email_enabled' : 'event_email_disabled', details: { cancelled_count: cancelled, source: 'event_form' } });
@@ -962,8 +1031,9 @@ router.post('/:id', strictLimiter, runEventLogoUpload, (req, res, next) => {
 
 // Deletar evento
 router.delete('/:id', (req, res) => {
-  const event = db.prepare('SELECT logo_path FROM events WHERE id = ?').get(req.params.id);
+  const event = db.prepare('SELECT logo_path, content_pdf_path FROM events WHERE id = ?').get(req.params.id);
   if (event && event.logo_path) removeEventLogoFile(event.logo_path);
+  if (event && event.content_pdf_path) removeEventContentFile(event.content_pdf_path);
   db.prepare('DELETE FROM events WHERE id = ?').bind(req.params.id).run();
   res.redirect('/admin/events');
 });
@@ -1655,6 +1725,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   }
   const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
+  const description = ['lecture', 'course'].includes(activityType) ? String(req.body.description || '').trim() : '';
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
   const dateStart = req.body.date_start || null;
@@ -1673,9 +1744,9 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
     return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(rangeError)}`);
   }
   db.prepare(`INSERT INTO event_activities
-    (event_id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(
-    event.id, name, activityType, dateStart, dateEnd, workloadHours,
+    (event_id,name,activity_type,description,date_start,date_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    event.id, name, activityType, description, dateStart, dateEnd, workloadHours,
     certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo
   );
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
@@ -1698,6 +1769,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   }
   const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
+  const description = ['lecture', 'course'].includes(activityType) ? String(req.body.description || '').trim() : '';
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
   const dateStart = req.body.date_start || null;
@@ -1715,9 +1787,9 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   if (rangeError) {
     return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(rangeError)}`);
   }
-  db.prepare(`UPDATE event_activities SET name=?,activity_type=?,date_start=?,date_end=?,workload_hours=?,
+  db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,workload_hours=?,
     certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=? WHERE id=?`).run(
-    name, activityType, dateStart, dateEnd, workloadHours, certificateEnabled,
+    name, activityType, description, dateStart, dateEnd, workloadHours, certificateEnabled,
     eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, activity.id
   );
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);

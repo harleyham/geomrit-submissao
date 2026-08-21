@@ -130,6 +130,7 @@ const validators = {
   activityForm: [
     body('name').trim().notEmpty().withMessage('O nome da atividade é obrigatório.'),
     body('activity_type').optional().isIn(['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other']).withMessage('Tipo de atividade inválido.'),
+    body('description').optional().trim().isLength({ max: 2000 }).withMessage('A descrição ou ementa deve ter no máximo 2000 caracteres.'),
     body('workload_hours').optional().isFloat({ min: 0 }).withMessage('Carga horária inválida.'),
     body('video_url').optional({ values: 'falsy' }).isLength({ max: 500 }).withMessage('Link da transmissão de vídeo inválido.'),
     body('eligible_roles').isArray({ min: 1 }).withMessage('Selecione ao menos um papel elegível.'),

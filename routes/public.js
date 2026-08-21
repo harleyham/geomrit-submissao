@@ -402,6 +402,15 @@ function buildEventTimeline(event, options = {}) {
       };
     }
 
+    if (item.label === 'Evento' && event.content_pdf_path) {
+      return {
+        ...item,
+        actionLabel: 'Conteúdo do evento',
+        actionHref: `/evento/${event.id}/conteudo`,
+        actionTone: 'ghost'
+      };
+    }
+
     if (item.label === 'Certificados' && !certificatesWindow.isConfigured) {
       return item;
     }
@@ -935,6 +944,30 @@ router.get('/', (req, res) => {
 });
 
 // Detalhes do evento
+router.get('/evento/:id/conteudo', (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event || !event.content_pdf_path) {
+    return res.status(404).render('error', { title: 'Conteúdo não encontrado', message: 'Este evento não possui conteúdo em PDF publicado.' });
+  }
+  res.render('public/event-content', { title: `Conteúdo — ${event.name}`, event });
+});
+
+router.get('/evento/:id/conteudo/pdf', (req, res) => {
+  const event = db.prepare("SELECT name, content_pdf_path, content_pdf_original_name FROM events WHERE id = ? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event || !event.content_pdf_path) {
+    return res.status(404).render('error', { title: 'Conteúdo não encontrado', message: 'Este evento não possui conteúdo em PDF publicado.' });
+  }
+  const contentDir = path.resolve(path.join(__dirname, '..', 'uploads', 'event-content'));
+  const absolutePath = path.resolve(path.join(__dirname, '..'), event.content_pdf_path);
+  if (!absolutePath.startsWith(`${contentDir}${path.sep}`) || !fs.existsSync(absolutePath)) {
+    return res.status(404).render('error', { title: 'Conteúdo não encontrado', message: 'O arquivo publicado não está disponível.' });
+  }
+  const displayName = String(event.content_pdf_original_name || `${event.name}.pdf`).replace(/[\r\n"]/g, '');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(displayName)}`);
+  res.sendFile(absolutePath);
+});
+
 router.get('/evento/:id', (req, res) => {
   const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published', 'encerrado')").bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não existe ou não está publicado.' });
@@ -957,7 +990,7 @@ router.get('/evento/:id', (req, res) => {
   const eventWithMeta = withSubmissionMeta(event);
   const isClosed = event.status === 'encerrado';
   const activities = db.prepare(`
-    SELECT id,name,activity_type,date_start,date_end,video_url,has_video
+    SELECT id,name,activity_type,description,date_start,date_end,video_url,has_video
     FROM event_activities
     WHERE event_id=?
     ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE

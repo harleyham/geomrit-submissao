@@ -131,6 +131,24 @@
           <input type="url" id="url" name="url" value="<%= event ? event.url : '' %>">
         </div>
         <div class="form-group">
+          <label for="event_pdf">Conteúdo do evento em PDF</label>
+          <input type="file" id="event_pdf" name="event_pdf" accept="application/pdf,.pdf">
+          <div class="help-text">PDF de até 50 MB. Quando enviado, ficará disponível em uma página pública própria do evento.</div>
+          <% if (event && event.content_pdf_path) { %>
+            <div style="margin-top:0.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+              <% if (event.status !== 'draft') { %>
+                <a href="/evento/<%= event.id %>/conteudo" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">Visualizar conteúdo publicado</a>
+              <% } else { %>
+                <span style="color:#fbbf24;">O conteúdo ficará público quando o evento for publicado.</span>
+              <% } %>
+              <span style="color:#cbd5e1;"><%= event.content_pdf_original_name || 'PDF do evento' %></span>
+              <label style="display:flex;align-items:center;gap:0.5rem;color:#94a3b8;font-size:0.875rem;font-weight:500;cursor:pointer;margin:0;">
+                <input type="checkbox" id="remove_event_pdf" name="remove_event_pdf" value="1" style="width:auto;"> Remover PDF atual
+              </label>
+            </div>
+          <% } %>
+        </div>
+        <div class="form-group">
           <label for="status">Status</label>
           <select id="status" name="status">
             <option value="draft" <%= !event || event.status === 'draft' ? 'selected' : '' %>>Rascunho</option>
@@ -292,6 +310,8 @@
       var logoPreviewImage = document.getElementById('logo-preview-image');
       var logoPreviewName = document.getElementById('logo-preview-name');
       var removeLogo = document.getElementById('remove_logo');
+      var eventPdfInput = document.getElementById('event_pdf');
+      var removeEventPdf = document.getElementById('remove_event_pdf');
       var previewObjectUrl = null;
 
       if (logoInput && logoPreview && logoPreviewImage) {
@@ -307,6 +327,12 @@
         });
         window.addEventListener('beforeunload', function() {
           if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        });
+      }
+
+      if (eventPdfInput && removeEventPdf) {
+        eventPdfInput.addEventListener('change', function() {
+          if (eventPdfInput.files && eventPdfInput.files[0]) removeEventPdf.checked = false;
         });
       }
 

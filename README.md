@@ -9,8 +9,9 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 ## Funcionalidades
 
 - **Gestão de eventos**: CRUD de eventos, cronograma público, janelas de inscrição/submissão/certificados e administração restrita aos eventos atribuídos ao usuário
-- **Atividades no evento público**: a página pública do evento exibe o card "Atividades do Evento" com as atividades ordenadas por data; ao lado do nome de cada atividade há o link da transmissão de vídeo (configurado no cadastro/edição da atividade, com botão "Assistir transmissão" em nova aba) ou o espaço vazio quando não há link
+- **Atividades no evento público**: a página pública do evento exibe o card "Atividades do Evento" com as atividades ordenadas por data, uma coluna de descrição/ementa para palestras e minicursos e o link da transmissão de vídeo (configurado no cadastro/edição da atividade, com botão "Assistir transmissão" em nova aba) ou o espaço vazio quando não há link
 - **Logo do evento**: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição, com prévia imediata do arquivo selecionado e substituição/remoção na edição; exibido nas páginas públicas (card na home e página do evento) e nos materiais impressos (crachá, lista de presença e folha com QR Code)
+- **Página pública a partir de PDF**: upload opcional de um PDF de até 50 MB no evento, com substituição e remoção administrativas; eventos publicados ou encerrados disponibilizam o documento em `/evento/:id/conteudo`, com visualização incorporada e link direto para o arquivo
 - **Avaliação de atividades**: participante inscrito avalia cada atividade em `/evento/:id/atividades` (texto livre de até 2000 caracteres; com o evento encerrado, as inscrições ficam travadas e apenas as avaliações continuam editáveis); o administrador vê as avaliações na chamada da atividade e no relatório do evento (card "Participantes que avaliaram" e lista expansível por atividade)
 - **Importação de participantes**: importação administrativa de planilhas CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas, criação/atualização de contas, relatório pessoa por pessoa com status (Sucesso/Falha/Ignorado) e download em CSV; via evento (`/admin/events/:id/import-users`) também inscreve os participantes automaticamente; via usuários (`/admin/users/import`) cria apenas contas sem inscrição
 - **Submissão de artigos**: formulário público, rascunhos, múltiplos revisores, parecer individual, deliberação final administrativa
@@ -59,7 +60,7 @@ artigos/
 ├── db.js                # Schema SQLite e helpers de consulta
 ├── package.json         # Dependências
 ├── security/            # Módulos de segurança (CSRF, rate limiting, validação)
-├── uploads/             # Arquivos enviados (certificados, artigos, logos de eventos)
+├── uploads/             # Arquivos enviados (certificados, artigos, logos e PDFs de conteúdo dos eventos)
 ├── assets/Fundos/       # Fundos padrão de certificado
 ├── routes/              # Rotas da API
 │   ├── auth.js

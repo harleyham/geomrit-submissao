@@ -44,10 +44,12 @@ O sistema deve permitir:
 - Dashboard com contadores `Total de Usuários`, `Eventos Realizados` e `Inscritos em Eventos Futuros`.
 - CRUD de eventos.
 - Logo do evento: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição, com prévia imediata e nome do arquivo selecionado, preview do logo persistido e checkbox "Remover logo atual"; arquivo em `uploads/event-logos/` e exibido nas páginas públicas, no relatório do evento (`/admin/reports?eventId=`, no cabeçalho da tela e no cabeçalho de impressão/PDF) e nos materiais impressos do evento (crachá, lista de presença e folha com QR Code).
+- Conteúdo público do evento a partir de PDF: upload opcional de até 50 MB na criação/edição, substituição ou remoção administrativa e publicação em `/evento/:id/conteudo` para eventos publicados ou encerrados.
 - Encerramento de evento publicado por ação explícita (status `encerrado`), com badge âmbar e botão "Encerrar" na listagem administrativa.
 - Listagem administrativa de eventos: botão "Página pública" na coluna Ações (abre em nova aba) levando à página pública `/evento/:id`, exibido apenas para eventos publicados/encerrados (a rota pública retorna 404 para rascunhos).
 - Configuração de múltiplas áreas/trilhas por evento.
 - Configuração explícita de evento com ou sem submissão de artigos.
+- Cadastro de descrição breve ou ementa para atividades dos tipos palestra e minicurso, exibida em coluna própria na página pública do evento.
 - Configuração explícita de evento com inscrições abertas ao público ou realizadas somente pela administração (toggle "Inscrições abertas ao público?", coluna `events.public_registration`, padrão público).
 - Configuração de confirmação automática ou de análise administrativa da inscrição pública, com aprovação total, parcial ou recusa das atividades solicitadas.
 - E-mails transacionais com fila persistente, master switch global e por evento, identidade editável por evento, logo opcional, retentativas e histórico de envio.
@@ -213,6 +215,8 @@ Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "�
 - `certificates_end`
 - `logo_path`
 - `logo_original_name`
+- `content_pdf_path`
+- `content_pdf_original_name`
 - `created_at`
 - `updated_at`
 
@@ -307,6 +311,7 @@ Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "�
 - `event_id`
 - `name`
 - `activity_type`
+- `description` — descrição breve ou ementa, com até 2000 caracteres, utilizada por palestras e minicursos
 - `date_start` / `date_end` — intervalo da atividade (a coluna `activity_date` é legada, mantida apenas por compatibilidade; os dados foram migrados para `date_start`)
 - `workload_hours` — carga horária total (usada quando a atividade não tem etapas)
 - `certificate_enabled`
@@ -693,6 +698,8 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 |------|------------|
 | `/` | Página inicial com eventos publicados |
 | `/evento/:id` | Detalhes do evento |
+| `/evento/:id/conteudo` | Página pública que apresenta o conteúdo do evento a partir do PDF enviado pela administração |
+| `/evento/:id/conteudo/pdf` | Exibição direta, em modo inline, do PDF público do evento |
 | `/evento/:id/inscricao` | Inscrição do participante no evento, automática ou sujeita à análise conforme configuração do evento |
 | `/submeter/:eventId` | Formulário de submissão |
 | `/author` | Página do participante |

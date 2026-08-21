@@ -90,11 +90,14 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 6. Defina **Inscrições abertas ao público?**: mantenha ativo para permitir a inscrição do público no site; desative para que apenas a administração cadastre os participantes (a linha "Inscrições" sai do cronograma público e a página de inscrição exibe a mensagem correspondente).
 7. Defina **Confirmação das inscrições públicas**: em **Automática**, a inscrição é confirmada assim que enviada; em **Sujeita à análise**, a organização precisa decidir sobre a solicitação.
 8. Selecione um logo PNG/JPEG de até 5 MB. A tela mostra a prévia imediatamente.
-9. Salve o evento.
+9. Se o evento não possui site próprio, envie em **Conteúdo do evento em PDF** um documento de até 50 MB com sua programação e demais informações.
+10. Salve o evento.
 
 Ao criar o evento, o usuário criador recebe automaticamente o papel de administrador daquele evento. Um evento publicado aparece na página inicial. Ao encerrá-lo, a página pública e os certificados permanecem acessíveis, mas novas inscrições e submissões são bloqueadas.
 
 Na edição, é possível substituir o logo ou marcar **Remover logo atual**. O logo é usado no card da home, página pública, crachás, listas de assinatura e folhas de presença com QR Code.
+
+Quando há um PDF, eventos publicados ou encerrados ganham a URL pública `/evento/:id/conteudo`. Essa página exibe o documento no navegador e oferece o botão **Abrir PDF** como alternativa. Um novo upload substitui o documento anterior; marque **Remover PDF atual** para retirar a publicação. Eventos em rascunho armazenam o arquivo, mas só o disponibilizam publicamente depois da publicação.
 
 ## 6. Participantes e papéis no evento
 
@@ -122,12 +125,14 @@ Abra a listagem de participantes e use **Analisar** para aprovar ou recusar a so
 
 1. Acesse `/admin/events/:id/activities`.
 2. Clique em **Nova atividade**.
-3. Informe nome, tipo, intervalo/data, carga horária e se a atividade emite certificado.
+3. Informe nome, tipo, intervalo/data, carga horária e se a atividade emite certificado. Para **Palestra** e **Minicurso**, preencha também uma descrição breve ou ementa, com até 2000 caracteres.
 4. Defina os papéis elegíveis.
 5. (Opcional) Informe o **link da transmissão de vídeo** (ex.: YouTube). Ele aparece ao lado do nome da atividade na página pública do evento; deixe vazio para remover.
 6. Salve.
 
 Tipos comuns: palestra, seminário, mesa-redonda, minicurso e apresentação oral ou pôster.
+
+Na página pública do evento, a tabela **Atividades do Evento** apresenta a descrição/ementa em uma coluna própria. Para atividades sem esse conteúdo, a coluna exibe um traço.
 
 O participante pode escolher atividades durante a inscrição ou posteriormente em `/evento/:id/atividades`. O administrador também pode fazer essa associação. Em eventos com inscrição sujeita à análise, a seleção aprovada pela organização não pode ser alterada pelo participante.
 

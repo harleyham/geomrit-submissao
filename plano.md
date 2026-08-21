@@ -35,6 +35,26 @@ Status: **CONCLUÍDO (código + verificação técnica)**.
 
 ---
 
+## Entrega complementar — página do evento em PDF
+
+Status: **CONCLUÍDO (código + verificação técnica)**.
+
+- O formulário de criação/edição aceita um PDF opcional de até 50 MB, com substituição e remoção do documento anterior.
+- Eventos publicados ou encerrados disponibilizam uma URL estável em `/evento/:id/conteudo`, com visualização incorporada e acesso direto ao arquivo.
+- Eventos em rascunho mantêm o PDF privado até sua publicação; a exclusão do evento também remove o arquivo armazenado.
+
+---
+
+## Entrega complementar — descrição de palestras e minicursos
+
+Status: **CONCLUÍDO (código + verificação técnica)**.
+
+- Palestras e minicursos possuem descrição breve ou ementa de até 2000 caracteres na criação e edição administrativa.
+- O conteúdo é persistido em `event_activities.description`; ao mudar a atividade para outro tipo, a descrição é removida.
+- A página pública do evento apresenta a informação na nova coluna **Descrição / Ementa** da tabela de atividades.
+
+---
+
 ## Ciclo 1 — Fase 0: Quick Wins
 Status geral: **CONCLUÍDO (código + verificação)**; documentação e verificação final do refinamento 0.3 pendentes.
 

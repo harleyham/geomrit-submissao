@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { background:#0f172a; color:#e2e8f0; }
+    .content-shell { width:min(1400px, calc(100% - 2rem)); margin:1.5rem auto; }
+    .content-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+    .content-header h1 { margin:0; font-size:clamp(1.35rem, 3vw, 2rem); }
+    .content-actions { display:flex; gap:0.75rem; flex-wrap:wrap; }
+    .pdf-frame { display:block; width:100%; height:calc(100vh - 130px); min-height:640px; border:1px solid #334155; border-radius:12px; background:#fff; }
+    .pdf-fallback { margin-top:0.75rem; color:#94a3b8; }
+    @media (max-width:700px) { .content-shell { width:min(100% - 1rem, 1400px); margin:0.75rem auto; } .pdf-frame { height:75vh; min-height:480px; } }
+  </style>
+</head>
+<body>
+  <main class="content-shell">
+    <header class="content-header">
+      <div>
+        <div style="color:#94a3b8;font-size:0.875rem;margin-bottom:0.25rem;">Conteúdo do evento</div>
+        <h1><%= event.name %></h1>
+      </div>
+      <div class="content-actions">
+        <a href="/evento/<%= event.id %>" class="btn btn-secondary">Página do evento</a>
+        <a href="/evento/<%= event.id %>/conteudo/pdf" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Abrir PDF</a>
+      </div>
+    </header>
+    <iframe class="pdf-frame" src="/evento/<%= event.id %>/conteudo/pdf" title="Conteúdo em PDF de <%= event.name %>"></iframe>
+    <p class="pdf-fallback">Se o documento não aparecer acima, use o botão “Abrir PDF”.</p>
+  </main>
+</body>
+</html>

@@ -6,6 +6,21 @@ Versão atual registrada: **V0.1**.
 
 ## 2026-08-21
 
+### Descrição ou ementa para palestras e minicursos
+
+- O cadastro e a edição de atividades passaram a exibir um campo de descrição/ementa, com até 2000 caracteres, quando o tipo selecionado é **Palestra** ou **Minicurso**.
+- A informação é persistida na nova coluna `event_activities.description`; a migração é idempotente e atividades de outros tipos não mantêm o conteúdo.
+- Em `/evento/:id`, a tabela **Atividades do Evento** recebeu a coluna **Descrição / Ementa**.
+- A largura máxima dos cards da página pública do evento foi ampliada em 40%, de 1120 px para 1568 px, mantendo o ajuste responsivo em telas menores.
+
+### Página pública do evento gerada a partir de PDF
+
+- A criação e a edição do evento passaram a aceitar um PDF opcional de até 50 MB com as informações e a programação do evento.
+- Eventos publicados ou encerrados disponibilizam o documento em `/evento/:id/conteudo`, com leitor incorporado, botão para abrir o PDF e atalho nas páginas pública e administrativa.
+- O administrador pode substituir ou remover o PDF. O arquivo anterior é apagado na substituição/remoção e também quando o evento é excluído; eventos em rascunho não expõem o documento publicamente.
+- O banco recebeu as colunas `content_pdf_path` e `content_pdf_original_name`, com migração idempotente para instalações existentes.
+- Correção após teste em produção: a CSP passou a permitir `frame-src 'self' blob:`, liberando o PDF da mesma origem no leitor incorporado sem autorizar conteúdo externo.
+
 ### Triagem de inscrições públicas e notificações
 
 - Cada evento pode confirmar inscrições públicas automaticamente ou submetê-las à análise da organização.
