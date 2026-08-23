@@ -20,21 +20,48 @@ O sistema utiliza uma conta única por pessoa. Os papéis podem variar conforme 
 
 ### Requisitos
 
-- Node.js instalado;
+- **Node.js >= 22** (versão travada no `.nvmrc`/`.node-version`, atualmente 22.23.2);
 - npm disponível;
 - ambiente capaz de compilar `better-sqlite3`;
 - navegador moderno.
+
+> O projeto usa módulos nativos e bibliotecas que exigem Node >= 22. O `npm install` é silencioso em versões antigas, mas o servidor **não sobe**. Se o `npm start` reclamar da versão, atualize o Node antes de continuar.
 
 ### Instalação
 
 ```bash
 git clone https://github.com/harleyham/geomrit-submissao.git
 cd geomrit-submissao
+
+# 1) Node >= 22. Se o nvm estiver presente, ele ativa a versão do .nvmrc automaticamente.
+node --version          # deve imprimir 22.x, 23.x, 24.x ...
+
+# 2) Dependências (package.json + package-lock.json).
 npm install
-npm start
+
+# 3) (opcional) Confirme o ambiente antes de rodar.
+npm run verify-env
 ```
 
-O servidor fica disponível, por padrão, em `http://localhost:3000`.
+### Configurações de ambiente (`.env`)
+
+Crie um arquivo `.env` na raiz do projeto com as variáveis de ambiente (`PORT`, `SESSION_SECRET`, SMTP e as demais). O `npm start` o carrega automaticamente quando o arquivo existe, portanto **basta criá-lo antes de rodar**:
+
+```bash
+# crie o .env na raiz do projeto (não versionado)
+printf 'PORT=3000\nSESSION_SECRET=\nSMTP_HOST=\nSMTP_PORT=465\nSMTP_SECURE=true\nSMTP_USER=\nSMTP_PASS=\n' > .env
+```
+
+Se preferir rodar direto com `node server.js` (sem o wrapper do `npm start`), o `.env` não é lido automaticamente: passe `--env-file=.env` (Node >= 22) ou exporte as variáveis no shell.
+
+Configure ao menos `PORT` e `SESSION_SECRET`. O uso de câmera para QR Code exige HTTPS, exceto em `localhost`.
+
+### Início
+
+```bash
+npm start
+# O servidor fica disponível, por padrão, em `http://localhost:3000`.
+```
 
 O banco `artigos.db` e as pastas de upload são criados automaticamente. Para produção, configure pelo menos `PORT` e `SESSION_SECRET`. O uso de câmera para QR Code exige HTTPS, exceto em `localhost`.
 
@@ -74,7 +101,7 @@ Há dois fluxos:
 - **Por evento** (`/admin/events/:id/import-users`): cria ou atualiza contas e inscreve as pessoas no evento.
 - **Por usuários** (`/admin/users/import`): cria ou atualiza contas sem inscrição em evento.
 
-São aceitos CSV, XLS e XLSX. A importação identifica delimitador de vírgula ou ponto e vírgula, aceita CRLF/LF e apresenta relatório pessoa a pessoa. Baixe o modelo CSV quando necessário.
+São aceitos CSV e XLSX. A importação identifica delimitador de vírgula ou ponto e vírgula, aceita CRLF/LF e apresenta relatório pessoa a pessoa. Baixe o modelo CSV quando necessário.
 
 ### Inativação e exclusão
 

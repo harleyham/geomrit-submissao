@@ -5,7 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "bash scripts/start.sh",
-    "dev": "bash scripts/start.sh"
+    "dev": "bash scripts/start.sh",
+    "verify-env": "node scripts/verify-env.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   },
   "keywords": [
     "artigos",
@@ -17,23 +24,23 @@
   "license": "MIT",
   "dependencies": {
     "adm-zip": "^0.6.0",
-    "archiver": "^8.0.0",
+    "archiver": "^7.0.1",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^13.0.3",
     "compression": "^1.7.4",
     "ejs": "^3.1.10",
+    "exceljs": "^4.3.0",
     "express": "^4.21.0",
     "express-rate-limit": "^7.4.0",
     "express-session": "^1.18.0",
     "express-validator": "^7.3.2",
     "helmet": "^8.0.0",
     "method-override": "^3.0.0",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.2.0",
     "nodemailer": "^9.0.5",
     "pdfkit": "^0.19.1",
     "qrcode": "^1.5.4",
-    "raw-body": "^4.0.0",
-    "xlsx": "^0.18.5"
+    "raw-body": "^4.0.0"
   },
   "allowScripts": {
     "better-sqlite3@13.0.3": true

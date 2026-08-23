@@ -4,6 +4,16 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-22
+
+### Migração da biblioteca `xlsx` para `exceljs`
+
+- A dependência `xlsx` (SheetJS gratuito, vulnerável e sem correção publicada — `npm audit` apontava severidade alta) foi removida.
+- Adicionada a biblioteca mantida `exceljs@^4.3.0` como leitora de planilhas; o consumo passou por `services/sheet-reader.js` (`readFirstSheetRows`), que lê a primeira planilha de um `.xlsx` e devolve um array de objetos cujas chaves são os títulos da primeira linha (comportamento equivalente ao antigo `XLSX.utils.sheet_to_json`), com células vazias convertidas para string vazia e linhas totalmente vazias puladas.
+- Os pontos de importação (`routes/events.js:1193` e `routes/users.js:897`) agora chamam o helper de forma `async`.
+- `.xls` legado não é suportado por este leitor; as importações passam a aceitar apenas **CSV** e **XLSX**. A lista de extensões aceitas nas rotas (`routes/events.js` e `routes/users.js`) e a documentação foram atualizadas para refletir isso.
+- Como o `exceljs` depende de `uuid`, adicionado `overrides` no `package.json` forçando `uuid@^11.1.1` (versão com correção de segurança), resultando em **0 vulnerabilidades** no `npm audit`.
+
 ## 2026-08-21
 
 ### Descrição ou ementa para palestras e minicursos

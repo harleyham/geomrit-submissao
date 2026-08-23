@@ -5,8 +5,8 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
-const xlsx = require('xlsx');
-const { ZipArchive } = require('archiver');
+const { readFirstSheetRows } = require('../services/sheet-reader');
+const archiver = require('archiver');
 const { db, recordParticipantAudit } = require('../db');
 const { renderCertificatePdf, getBackgroundPath } = require('../services/certificates');
 const { ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
@@ -293,8 +293,8 @@ const importUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const mimeOk = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv', 'application/csv'].includes(file.mimetype);
-    const extOk = ['.xlsx', '.xls', '.csv'].includes(ext);
+    const mimeOk = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'application/csv'].includes(file.mimetype);
+    const extOk = ['.xlsx', '.csv'].includes(ext);
     cb(null, mimeOk || extOk);
   }
 });
@@ -1169,12 +1169,12 @@ router.get('/:id/import-users', (req, res) => {
   });
 });
 
-router.post('/:id/import-users', strictLimiter, importUpload.single('import_file'), (req, res) => {
+router.post('/:id/import-users', strictLimiter, importUpload.single('import_file'), async (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
   if (!req.file || !req.file.path) {
-    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Selecione um arquivo XLSX, XLS ou CSV com a lista de participantes.')}`);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Selecione um arquivo XLSX ou CSV com a lista de participantes.')}`);
   }
 
   const ext = path.extname(req.file.originalname).toLowerCase();
@@ -1190,16 +1190,12 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
       }
       rows = parsed.rows;
     } else {
-      const readOpts = { type: 'buffer', cellDates: true };
-      const workbook = xlsx.readFile(req.file.path, readOpts);
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+      rows = await readFirstSheetRows(req.file.path);
     }
   } catch (error) {
     console.error('[import-users] Read error:', error.message);
     try { fs.unlinkSync(req.file.path); } catch (_) {}
-    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX, XLS ou CSV válida.')}`);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX ou CSV válida.')}`);
   }
 
   if (!rows || !rows.length) {
@@ -2518,7 +2514,7 @@ router.get('/:id/certificates/export-all', (req, res) => {
   const archiveName = `${safeArchiveFileName(event.short_name || event.name, 'evento')}-certificados.zip`;
   res.attachment(archiveName);
 
-  const archive = new ZipArchive({ zlib: { level: 9 } });
+  const archive = archiver('zip', { zlib: { level: 9 } });
   archive.on('warning', (error) => {
     if (error.code !== 'ENOENT') console.error('[export-all] warning:', error.message);
   });

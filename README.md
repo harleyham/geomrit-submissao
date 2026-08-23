@@ -13,7 +13,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 - **Logo do evento**: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição, com prévia imediata do arquivo selecionado e substituição/remoção na edição; exibido nas páginas públicas (card na home e página do evento) e nos materiais impressos (crachá, lista de presença e folha com QR Code)
 - **Página pública a partir de PDF**: upload opcional de um PDF de até 50 MB no evento, com substituição e remoção administrativas; eventos publicados ou encerrados disponibilizam o documento em `/evento/:id/conteudo`, com visualização incorporada e link direto para o arquivo
 - **Avaliação de atividades**: participante inscrito avalia cada atividade em `/evento/:id/atividades` (texto livre de até 2000 caracteres; com o evento encerrado, as inscrições ficam travadas e apenas as avaliações continuam editáveis); o administrador vê as avaliações na chamada da atividade e no relatório do evento (card "Participantes que avaliaram" e lista expansível por atividade)
-- **Importação de participantes**: importação administrativa de planilhas CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas, criação/atualização de contas, relatório pessoa por pessoa com status (Sucesso/Falha/Ignorado) e download em CSV; via evento (`/admin/events/:id/import-users`) também inscreve os participantes automaticamente; via usuários (`/admin/users/import`) cria apenas contas sem inscrição
+- **Importação de participantes**: importação administrativa de planilhas CSV ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas, criação/atualização de contas, relatório pessoa por pessoa com status (Sucesso/Falha/Ignorado) e download em CSV; via evento (`/admin/events/:id/import-users`) também inscreve os participantes automaticamente; via usuários (`/admin/users/import`) cria apenas contas sem inscrição
 - **Submissão de artigos**: formulário público, rascunhos, múltiplos revisores, parecer individual, deliberação final administrativa
 - **Revisão**: painel do revisor com artigos pendentes, envio de parecer e recomendação
 - **Participantes e papéis**: conta única por pessoa, com papéis independentes por evento (administrador, participante, revisor, palestrante, professor e apresentador); telefone internacional e formação acadêmica (área, curso, titulação, status) editáveis no cadastro de participantes e usuários
@@ -36,6 +36,23 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 5. Em `/admin/events/:id/certificates`, são emitidos os certificados elegíveis. Para participante, apenas atividades certificáveis com inscrição e presença entram no certificado e na carga horária.
 
 Uma atividade com presença registrada não pode ser removida da inscrição. A mesma pessoa pode receber certificados distintos pelos diferentes papéis exercidos no evento.
+
+## Instalação e primeiro acesso
+
+Requisito: **Node.js >= 22** (versão travada em `.nvmrc`/`.node-version`, atualmente 22.23.2).
+O projeto usa módulos nativos (`better-sqlite3`) e bibliotecas que exigem Node >= 22; o `npm install`
+é silencioso em versões antigas, mas o servidor **não sobe**.
+
+```bash
+git clone https://github.com/harleyham/geomrit-submissao.git
+cd geomrit-submissao
+node --version            # >= 22
+npm install               # package.json + package-lock.json
+npm run verify-env        # (opcional) confirme o ambiente
+npm start                 # http://localhost:3000
+```
+
+Configure o `.env` na raiz do projeto com `PORT`, `SESSION_SECRET` e SMTP. O `npm start` o carrega automaticamente quando o arquivo existe; se preferir rodar direto com `node server.js`, passe `--env-file=.env` ou exporte as variáveis no shell. Detalhes em `manual.md` (Seção 2).
 
 ## Stack
 

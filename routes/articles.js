@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-const { ZipArchive } = require('archiver');
+const archiver = require('archiver');
 const { db, getArticlesByEvent, recordParticipantAudit } = require('../db');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
@@ -142,7 +142,7 @@ router.get('/download-all', requireAuth, (req, res, next) => {
   const archiveName = `${safeArchiveFileName(event.short_name || event.name, 'evento')}-artigos.zip`;
   res.attachment(archiveName);
 
-  const archive = new ZipArchive({ zlib: { level: 9 } });
+  const archive = archiver('zip', { zlib: { level: 9 } });
   archive.on('warning', (error) => {
     if (error.code !== 'ENOENT') next(error);
   });

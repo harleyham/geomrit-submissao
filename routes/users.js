@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const { db } = require('../db');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
-const xlsx = require('xlsx');
+const { readFirstSheetRows } = require('../services/sheet-reader');
 const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
 const { strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
@@ -21,7 +21,13 @@ const importUpload = multer({
     destination: (req, file, cb) => cb(null, importUploadDir),
     filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname}`)
   }),
-  limits: { fileSize: 20 * 1024 * 1024 }
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeOk = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'application/csv'].includes(file.mimetype);
+    const extOk = ['.xlsx', '.csv'].includes(ext);
+    cb(null, mimeOk || extOk);
+  }
 });
 
 function parseCsvFile(filePath) {
@@ -870,9 +876,9 @@ router.get('/import', requireAuth, (req, res) => {
   });
 });
 
-router.post('/import', requireAuth, strictLimiter, importUpload.single('import_file'), (req, res) => {
+router.post('/import', requireAuth, strictLimiter, importUpload.single('import_file'), async (req, res) => {
   if (!req.file || !req.file.path) {
-    return res.redirect('/admin/users/import?error=' + encodeURIComponent('Selecione um arquivo XLSX, XLS ou CSV com a lista de participantes.'));
+    return res.redirect('/admin/users/import?error=' + encodeURIComponent('Selecione um arquivo XLSX ou CSV com a lista de participantes.'));
   }
 
   const ext = path.extname(req.file.originalname).toLowerCase();
@@ -888,12 +894,11 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
       }
       rows = parsed.rows;
     } else {
-      const workbook = xlsx.readFile(req.file.path, { type: 'buffer', cellDates: true });
-      rows = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+      rows = await readFirstSheetRows(req.file.path);
     }
   } catch (error) {
     try { fs.unlinkSync(req.file.path); } catch (_) {}
-    return res.redirect('/admin/users/import?error=' + encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX, XLS ou CSV válida.'));
+    return res.redirect('/admin/users/import?error=' + encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX ou CSV válida.'));
   }
 
   if (!rows || !rows.length) {

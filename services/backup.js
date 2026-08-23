@@ -1,7 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { ZipArchive } = require('archiver');
+const archiver = require('archiver');
 const AdmZip = require('adm-zip');
 const { getDb, initializeDbSchema } = require('./db-reset');
 
@@ -54,7 +54,7 @@ async function createBackupZip(destPath) {
 
     await new Promise((resolve, reject) => {
       const output = fs.createWriteStream(destPath);
-      const archive = new ZipArchive({ zlib: { level: 9 } });
+      const archive = archiver('zip', { zlib: { level: 9 } });
       output.on('close', () => resolve());
       archive.on('warning', (err) => console.warn('Backup zip warning:', err.message));
       archive.on('error', (err) => {

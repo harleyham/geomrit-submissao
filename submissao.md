@@ -68,7 +68,7 @@ O sistema deve permitir:
 - Seleção de seções do relatório antes da impressão em PDF.
 - Relatório do evento com card "Participantes que avaliaram" (participantes distintos) e, por atividade, contagem de avaliações com botão "Ver avaliações (n)" que expande a lista (nome, data e texto).
 - Gestão administrativa de participantes por evento, com criação de conta, inscrição, edição e remoção condicionada.
-- Importação de participantes via CSV, XLS ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas (nome, e-mail, instituição, telefone, CPF, passaporte), criação ou atualização de contas, senha temporária e resumo do processamento.
+- Importação de participantes via CSV ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas (nome, e-mail, instituição, telefone, CPF, passaporte), criação ou atualização de contas, senha temporária e resumo do processamento.
 - Duas rotas de importação distintas: por evento (`/admin/events/:id/import-users`) cria usuários e inscreve no evento; por usuários (`/admin/users/import`) cria apenas usuários sem inscrição.
 - Relatório detalhado pessoa por pessoa na importação, com status individual (Sucesso, Falha, Ignorado), descrição detalhada e download em CSV.
 - Modelo CSV vazio com cabeçalho pré-preenchido disponível para download nas páginas de importação.
@@ -736,11 +736,11 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 | `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
 | `/admin/events/:id/participants/:registrationId/review` | Análise da solicitação de inscrição: aprova todas, algumas ou nenhuma das atividades solicitadas |
 | `GET /admin/events/:id/participants/:registrationId/qr-presenca/print` | Impressão do crachá (PDF) de um participante, direto do credenciamento, sem encaminhamento para a área do participante (exige conta vinculada) |
-| `/admin/events/:id/import-users` | Importação de participantes via CSV, XLS ou XLSX (cria usuário + inscreve no evento) |
+| `/admin/events/:id/import-users` | Importação de participantes via CSV ou XLSX (cria usuário + inscreve no evento) |
 | `/admin/events/:id/import-template` | Download do modelo CSV vazio para importação de participantes |
 | `/admin/events/:id/import-download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
 | `/admin/events/:id/import-result` | Resultado da importação com relatório detalhado |
-| `/admin/users/import` | Importação de usuários via CSV, XLS ou XLSX (cria apenas usuário, sem inscrição) |
+| `/admin/users/import` | Importação de usuários via CSV ou XLSX (cria apenas usuário, sem inscrição) |
 | `/admin/users/import-template` | Download do modelo CSV vazio para importação de usuários |
 | `/admin/users/import/download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
 | `/admin/users/import/result` | Resultado da importação com relatório detalhado |
@@ -851,7 +851,7 @@ Observações operacionais:
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 - Navegação cruzada entre área do participante, painel do revisor e dashboard administrativo para usuários com múltiplos perfis.
 - Gestão manual de participantes por evento, com criação de conta ou seleção de conta ativa existente, edição, remoção condicionada e auditoria.
-- Importação administrativa de participantes via CSV, XLS ou XLSX, com auto-detecção de delimitador, detecção flexível de colunas, reconciliação de contas e relatório pessoa por pessoa com status e download em CSV.
+- Importação administrativa de participantes via CSV ou XLSX, com auto-detecção de delimitador, detecção flexível de colunas, reconciliação de contas e relatório pessoa por pessoa com status e download em CSV.
 - Painel administrativo de presença organizado por atividade, com acesso direto à chamada de cada parte do evento.
 - Cadastro de atividades internas e lançamento manual por atividade, com botões para marcar, atualizar e remover presença; para participante, inscrição e presença compõem conjuntamente a elegibilidade e a carga horária do certificado.
 - Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura (thumbnails ordenadas alfabeticamente), cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
