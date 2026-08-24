@@ -4,6 +4,18 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-23
+
+### Segurança: códigos de acesso de artigos e de verificação de certificados
+
+- Análise de segurança apontou que os códigos de acesso de artigos (`access_code`) e de verificação de certificados (`certificate_code`) não usavam criptografia suficiente para resistir a busca/brute-force: os códigos de artigo vinham de `Math.random().toString(36).substr(2,9)` (~48 bits de entropia, previsível) e os de certificado vinham de um prefixo sequencial (`CERT-${event.id}-${userId}-${role}-V${version}-`) com `crypto.randomBytes(3)` em hexadecimal (6 caracteres), ou seja, espaço de busca dedutível e reduzido (qualquer pessoa com um registro consegue inferir parte do código).
+- `routes/public.js`: adicionados o helper `randomToken(byteLength, chars)` e a função `generateAccessCode()` (usa `crypto.randomBytes(16)`, base62, prefixo `ACC-`); o `access_code` de cada artigo passa a ser gerado por `generateAccessCode()`, em vez de `Math.random().toString(36).substr(2,9)`.
+- `routes/events.js`: adicionada a função `generateCertificateCode()` (usa `crypto.randomBytes(24)`, base62, prefixo `CERT-`, 32 caracteres) e `randomToken()` compartilhada; o `certificate_code` passa a ser gerado por `generateCertificateCode()`, sem a estrutura sequencial anterior nem os `crypto.randomBytes(3)` em hex.
+- A entropia passou de ~48 bits (artigo) e de um espaço dedutível (certificado) para ~128 bits e ~192 bits, sem estrutura inferível (apenas prefixo `ACC-`/`CERT-` + token), tornando a busca exaustiva de códigos viáveis no servidor impraticável.
+- O formato novo é compatível com a leitura existente: as rotas de consulta buscam por igualdade exata (`WHERE access_code = ?`, `WHERE certificate_code = ?`), então não há quebra de comportamento; registros anteriores (caso houver) seguiriam o formato antigo e o novo código é gerado a partir de `2026-08-23` em diante.
+- `views/public/consultar.ejs` e `views/public/certificado-consulta.ejs`: atualizados os placeholders dos campos para o formato atualizado (`ACC-A1B2C3D4E5F6G7H8` e `CERT-A1B2C3D4E5F60718293A4B5C`).
+- Status: **corrigido e validado** (verificação de sintaxe `node --check` em `routes/public.js` e `routes/events.js` OK; efetiva após reinício do servidor; não exige migração do banco nem alterações manuais em registros antigos).
+
 ## 2026-08-22
 
 ### Migração da biblioteca `xlsx` para `exceljs`

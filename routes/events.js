@@ -2402,6 +2402,21 @@ router.post('/:id/certificates/backgrounds', strictLimiter, (req, res) => {
   });
 });
 
+const CODE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function randomToken(byteLength, chars) {
+  const bytes = crypto.randomBytes(byteLength);
+  let out = '';
+  for (let i = 0; i < chars; i += 1) {
+    out += CODE_CHARSET[bytes[i % byteLength] % CODE_CHARSET.length];
+  }
+  return out;
+}
+
+function generateCertificateCode() {
+  return 'CERT-' + randomToken(24, 32);
+}
+
 function issueCertificate(event, role, userId, actorUserId, reissuedFromId = null) {
   const rule = getCertificateRule(event.id, role);
   if (!rule || !rule.background_id) throw new Error('Configure a regra e o fundo do certificado antes da emissão.');
@@ -2417,7 +2432,7 @@ function issueCertificate(event, role, userId, actorUserId, reissuedFromId = nul
   const textColor = participant.text_color || rule.text_color || '#0f172a';
 
   const version = (participant.latest_version || 0) + 1;
-  const code = `CERT-${event.id}-${userId}-${role.toUpperCase()}-V${version}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  const code = generateCertificateCode();
   const issuedAt = new Date(Date.now() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
   const mainActivityName = (attendedActivities.length > 0 && attendedActivities[0].activity_name) ? attendedActivities[0].activity_name : null;
   return db.prepare(`INSERT INTO certificate_emissions (event_id,registration_id,user_id,certificate_role,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,issued_by,reissued_from_id,issued_at,activity_id,activities_attended,total_workload_hours,activities_summary,text_color,certificate_title,certificate_body)

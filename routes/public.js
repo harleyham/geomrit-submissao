@@ -534,6 +534,21 @@ function serializeAuthors(authors) {
   return JSON.stringify(authors);
 }
 
+const CODE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function randomToken(byteLength, chars) {
+  const bytes = crypto.randomBytes(byteLength);
+  let out = '';
+  for (let i = 0; i < chars; i += 1) {
+    out += CODE_CHARSET[bytes[i % byteLength] % CODE_CHARSET.length];
+  }
+  return out;
+}
+
+function generateAccessCode() {
+  return 'ACC-' + randomToken(16, 16);
+}
+
 function formatAuthorsForLegacyField(authors) {
   return authors
     .filter((author) => author.name && author.name.trim())
@@ -1648,7 +1663,7 @@ router.post('/submeter/:eventId', registrationLimiter, requireNonAdminAuthorAcce
     const nextStatus = isDraft ? 'draft' : 'pending';
     const nextAccessCode = isDraft
       ? (existingDraft ? existingDraft.access_code : null)
-      : ((existingDraft && existingDraft.access_code) || ('ACC-' + Math.random().toString(36).substr(2, 9).toUpperCase()));
+      : (existingDraft && existingDraft.access_code) || generateAccessCode();
 
     if (existingDraft) {
       if (req.file && existingDraft.pdf_path && existingDraft.pdf_path !== req.file.filename) {
