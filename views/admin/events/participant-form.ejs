@@ -290,7 +290,7 @@
       const temporaryPassword = document.getElementById('temporary_password');
       const confirmTemporaryPassword = document.getElementById('confirm_temporary_password');
       let searchTimer = null;
-      let selectedUser = <%- JSON.stringify(selectedExistingUser || null) %>;
+      let selectedUser = <%- jsonForScript(selectedExistingUser || null) %>;
       const setAccountFields = (user) => {
         const nameInput = document.getElementById('name');
         const emailInput = document.getElementById('email');

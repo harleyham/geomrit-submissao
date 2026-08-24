@@ -91,6 +91,7 @@ O sistema deve permitir:
 - Partial `csrf-inject` adicionado ao formulário de criação/edição de eventos (`views/admin/events/form.ejs`), resolvendo erro de token CSRF ao criar eventos.
 - Handler global de `unhandledRejection` adicionado ao `server.js` para capturar e logar Promise rejections não tratadas.
 - Removidos campos duplicados de `_method=DELETE` nos formulários de exclusão de usuários.
+- **Segurança reforçada (auditoria 24/08/2026)**: token CSRF aceito apenas por header/body (não cookie); `req.session.regenerate()` no login para prevenir session fixation; `RequireSuperAdmin` valida no banco (conta ativa, aprovada, senha trocada, `is_admin`) em vez de confiar só no e-mail na sessão; seed do admin não loga a mais; migração de senhas legadas passa por hash do bcrypt (não em texto puro); upload de importação usa `path.basename` no nome do arquivo (contra path traversal); reset de senha gera valor temporário forte e aleatório (sem hardcoded); JSON de contas injetado em `<script>` passa por codificação específica para script (`jsonForScript`), impedindo XSS stored. Detalhes em `submissao_log.md` e `plano.md` (Ciclo 6).
 
 ### Revisão
 

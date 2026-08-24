@@ -762,7 +762,7 @@ function initializeDbSchema(db) {
         const userId = existing ? existing.id : null;
         reviewerMap[r.id] = userId;
         if (!existing) {
-          const newId = db.prepare('INSERT INTO users (name, email, password, is_reviewer, is_public, password_changed) VALUES (?, ?, ?, 1, 1, 0)').bind(r.name, r.email, r.password).get().insertId;
+          const newId = db.prepare('INSERT INTO users (name, email, password, is_reviewer, is_public, password_changed) VALUES (?, ?, ?, 1, 1, 0)').bind(r.name, r.email, bcrypt.hashSync(r.password, 10)).get().insertId;
           reviewerMap[r.id] = newId;
         }
       });
@@ -770,7 +770,7 @@ function initializeDbSchema(db) {
       adminRows.forEach(a => {
         const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(a.username).get();
         if (!existing) {
-          db.prepare('INSERT INTO users (name, email, password, is_admin, password_changed) VALUES (?, ?, ?, 1, 0)').bind(a.username, a.username, a.password).run();
+          db.prepare('INSERT INTO users (name, email, password, is_admin, password_changed) VALUES (?, ?, ?, 1, 0)').bind(a.username, a.username, bcrypt.hashSync(a.password, 10)).run();
         }
       });
       if (Object.keys(reviewerMap).length > 0) {
@@ -944,7 +944,7 @@ function initializeDbSchema(db) {
       INSERT INTO users (name, email, password, is_admin, is_reviewer, is_public, approval_status, approved_at, password_changed)
       VALUES (?, ?, ?, 1, 0, 1, 'approved', datetime('now', '-3 hours'), 0)
     `).bind('Administrador', 'admin@admin.com', hash).run();
-    console.log('Seed admin criado: admin@admin.com / 123456');
+    console.log('Seed admin criado; troque a senha no primeiro acesso (/login/change-password).');
   }
 }
 

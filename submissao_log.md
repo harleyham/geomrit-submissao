@@ -4,6 +4,35 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Versão atual registrada: **V0.1**.
 
+## 2026-08-24
+
+### Auditoria de segurança — hardening (rodada de correção)
+
+Auditoria pontual de segurança (análise de código + agentes especializados por área). Status das correções: **concluído** (`node --check`, compilação EJS e `npm run verify-env` passando). Detalhes no `plano.md` (Ciclo 6).
+
+- **Bypass de CSRF (crítico)** — `security/csrf.js`: o token CSRF deixou de ser aceito a partir do cookie `csrf_token` (o navegador o envia automaticamente em navegações top-level cross-site com `sameSite: lax`); agora só `header X-CSRF-Token` ou body `_csrf`. Função `getCookieValue` e o cookie `csrf_token` removidos do fluxo de validação.
+- **`crypto.timingSafeEqual` frágil** — `security/csrf.js`: protegido contra buffers de comprimentos diferentes (tokens de tamanho inválido agora geram 403 em vez de 500). A comparação normaliza o comprimento antes de chamar `timingSafeEqual`, capturando exceção como `false`.
+- **Session fixation (crítico)** — `routes/auth.js`: o handler de login (`router.post('/')`) passou a chamar `req.session.regenerate()` após verificar a credencial, antes de associar o usuário à sessão. O destino pós-login (`session.afterLoginPath`, `?next=`) é preservado antes da regeneração (que zera o conteúdo da sessão) e reestabelecido dentro do callback.
+- **`RequireSuperAdmin` frágil** — `security/super-admin.js`: a verificação deixou de basear-se só em `session.userEmail === 'admin@admin.com'`. A função `isRealSuperAdmin` valida no banco `is_public`, `is_admin`, `approval_status != pending`, `password_changed == 1` e `req.session.isAdmin` — cobrindo condições de fixation/steal de sessão.
+- **Log de credenciais** — `services/db-reset.js`: removido o `console.log('Seed admin criado: admin@admin.com / 123456')`, que expunha a senha do super-admin em logs (stdout/daemon). A troca de senha continua obrigatória no primeiro acesso (`password_changed=0`).
+- **Migração de senhas em plaintext** — `services/db-reset.js`: na migração de bases legadas, `admins`/`reviewers` agora inserem em `users.password` via `bcrypt.hashSync(password, 10)` em vez do valor cru. Migração idempotente para instalações existentes; `password_changed=0` mantém a troca obrigatória para as contas migradas.
+- **Path traversal no upload de importação** — `routes/users.js`: o `filename` do `multer.diskStorage` do upload de importação (`imports/`) passa a usar `path.basename(file.originalname)`, impedindo `../`.
+- **Reset de senha fraco** — `routes/users.js`: `POST /:id/reset-password` deixou de usar `bcrypt.hashSync('123456', 10)`. Agora gera `crypto.randomBytes(16)` (base64), valida o ID do usuário e renderiza uma tela com a senha temporária (escapada por `sanitizeHtml`) em vez de redirecionar com a senha em query param.
+- **XSS stored por JSON cru** — `server.js` + `views/admin/events/participant-form.ejs`: adicionada a helper `jsonForScript()` (exposta como `res.locals.jsonForScript`), que codifica valores para inserção segura em `<script>` (escapa `<`, `>`, `/` e U+2028/U+2029). O `selectedUser` da prévia de conta existente deixou de usar `<%- JSON.stringify(...) %>` e passou por `jsonForScript()`.
+
+### Reavaliação — falso-positivos descartados
+
+- **`XSS reflexivo em certificado/consultar artigo`**: reavaliado — as views (`views/public/certificado-consulta.ejs`, `views/public/consultar.ejs`, `views/partials/country-select.ejs`, `views/emails/layout.ejs`) renderizam com `<%= %>` (autoescape do EJS 3.1.10), não havendo injeção. Nenhuma alteração necessária nesses pontos.
+
+### Pendentes (maior escopo / exigem decisão do usuário)
+
+- Impersonação/preview: escopar à leitura, exigir re-autenticação, não replicar `isAdmin`/`isReviewer`, expirar `previewUserId` (`server.js:144-185`, `routes/users.js:479-513`).
+- ZIP-bomb/descompressão no restore de backup: teto de tamanho comprimido e descomprimido, limitação de nº de arquivos, troca de conexão do DB atômica (`routes/auth.js:457`, `services/backup.js`).
+- Spoof de IP no rate limiting: `keyGenerator` por identificador não spoofável ou validação do último hop confiável (`server.js:23` `trust proxy 1`, `security/rate-limits.js`).
+- CSP: remover `'unsafe-inline'`/`'unsafe-eval'` via nonce; reforçar sanitização de HTML armazenado (`sanitize-html`/`DOMPurify` não instaladas) (`server.js:34-35`).
+- Upload por mimetype: definir extensão pelo `file.mimetype` e não servir uploads executáveis; cobrir pontos de upload que confiam só no mimetype (`routes/events.js`).
+- (Opcional) revalidação de `requireAuth`/`requireReviewer` no DB; `session.regenerate` em troca de papéis; store de sessão persistente.
+
 ## 2026-08-23
 
 ### Segurança: códigos de acesso de artigos e de verificação de certificados

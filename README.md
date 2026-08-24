@@ -160,10 +160,11 @@ Ao fazer login pela primeira vez, será solicitada a troca de senha.
 | Recurso | Descrição |
 |---------|-----------|
 | Helmet | Headers de segurança (CSP, referrer policy, X-Content-Type-Options) |
-| CSRF | Token por sessão, validação timing-safe, aceito por header/field/cookie, cobertura de uploads multipart, 403 em requisições inválidas |
+| CSRF | Token por sessão, validação timing-safe, aceito por header (`X-CSRF-Token`) ou body (`_csrf`), cobertura de uploads multipart, 403 em requisições inválidas |
+| Sessão | Cookie `httpOnly`, `sameSite=lax`, `secure` em produção; `regenerate()` no login para prevenir session fixation |
+| Super-admin | Acesso a reset/backup só com conta ativa, aprovada, senha trocada e `is_admin` confirmado no banco (não apenas pelo e-mail na sessão) |
 | Rate Limiting | Tetos por rota (login, cadastro, admin) e teto global |
-| Senhas | Hash `bcrypt` com fator 10 |
-| Sessão | Cookie `httpOnly`, `sameSite=lax`, `secure` em produção |
+| Senhas | Hash `bcrypt` com fator 10 (senhas legadas são migradas com hash, não em texto puro) |
 | Validação | `express-validator` nas rotas críticas com mensagens localizadas |
 | Payload | Limite de 1 MB em JSON e form-urlencoded |
 | Sanitização | IDs numéricos validados com `parseInt()` antes de queries SQL |

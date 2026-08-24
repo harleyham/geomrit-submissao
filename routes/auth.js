@@ -481,7 +481,22 @@ router.post('/backup/restore', requireAuth, requireSuperAdmin, strictLimiter, re
 
 router.post('/', loginLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.login);
-}, (req, res) => {
+}, (req, res, next) => {
+  // Prev session fixation: regeneramos o ID da sessão assim que a
+  // credencial é verificada, antes de associar o usuário à sessão. Um
+  // atacante que tenha fixado um cookie connect.sid perde o acesso porque o
+  // novo ID passa a apontar para uma sessão vazia e nova.
+  const prevNext = req.session && req.session.afterLoginPath;
+  req.session.regenerate((err) => {
+    if (err) return next(err);
+    // A regeneração zera o conteúdo da sessão; reconectamos o destino
+    // pós-login (?next=) que estava salvo antes do login.
+    if (prevNext) req.session.afterLoginPath = prevNext;
+    doLoginAfterRegen(req, res);
+  });
+});
+
+function doLoginAfterRegen(req, res) {
   const { email, password } = req.body;
 
   const bcrypt = require('bcryptjs');
@@ -551,7 +566,7 @@ router.post('/', loginLimiter, (req, res, next) => {
     return res.redirect(afterLogin);
   }
   return res.redirect(authenticatedDestination(req));
-});
+}
 
 // Logout (GET e POST)
 router.get('/logout', (req, res) => {

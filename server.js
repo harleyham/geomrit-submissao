@@ -109,6 +109,19 @@ function activityDateRange(activity) {
   return 'Data a definir';
 }
 
+// Codifica um objeto/valor de forma segura para ser inserido dentro de uma
+// tag <script> via <%- %>: previne a quebra de tag (</script>) e os
+// delimitadores de linha Unicode (U+2028/U+2029), que o JSON.stringify não
+// escapa.
+function jsonForScript(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\//g, '\\u002f')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 // Dados globais para templates
 app.use((req, res, next) => {
   res.locals.isAdmin = req.session && req.session.isAdmin;
@@ -124,6 +137,7 @@ app.use((req, res, next) => {
   res.locals.csrfToken = req.session && req.session.csrfToken;
   res.locals.formatBRDate = formatBRDate;
   res.locals.activityDateRange = activityDateRange;
+  res.locals.jsonForScript = jsonForScript;
   next();
 });
 

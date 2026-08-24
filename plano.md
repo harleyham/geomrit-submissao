@@ -177,6 +177,39 @@ Status geral: **PENDENTE**.
 
 ---
 
+## Ciclo 6 — Auditoria de Segurança (hardening)
+
+Data: **24/08/2026**. Auditoria pontual de segurança (análise de código + 5 agentes especializados por área).
+
+### Correções aplicadas nesta rodada
+
+Status: **concluído** (verificação: `node --check`, compilação EJS e `npm run verify-env` passando).
+
+- **Bypass de CSRF (CRÍTICO)** — `security/csrf.js`: o token CSRF deixou de ser aceito a partir do cookie `csrf_token` (o navegador o envia automaticamente em navegações top-level cross-site com `sameSite: lax`); agora só `header X-CSRF-Token` ou body `_csrf`. Função `getCookieValue` e o cookie `csrf_token` removidos.
+- **`crypto.timingSafeEqual` frágil** — `security/csrf.js`: protegido contra buffers de comprimentos diferentes (tokens de tamanho inválido agora geram 403 em vez de 500).
+- **Session fixation (CRÍTICO)** — `routes/auth.js`: `req.session.regenerate()` após verificar a credencial no login, preservando o destino pós-login (`?next=`).
+- **`RequireSuperAdmin` frágil** — `security/super-admin.js`: passou a validar no banco `is_public`, `is_admin`, `approval_status != pending`, `password_changed == 1` e `isAdmin` na sessão, não apenas `session.userEmail === 'admin@admin.com'`.
+- **Log de credenciais** — `services/db-reset.js`: removido o `console.log` que expunha `admin@admin.com / 123456` em logs; troca de senha continua obrigatória no primeiro acesso (`password_changed=0`).
+- **Migração de senhas em plaintext** — `services/db-reset.js`: `admins`/`reviewers` migrados passam por `bcrypt.hashSync` em vez de gravar a senha cruza em `users.password` (`password_changed=0` mantém a troca obrigatória).
+- **Path traversal no upload de importação** — `routes/users.js`: `filename` do Multer usa `path.basename(file.originalname)`.
+- **Reset de senha fraco** — `routes/users.js`: removida a hardcoded `123456`; agora gera senha temporária forte/aleatória (`crypto.randomBytes`), valida o ID do usuário e exibe o valor em tela (não em query param).
+- **XSS stored por JSON cru** — `server.js` + `views/admin/events/participant-form.ejs`: JSON de `selectedExistingUser` (dado de conta controlável) injetado em `<script>` passou por `jsonForScript()` (helper exposta como `res.locals.jsonForScript`), escapando `<`, `>`, `/` e os delimitadores Unicode U+2028/U+2029.
+
+### Reavaliação (falsos positivos descartados)
+
+- **`XSS reflexivo em certificado/consultar artigo`**: reavaliado e **descartado** — as views renderizam com `<%= %>` (autoescape do EJS 3.1.10), não havendo injeção.
+
+### Pendentes — hardening remanescente (maior escopo / exigem decisão)
+
+- **Impersonação/preview** — escopar a prévia (`server.js:144-185`, `routes/users.js:479-513`): exigir re-autenticação; limitação a leitura; não replicar `isAdmin`/`isReviewer`; expirar `previewUserId`.
+- **ZIP-bomb / descompressão no restore** — teto de tamanho comprimido e descomprimido, limitação de nº de arquivos, troca de conexão do DB de forma atômica (`routes/auth.js:457`, `services/backup.js`).
+- **Spoof de IP no rate limiting** — `keyGenerator` por identificador não spoofável (ou validação do último hop confiável) — `server.js:23` (`trust proxy 1`), `security/rate-limits.js`.
+- **CSP** — remover `'unsafe-inline'`/`'unsafe-eval'` em `scriptSrc`/`scriptSrcAttr` (`server.js:34-35`) via nonce; reforçar sanitização de HTML armazenado (`sanitize-html`/`DOMPurify` — não instaladas).
+- **Upload por mimetype** — definir extensão pelo `file.mimetype` (não pelo `originalname`) e não servir uploads executáveis; cobrir pontos de upload que confiam só no mimetype (`routes/events.js`).
+- **(Opcional)** `requireAuth`/`requireReviewer` revalidando o DB em operações sensíveis; `session.regenerate` em troca de papéis; store de sessão persistente (Redis/sqlite3).
+
+---
+
 ## Riscos / observações
 - `qrcode` e `nodemailer` estão em `package.json`.
 - `jsQR` é servido localmente em `public/lib/jsQR.min.js` (sem CDN, por causa da CSP).

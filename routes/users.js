@@ -9,7 +9,7 @@ const multer = require('multer');
 const { readFirstSheetRows } = require('../services/sheet-reader');
 const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
 const { strictLimiter } = require('../security/rate-limits');
-const { validators: v, validateAndHandle } = require('../security/validation');
+const { validators: v, validateAndHandle, sanitizeHtml } = require('../security/validation');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountApproved, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   getSystemEmailSettings } = require('../services/email');
@@ -19,7 +19,7 @@ if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: 
 const importUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, importUploadDir),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname}`)
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${path.basename(file.originalname)}`)
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
@@ -751,13 +751,27 @@ router.post('/change-password', requireAuth, strictLimiter, (req, res, next) => 
   res.redirect('/admin/users?success=Senha alterada com sucesso');
 });
 
-// Resetar senha de usuário para padrão
+// Resetar senha de usuário (admin)
 router.post('/:id/reset-password', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const hash = bcrypt.hashSync('123456', 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.redirect('/admin/users?error=Identificação de usuário inválida');
+  }
+  // Gera uma senha temporária forte e aleatória em vez de um valor fixo,
+  // impedindo reutilização de credenciais conhecidas. O usuário é obrigado
+  // a trocar a senha no primeiro acesso (password_changed = 0).
+  const tempPassword = crypto.randomBytes(16).toString('base64');
   db.prepare('UPDATE users SET password = ?, password_changed = 0, updated_at = datetime(\'now\') WHERE id = ?')
-    .bind(hash, id).run();
-  res.redirect('/admin/users?success=Senha+resetada+para+padrão');
+    .bind(bcrypt.hashSync(tempPassword, 10), id).run();
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Senha redefinida</title>
+<style>body{font-family:sans-serif;padding:24px;max-width:640px} .pw{font-family:monospace;background:#f4f4f4;padding:8px 12px;border-radius:4px;display:inline-block}</style>
+</head><body>
+<h1>Senha redefinida</h1>
+<p>A senha temporária do usuário foi redefinida. Compute-a ao usuário por um canal seguro; ele será obrigado a trocar a senha no primeiro acesso.</p>
+<p>Senha temporária: <span class="pw">${sanitizeHtml(tempPassword)}</span></p>
+<p><a href="/admin/users">Voltar para Usuários</a></p>
+</body></html>`;
+  return res.status(200).send(html);
 });
 
 router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
