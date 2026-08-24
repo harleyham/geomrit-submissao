@@ -2,7 +2,9 @@
 
 Registro cronológico das principais alterações no sistema de gestão de eventos, avaliação de artigos, participação, presença e certificados de participação.
 
-Versão atual registrada: **V0.1**.
+Versão atual registrada: **V0.2**.
+
+> **Sobre a V0.2**: é a primeira marção de versão do projeto, consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
 ## 2026-08-24
 

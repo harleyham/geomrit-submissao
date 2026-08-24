@@ -1,7 +1,9 @@
-# Plano de Implementação — Geomrit-Submissão (V0.1 → V1)
+# Plano de Implementação — Geomrit-Submissão (V0.2 → V1)
 
 Plano aprovado pelo usuário, organizado em 4 ciclos de execução sequencial.
 Documento vivo: atualizar o `Status` de cada item conforme a execução.
+
+> **Sobre a V0.2**: versão de lançamento inicial do projeto. Consolida a funcionalidade entregue (eventos, inscrições, submissão/artigos, presença por QR, certificados, e-mails transacionais, avaliações, triagem de inscrições etc.) e o **hardening de segurança** de 24/08/2026 (Ciclo 6 do plano). As pendentes de hardening seguem listadas e a serem implementadas a partir desta versão.
 
 ## Convenções do projeto
 - Node.js/Express + SQLite (`better-sqlite3`) + EJS + PDFKit.

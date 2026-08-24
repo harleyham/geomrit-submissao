@@ -4,7 +4,7 @@
 
 Aplicação web para gestão de eventos acadêmicos e científicos, com inscrição de participantes, submissão de artigos, revisão, controle de presença e emissão de certificados de participação.
 
-Versão atual do projeto: **V0.1**.
+Versão atual do projeto: **V0.2**.
 
 Data de referência desta especificação: **14/08/2026**.
 
@@ -941,9 +941,9 @@ Observações operacionais:
 - Listagem administrativa de atividades (`/admin/events/:id/activities`): a ordenação dentro de cada card de tipo de atividade passou a ser por data de início (`date_start`; atividades sem data por último, com desempate por nome), substituindo a ordenação alfabética por nome — alinhada à query da rota (`ORDER BY ea.date_start, ea.name`), que antes era sobrescrita pelo sort do template.
 - Correção do período do evento deslocado um dia na área do participante (`/author` e prévia `/admin/users/:id/participant`): `new Date('YYYY-MM-DD')` interpretava a data como meia-noite UTC e, em UTC-3, renderizava o dia anterior; o `withSubmissionMeta` de `routes/public.js` e `routes/users.js` passa a parsear a data como meia-noite local (padrão do `formatBRDate`), e a tabela "Minhas Participações" de `views/public/author-dashboard.ejs` usa o helper `formatBRDate`.
 
-### Segurança reforçada (V0.1)
+### Segurança reforçada (V0.2)
 
-- Proteção CSRF em todos os formulários POST e uploads multipart: token gerado por sessão, validação `timingSafeEqual`, rejeição 403 para requisições sem token ou inválido. O middleware aceita o token por header `X-CSRF-Token`, campo hidden `_csrf` no body ou cookie `csrf_token` (enviado automaticamente pelo navegador em uploads multipart, onde `req.body` ainda não existe). Injeção automática via partial `views/partials/csrf-inject.ejs`.
+- Proteção CSRF em todos os formulários POST e uploads multipart: token gerado por sessão, validação `timingSafeEqual`, rejeição 403 para requisições sem token ou inválido. O middleware aceita o token **apenas** por header `X-CSRF-Token` ou campo hidden `_csrf` no body (o cookie `csrf_token` **não** é mais aceito após auditoria de segurança de 24/08/2026, que removeu o bypass de CSRF em que o navegador o enviava automaticamente em navegações cross-site). Injeção automática via partial `views/partials/csrf-inject.ejs`.
 - Rate limiting por rota: login (10/15min), cadastro/inscrição (5/hora), admin sensível (30/min), global (200/15min).
 - `express-validator` integrado nas rotas de login, troca de senha, cadastro público, revisão e decisão final, com mensagens de erro localizadas.
 - Hardened security: secret de sessão via `SESSION_SECRET` ou `crypto.randomBytes(32)`, cookie `secure` ativado em produção, CSP com `objectSrc: none`, `baseUri` e `formAction` restritos, `referrerPolicy` configurado, payload limit de 1 MB, `noCache` headers.

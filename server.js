@@ -22,7 +22,7 @@ const { startEmailWorkers, stopEmailWorkers } = require('./services/email');
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'V0.1';
+const APP_VERSION = 'V0.2';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
