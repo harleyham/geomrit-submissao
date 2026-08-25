@@ -204,7 +204,7 @@ Status: **concluído** (verificação: `node --check`, compilação EJS e `npm r
 ### Pendentes — hardening remanescente (maior escopo / exigem decisão)
 
 - **Impersonação/preview** — escopar a prévia (`server.js:144-185`, `routes/users.js:479-513`): exigir re-autenticação; limitação a leitura; não replicar `isAdmin`/`isReviewer`; expirar `previewUserId`.
-- **ZIP-bomb / descompressão no restore** — teto de tamanho comprimido e descomprimido, limitação de nº de arquivos, troca de conexão do DB de forma atômica (`routes/auth.js:457`, `services/backup.js`).
+- ~~**ZIP-bomb / descompressão no restore**~~ — **RESOLVIDO em 2026-08-24** (ver `submissao_log_v2.md`): os tetos de tamanho descomprimido/comprimido e a razão de compressão estavam lendo `entry.size`/`entry.compressedSize` (inexistentes no `adm-zip` — código morto); corrigidos para `entry.header.size`/`entry.header.compressedSize`. A limitação de nº de arquivos (100.000) e a troca atômica da conexão do DB via proxy `setDb` já existiam.
 - **Spoof de IP no rate limiting** — `keyGenerator` por identificador não spoofável (ou validação do último hop confiável) — `server.js:23` (`trust proxy 1`), `security/rate-limits.js`.
 - **CSP** — remover `'unsafe-inline'`/`'unsafe-eval'` em `scriptSrc`/`scriptSrcAttr` (`server.js:34-35`) via nonce; reforçar sanitização de HTML armazenado (`sanitize-html`/`DOMPurify` — não instaladas).
 - **Upload por mimetype** — definir extensão pelo `file.mimetype` (não pelo `originalname`) e não servir uploads executáveis; cobrir pontos de upload que confiam só no mimetype (`routes/events.js`).

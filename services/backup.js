@@ -8,6 +8,17 @@ const { getDb, initializeDbSchema } = require('./db-reset');
 const DB_PATH = path.join(__dirname, '..', 'artigos.db');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 
+// Proteção contra ZIP-bomb / ataque de descompressão: limitam o número de
+// entradas, o tamaño comprimido e descomprimido, a relação entre eles e a
+// profundidade/nome das entradas, impedindo que um ZIP pequeno expanda para
+// gigabytes (esgotamento de disco, inodes ou memória durante a extração).
+const MAX_ZIP_ENTRIES = 100000;
+const MAX_ZIP_COMPRESSED_BYTES = 550 * 1024 * 1024;
+const MAX_ZIP_DECOMPRESSED_BYTES = 10 * 1024 * 1024 * 1024;
+const MAX_ZIP_COMPRESSION_RATIO = 100;
+const MAX_ENTRY_NAME_LENGTH = 4096;
+const MAX_NESTING_DEPTH = 100;
+
 function brNow() {
   return new Date(Date.now() - 3 * 3600 * 1000);
 }
@@ -30,6 +41,58 @@ function countFilesRecursive(dir) {
     else count += 1;
   }
   return count;
+}
+
+// Valida um ZIP já aberto antes de extraí-lo, rejeitando padrões de
+// ZIP-bomb/descompressão: muitas entradas, tamanho descomprimido excessivo,
+// razão de compressão anômala, nomes excessivamente longos e diretórios
+// profundamente aninhados (que poderiam estourar limites do sistema de
+// arquivos ou esgotar recursos durante a extração).
+function assertZipSafeForRestore(zip) {
+  const entries = zip.getEntries();
+
+  if (!entries.length) {
+    throw new Error('O arquivo de backup está vazio.');
+  }
+
+  if (entries.length > MAX_ZIP_ENTRIES) {
+    throw new Error(`Backup inválido: número de entradas excede o limite máximo (${MAX_ZIP_ENTRIES}).`);
+  }
+
+  let compressedBytes = 0;
+  let uncompressedBytes = 0;
+  for (const entry of entries) {
+    // O adm-zip expõe os tamanhos em `entry.header` (central directory);
+    // `entry.size`/`entry.compressedSize` não existem nesta versão.
+    compressedBytes += (entry.header && entry.header.compressedSize) || 0;
+    uncompressedBytes += (entry.header && entry.header.size) || 0;
+
+    if (uncompressedBytes > MAX_ZIP_DECOMPRESSED_BYTES) {
+      throw new Error('Backup inválido: tamaño descomprimido excede o limite permitido.');
+    }
+    if (String(entry.entryName).length > MAX_ENTRY_NAME_LENGTH) {
+      throw new Error('Backup inválido: nome de entrada excede o limite de caracteres.');
+    }
+    const depth = entry.entryName.split(/[\\/]/).filter(Boolean).length - 1;
+    if (depth > MAX_NESTING_DEPTH) {
+      throw new Error('Backup inválido: profundidade de diretório excede o limite permitido.');
+    }
+  }
+
+  // Defesa em profundidade: o `multer` da rota já recusa ZIPs acima de 500 MB,
+  // mas a validação evita o uso direto desta função por outras vias.
+  if (compressedBytes > MAX_ZIP_COMPRESSED_BYTES) {
+    throw new Error('Backup inválido: tamaño comprimido excede o limite permitido.');
+  }
+
+  const ratio = compressedBytes > 0
+    ? uncompressedBytes / compressedBytes
+    : uncompressedBytes > 0
+      ? Infinity
+      : 0;
+  if (ratio > MAX_ZIP_COMPRESSION_RATIO) {
+    throw new Error('Backup inválido: razão de compressão excede o limite permitido (possível ZIP-bomb).');
+  }
 }
 
 // Cria um snapshot consistente do banco (VACUUM INTO) e empacota
@@ -91,8 +154,10 @@ function restoreFromZip(zipPath) {
     throw new Error('O arquivo enviado não é um ZIP válido.');
   }
 
+  // Exige o ZIP válido e o valida contra padrões de ZIP-bomb/descompressão.
+  assertZipSafeForRestore(zip);
+
   const entries = zip.getEntries();
-  if (!entries.length) throw new Error('O arquivo de backup está vazio.');
 
   const pathsSafe = entries.every((entry) => {
     const normalized = path.normalize(entry.entryName);
@@ -151,6 +216,11 @@ function restoreFromZip(zipPath) {
       fs.copyFileSync(DB_PATH + '-wal', preRestoreWal);
     }
 
+    // Troca o DB em uso. O arquivo validado (integridade + tabelas, válidas
+    // logo acima) é copiado sobre o atual em local. A cópia sobrescreve em
+    // vez de renomear porque o `renameSync` sobre um destino removido falha
+    // com EPERM/ENOENT em alguns ambientes Windows; assim o caminho do banco
+    // permanece presente em todo o instante.
     for (const suffix of ['', '-wal', '-shm']) {
       try { fs.unlinkSync(DB_PATH + suffix); } catch (e) {}
     }
@@ -210,4 +280,4 @@ function restoreFromZip(zipPath) {
   }
 }
 
-module.exports = { createBackupZip, restoreFromZip, backupFileName, DB_PATH, UPLOADS_DIR };
+module.exports = { createBackupZip, restoreFromZip, assertZipSafeForRestore, backupFileName, DB_PATH, UPLOADS_DIR };
