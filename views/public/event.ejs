@@ -189,7 +189,7 @@
                 <tr class="session-row">
                   <td class="muted"><%= formatBRDate(session.session_date) || 'A definir' %></td>
                   <td class="timeline-label">— <%= session.name %></td>
-                  <td class="muted">—</td>
+                  <td class="muted"><%= session.description || '—' %></td>
                   <td class="timeline-action">
                     <% if (sessionVideo) { %>
                       <a href="<%= sessionVideo %>" target="_blank" rel="noopener noreferrer" class="btn btn-secondary activity-video">Assistir transmissão</a>

@@ -8,6 +8,25 @@ Versão atual registrada: **V0.2**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-08-25
+
+### Etapas: campo de descrição breve
+
+- A página de etapas (`/admin/events/:id/activities/:activityId/sessions`) ganhou o campo "Descrição breve da etapa" (opcional, máximo 2000 caracteres), no mesmo padrão da descrição/ementa das atividades (palestras e minicursos).
+- `services/db-reset.js`: coluna `description TEXT DEFAULT ''` adicionada ao schema de `activity_sessions` + migração idempotente (`ALTER TABLE activity_sessions ADD COLUMN description`) para bases existentes.
+- `routes/events.js`: `POST .../sessions` (criação) e `POST .../sessions/:sessionId` (edição) persistem a descrição (trimada) com validação server-side de 2000 caracteres — excesso redireciona com o erro "A descrição da etapa deve ter no máximo 2000 caracteres." (com `edit_session_id` na edição para preservar o estado do formulário).
+- `views/admin/events/activity-sessions.ejs`: textarea `name="description"` (`rows=3`, `maxlength=2000`) no formulário de criação/edição de etapa e nova coluna **Descrição** na tabela de etapas cadastradas (traço quando vazia; quebra de palavra para textos longos).
+- Verificação: `node --check` OK; INSERT/UPDATE com a nova coluna validados no banco real (atividade 3 do evento 2, linha de teste criada e removida); template EJS compila; migração aplicada em `artigos.db`; servidor reiniciado e respondendo.
+- Status: **concluído e validado** (migração idempotente; efetivo após o reinício já realizado).
+
+### Página pública: descrição das etapas no card "Atividades do Evento"
+
+- A linha de etapa (sub-linha da atividade) na página pública do evento (`/evento/:id`) agora exibe a descrição breve da etapa na coluna **Descrição / Ementa** — antes exibia sempre "—".
+- `routes/public.js`: a query de etapas do evento passou a selecionar `description` de `activity_sessions`.
+- `views/public/event.ejs`: a célula da descrição da linha de sessão exibe `session.description` (com "—" quando vazia).
+- Verificação: servidor de teste na porta 3100 — as três etapas da atividade "C++" (evento 2) renderizaram as descrições cadastradas ("Essa será a aula de introdućão", "Sabe tudo de C--", "Agora o Vibe Coder vai a loucura"); servidor de teste encerrado.
+- Status: **concluído e validado** (efetivo após reinício do servidor).
+
 ## 2026-08-24
 
 ### Auditoria de segurança — hardening (rodada de correção)

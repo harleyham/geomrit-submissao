@@ -76,6 +76,7 @@ O sistema deve permitir:
 - Cadastro e edição de atividades com campo opcional de link da transmissão de vídeo (máximo de 500 caracteres; vazio remove o link), exibido na listagem administrativa (ação "Vídeo") e no card público "Atividades do Evento".
 - Checkbox "Haverá transmissão de vídeo" ao lado do campo de link (`has_video`): marca a atividade como transmitida mesmo sem o link ainda disponível; o link preenchido impõe a flag automaticamente; a listagem administrativa exibe o rótulo "Transmissão" (sem link) quando a flag está definida sem URL.
 - Gestão de etapas: campo opcional de link da transmissão da etapa (máximo de 500 caracteres; vazio → usa o vídeo da atividade) e checkbox "Haverá transmissão de vídeo" (`activity_sessions.has_video`), no mesmo padrão da atividade; a listagem de etapas exibe "Vídeo" (com link) ou "Transmissão" (flag sem link).
+- Descrição breve da etapa: campo opcional de até 2000 caracteres na criação e edição de etapas (coluna `activity_sessions.description`), exibido na coluna **Descrição** da listagem de etapas; validação server-side com erro para textos acima do limite.
 - Controle de presença simples por evento e chamada por atividade, com ações explícitas para marcar, atualizar ou remover presença.
 - Chamada da atividade com seção "Avaliações dos participantes" (nome, data e texto de cada avaliação registrada na atividade, com estado vazio quando não há avaliações).
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
@@ -107,7 +108,7 @@ O sistema deve permitir:
 - Listagem de eventos publicados.
 - Logo do evento exibida no card do evento na página inicial e no topo da página pública do evento (quando configurada).
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
-- Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; espaço vazio quando não há transmissão). Atividades com etapas exibem uma sub-linha por etapa (data e nome indentados); a etapa mostra o próprio vídeo quando configurado, senão herda o vídeo da atividade (com o aviso de transmissão prevista quando a flag da etapa ou da atividade está definida).
+- Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; espaço vazio quando não há transmissão). Atividades com etapas exibem uma sub-linha por etapa (data e nome indentados), com a descrição breve da etapa na coluna **Descrição / Ementa** (traço quando vazia); a etapa mostra o próprio vídeo quando configurado, senão herda o vídeo da atividade (com o aviso de transmissão prevista quando a flag da etapa ou da atividade está definida).
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Inscrição somente pela administração: quando o evento tem `public_registration = 0`, a página `/evento/:id/inscricao` exibe a mensagem "As inscrições deste evento são realizadas somente pela administração." com o botão de envio desabilitado, o `POST` é bloqueado e a linha "Inscrições" não aparece no cronograma público da página do evento (participantes já inscritos continuam vendo "Minhas participações").
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
@@ -329,6 +330,7 @@ Etapas de uma atividade (ex.: aulas de um minicurso, períodos de um seminário)
 - `sequence_no` — ordem de exibição/chamada
 - `session_date` — data da etapa (validada contra o intervalo da atividade)
 - `workload_hours` — carga horária da etapa
+- `description` — descrição breve da etapa (opcional, máximo 2000 caracteres, validado no backend)
 - `video_url` — link da transmissão de vídeo da etapa (opcional, máximo 500 caracteres; quando vazio, a exibição pública usa o vídeo da atividade)
 - `has_video` — flag de transmissão prevista (1/0): indica que a etapa terá transmissão de vídeo mesmo quando o link ainda não está disponível; é gravada como 1 automaticamente quando `video_url` está preenchido
 - `created_at`

@@ -1017,7 +1017,7 @@ router.get('/evento/:id', (req, res) => {
   `).all(req.params.id);
   const sessionsByActivity = {};
   db.prepare(`
-    SELECT id,activity_id,name,session_date,video_url,has_video
+    SELECT id,activity_id,name,session_date,description,video_url,has_video
     FROM activity_sessions
     WHERE activity_id IN (SELECT id FROM event_activities WHERE event_id=?)
     ORDER BY sequence_no, id

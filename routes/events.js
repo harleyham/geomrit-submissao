@@ -1830,6 +1830,10 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(dateError)}`);
   }
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  const description = String(req.body.description || '').trim();
+  if (description.length > 2000) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('A descrição da etapa deve ter no máximo 2000 caracteres.')}`);
+  }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('Link da transmissão da etapa muito longo (máximo de 500 caracteres).')}`);
@@ -1840,8 +1844,8 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const nextSequence = db.prepare('SELECT COALESCE(MAX(sequence_no),0) + 1 AS next FROM activity_sessions WHERE activity_id=?').get(activity.id).next;
-  const createdSession = db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,workload_hours,video_url,has_video) VALUES (?,?,?,?,?,?,?)')
-    .run(activity.id, name, nextSequence, sessionDate, workloadHours, sessionVideoUrl, hasVideo);
+  const createdSession = db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,workload_hours,description,video_url,has_video) VALUES (?,?,?,?,?,?,?,?)')
+    .run(activity.id, name, nextSequence, sessionDate, workloadHours, description, sessionVideoUrl, hasVideo);
   if (sessionVideoUrl) {
     const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
     queueVideoLinkNotifications({ event, activity, session: { id: createdSession.lastInsertRowid, name, session_date: sessionDate }, oldUrl: null, newUrl: sessionVideoUrl });
@@ -1864,6 +1868,10 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(dateError)}`);
   }
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  const description = String(req.body.description || '').trim();
+  if (description.length > 2000) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('A descrição da etapa deve ter no máximo 2000 caracteres.')}`);
+  }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('Link da transmissão da etapa muito longo (máximo de 500 caracteres).')}`);
@@ -1873,8 +1881,8 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
   }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
-  db.prepare('UPDATE activity_sessions SET name=?,session_date=?,workload_hours=?,video_url=?,has_video=? WHERE id=?')
-    .run(name, sessionDate, workloadHours, sessionVideoUrl, hasVideo, session.id);
+  db.prepare('UPDATE activity_sessions SET name=?,session_date=?,workload_hours=?,description=?,video_url=?,has_video=? WHERE id=?')
+    .run(name, sessionDate, workloadHours, description, sessionVideoUrl, hasVideo, session.id);
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity, session: { ...session, name, session_date: sessionDate }, oldUrl: session.video_url, newUrl: sessionVideoUrl });
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa atualizada.')}`);
