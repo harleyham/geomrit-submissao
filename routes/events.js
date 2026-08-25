@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 const { readFirstSheetRows } = require('../services/sheet-reader');
+const { validateCsrfToken } = require('../security/csrf');
 const archiver = require('archiver');
 const { db, recordParticipantAudit } = require('../db');
 const { renderCertificatePdf, getBackgroundPath } = require('../services/certificates');
@@ -279,7 +280,7 @@ function runEventAssetUpload(req, res, next) {
         return next();
       }
     }
-    next();
+    return validateCsrfToken(req, res, next);
   });
 }
 
@@ -1169,7 +1170,7 @@ router.get('/:id/import-users', (req, res) => {
   });
 });
 
-router.post('/:id/import-users', strictLimiter, importUpload.single('import_file'), async (req, res) => {
+router.post('/:id/import-users', strictLimiter, importUpload.single('import_file'), validateCsrfToken, async (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
@@ -2396,9 +2397,11 @@ router.post('/:id/certificates/backgrounds', strictLimiter, (req, res) => {
       const message = error && error.code === 'LIMIT_FILE_SIZE' ? 'O fundo excede 10 MB.' : 'Informe um nome e envie uma imagem PNG ou JPEG.';
       return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent(message)}`);
     }
-    db.prepare(`INSERT INTO certificate_backgrounds (name,file_path,original_name,mime_type,created_by,created_at) VALUES (?,?,?,?,?,datetime('now','-3 hours'))`)
-      .run(String(req.body.name).trim(), `uploads/certificate-backgrounds/${req.file.filename}`, req.file.originalname, req.file.mimetype, req.session.userId);
-    return res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Fundo enviado para a biblioteca.')}`);
+    validateCsrfToken(req, res, () => {
+      db.prepare(`INSERT INTO certificate_backgrounds (name,file_path,original_name,mime_type,created_by,created_at) VALUES (?,?,?,?,?,datetime('now','-3 hours'))`)
+        .run(String(req.body.name).trim(), `uploads/certificate-backgrounds/${req.file.filename}`, req.file.originalname, req.file.mimetype, req.session.userId);
+      return res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Fundo enviado para a biblioteca.')}`);
+    });
   });
 });
 

@@ -11,6 +11,7 @@ const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('.
 const { resetDatabase } = require('../services/db-reset');
 const { createBackupZip, restoreFromZip, backupFileName } = require('../services/backup');
 const { requireSuperAdmin } = require('../security/super-admin');
+const { validateCsrfToken } = require('../security/csrf');
 const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, setSystemEmailEnabled } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
@@ -454,7 +455,7 @@ router.get('/backup/restore', requireAuth, requireSuperAdmin, (req, res) => {
 });
 
 // Restauração: upload do ZIP gerado pelo backup
-router.post('/backup/restore', requireAuth, requireSuperAdmin, strictLimiter, restoreUpload.single('backup_file'), (req, res) => {
+router.post('/backup/restore', requireAuth, requireSuperAdmin, strictLimiter, restoreUpload.single('backup_file'), validateCsrfToken, (req, res) => {
   const confirmText = String(req.body.confirm || '').trim();
   const uploadedFile = req.file ? req.file.path : null;
   try {

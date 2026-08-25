@@ -35,6 +35,14 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Upload por mimetype: definir extensão pelo `file.mimetype` e não servir uploads executáveis; cobrir pontos de upload que confiam só no mimetype (`routes/events.js`).
 - (Opcional) revalidação de `requireAuth`/`requireReviewer` no DB; `session.regenerate` em troca de papéis; store de sessão persistente.
 
+### Correção: validação CSRF em uploads multipart pelo body após upload (sem cookie)
+
+- Sintoma: todas as rotas de upload com `enctype="multipart/form-data"` (restore de backup, submissão de artigos, inscrição em eventos, importação de planilhas, fundos de certificado e logo de evento) retornavam 403 "O token de segurança não foi fornecido", ainda que o formulário contesse o campo `_csrf`.
+- Causa: o middleware global `csrfProtection` (`security/csrf.js`) roda **antes** do `multer` configurado em cada rota. Em requisições multipart, o `req.body` só é preenchido quando o `multer` executa (depois dessa middleware), então o field `_csrf` vinha vazio na validação global. Formulários HTML comuns não enviam o header `X-CSRF-Token`, e o cookie `csrf_token` nunca foi lido pela validação (o token só é aceito por header ou body — ver o comentário de segurança em `security/csrf.js`), logo nunca resolveu o caso multipart. A entrada anterior do log ("bypass CSRF em uploads multipart/form-data") descrevia uma via baseada em cookie que não se aplicava ao fluxo real.
+- Correção: em `POST` com `multipart/form-data`, o `csrfProtection` adia a validação (retorna `next()`); cada rota de upload passa a chamar `validateCsrfToken` (função extraída em `security/csrf.js`) **após** o `multer`, quando o body já está parseado. A validação lê o token do body `_csrf` (campo hidden injetado automaticamente pelo partial `views/partials/csrf-inject.ejs`) ou do header `X-CSRF-Token`, com comparação `timingSafeEqual` contra o token da sessão. O cookie `csrf_token` continua não sendo usado, mantendo a proteção contra bypass same-site.
+- Arquivos afetados: `security/csrf.js` (adiamento da validação para multipart e função `validateCsrfToken`); `routes/auth.js` (restore), `routes/public.js` (wrappers `runUpload`/`runRegistrationUpload`), `routes/users.js` (`/import`), `routes/events.js` (`runEventAssetUpload`, `/:id/import-users`, `/:id/certificates/backgrounds`).
+- Status: **corrigido e validado** (teste de integração com os módulos reais: multipart com token correto -> 200; token inválido -> 403 "não é válido"; sem token -> 403 "não foi fornecido"; POST urlencoded -> 200).
+
 ## 2026-08-23
 
 ### Segurança: códigos de acesso de artigos e de verificação de certificados
@@ -959,6 +967,7 @@ Use preferencialmente uma senha de aplicativo criada no Zoho, não a senha norma
 - Correção: removida a exceção para multipart. O token CSRF agora é aceito por três vias: header `X-CSRF-Token`, campo hidden `_csrf` no body (formulários normais) ou cookie `csrf_token` (enviado automaticamente pelo navegador em uploads multipart). O middleware define o cookie `httpOnly` + `sameSite: lax` em todas as respostas. Função `getCookieValue` parseia o header `Cookie` sem dependência externa.
 - Arquivos afetados: `security/csrf.js` (reescrita completa).
 - Status: **corrigido e validado**.
+- Superado em 2026-08-24: a validação multipart passou a ser feita pelo field `_csrf` do body **após** o `multer` de cada rota (ver entrada "Correção: validação CSRF em uploads multipart pelo body após upload"), sem depender do cookie `csrf_token`.
 
 #### Correção: risco de SQL Injection em bulk-update-flags
 

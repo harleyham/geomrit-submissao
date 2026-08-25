@@ -10,6 +10,7 @@ const { renderCertificatePdf } = require('../services/certificates');
 const { QR_ROLE_LABELS, ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
 const { registrationLimiter, strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
+const { validateCsrfToken } = require('../security/csrf');
 const { body } = require('express-validator');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountRequested, queuePublicRegistrationSubmission } = require('../services/email');
@@ -50,11 +51,13 @@ const registrationUpload = multer({
 
 function runUpload(req, res, next) {
   upload.single('article_pdf')(req, res, (err) => {
-    if (!err) return next();
-    req.uploadError = err.code === 'LIMIT_FILE_SIZE'
-      ? 'O arquivo PDF excede o limite de 10 MB.'
-      : 'Falha no upload do arquivo. Envie um PDF válido.';
-    return next();
+    if (err) {
+      req.uploadError = err.code === 'LIMIT_FILE_SIZE'
+        ? 'O arquivo PDF excede o limite de 10 MB.'
+        : 'Falha no upload do arquivo. Envie um PDF válido.';
+      return next();
+    }
+    return validateCsrfToken(req, res, next);
   });
 }
 
@@ -64,11 +67,13 @@ function runRegistrationUpload(req, res, next) {
     { name: 'motivation_letter_pdf', maxCount: 1 },
     { name: 'recommendation_letter_pdf', maxCount: 1 }
   ])(req, res, (err) => {
-    if (!err) return next();
-    req.registrationUploadError = err.code === 'LIMIT_FILE_SIZE'
-      ? 'Um dos arquivos de subsídio excede o limite de 10 MB.'
-      : 'Falha no upload dos documentos de subsídio. Envie apenas arquivos PDF válidos.';
-    return next();
+    if (err) {
+      req.registrationUploadError = err.code === 'LIMIT_FILE_SIZE'
+        ? 'Um dos arquivos de subsídio excede o limite de 10 MB.'
+        : 'Falha no upload dos documentos de subsídio. Envie apenas arquivos PDF válidos.';
+      return next();
+    }
+    return validateCsrfToken(req, res, next);
   });
 }
 

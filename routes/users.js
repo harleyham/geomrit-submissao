@@ -9,6 +9,7 @@ const multer = require('multer');
 const { readFirstSheetRows } = require('../services/sheet-reader');
 const PROTECTED_ADMIN_EMAIL = 'admin@admin.com';
 const { strictLimiter } = require('../security/rate-limits');
+const { validateCsrfToken } = require('../security/csrf');
 const { validators: v, validateAndHandle, sanitizeHtml } = require('../security/validation');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountApproved, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
@@ -890,7 +891,7 @@ router.get('/import', requireAuth, (req, res) => {
   });
 });
 
-router.post('/import', requireAuth, strictLimiter, importUpload.single('import_file'), async (req, res) => {
+router.post('/import', requireAuth, strictLimiter, importUpload.single('import_file'), validateCsrfToken, async (req, res) => {
   if (!req.file || !req.file.path) {
     return res.redirect('/admin/users/import?error=' + encodeURIComponent('Selecione um arquivo XLSX ou CSV com a lista de participantes.'));
   }
