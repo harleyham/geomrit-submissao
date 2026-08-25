@@ -27,6 +27,12 @@ Versão atual registrada: **V0.2**.
 - Verificação: servidor de teste na porta 3100 — as três etapas da atividade "C++" (evento 2) renderizaram as descrições cadastradas ("Essa será a aula de introdućão", "Sabe tudo de C--", "Agora o Vibe Coder vai a loucura"); servidor de teste encerrado.
 - Status: **concluído e validado** (efetivo após reinício do servidor).
 
+### Página pública: cor da linha de sessão uniformizada (diferenciar tarefa de atividade)
+
+- A linha de sessão/etapa/tarefa passou a ter cor uniforme em todas as células (`color: #94a3b8` no seletor `.timeline-table tr.session-row td`), diferenciando visualmente da linha de atividade que mantém `color: #f8fafc` (inline `style="color:#f8fafc"` na descrição) e das demais células da tabela (`#e2e8f0`). Antes, data e descrição da sessão usavam classes diferentes (`muted` e a cor global do `td`), causando variação de tom entre as colunas da mesma linha.
+- `views/public/event.ejs`: `.timeline-table tr.session-row td { color: #94a3b8 }` e célula de descrição da atividade com `style="color:#f8fafc"` (inline).
+- Status: **concluído e validado**.
+
 ## 2026-08-24
 
 ### Auditoria de segurança — hardening (rodada de correção)
