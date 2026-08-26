@@ -1,4 +1,4 @@
-# Plano de Implementação — Geomrit-Submissão (V0.3 → V1)
+# Plano de Implementação — Gerência de Eventos (V0.3 → V1)
 
 Plano aprovado pelo usuário, organizado em 4 ciclos de execução sequencial.
 Documento vivo: atualizar o `Status` de cada item conforme a execução.

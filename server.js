@@ -249,7 +249,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Artigos LIGEM rodando em http://localhost:${PORT}`);
+  console.log(`Gerência de Eventos rodando em http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/login`);
   startEmailWorkers();
 });

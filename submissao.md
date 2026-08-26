@@ -1,4 +1,4 @@
-# Sistema de Gestão de Eventos, Artigos, Presença e Certificados
+# Gerência de Eventos
 
 ## Visão Geral
 

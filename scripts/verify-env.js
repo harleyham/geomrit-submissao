@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Checka o ambiente mínimo para o Geomrit-Submissão rodar:
+// Checka o ambiente mínimo para a Gerência de Eventos rodar:
 //   - Node >= 22 (exigido por módulos nativos e pela stack);
 //   - dependências obrigatórias presentes e importáveis;
 //   - presença do .env (o servidor NÃO o carrega sozinho — passe via

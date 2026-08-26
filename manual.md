@@ -1,10 +1,10 @@
-# Manual do Sistema — Geomrit-Submissão
+# Manual do Sistema — Gerência de Eventos
 
 > Guia operacional inicial. Este documento acompanha a versão V0.3 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
 
 ## 1. Introdução
 
-O Geomrit-Submissão é um sistema web para organizar eventos acadêmicos e científicos. Ele reúne em um único ambiente:
+A Gerência de Eventos é um sistema web para organizar eventos acadêmicos e científicos. Ele reúne em um único ambiente:
 
 - cadastro e publicação de eventos;
 - inscrição e importação de participantes;

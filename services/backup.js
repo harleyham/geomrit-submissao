@@ -108,7 +108,7 @@ async function createBackupZip(destPath) {
     db.prepare(`VACUUM INTO '${snapshotPath.replace(/'/g, "''")}'`).run();
 
     const meta = {
-      app: 'artigos-ligem',
+      app: 'gerencia-de-eventos',
       version: 'V0.3',
       created_at: brNow().toISOString().replace('Z', '-03:00'),
       node: process.version,

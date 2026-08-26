@@ -961,7 +961,7 @@ router.get('/', (req, res) => {
   const events = db.prepare(`
     SELECT * FROM events WHERE status = 'published' ORDER BY date_start DESC
   `).all().map((event) => withSubmissionMeta(withAreaMeta(event)));
-  res.render('public/home', { events, title: 'Eventos LIGEM.Redes' });
+  res.render('public/home', { events, title: 'Gerência de Eventos' });
 });
 
 // Detalhes do evento

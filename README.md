@@ -1,4 +1,4 @@
-# Geomrit-Submissão — Sistema de Gestão de Eventos, Artigos, Presença e Certificados
+# Gerência de Eventos
 
 ## Versão atual
 V0.3
