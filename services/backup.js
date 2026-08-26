@@ -176,6 +176,7 @@ function restoreFromZip(zipPath) {
   let preRestoreWal = null;
   let newDb = null;
   let swapped = false;
+  let uploadsBackupPath = null;
 
   try {
     zip.extractAllTo(workDir, true);
@@ -235,7 +236,6 @@ function restoreFromZip(zipPath) {
     initializeDbSchema(newDb);
 
     let uploadsRestored = false;
-    let uploadsBackupPath = null;
     const extractedUploads = path.join(workDir, 'uploads');
     if (fs.existsSync(extractedUploads) && fs.statSync(extractedUploads).isDirectory()) {
       try {

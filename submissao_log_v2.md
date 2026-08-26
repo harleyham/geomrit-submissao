@@ -22,6 +22,14 @@ Versão atual registrada: **V0.2**.
 - Efetiva após reinício do servidor. Não exige migração de banco.
 - Status: **corrigido e validado**.
 
+### Correção: restore de backup não quebrava por escopo de `uploadsBackupPath` no `finally`
+
+- Sintoma (bug severidade ALTA): ao restaurar um backup em produção, o servidor logava `ReferenceError: uploadsBackupPath is not defined` em `services/backup.js:301` e relançava a exceção, impedindo a restauração mesmo quando o banco e os uploads haviam sido copiados com sucesso. O erro ocorria sempre, inclusive com backups válidos.
+- Causa raiz: a variável `uploadsBackupPath` (usada para o backup/rollback dos uploads) era declarada com `let` **dentro** do bloco `try` de `restoreFromZip` (linha `let uploadsBackupPath = null;`, dentro do `try`). O bloco `finally` — responsável pela limpeza dos arquivos temporários — acessa `uploadsBackupPath` nessa linha fora do escopo do `try`. Como `let` é delimitado pelo bloco, a variável não existia no `finally` → `ReferenceError` antes da própria execução do cleanup do `workDir`. As variáveis irmãs de rollback (`preRestoreMain`, `preRestoreWal`) eram declaradas **fora** do `try` e funcionavam normalmente; a inconsistência de posicionamento entre as declarações era a causa.
+- Correção: `services/backup.js` passou a declarar `uploadsBackupPath` junto das demais variáveis de controle do restore (`preRestoreMain`, `preRestoreWal`, `newDb`, `swapped`), **antes** do `try`, mantendo-a acessível tanto ao `try` (que atribui o caminho do backup) quanto ao `finally` (que a usa no cleanup). Removida a declaração duplicada que estava dentro do `try`. A lógica de backup/restauração de uploads e o rollback permanecem inalterados.
+- Efetiva após reinício do servidor; não exige migração de banco.
+- Status: **corrigido e validado** (`node --check` em `services/backup.js`).
+
 ## 2026-08-25
 
 ### Hardening: limitação de taxa immune a spoof de IP (`X-Forwarded-For`)
