@@ -109,7 +109,7 @@ async function createBackupZip(destPath) {
 
     const meta = {
       app: 'artigos-ligem',
-      version: 'V0.2',
+      version: 'V0.3',
       created_at: brNow().toISOString().replace('Z', '-03:00'),
       node: process.version,
       platform: process.platform,

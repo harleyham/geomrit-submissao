@@ -1,6 +1,6 @@
 # Manual do Sistema — Geomrit-Submissão
 
-> Guia operacional inicial. Este documento acompanha a versão V0.2 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
+> Guia operacional inicial. Este documento acompanha a versão V0.3 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
 
 ## 1. Introdução
 

@@ -1,7 +1,9 @@
-# Plano de Implementação — Geomrit-Submissão (V0.2 → V1)
+# Plano de Implementação — Geomrit-Submissão (V0.3 → V1)
 
 Plano aprovado pelo usuário, organizado em 4 ciclos de execução sequencial.
 Documento vivo: atualizar o `Status` de cada item conforme a execução.
+
+> **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026, todos registrados em `submissao_log_v2.md`. Inclui: datas em `dd/mm/yyyy` via flatpickr em todos os formulários (evento, atividades e etapas) com a correção crítica da conversão dia/mês; descrição breve das etapas; correções críticas (login bloqueado por 403 — `trust proxy` restaurado + rate limit por IP do socket; restore de backup — escopo de `uploadsBackupPath` no `finally`); hardening remanescente do Ciclo 6 (ZIP-bomb, CSRF em uploads multipart, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas) e o plano de administração por evento documentado em `Plano_admin.md`.
 
 > **Sobre a V0.2**: versão de lançamento inicial do projeto. Consolida a funcionalidade entregue (eventos, inscrições, submissão/artigos, presença por QR, certificados, e-mails transacionais, avaliações, triagem de inscrições etc.) e o **hardening de segurança** de 24/08/2026 (Ciclo 6 do plano). As pendentes de hardening seguem listadas e a serem implementadas a partir desta versão.
 
