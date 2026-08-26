@@ -284,7 +284,7 @@ function buildEventTimeline(event, options = {}) {
     ? 'Aberta'
     : event.submission.isConfigured
       ? (submissionStart && brToday() < submissionStart ? 'Programada' : 'Encerrada')
-      : 'Nao configurada';
+      : 'Não configurada';
 
   const timeline = [];
   if (event.public_registration !== 0) {
