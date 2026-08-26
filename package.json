@@ -34,6 +34,7 @@
     "express-rate-limit": "^7.4.0",
     "express-session": "^1.18.0",
     "express-validator": "^7.3.2",
+    "flatpickr": "^4.6.13",
     "helmet": "^8.0.0",
     "method-override": "^3.0.0",
     "multer": "^2.2.0",
@@ -44,5 +45,8 @@
   },
   "allowScripts": {
     "better-sqlite3@13.0.3": true
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.9.0"
   }
 }

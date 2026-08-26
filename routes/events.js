@@ -1803,6 +1803,16 @@ router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
   db.prepare('UPDATE event_activities SET certificate_enabled=? WHERE id=?').run(enabled, activity.id);
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(enabled ? 'Atividade incluída no cálculo dos certificados.' : 'Atividade retirada do cálculo dos certificados.')}`);
 });
+router.post('/:id/activities/:activityId/delete', strictLimiter, (req, res) => {
+  const activity = db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const attendanceCount = db.prepare('SELECT COUNT(*) AS count FROM activity_attendance_records WHERE activity_id=?').get(activity.id).count;
+  if (attendanceCount > 0) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?error=${encodeURIComponent('Não é possível excluir uma atividade que já possui presença registrada.')}`);
+  }
+  db.prepare('DELETE FROM event_activities WHERE id=?').run(activity.id);
+  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade removida.')}`);
+});
 
 router.get('/:id/activities/:activityId/sessions', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %> | Artigos LIGEM</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="/lib/flatpickr/flatpickr.min.css" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
@@ -160,21 +161,21 @@
         <div class="form-row">
           <div class="form-group">
             <label for="date_start">Data Início *</label>
-            <input type="date" id="date_start" name="date_start" required value="<%= event ? event.date_start : '' %>">
+            <input type="text" id="date_start" name="date_start" class="datepicker" required value="<%= event ? formatBRDate(event.date_start) : '' %>">
           </div>
           <div class="form-group">
             <label for="date_end">Data Fim</label>
-            <input type="date" id="date_end" name="date_end" value="<%= event ? event.date_end : '' %>">
+            <input type="text" id="date_end" name="date_end" class="datepicker" value="<%= event ? formatBRDate(event.date_end) : '' %>">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label for="registration_start">Início Inscrições</label>
-            <input type="date" id="registration_start" name="registration_start" value="<%= event ? event.registration_start : '' %>">
+            <input type="text" id="registration_start" name="registration_start" class="datepicker" value="<%= event ? formatBRDate(event.registration_start) : '' %>">
           </div>
           <div class="form-group">
             <label for="registration_end">Fim Inscrições</label>
-            <input type="date" id="registration_end" name="registration_end" value="<%= event ? event.registration_end : '' %>">
+            <input type="text" id="registration_end" name="registration_end" class="datepicker" value="<%= event ? formatBRDate(event.registration_end) : '' %>">
           </div>
         </div>
         <div class="toggle-row">
@@ -209,32 +210,32 @@
           <div class="form-row">
             <div class="form-group">
               <label for="submission_start">Início Submissão</label>
-              <input type="date" id="submission_start" name="submission_start" value="<%= event ? event.submission_start : '' %>">
+              <input type="text" id="submission_start" name="submission_start" class="datepicker" value="<%= event ? formatBRDate(event.submission_start) : '' %>">
             </div>
             <div class="form-group">
               <label for="submission_end">Fim Submissão</label>
-              <input type="date" id="submission_end" name="submission_end" value="<%= event ? event.submission_end : '' %>">
+              <input type="text" id="submission_end" name="submission_end" class="datepicker" value="<%= event ? formatBRDate(event.submission_end) : '' %>">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label for="review_start">Início Análise das Submissões</label>
-              <input type="date" id="review_start" name="review_start" value="<%= event ? event.review_start : '' %>">
+              <input type="text" id="review_start" name="review_start" class="datepicker" value="<%= event ? formatBRDate(event.review_start) : '' %>">
             </div>
             <div class="form-group">
               <label for="review_end">Fim Análise das Submissões</label>
-              <input type="date" id="review_end" name="review_end" value="<%= event ? event.review_end : '' %>">
+              <input type="text" id="review_end" name="review_end" class="datepicker" value="<%= event ? formatBRDate(event.review_end) : '' %>">
             </div>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label for="certificates_start">Início Certificados</label>
-            <input type="date" id="certificates_start" name="certificates_start" value="<%= event ? event.certificates_start : '' %>">
+            <input type="text" id="certificates_start" name="certificates_start" class="datepicker" value="<%= event ? formatBRDate(event.certificates_start) : '' %>">
           </div>
           <div class="form-group">
             <label for="certificates_end">Fim Certificados</label>
-            <input type="date" id="certificates_end" name="certificates_end" value="<%= event ? event.certificates_end : '' %>">
+            <input type="text" id="certificates_end" name="certificates_end" class="datepicker" value="<%= event ? formatBRDate(event.certificates_end) : '' %>">
           </div>
         </div>
         <div class="form-group">
@@ -350,12 +351,16 @@
         }
       }
 
-      toggle.addEventListener('change', syncSubmissionSettings);
-      syncSubmissionSettings();
-    })();
-  </script>
+       toggle.addEventListener('change', syncSubmissionSettings);
+       syncSubmissionSettings();
+     })();
+   </script>
 
-  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+  <script src="/lib/flatpickr/flatpickr.min.js"></script>
+  <script src="/lib/flatpickr/l10n/pt.js"></script>
+  <script src="/lib/flatpickr/init.js"></script>
+
+   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 <%- include("../../partials/csrf-inject") %>
 </body>
 </html>

@@ -30,6 +30,58 @@ Versão atual registrada: **V0.2**.
 - Efetiva após reinício do servidor; não exige migração de banco.
 - Status: **corrigido e validado** (`node --check` em `services/backup.js`).
 
+### Opção de excluir atividade administrativa
+
+- Requisito do usuário: em `/admin/events/:id/activities`, a listagem de atividades exibia "Editar", "Etapas", "Marcar Presença", "Vídeo/Transmissão", "Imp. Lista" e "QR Presença", mas **não** havia como excluir a atividade.
+- `routes/events.js`: nova rota `POST /:id/activities/:activityId/delete` (`strictLimiter`) que remove o registro de `event_activities`. Como todas as FKs ligadas à atividade são `ON DELETE CASCADE` (`activity_sessions`, `participant_activity_enrollments`, `activity_attendance_records`, `activity_evaluations`) e `foreign_keys=ON` no `db.js`, etapas, inscrições, presenças e avaliações são removidas em cascata sem código extra.
+- **Proteção**: a exclusão é bloqueada (302 com erro) quando a atividade já possui registro de presença (`activity_attendance_records`), preservando o histórico de presença — consistente com a regra do manual de que presença registrada não deve ser perdida.
+- `views/admin/events/activities.ejs`: botão "Excluir" ao lado de "Editar", com diálogo de confirmação (`confirm`) listando o que será removido. O `_csrf` é injetado automaticamente pelo partial `csrf-inject`.
+- `certificate_emissions` **não** tem FK com `activity_id`, então certificados já emitidos não são afetados pela exclusão.
+- Validação: `node --check` em `routes/events.js`, compilação EJS do template e `npm run verify-env` passando. Efetiva após reinício do servidor.
+- Status: **implementado e validado**.
+
+### Página Pública do abre na mesma aba (removido `target="_blank"`)
+
+- Requisito do usuário: em `/admin/events`, o botão "Página Pública" abria outra aba no navegador (`target="_blank"`), exigindo voltar atrás para continuar administrando.
+- `views/admin/events/list.ejs`: removido `target="_blank"` do link "Página pública" (mantido `rel="noopener noreferrer"`, mesmo sem efeito sem `target=_blank`). Agora a página pública abre na misma aba.
+- Deixei o botão "Conteúdo PDF" ao lado ainda abrindo em nova aba; se uniformizar os dois, é uma linha parecida.
+- Validação: compilação EJS do template passando. Efetiva após reinício do servidor.
+
+### Datas do formulário de evento em formato dd/mm/yyyy (flatpickr)
+
+- Requisito do usuário: em `/admin/events/:id/edit`, as datas apareciam em `mm/dd/yyyy` porque os `<input type="date">` nativos seguem o **locale do navegador** (en-US), e não há forma de forçar `dd/mm/yyyy` só com HTML/CSS.
+- Solução: datepicker local **flatpickr** (sem CDN, mesmo padrão do `jsQR` em `public/lib/`), com locale pt-BR e técnica `altInput`: o usuário vê `dd/mm/yyyy`, mas o valor enviado continua em `yyyy-mm-dd` — **sem mudança no backend** (validações de data existentes permanecem válidas).
+- Novos: `public/lib/flatpickr/flatpickr.min.js`, `flatpickr.min.css`, `init.js` (inicializa todos os `input[type="date"]` da página com `altInput`, `altFormat: 'dd/mm/yyyy'`, `dateFormat: 'yyyy-mm-dd'`, `locale: 'pt'`, `disableMobile: true`) e `l10n/pt.js` (o locale `pt` vem em arquivo separado e precisa ser carregado antes do `init.js`).
+- `views/admin/events/form.ejs`: incluí o `<link>` do CSS no `<head>`, as tags `<script>` do `flatpickr.min.js`, `l10n/pt.js` e `init.js` antes do fechamento do body, e `npm install flatpickr` (adicionado ao `package.json`).
+- CSP (`server.js`): sem alteração necessária — `scriptSrc`/`styleSrc` permitem `'self'` e `styleSrc` já permite `'unsafe-inline'` (o flatpickr injeta estilos inline no calendário), e o `<script src>` é de mesma origem.
+  - Validação: carreguei os tres arquivos num jsdom (instalado só pra teste, removido depois) e confirmei: `flatpickr.l10ns.pt` registrado, instância criada, `dateFormat: 'yyyy-mm-dd'` e `altFormat: 'dd/mm/yyyy'`, locale `pt`. (Os valores de data exibidos pelo jsdom vinham corrompidos — artefato do jsdom, que não replica 100% o parse de Date/DOM do navegador real; a configuração é uso padrão do flatpickr.) `npm run verify-env` passando. Efetiva após reinício do servidor.
+
+### Correção crítica: conversão de data no submit invertia dia/mês (`init.js`) — datas gravadas como `yyyy-dd-mm`
+
+- Sintoma (bug severidade ALTA): ao salvar o formulário de evento com uma data cujo **dia > 12**, o campo era gravado com dia e mês trocados (ex.: `20/12/2026` virava `2026-20-12` no banco). Com dia ≤ 12 a corrupção era **silenciosa** (ex.: `05/08/2026` virava `2026-05-08` — 8 de maio em vez de 5 de agosto). Ao reabrir o formulário, a data exibia o valor cru (`2027-15-02`), pois `formatBRDate` não consegue parsear mês > 12 e devolve a string original — o "formato estranho" relatado em `/admin/events/1/edit`.
+- Causa raiz: em `public/lib/flatpickr/init.js` (`prepareDateInputsOnSubmit`), o regex captura `m[1]=dia`, `m[2]=mês`, `m[3]=ano`, mas a linha montava `m[3] + '-' + m[1] + '-' + m[2]` → `yyyy-dd-mm` em vez de `yyyy-mm-dd`.
+- Correção: a linha passou a montar `m[3] + '-' + m[2] + '-' + m[1]` (`yyyy-mm-dd`). Vale para todos os formulários com `input.datepicker` (evento, atividades e etapas).
+- Dados corrompidos: apenas o evento 1 (salvo hoje, 2026-08-26, após a introdução do bug) tinha datas detectavelmente corrompidas — `date_start='2027-15-02'` e `date_end='2027-17-02'` — restauradas para `2027-02-15`/`2027-02-17` (dia/mês trocados, recuperáveis). Evento 2 e atividades/etapas foram salvos em 20/08, antes do bug, e estão íntegros. Backup consistente do banco antes da correção: `/tmp/opencode/artigos_backup_antes_fix.db`.
+- Validação: reprodução E2E em Chrome real (CDP) contra a porta 3000 — `setDate('20/12/2026')` exibe `20/12/2026` e o submit converte para `2026-12-20`. `node --check` em `init.js` passando.
+- Status: **corrigido e validado** (efetivo após reinício do servidor; não exige migração de banco).
+
+### Correção: datas das páginas de atividades e etapas em dd/mm/yyyy (flatpickr)
+
+- Sintoma: em `/admin/events/:id/activities` e `/admin/events/:id/activities/:activityId/sessions`, os campos de data (`date_start`, `date_end`, `session_date`) ainda usavam `<input type="date">` nativo, que segue o locale do navegador — em en-US exibem `mm/dd/yyyy` e, sem data, mostram o placeholder literal "mm/dd/aaaa". A conversão para flatpickr (entrada anterior) só havia sido aplicada ao formulário do evento (`form.ejs`).
+- Solução: mesmo padrão do `form.ejs` — `type="text"` com `class="datepicker"`, valor renderizado por `formatBRDate(...)` (vazio quando sem data), e inclusão do CSS/JS do flatpickr (já em `public/lib/flatpickr/`) no `<head>` e antes do `</body>` de:
+  - `views/admin/events/activities.ejs` (`date_start`, `date_end`).
+  - `views/admin/events/activity-sessions.ejs` (`session_date`).
+- Sem mudança no backend: os POSTs continuam recebendo `yyyy-mm-dd` (o `init.js` converte no submit) e re-renderizam via GET com dados do banco. `formatBRDate` retorna `null` para datas vazias, que o EJS renderiza como string vazia.
+- Validação: E2E em Chrome real contra a porta 3000 — `date_start=14/09/2026`, `date_end=15/09/2026`, `session_date=14/09/2026` em dd/mm/yyyy; 0 `input[type=date]` nas páginas. Templates EJS compilam; `node --check` em `init.js` passando.
+- Status: **corrigido e validado** (efetivo após reinício do servidor).
+
+### Refinamento: placeholder "dd/mm/aaaa" nos campos de data vazios
+
+- Após a conversão das páginas para flatpickr, os campos de data vazios perderam a dica visual do formato (o `<input type="date">` nativo mostrava o placeholder "mm/dd/aaaa" conforme o locale do navegador).
+- `public/lib/flatpickr/init.js`: ao inicializar cada `input.datepicker`, se o campo não tiver `placeholder` definido, ele recebe `placeholder="dd/mm/aaaa"` — dica aplicada de forma centralizada a todos os formulários com datas (evento, atividades e etapas), atuais e futuros.
+- Validação: E2E em Chrome real contra a porta 3000 — campos vazios com placeholder "dd/mm/aaaa" no formulário do evento, em atividades e em etapas; campos com valor seguem exibindo a data em dd/mm/yyyy. `node --check` em `init.js` passando.
+- Status: **implementado e validado** (efetivo após reinício do servidor).
+
 ## 2026-08-25
 
 ### Hardening: limitação de taxa immune a spoof de IP (`X-Forwarded-For`)
