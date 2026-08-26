@@ -493,6 +493,12 @@ router.post('/', loginLimiter, (req, res, next) => {
     // A regeneração zera o conteúdo da sessão; reconectamos o destino
     // pós-login (?next=) que estava salvo antes do login.
     if (prevNext) req.session.afterLoginPath = prevNext;
+    // A sessão nova nasce sem csrfToken (e o res.locals ainda guarda o token
+    // da sessão anterior). Sem isso, a página re-renderizada após uma
+    // tentativa malsucedida exibia um token inválido e a próxima submissão
+    // caía em 403. Um token novo por sessão mantém a rotação pós-login.
+    req.session.csrfToken = require('../security/csrf').generateToken();
+    res.locals.csrfToken = req.session.csrfToken;
     doLoginAfterRegen(req, res);
   });
 });

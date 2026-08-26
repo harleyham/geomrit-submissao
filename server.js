@@ -19,8 +19,15 @@ const { db } = require('./db');
 const { startEmailWorkers, stopEmailWorkers } = require('./services/email');
 
 const app = express();
-// `trust proxy` permanece desativado para que `req.ip` (usado pelo rate limiting)
-// reflita sempre o IP real da conexão, ignorando o `X-Forwarded-For` spoofável.
+// O app roda atrás do nginx com terminação TLS: sem confiar no proxy,
+// `req.secure` seria sempre false e o express-session SUPRIME o cookie de
+// sessão (`connect.sid; Secure`) em respostas HTTP — o GET /login renderiza
+// o formulário sem enviar cookie e todo POST /login falha em 403 (token CSRF
+// comparado contra uma sessão vazia nova). O valor 1 confia apenas no
+// último hop (nginx); os limitadores de taxa continuam imunes a spoof de
+// `X-Forwarded-For` porque usam `keyGenerator` com o IP do socket
+// (security/rate-limits.js), não `req.ip`.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const APP_VERSION = 'V0.2';
 

@@ -8,6 +8,20 @@ Versão atual registrada: **V0.2**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-08-26
+
+### Correção crítica: login bloqueado por 403 (cookie de sessão suprimido sem `trust proxy`)
+
+- Sintoma: nenhum usuário conseguia autenticar. O GET `/login` renderizava o formulário com token CSRF, mas **não enviava nenhum `Set-Cookie`**; o POST seguinte chegava sem cookie de sessão, o servidor criava uma sessão vazia nova com outro token e toda tentativa retornava **403 "O token de segurança não é válido"** — inclusive com credenciais corretas.
+- Causa raiz: regressão do hardening de 25/08. Com `NODE_ENV=production`, o cookie de sessão usa `secure: true`; o `express-session` só emite cookies Secure quando considera a requisição segura (`issecure()`: socket TLS **ou** proxy confiável indicando HTTPS). A remoção de `app.set('trust proxy', 1)` fez `req.secure` virar sempre `false` atrás do nginx (terminação TLS), e o middleware passou a **suprimir por completo** o `Set-Cookie` — sem cookie não há sessão nem CSRF que bata. Reproduzido por curl (A/B contra a instância anterior na porta 3000, que ainda tinha `trust proxy`).
+- Correção:
+  - `server.js`: restaurado `app.set('trust proxy', 1)` (confia apenas no último hop/nginx), necessário para `req.secure` e para os cookies `connect.sid; Secure`.
+  - `security/rate-limits.js`: todos os limitadores receberam `keyGenerator` próprio baseado no IP do socket (`req.socket.remoteAddress`), **não** em `req.ip`. Assim a limitação de taxa continua imune a spoof de `X-Forwarded-For` (objetivo do ajuste de 25/08), mesmo com `trust proxy` ativo; com `keyGenerator` customizado, o express-rate-limit também deixa de aplicar a validação `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`.
+  - `routes/auth.js` (POST `/login`): após `session.regenerate()`, a sessão nova nasce sem `csrfToken` e a página re-renderizada num erro de credenciais exibia o token antigo → a segunda tentativa caía em 403. Agora um token novo é gerado na sessão regenerada e replicado em `res.locals.csrfToken` antes do re-render.
+- Validação E2E em sandbox isolado (cópia do projeto + cópia do banco, porta 3105, simulando nginx com `X-Forwarded-Proto: https`): **8/8 checks + teste de limite** — Set-Cookie `connect.sid` presente e com flag Secure; senha errada → 200 "Credenciais inválidas" (antes 403); segunda tentativa com o token re-renderizado → 200; login correto → 302 `/admin/dashboard`; dashboard autenticado → 200; 12 POSTs com XFF rotacionado → bloqueio 429 pelo teto de login (chave por socket). Acesso direto por HTTP puro com `NODE_ENV=production` continua sem cookie por design (cookies Secure exigem HTTPS — acessar via domínio HTTPS ou rodar sem `NODE_ENV=production` localmente).
+- Efetiva após reinício do servidor. Não exige migração de banco.
+- Status: **corrigido e validado**.
+
 ## 2026-08-25
 
 ### Hardening: limitação de taxa immune a spoof de IP (`X-Forwarded-For`)
