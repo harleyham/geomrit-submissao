@@ -12,6 +12,15 @@ Versão atual registrada: **V0.3**.
 
 ## 2026-08-26
 
+### Em investigação: exclusão de usuário retorna 403 "O token de segurança não foi fornecido"
+
+- Relato do usuário: ao clicar em **Excluir** em `/admin/users`, o sistema responde com a página de erro `Solicitação inválida — O token de segurança não foi fornecido. Recarregue a página e tente novamente.` (403 do `security/csrf.js`).
+- Fluxo envolvido: o botão "Excluir" de `views/admin/users/list.ejs` envia `POST /admin/users/:id` (urlencoded) com os campos ocultos `_csrf` (token da sessão) e `_method=DELETE`. No `server.js`, o `method-override` (getter por função, **depois** dos parsers de body) converte o request para `DELETE`, e o `csrfProtection` global (global `app.use`, depois do `method-override`) valida o token — a mensagem "não foi fornecido" ocorre quando `actualToken` chega vazio/ausente (nem header `X-CSRF-Token` nem body `_csrf`).
+- Reprodução E2E com o código atual (instância de teste com cópia do projeto + banco, admin com senha conhecida): o fluxo **funciona** — login → `GET /admin/users` → `POST /admin/users/:id` com `_method=DELETE&_csrf=<token da página>` → `302 /admin/users?success=Usuário excluído`. Validado também com `NODE_ENV=production` + `X-Forwarded-Proto: https` (mesmo cenário do deploy atrás de nginx). A página renderizada contém `_csrf` não vazio (64 chars) em todos os formulários.
+- Diagnóstico preliminar: com o código atual o fluxo está íntegro; o erro "não foi fornecido" indica que o `_csrf` chega **vazio** no request, o que aponta para (a) página renderizada com `csrfToken` ausente (servidor rodando código antigo / página em cache de sessão anterior), ou (b) sessão obsoleta/regenerada entre a renderização da página e o clique. Recomendado: reiniciar o servidor com o código atual e recarregar a página (hard refresh) antes de novos testes.
+- Status: **em investigação** (aguardando confirmação do usuário após reinício/recarga).
+
+
 ### Correção crítica: login bloqueado por 403 (cookie de sessão suprimido sem `trust proxy`)
 
 - Sintoma: nenhum usuário conseguia autenticar. O GET `/login` renderizava o formulário com token CSRF, mas **não enviava nenhum `Set-Cookie`**; o POST seguinte chegava sem cookie de sessão, o servidor criava uma sessão vazia nova com outro token e toda tentativa retornava **403 "O token de segurança não é válido"** — inclusive com credenciais corretas.
