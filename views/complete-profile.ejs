@@ -144,8 +144,8 @@
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
   <script>
     (function() {
-      var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
-      var noDegreeCourse = <%- JSON.stringify(noDegreeCourse || '') %>;
+      var cursosMap = <%- jsonForScript(cursosMap || {}) %>;
+      var noDegreeCourse = <%- jsonForScript(noDegreeCourse || '') %>;
       var areaSelect = document.getElementById('formacao_area');
       var cursoSelect = document.getElementById('formacao_curso');
       var titulacaoStatusRow = document.getElementById('formacao-titulacao-status');

@@ -276,7 +276,7 @@
                     <a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/edit" class="btn btn-ghost">Editar</a>
                     <% if (participant.registration_status === 'pending') { %><a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/review" class="btn btn-ghost" style="color:#fbbf24">Analisar inscrição</a><% } %>
                     <% if (participant.submitted_articles === 0) { %>
-                      <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= participant.id %>" style="display:inline" onsubmit="return confirm('Remover a inscrição de <%= participant.name.replace(/'/g, "\\'") %>?');">
+                      <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= participant.id %>" style="display:inline" onsubmit="return confirm(<%= jsonForScript('Remover a inscrição de ' + (participant.name || '')) %>);">
                         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="_method" value="DELETE">
                         <button type="submit" class="btn btn-ghost" style="color:#fca5a5; border-color:rgba(248,113,113,0.32);">Remover</button>

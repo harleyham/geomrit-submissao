@@ -102,8 +102,10 @@ async function createBackupZip(destPath) {
   const snapshotPath = path.join(workDir, 'artigos.db');
   try {
     const db = getDb();
-    if (!db) throw new Error('Conexão com o banco de dados indisponível.');
-    db.prepare('VACUUM INTO ?').run(snapshotPath);
+    if (!db) throw new Error('Conexão com o banco de datos indisponível.');
+    // SQLite não aceita bind params em `VACUUM INTO`; o caminho vem de mkdtempSync
+    // (tmpdir do sistema, não controlável) e tem aspas simples escapadas.
+    db.prepare(`VACUUM INTO '${snapshotPath.replace(/'/g, "''")}'`).run();
 
     const meta = {
       app: 'artigos-ligem',
@@ -233,12 +235,34 @@ function restoreFromZip(zipPath) {
     initializeDbSchema(newDb);
 
     let uploadsRestored = false;
+    let uploadsBackupPath = null;
     const extractedUploads = path.join(workDir, 'uploads');
     if (fs.existsSync(extractedUploads) && fs.statSync(extractedUploads).isDirectory()) {
-      fs.rmSync(UPLOADS_DIR, { recursive: true, force: true });
-      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-      fs.cpSync(extractedUploads, UPLOADS_DIR, { recursive: true });
-      uploadsRestored = true;
+      try {
+        if (fs.existsSync(UPLOADS_DIR)) {
+          // Backup dos uploads antes de qualquer alteração, permitindo rollback
+          // caso a cópia de volta falhe (disco cheio, permissão, arquivo
+          // corrompido ou interrupção) — o banco tem rollback, mas os uploads não.
+          uploadsBackupPath = path.join(workDir, 'uploads-pre-restore');
+          fs.rmSync(uploadsBackupPath, { recursive: true, force: true });
+          fs.cpSync(UPLOADS_DIR, uploadsBackupPath, { recursive: true });
+        }
+        fs.rmSync(UPLOADS_DIR, { recursive: true, force: true });
+        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+        fs.cpSync(extractedUploads, UPLOADS_DIR, { recursive: true });
+        uploadsRestored = true;
+      } catch (err) {
+        if (uploadsBackupPath && fs.existsSync(uploadsBackupPath)) {
+          try {
+            fs.rmSync(UPLOADS_DIR, { recursive: true, force: true });
+            fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+            fs.cpSync(uploadsBackupPath, UPLOADS_DIR, { recursive: true });
+          } catch (restoreErr) {
+            console.error('Falha ao restaurar uploads após erro no restore:', restoreErr.message);
+          }
+        }
+        throw err;
+      }
     }
 
     require('../db').setDb(newDb);
@@ -274,7 +298,7 @@ function restoreFromZip(zipPath) {
     throw err;
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
-    for (const p of [preRestoreMain, preRestoreWal]) {
+    for (const p of [preRestoreMain, preRestoreWal, uploadsBackupPath]) {
       if (p) { try { fs.unlinkSync(p); } catch (e) {} }
     }
   }

@@ -10,6 +10,59 @@ Versão atual registrada: **V0.2**.
 
 ## 2026-08-25
 
+### Hardening: limitação de taxa immune a spoof de IP (`X-Forwarded-For`)
+
+- Removido `app.set('trust proxy', 1)` em `server.js`. Sem a diretiva, o `express-rate-limit` passa a usar `req.ip` = IP real da conexão, ignorando o `X-Forwarded-For` spoofável.
+- Impede contornar os limites de login (`10 tentativas/15min`), cadastro (`5/hora`) e admin (`300/15min`) rotacionando o header em ataques de brute-force, quando a aplicação fica exposta sem um proxy reverso que controle o XFF.
+- Decisão alinhada com a pendência do Ciclo 6 (`plano.md`): sem proxy controlado, `trust proxy` deve permanecer `false`. Efetiva após reinício do servidor.
+- Status: **corrigido e validado** (`node --check` em `server.js`).
+
+### Hardening: política de senha unificada
+
+- Unificada a política forte (8+ caracteres + maiúscula + minúscula + número) em todas as vias que exigiam apenas ≥ 6 caracteres:
+  - `routes/users.js` (`POST /change-password`, admin altera propria senha).
+  - `routes/events.js` (senha temporária na criação de participante).
+  - `routes/public.js` (cadastro público).
+- As duas últimas já eram redundantes com validators (`security/validation.js:60-61`, `public.js:2225-2226`) que exigiam 8+ complexidade; a verificação manual em profundidade agora está coerente. Mensagem padronizada: "A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula e número."
+- O `/definir-senha` (public.js:2211), o reset forte de admin (`users.js:764`, `crypto.randomBytes`) e os validators não foram alterados — já usavam política forte.
+- Status: **corrigido e validado** (`node --check` em `users.js`, `events.js`, `public.js`).
+
+### Correção: restore de backup preserva uploads (rollback)
+
+- Sintoma (bug severidade ALTA): em `services/backup.js`, o diretório `uploads/` era **removido antes** da cópia de volta; se o `fs.cpSync` falhasse (disco cheio, permissão, arquivo corrompido ou interrupção), os arquivos originais eram perdidos de forma irreversível — o rollback existia só para o banco.
+- Correção: os uploads são **copiados para um backup temporário** (`uploads-pre-restore`, dentro do workDir) antes de qualquer alteração; em caso de falha do `cpSync`, o diretório original é **restaurado** dele e a exceção é relançada. O caminho do backup entra no cleanup do `finally`.
+- Efetiva após reinício do servidor; não exige migração de banco.
+- Status: **corrigido e validado** (`node --check` em `services/backup.js`).
+
+### Correção: janelas de data no fuso America/Sao_Paulo
+
+- Sintoma (bug severidade MÉDIA): as janelas do cronograma pública (`inscrição`, `submissão`, `revisão`, `certificados`) e os status de etapa construíam `new Date('YYYY-MM-DDT00:00:00')` no **fuso do host**. Em máquinas em UTC (Docker/CI comum) ou com DST, tudo se deslocava ~3h, fazendo janelas "encerrar" mais cedo ou "abrir" mais tarde e status incorretos. O check-in já usava UTC-3 explícito (inconsistência).
+- Correção: serviço novo `services/datetime.js` centraliza `brDate()` (data em `YYYY-MM-DD` interpretada como meia-noite UTC-3) e `brToday()` (hoje 00:00 no Brasil via `Intl.DateTimeFormat`). Aplicado em `routes/public.js` (`getSubmissionWindow`, `getEventStatus`, `getRegistrationStatus`, `getAnalysisStatus`, `getRegistrationWindow`, `getCertificatesWindow`, `buildEventTimeline`) e `routes/users.js` (`getSubmissionWindow`, cópia duplicada).
+- O ajuste corrige tanto a **lógica** (comparação de janelas) quanto a **exibição** (datas renderizadas), que antes também se deslocavam em host não-UTC-3. O check-in (UTC-3) permaneceu inalterado.
+- Status: **corrigido e validado** (`node --check` em `public.js`, `users.js`; `npm run verify-env` passando).
+
+### Correção: importação XLSX não corromper CPF/dados
+
+- Sintoma (bug severidade MÉDIA): o `services/sheet-reader.js` guardava o valor bruto da célula do exceljs; números viravam `number` (CPF/CEP perdiam zero à esquerda) e datas viravam `Date`, corrompendo a busca por CPF e gerando contas duplicadas em importações em massa.
+- Correção: `normalizeCellValue()` passa a usar `cell.text` (valor já formatado pelo exceljs, preservando zeros à esquerda e datas como string), com fallback para `cell.value` (datas convertidas para `YYYY-MM-DD`). Comportância de linha vazia e pulo de linhas totalmente vazias preservados.
+- Status: **corrigido e validado** (`node --check` em `services/sheet-reader.js`).
+
+### Correção: operações multi-tabela atômicas e enfileiramento de e-mail
+
+- `routes/events.js` (criação de evento): `INSERT INTO events` + `INSERT OR IGNORE INTO event_user_roles` (papel admin do criador) agora estão dentro de um único `db.transaction`; antes, se o segundo statement falhasse, o evento existia sem o papel de admin.
+- `routes/events.js` (exclusão de evento): `DELETE FROM events` agora roda **antes** de remover logo/PDF do disco, evitando arquivos órfãos se o DELETE falhar.
+- `routes/events.js` (emissão em lote de certificados): os e-mails de certificado passam a ser enfileirados **fora** da transação (coletados em `pendingEmails` e enviados em loop com `try/catch`). Antes, um erro de enqueue dentro da transação poderia reverter a emissão de todos os certificados do lote.
+- `routes/users.js` (criação e aprovação de usuário): o `queueAccountApproved` agora está cercado por `try/catch`; antes, uma falha de enfileiramento gerava HTTP 500 mesmo após a gravação bem-sucedida.
+- Status: **corrigido e validado** (`node --check` em `events.js`, `users.js`).
+
+### Hardening/robustez: `SESSION_SECRET` obrigatória, `VACUUM INTO` e escape em templates
+
+- `server.js`: `SESSION_SECRET` passou a ser **obrigatória** — ausente, o servidor falha cedo (`process.exit(1)`) em vez de randomizar uma chave que invalidaria todas as sessões a cada reinício. A importação `crypto` (que só servia ao fallback) foi removida.
+- `services/backup.js`: `VACUUM INTO ?` (bind) foi substituído por concatenação do caminho sanitizado (escapa asas simples), pois o SQLite não aceita params bindados neste comando; o caminho vem de `mkdtempSync` (tmpdir do sistema, não controlável).
+- `views/admin/events/participants.ejs` e `views/complete-profile.ejs`: dados controláveis (nome de participante, mapas de curso) deixaram escape frágil manual/`JSON.stringify` em `confirm()` inline e `<script>`, passando a usar `jsonForScript` (via `res.locals`), prevenindo breakout de atributo/tag.
+- Validação: `node --check` passando em `server.js`, `backup.js`, `events.js`, `users.js`, `public.js`, `sheet-reader.js`, `datetime.js`; templates EJS compilam via `ejs.compile`; `npm run verify-env` passando.
+- Status: **concluído e validado**.
+
 ### Etapas: campo de descrição breve
 
 - A página de etapas (`/admin/events/:id/activities/:activityId/sessions`) ganhou o campo "Descrição breve da etapa" (opcional, máximo 2000 caracteres), no mesmo padrão da descrição/ementa das atividades (palestras e minicursos).

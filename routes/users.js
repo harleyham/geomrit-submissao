@@ -14,6 +14,7 @@ const { validators: v, validateAndHandle, sanitizeHtml } = require('../security/
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountApproved, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   getSystemEmailSettings } = require('../services/email');
+const { brDate, brToday } = require('../services/datetime');
 
 const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
 if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: true });
@@ -244,9 +245,9 @@ function getSubmissionWindow(event) {
     };
   }
 
-  const now = new Date();
-  const start = event.submission_start ? new Date(`${event.submission_start}T00:00:00`) : null;
-  const end = event.submission_end ? new Date(`${event.submission_end}T23:59:59`) : null;
+  const now = brToday();
+  const start = brDate(event.submission_start);
+  const end = brDate(event.submission_end, '23:59:59');
 
   return {
     isOpen: !!(start && end && now >= start && now <= end),
@@ -435,7 +436,11 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
     formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null)
   ).run();
 
-  queueAccountApproved({ id: createdUser.lastInsertRowid, name: name || email, email });
+  try {
+    queueAccountApproved({ id: createdUser.lastInsertRowid, name: name || email, email });
+  } catch (emailErr) {
+    console.error('Falha ao enfileirar e-mail de conta aprovada:', emailErr.message);
+  }
 
   res.redirect('/admin/users?success=Usuário criado com sucesso');
 });
@@ -730,8 +735,8 @@ router.post('/change-password', requireAuth, strictLimiter, (req, res, next) => 
     return res.redirect('/admin/users?error=As senhas não conferem');
   }
 
-  if (new_password.length < 6) {
-    return res.redirect('/admin/users?error=A senha deve ter pelo menos 6 caracteres');
+  if (new_password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(new_password)) {
+    return res.redirect('/admin/users?error=A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula e número');
   }
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').bind(req.session.userId).get();
@@ -878,7 +883,11 @@ router.post('/:id/approve', requireAuth, (req, res) => {
     WHERE id = ?
   `).bind(req.session.userId, id).run();
 
-  queueAccountApproved(user);
+  try {
+    queueAccountApproved(user);
+  } catch (emailErr) {
+    console.error('Falha ao enfileirar e-mail de cadastro aprovado:', emailErr.message);
+  }
 
   return res.redirect('/admin/users?success=Cadastro aprovado com sucesso');
 });

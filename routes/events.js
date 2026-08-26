@@ -851,19 +851,22 @@ router.post('/', strictLimiter, runEventAssetUpload, (req, res, next) => {
 
   const logoFile = uploadedEventAsset(req, 'logo');
   const contentPdfFile = uploadedEventAsset(req, 'event_pdf');
-  const createdEvent = db.prepare(`
-    INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration, registration_approval_mode,
-      email_enabled,email_platform_name,email_sender_name,email_signature,email_contact,status, institution, language, registration_start, registration_end,
-      submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name,
-      content_pdf_path, content_pdf_original_name, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
-  `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
-    emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
-    normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
-    normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null,
-    logoFile ? `uploads/event-logos/${logoFile.filename}` : null, logoFile ? logoFile.originalname : null,
-    contentPdfFile ? `uploads/event-content/${contentPdfFile.filename}` : null, contentPdfFile ? contentPdfFile.originalname : null).run();
-  db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(createdEvent.lastInsertRowid, req.session.userId, req.session.userId);
+  const createdEvent = db.transaction(() => {
+    const info = db.prepare(`
+      INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration, registration_approval_mode,
+        email_enabled,email_platform_name,email_sender_name,email_signature,email_contact,status, institution, language, registration_start, registration_end,
+        submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name,
+        content_pdf_path, content_pdf_original_name, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+    `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
+      emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
+      normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
+      normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null,
+      logoFile ? `uploads/event-logos/${logoFile.filename}` : null, logoFile ? logoFile.originalname : null,
+      contentPdfFile ? `uploads/event-content/${contentPdfFile.filename}` : null, contentPdfFile ? contentPdfFile.originalname : null).run();
+    db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(info.lastInsertRowid, req.session.userId, req.session.userId);
+    return info;
+  })();
   res.redirect('/admin/events');
 });
 
@@ -1033,9 +1036,9 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
 // Deletar evento
 router.delete('/:id', (req, res) => {
   const event = db.prepare('SELECT logo_path, content_pdf_path FROM events WHERE id = ?').get(req.params.id);
+  db.prepare('DELETE FROM events WHERE id = ?').bind(req.params.id).run();
   if (event && event.logo_path) removeEventLogoFile(event.logo_path);
   if (event && event.content_pdf_path) removeEventContentFile(event.content_pdf_path);
-  db.prepare('DELETE FROM events WHERE id = ?').bind(req.params.id).run();
   res.redirect('/admin/events');
 });
 
@@ -2471,7 +2474,8 @@ router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
 
   let issued = 0;
   let skipped = 0;
-  const issueAll = db.transaction(() => {
+  const pendingEmails = [];
+  db.transaction(() => {
     Object.keys(CERTIFICATE_ROLES).forEach((role) => {
       const rule = getCertificateRule(event.id, role);
       const candidates = getCertificateCandidates(event.id, role, rule);
@@ -2486,15 +2490,19 @@ router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
             action: 'certificate_issued_batch',
             details: { emission_id: emissionId, role, user_id: candidate.user_id }
           });
-          queueCertificateIssued(event, emissionId);
+          pendingEmails.push(emissionId);
           issued += 1;
         } catch (_) {
           skipped += 1;
         }
       });
     });
+  })();
+  // Os e-mails são enfileirados fora da transação para que uma falha de SMTP
+  // não reverta a emissão dos certificados já gravados.
+  pendingEmails.forEach((emissionId) => {
+    try { queueCertificateIssued(event, emissionId); } catch (emailErr) { console.error('Falha ao enfileirar e-mail de certificado:', emailErr.message); }
   });
-  issueAll();
 
   const message = issued
     ? `${issued} certificado(s) emitido(s) em lote${skipped ? `; ${skipped} não puderam ser emitidos porque falta configuração.` : '.'}`
@@ -2818,8 +2826,8 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
   const temporaryPassword = String(req.body.temporary_password || '');
   const confirmTemporaryPassword = String(req.body.confirm_temporary_password || '');
   if (formData.account_mode === 'new') {
-    if (temporaryPassword.length < 6) {
-      return renderParticipantFormError(res, event, null, formData, 'A senha temporária deve ter pelo menos 6 caracteres.');
+    if (temporaryPassword.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(temporaryPassword)) {
+      return renderParticipantFormError(res, event, null, formData, 'A senha temporária deve ter ao menos 8 caracteres, com maiúscula, minúscula e número.');
     }
     if (temporaryPassword !== confirmTemporaryPassword) {
       return renderParticipantFormError(res, event, null, formData, 'A confirmação da senha temporária não confere.');

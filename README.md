@@ -161,10 +161,10 @@ Ao fazer login pela primeira vez, será solicitada a troca de senha.
 |---------|-----------|
 | Helmet | Headers de segurança (CSP, referrer policy, X-Content-Type-Options) |
 | CSRF | Token por sessão, validação timing-safe, aceito por header (`X-CSRF-Token`) ou body (`_csrf`), validação de uploads multipart após o `multer`, 403 em requisições inválidas |
-| Sessão | Cookie `httpOnly`, `sameSite=lax`, `secure` em produção; `regenerate()` no login para prevenir session fixation |
+| Sessão | Cookie `httpOnly`, `sameSite=lax`, `secure` em produção; `regenerate()` no login para prevenir session fixation; `SESSION_SECRET` obrigatória (o servidor recusa o início sem ela, evitando sessões quebradas no reinício) |
 | Super-admin | Acesso a reset/backup só com conta ativa, aprovada, senha trocada e `is_admin` confirmado no banco (não apenas pelo e-mail na sessão) |
-| Rate Limiting | Tetos por rota (login, cadastro, admin) e teto global |
-| Senhas | Hash `bcrypt` com fator 10 (senhas legadas são migradas com hash, não em texto puro) |
+| Rate Limiting | Tetos por rota (login, cadastro, admin) e teto global; IP baseadio na conexão real (sem `trust proxy`), ignorando `X-Forwarded-For` spoofável |
+| Senhas | Hash `bcrypt` com fator 10 (senhas legadas são migradas com hash, não em texto puro); política de complexidade unificada (8+ caracteres, maiúscula, minúscula e número) em todas as vias |
 | Validação | `express-validator` nas rotas críticas com mensagens localizadas |
 | Payload | Limite de 1 MB em JSON e form-urlencoded |
 | Sanitização | IDs numéricos validados com `parseInt()` antes de queries SQL |

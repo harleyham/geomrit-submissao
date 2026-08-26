@@ -10,6 +10,7 @@ const { renderCertificatePdf } = require('../services/certificates');
 const { QR_ROLE_LABELS, ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
 const { registrationLimiter, strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
+const { brDate, brToday } = require('../services/datetime');
 const { validateCsrfToken } = require('../security/csrf');
 const { body } = require('express-validator');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
@@ -88,9 +89,9 @@ function getSubmissionWindow(event) {
     };
   }
 
-  const now = new Date();
-  const start = event.submission_start ? new Date(`${event.submission_start}T00:00:00`) : null;
-  const end = event.submission_end ? new Date(`${event.submission_end}T23:59:59`) : null;
+  const now = brToday();
+  const start = brDate(event.submission_start);
+  const end = brDate(event.submission_end, '23:59:59');
 
   let isOpen = false;
   let isConfigured = !!(start && end);
@@ -138,9 +139,9 @@ function formatDisplayDate(value) {
 }
 
 function getEventStatus(event) {
-  const now = new Date();
-  const start = event.date_start ? new Date(`${event.date_start}T00:00:00`) : null;
-  const end = event.date_end ? new Date(`${event.date_end}T23:59:59`) : start;
+  const now = brToday();
+  const start = brDate(event.date_start);
+  const end = brDate(event.date_end, '23:59:59') || brDate(event.date_start);
 
   if (!start) return 'A definir';
   if (now < start) return 'Programado';
@@ -152,15 +153,15 @@ function getRegistrationStatus(event) {
   if (event.public_registration === 0) return 'Somente administração';
   const window = getRegistrationWindow(event);
   if (!window.isConfigured) return 'A definir';
-  if (!window.isOpen) return window.start && new Date() < window.start ? 'Programada' : 'Encerrada';
+  if (!window.isOpen) return window.start && brToday() < window.start ? 'Programada' : 'Encerrada';
   return 'Disponivel';
 }
 
 function getAnalysisStatus(event) {
   if (!event.has_article_submission) return null;
-  const reviewStart = event.review_start ? new Date(`${event.review_start}T00:00:00`) : null;
-  const reviewEnd = event.review_end ? new Date(`${event.review_end}T23:59:59`) : null;
-  const now = new Date();
+  const reviewStart = brDate(event.review_start);
+  const reviewEnd = brDate(event.review_end, '23:59:59');
+  const now = brToday();
 
   if (!reviewStart || !reviewEnd) return 'A definir';
   if (now < reviewStart) return 'Programada';
@@ -177,9 +178,9 @@ function getStatusTone(status) {
 }
 
 function getRegistrationWindow(event) {
-  const now = new Date();
-  const start = event.registration_start ? new Date(`${event.registration_start}T00:00:00`) : null;
-  const end = event.registration_end ? new Date(`${event.registration_end}T23:59:59`) : null;
+  const now = brToday();
+  const start = brDate(event.registration_start);
+  const end = brDate(event.registration_end, '23:59:59');
 
   if (event.public_registration === 0) {
     return {
@@ -225,9 +226,9 @@ function getRegistrationWindow(event) {
 }
 
 function getCertificatesWindow(event) {
-  const now = new Date();
-  const start = event.certificates_start ? new Date(`${event.certificates_start}T00:00:00`) : null;
-  const end = event.certificates_end ? new Date(`${event.certificates_end}T23:59:59`) : null;
+  const now = brToday();
+  const start = brDate(event.certificates_start);
+  const end = brDate(event.certificates_end, '23:59:59');
 
   if (!start || !end) {
     return {
@@ -268,21 +269,21 @@ function buildEventTimeline(event, options = {}) {
   const hasRegistration = !!registration;
   const registrationWindow = getRegistrationWindow(event);
   const certificatesWindow = getCertificatesWindow(event);
-  const registrationStart = event.registration_start ? new Date(`${event.registration_start}T00:00:00`) : null;
-  const registrationEnd = event.registration_end ? new Date(`${event.registration_end}T23:59:59`) : null;
-  const submissionStart = event.submission_start ? new Date(`${event.submission_start}T00:00:00`) : null;
-  const submissionEnd = event.submission_end ? new Date(`${event.submission_end}T23:59:59`) : null;
-  const eventStart = event.date_start ? new Date(`${event.date_start}T00:00:00`) : null;
-  const eventEnd = event.date_end ? new Date(`${event.date_end}T23:59:59`) : eventStart;
-  const reviewStart = event.review_start ? new Date(`${event.review_start}T00:00:00`) : null;
-  const reviewEnd = event.review_end ? new Date(`${event.review_end}T23:59:59`) : null;
-  const certificatesStart = event.certificates_start ? new Date(`${event.certificates_start}T00:00:00`) : null;
-  const certificatesEnd = event.certificates_end ? new Date(`${event.certificates_end}T23:59:59`) : null;
+  const registrationStart = brDate(event.registration_start);
+  const registrationEnd = brDate(event.registration_end, '23:59:59');
+  const submissionStart = brDate(event.submission_start);
+  const submissionEnd = brDate(event.submission_end, '23:59:59');
+  const eventStart = brDate(event.date_start);
+  const eventEnd = brDate(event.date_end, '23:59:59') || eventStart;
+  const reviewStart = brDate(event.review_start);
+  const reviewEnd = brDate(event.review_end, '23:59:59');
+  const certificatesStart = brDate(event.certificates_start);
+  const certificatesEnd = brDate(event.certificates_end, '23:59:59');
 
   const submissionStatus = event.submission.isOpen
     ? 'Aberta'
     : event.submission.isConfigured
-      ? (submissionStart && new Date() < submissionStart ? 'Programada' : 'Encerrada')
+      ? (submissionStart && brToday() < submissionStart ? 'Programada' : 'Encerrada')
       : 'Nao configurada';
 
   const timeline = [];
@@ -307,7 +308,7 @@ function buildEventTimeline(event, options = {}) {
     endLabel: formatDisplayDate(certificatesEnd) || 'A definir',
     status: (!certificatesStart || !certificatesEnd)
       ? 'A definir'
-      : (new Date() < certificatesStart ? 'Programada' : (new Date() > certificatesEnd ? 'Encerrada' : 'Disponivel'))
+      : (brToday() < certificatesStart ? 'Programada' : (brToday() > certificatesEnd ? 'Encerrada' : 'Disponivel'))
   });
 
   if (event.has_article_submission) {
@@ -2258,10 +2259,10 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
     });
   }
 
-  if (password.length < 6) {
+  if (password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
     return res.status(400).render('public/register', {
       title: 'Solicitar Cadastro',
-      error: 'A senha deve ter pelo menos 6 caracteres.',
+      error: 'A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula e número.',
       success: null,
       formData
     });

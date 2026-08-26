@@ -11,7 +11,6 @@ const session = require('express-session');
 const helmet = require('helmet');
 const compression = require('compression');
 const methodOverride = require('method-override');
-const crypto = require('crypto');
 
 const { csrfProtection } = require('./security/csrf');
 const { defaultLimiter, adminLimiter } = require('./security/rate-limits');
@@ -20,7 +19,8 @@ const { db } = require('./db');
 const { startEmailWorkers, stopEmailWorkers } = require('./services/email');
 
 const app = express();
-app.set('trust proxy', 1);
+// `trust proxy` permanece desativado para que `req.ip` (usado pelo rate limiting)
+// reflita sempre o IP real da conexão, ignorando o `X-Forwarded-For` spoofável.
 const PORT = process.env.PORT || 3000;
 const APP_VERSION = 'V0.2';
 
@@ -72,8 +72,14 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/uploads/event-logos', express.static(path.join(__dirname, 'uploads', 'event-logos')));
 
 // Sessão
+// SESSION_SECRET é obrigatória: sem ela o fallback randomizado invalidaria todas
+// as sessões a cada reinício. Falhar cedo evita sessões quebradas e segredo fraco.
+if (!process.env.SESSION_SECRET) {
+  console.error('SESSION_SECRET não configurada. Defina uma chave forte no .env antes de iniciar.');
+  process.exit(1);
+}
 app.use(session({
-  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
