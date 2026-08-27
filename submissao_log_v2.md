@@ -217,3 +217,10 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Verificação: `node --check` OK em `services/backup.js` e `routes/auth.js`. Teste funcional com o módulo real (`adm-zip`): (1) ZIP vazio rejeitado; (2) ZIP válido e pequeno (padrão de backup real) aprovado; (3) ZIP-bomb por razão (payload de 6 MB de zeros, razão >> 100) rejeitado com "razão de compressão excede o limite permitido (possível ZIP-bomb)"; (4) ZIP com 100.001 entradas rejeitado pelo teto de nº de entradas. **4/4 checks.**
 - Status: **corrigido e validado** (efetiva após reinício do servidor; não exige migração de banco).
 
+### Meus comentários
+
+- Fotinha redonda e mini currículo dos palestrantes e professores
+- Fotinha redonda dos usuários
+- Os pôster ficarem arquivados e visíveis dentro do sistema
+- Galeria de fotos do evento
+
