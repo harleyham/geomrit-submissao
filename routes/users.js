@@ -13,7 +13,7 @@ const { validateCsrfToken } = require('../security/csrf');
 const { validators: v, validateAndHandle, sanitizeHtml } = require('../security/validation');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountApproved, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
-  getSystemEmailSettings } = require('../services/email');
+  canQueueEmail, getSystemEmailSettings } = require('../services/email');
 const { brDate, brToday } = require('../services/datetime');
 
 const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
@@ -1051,10 +1051,26 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
   const successes = report.filter(r => r.status === 'success').length;
 
   const batchId = createImportBatch({ batchType: 'users', importedBy: req.session.userId, report });
+
+  // Importação por admin implica aprovação: os acessos novos são enfileirados automaticamente.
+  let emailMessage = null;
+  try {
+    if (canQueueEmail(null).allowed) {
+      const queued = authorizeImportBatch(batchId, req.session.userId);
+      emailMessage = queued > 0
+        ? `${queued} e-mail(ns) de criação de conta enfileirado(ns) automaticamente.`
+        : 'Nenhum e-mail de conta nova a enfileirar neste lote.';
+    } else {
+      emailMessage = 'Master switch global de e-mails desativado. Os e-mails não foram enfileirados.';
+    }
+  } catch (authErr) {
+    console.error('[users-import] Falha na autorização automática de e-mails:', authErr.message);
+  }
+
   req.session.importResult = {
-    imported, skipped, updated, errors, successes, report, success: report.length > 0, batchId
+    imported, skipped, updated, errors, successes, report, success: report.length > 0, batchId, emailMessage
   };
-  return res.redirect('/admin/users/import/result');
+  return res.redirect('/admin/users/import/result' + (emailMessage ? `?email_message=${encodeURIComponent(emailMessage)}` : ''));
 });
 
 router.get('/import/download-csv', requireAuth, (req, res) => {

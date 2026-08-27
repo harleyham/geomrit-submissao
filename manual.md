@@ -297,7 +297,7 @@ Ao desligar um switch, mensagens pendentes do respectivo escopo são canceladas 
 
 O card do evento permite definir nome da plataforma, nome exibido do remetente, assinatura e e-mail de contato (`Reply-To`). Mensagens do evento usam seu logo quando configurado; sem logo, não há imagem padrão.
 
-As importações não enviam mensagens automaticamente. Na página de resultado, revise o relatório e use **Autorizar envio dos acessos** ou **Autorizar e-mails aos participantes**. Novas contas recebem link individual de uso único para definir senha, válido por 72 horas; senhas não são enviadas por e-mail.
+A importação de usuários em **Usuários** (`/admin/users/import`) envia automaticamente os e-mails de criação de conta: como o admin que importa já aprova os acessos, os novos usuários recebam imediatamente o link individual de uso único para definir senha (válido por 72 horas), sem clique adicional. Senhas nunca são enviadas por e-mail. A autorização só é manual quando o master switch global está desativado — nesse caso, a página de resultado exibe um aviso e os e-mails ficam pendentes até a reativação e a autorização pelo admin. Já a importação de inscrições em eventos (`/admin/events/:id/import-users`) continua exigindo **Autorizar e-mails aos participantes** na página de resultado.
 
 Nas inscrições públicas, o participante recebe uma confirmação imediata ou um aviso de recebimento para análise, conforme a configuração do evento. Depois da análise, recebe o resultado como aprovado, parcialmente aprovado (com as atividades confirmadas) ou recusado. Também recebe aviso quando a administração altera suas atividades.
 
