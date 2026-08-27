@@ -12,6 +12,12 @@ Versão atual registrada: **V0.3**.
 
 ## 2026-08-26
 
+### Verificação funcional do refinamento 0.3 (Fase 0) — confirmada
+
+- Pendência do Ciclo 1 (`plano.md`): a opção "Não possui curso de graduação" (0.3b: disponível em todas as áreas; 0.3c: titulação/status opcionais e gravados como `null`; 0.3d: campos ocultos nos 4 templates) aguardava verificação funcional ponta a ponta.
+- Confirmado pelo usuário em 2026-08-26: os refinamentos do 0.3 estão funcionando. Item marcado como concluído em `plano.md`.
+- Status: **verificação concluída**.
+
 ### Confirmação de exclusão de usuário: modal customizado no lugar do `confirm()` nativo
 
 - Relato do usuário (26/08): ao pressionar **Excluir** em `/admin/users`, o navegador exibia o popup nativo `confirm()` com o título "127.0.0.1:3000 diz" (prefixo do host adicionado pelo navegador) — o título não pode ser trocado em diálogos nativos.

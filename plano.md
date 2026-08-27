@@ -60,7 +60,7 @@ Status: **CONCLUÍDO (código + verificação técnica)**.
 ---
 
 ## Ciclo 1 — Fase 0: Quick Wins
-Status geral: **CONCLUÍDO (código + verificação)**; documentação e verificação final do refinamento 0.3 pendentes.
+Status geral: **CONCLUÍDO (código + verificação)**, incluindo a verificação funcional do refinamento 0.3 (confirmada pelo usuário em 2026-08-26).
 
 ### 0.1 Dashboard — novos contadores — CONCLUÍDO ✔
 - Arquivos: `routes/auth.js` (GET `/dashboard`), `views/admin/dashboard.ejs`.
@@ -72,7 +72,7 @@ Status geral: **CONCLUÍDO (código + verificação)**; documentação e verific
 - Adicionados: campo telefone, seção formação (área/curso/titulação/status), seção "Trocar senha" (current/new/confirm, bcrypt, `password_changed=1`).
 - Verificado: renderiza, salva e troca de senha funciona (login com nova senha OK).
 
-### 0.3 Opção "Não possui curso de graduação" — CONCLUÍDO ✔ (refinamento 0.3b/c/d: código ok, verificação funcional pendente)
+### 0.3 Opção "Não possui curso de graduação" — CONCLUÍDO ✔ (refinamento 0.3b/c/d: código ok + verificação funcional confirmada pelo usuário em 2026-08-26)
 - **Base (0.3):** `services/academic-formation.js` — constante `NO_DEGREE_COURSE`, `getCursosByArea` a insere a opção; deduplicação: `routes/users.js` e `routes/events.js` usam `getCursosMap()` do serviço.
 - **Refinamento 0.3b:** opção aparece em **todas** as áreas (não só "Outros"/11).
 - **Refinamento 0.3c:** titulação/status opcionais quando o curso é o especial; `normalizeFormacaoForStorage` (`routes/auth.js`) e normalização no POST (`routes/public.js`) gravam `null`.
@@ -93,7 +93,7 @@ Status geral: **CONCLUÍDO (código + verificação)**; documentação e verific
 - `views/error.ejs:23`: `<%= message || '' %>` → `<%= locals.message || '' %>` (ReferenceError em ~20+ rotas 404).
 
 ### Pendências do Ciclo 1
-- [ ] Verificação funcional do refinamento 0.3b/c/d (especial em área ≠ 11; titulação/status ocultos; POST sem eles → sucesso + `null` no DB).
+- [x] Verificação funcional do refinamento 0.3b/c/d (especial em área ≠ 11; titulação/status ocultos; POST sem eles → sucesso + `null` no DB) — **confirmada pelo usuário em 2026-08-26**.
 - [x] Atualizar `submissao.md` + `submissao_log.md` cobrindo Fase 0 (0.1–0.4) + refinamento 0.3 + fix do `error.ejs` (concluído em 2026-08-14).
 
 ---
