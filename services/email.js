@@ -102,6 +102,19 @@ function setSystemEmailEnabled(enabled, actorUserId) {
   return cancelled;
 }
 
+function clearEmailQueue(actorUserId) {
+  let cancelled = 0;
+  db.transaction(() => {
+    revokeTokensForOutbox("status IN ('queued','failed')");
+    cancelled = db.prepare(`UPDATE email_outbox SET status='cancelled',cancelled_at=datetime('now','-3 hours'),
+      last_error='Fila limpa pelo administrador.',updated_at=datetime('now','-3 hours')
+      WHERE status IN ('queued','failed')`).run().changes;
+    db.prepare(`INSERT INTO email_settings_log (enabled,changed_by,cancelled_count,scope,created_at)
+      VALUES (1,?,?,'system',datetime('now','-3 hours'))`).run(actorUserId || null, cancelled);
+  })();
+  return cancelled;
+}
+
 function setEventEmailEnabled(eventId, enabled, actorUserId) {
   const value = enabled ? 1 : 0;
   let cancelled = 0;
@@ -535,7 +548,7 @@ function isValidHttpUrl(value) {
 
 module.exports = {
   getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getGlobalIdentity, getEventIdentity,
-  setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail,
+  setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail, clearEmailQueue,
   queueAccountRequested, queueAccountApproved, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
   queueRegistrationReviewDecision, queueParticipantActivitiesUpdated,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,

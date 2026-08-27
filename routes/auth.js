@@ -12,7 +12,7 @@ const { resetDatabase } = require('../services/db-reset');
 const { createBackupZip, restoreFromZip, backupFileName } = require('../services/backup');
 const { requireSuperAdmin } = require('../security/super-admin');
 const { validateCsrfToken } = require('../security/csrf');
-const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, setSystemEmailEnabled, enqueueDirectEmail } = require('../services/email');
+const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
 fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
@@ -421,6 +421,11 @@ router.post('/email/direct', requireAuth, requireSuperAdmin, strictLimiter, (req
     body
   });
   return res.redirect(`/admin/dashboard?email=sent&message=${encodeURIComponent('E-mail enfileirado para ' + recipientEmail + '. Ele será enviado quando o envio global estiver ativado.')}`);
+});
+
+router.post('/email/clear', requireAuth, requireSuperAdmin, strictLimiter, (req, res) => {
+  const cleared = clearEmailQueue(req.session.userId);
+  return res.redirect(`/admin/dashboard?email=cleared&message=${encodeURIComponent('Fila de e-mails limpa. ' + cleared + ' mensagem(ns) cancelada(s).')}`);
 });
 
 router.get('/db/reset', requireAuth, requireSuperAdmin, (req, res) => {

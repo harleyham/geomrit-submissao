@@ -240,6 +240,19 @@ A seção "Backup e Restaração" no dashboard concentra as operações de manut
 
 Backup e restauração não exigem reinício do servidor — a conexão é trocada em tempo de execução.
 
+### Envio de e-mail individual
+
+No card **Envio global de e-mails** do dashboard, visível apenas ao `admin@admin.com`, há um formulário para enviar uma mensagem a um destinatário único. Os campos são:
+
+- **Destinatário**: endereço de e-mail do destinatário;
+- **Assunto**;
+- **Mensagem**;
+- **Enviar e-mail**.
+
+A mensagem é enfileirada e exibida na lista "Mensagens pendentes" com data de criação e disponibilidade formatadas em `dd/mm/aaaa hh:mm` (horário de Brasília). O envio respeita o master switch global: quando ele está desativado, a mensagem fica na fila como suspensa e só é enviada após a reativação. O sistema tentaria enviar automaticamente, mas a saída para o servidor SMTP depende da rede/local de execução.
+
+Quando a fila apresenta mensagens pendentes, aparece o botão **Limpar fila de e-mails** acima da lista "Ver mensagens pendentes". Ele cancela todas as mensagens da fila de uma vez, removendo-as da exibição e impedindo seu envio. Antes de executar, o sistema pede confirmação; a ação é restrita ao `admin@admin.com` e registrada na trilha de auditoria dos e-mails. Os registros são marcados como cancelados (não excluídos), preservando o histórico.
+
 ## 12. Estatísticas e relatórios
 
 Abra `/admin/reports` e selecione o evento. O relatório consolida:
@@ -277,6 +290,8 @@ Abra `/admin/reports` e selecione o evento. O relatório consolida:
 ## 15. E-mails transacionais
 
 O envio possui dois níveis de autorização: o **master switch global**, restrito ao superadministrador, e o switch de cada evento. Ambos começam desligados. O global pode ser alterado no dashboard ou em `/admin/events`; o switch do evento também aparece na listagem e no card **Identidade dos e-mails** da criação/edição.
+
+Além dos envios automáticos, o `admin@admin.com` pode mandar um e-mail para um endereço específico diretamente do card **Envio global de e-mails** no dashboard (`/admin/dashboard`): um campo de destinatário, um de assunto, um de mensagem e um botão **Enviar e-mail**. A mensagem entra na fila (respeitando o master switch) e pode ser acompanhada em **Ver mensagens pendentes**. Detalhes dessa funcionalidade estão na seção **Envio de e-mail individual** (Seção 11).
 
 Ao desligar um switch, mensagens pendentes do respectivo escopo são canceladas e não retornam ao reativar. O sistema nunca bloqueia cadastro, aprovação, emissão ou importação por indisponibilidade do SMTP.
 

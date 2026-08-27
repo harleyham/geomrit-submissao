@@ -403,6 +403,10 @@
           </form>
         </div>
         <% if (pendingEmailCount > 0) { %>
+        <form method="POST" action="/admin/email/clear" nonce="<%= cspNonce %>" class="email-clear-form" onsubmit="return confirm('Tem certeza de que deseja limpar a fila de e-mails? Todas as mensagens pendentes serão canceladas e não poderão ser recuperadas.');">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-danger btn-sm" style="align-self:flex-end;">Limpar fila de e-mails</button>
+        </form>
         <details>
           <summary class="email-queue-summary">Ver mensagens pendentes (<%= pendingEmailCount %>)</summary>
           <div class="table-scroll">
