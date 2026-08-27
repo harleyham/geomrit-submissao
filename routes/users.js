@@ -967,8 +967,8 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now','-3 hours'), 0, 0, datetime('now','-3 hours'), datetime('now','-3 hours'))
   `);
   const updateUser = db.prepare('UPDATE users SET name=COALESCE(?, name), institution=COALESCE(?, institution), phone=COALESCE(?, phone), email=COALESCE(?, email), cpf=COALESCE(?, cpf), passport=COALESCE(?, passport) WHERE id=?');
-  const findUserByCpf = db.prepare("SELECT id, name, email, cpf FROM users WHERE cpf IS NOT NULL AND cpf != ''");
-  const findUserByPassport = db.prepare("SELECT id, name, email, passport FROM users WHERE passport IS NOT NULL AND passport != ''");
+  const findUserByCpf = db.prepare("SELECT id, name, email, cpf FROM users WHERE cpf IS NOT NULL AND cpf != '' AND cpf = ?");
+  const findUserByPassport = db.prepare("SELECT id, name, email, passport FROM users WHERE passport IS NOT NULL AND passport != '' AND passport = ?");
   const findUserByEmail = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?");
 
   const defaultPassword = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
@@ -999,8 +999,8 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
       }
 
       let existing = null;
-      if (cpf && cpf.length >= 11) existing = findUserByCpf.get(cpf.replace(/\D/g, ''));
-      if (!existing && passport) existing = findUserByPassport.get(passport.replace(/\s+/g, ''));
+      if (cpf && cpf.length >= 11) existing = findUserByCpf.get(cpf);
+      if (!existing && passport) existing = findUserByPassport.get(passport);
       if (!existing) existing = findUserByEmail.get(email);
 
       const nameToUse = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email.split('@')[0] || 'Importado');

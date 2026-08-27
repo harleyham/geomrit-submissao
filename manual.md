@@ -103,6 +103,8 @@ Há dois fluxos:
 
 São aceitos CSV e XLSX. A importação identifica delimitador de vírgula ou ponto e vírgula, aceita CRLF/LF e apresenta relatório pessoa a pessoa. Baixe o modelo CSV quando necessário.
 
+Cada linha é conferida para evitar duplicatas: primeiramente pelo e-mail e, quando o arquivo traz o dado, pelo CPF ou passaporte. Linha que já bate com uma conta existente só atualiza os campos informados (nome, instituição, telefone, e-mail, CPF ou passaporte); se nada mudou, ela é sinalizada como sem alterações. Usuário novo é criado já aprovado e ativo. A importação por usuário implica aprovação dos acessos (os e-mails de criação de conta são enfileirados automaticamente — veja mais abaixo); a importação por inscrição em evento segue exigindo autorização manual dos e-mails.
+
 ### Inativação e exclusão
 
 Desative **Conta ativa** para impedir novo acesso preservando inscrições, presenças e histórico. A exclusão é mais ampla e pode remover vínculos, presenças, crachá e revisões; use-a somente quando necessário.
