@@ -12,6 +12,16 @@ Versão atual registrada: **V0.3**.
 
 ## 2026-08-26
 
+### Confirmação de exclusão de usuário: modal customizado no lugar do `confirm()` nativo
+
+- Relato do usuário (26/08): ao pressionar **Excluir** em `/admin/users`, o navegador exibia o popup nativo `confirm()` com o título "127.0.0.1:3000 diz" (prefixo do host adicionado pelo navegador) — o título não pode ser trocado em diálogos nativos.
+- `views/admin/users/list.ejs`: substituído o `confirm()` dos dois botões "Excluir" (usuários aprovados e cadastros pendentes) por um **modal customizado**, no mesmo padrão já usado em `views/admin/articles/list.ejs` e `views/public/author-dashboard.ejs`.
+  - Novos estilos `.modal-backdrop`/`.modal-card`/`.modal-actions` (com `white-space: pre-line` na mensagem para quebrar as linhas).
+  - Modal único `#delete-user-modal` com título e mensagem dinâmicos ("Excluir usuário" / "Excluir solicitação de cadastro") e botões **Cancelar** e **Excluir**.
+  - Os formulários ganharam `class="js-delete-user"` / `class="js-delete-user-pending"` + `data-email`; o `onsubmit` com `confirm()` nativo foi removido. Um script captura o `submit`, `preventDefault()`, preenche o modal e, ao confirmar, chama `pendingForm.submit()` (que preserva o `_method=DELETE` e o `_csrf`). Clicar fora ou em Cancelar fecha sem enviar.
+- Validação: `ejs.compile` de `list.ejs` OK, `git diff --check` OK e render com dados fictícios confirma modal presente e ausência de `onsubmit`/`confirm()` nativo restante. Efetiva após recarregar `/admin/users` (mudança apenas de template).
+- Status: **implementado e validado** (efetivo após recarga da página).
+
 ### Correção: exclusão de usuário retornava 403 "O token de segurança não foi fornecido" (aspas mal fechadas no `onsubmit`)
 
 - Relato do usuário (26/08): ao clicar em **Excluir** em `/admin/users`, o sistema respondia com a página de erro `Solicitação inválida — O token de segurança não foi fornecido. Recarregue a página e tente novamente.` (403 do `security/csrf.js`).

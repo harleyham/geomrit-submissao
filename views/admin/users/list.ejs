@@ -75,6 +75,12 @@
     .filter-group input:focus, .filter-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
     .filter-actions { display: flex; gap: 0.5rem; }
     .empty-state { text-align: center; padding: 3rem; color: #64748b; font-size: 0.95rem; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,0.72); display: none; align-items: center; justify-content: center; padding: 1.5rem; z-index: 1200; }
+    .modal-backdrop.visible { display: flex; }
+    .modal-card { width: 100%; max-width: 460px; background: rgba(15,23,42,0.98); border: 1px solid rgba(148,163,184,0.18); border-radius: 18px; padding: 1.5rem; box-shadow: 0 30px 80px rgba(2,6,23,0.5); }
+    .modal-card h2 { color: #f8fafc; font-size: 1.15rem; margin-bottom: 0.7rem; }
+    .modal-card p { color: #94a3b8; line-height: 1.65; margin-bottom: 1.25rem; white-space: pre-line; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 0.75rem; flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -189,7 +195,7 @@
                 <button type="submit" class="btn btn-primary btn-sm">Aprovar Cadastro</button>
               </form>
               <% if (u.id !== currentUser.id && u.email !== 'admin@admin.com') { %>
-              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir solicitação de cadastro de <%= u.email %>\nEsta ação não pode ser desfeita.')">
+              <form method="POST" action="/admin/users/<%= u.id %>" class="js-delete-user-pending" data-email="<%= u.email %>" style="display:inline">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
@@ -330,7 +336,7 @@
                 <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
               </form>
               <% if (u.email !== 'admin@admin.com') { %>
-              <form method="POST" action="/admin/users/<%= u.id %>" style="display:inline" onsubmit="return confirm('Excluir o usuário <%= u.email %>?\nEsta ação é definitiva e não pode ser desfeita: ela também remove os papéis em eventos, as inscrições em atividades, as presenças, o crachá (QR Code) e as atribuições de revisão do usuário.\nSe o objetivo for apenas bloquear o acesso, desligue o controle Conta ativa na listagem — o histórico é preservado.')">
+              <form method="POST" action="/admin/users/<%= u.id %>" class="js-delete-user" data-email="<%= u.email %>" style="display:inline">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <input type="hidden" name="_method" value="DELETE">
                 <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
@@ -355,6 +361,18 @@
 
   <form id="bulk-flags-form" method="POST" action="/admin/users/bulk-update-flags" style="display:none;">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
+
+  <div class="modal-backdrop" id="delete-user-modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-user-title">
+      <h2 id="delete-user-title">Excluir usuário</h2>
+      <p id="delete-user-message"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="delete-user-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="delete-user-confirm-btn">Excluir</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     document.querySelectorAll('.toggle-password').forEach(function(button) {
       button.addEventListener('click', function() {
@@ -378,6 +396,53 @@
           url += '&q=' + encodeURIComponent(q.value.trim());
         }
         window.location.href = url;
+      });
+    })();
+  </script>
+
+  <script>
+    (function() {
+      var modal = document.getElementById('delete-user-modal');
+      var confirmBtn = document.getElementById('delete-user-confirm-btn');
+      var cancelBtn = document.getElementById('delete-user-cancel-btn');
+      var titleEl = document.getElementById('delete-user-title');
+      var msgEl = document.getElementById('delete-user-message');
+      var pendingForm = null;
+
+      function openDeleteModal(form, title, message) {
+        pendingForm = form;
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        modal.classList.add('visible');
+        modal.setAttribute('aria-hidden', 'false');
+        confirmBtn.focus();
+      }
+
+      function closeDeleteModal() {
+        pendingForm = null;
+        modal.classList.remove('visible');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+
+      document.querySelectorAll('form.js-delete-user, form.js-delete-user-pending').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          var email = form.getAttribute('data-email') || '';
+          var pending = form.classList.contains('js-delete-user-pending');
+          var title = pending ? 'Excluir solicitação de cadastro' : 'Excluir usuário';
+          var message = pending
+            ? 'Excluir solicitação de cadastro de ' + email + '?\nEsta ação não pode ser desfeita.'
+            : 'Excluir o usuário ' + email + '?\nEsta ação é definitiva e não pode ser desfeita: ela também remove os papéis em eventos, as inscrições em atividades, as presenças, o crachá (QR Code) e as atribuições de revisão do usuário.\nSe o objetivo for apenas bloquear o acesso, desligue o controle "Conta ativa" na listagem — o histórico é preservado.';
+          openDeleteModal(form, title, message);
+        });
+      });
+
+      if (cancelBtn) cancelBtn.addEventListener('click', closeDeleteModal);
+      if (confirmBtn) confirmBtn.addEventListener('click', function() {
+        if (pendingForm) pendingForm.submit();
+      });
+      if (modal) modal.addEventListener('click', function(e) {
+        if (e.target === modal) closeDeleteModal();
       });
     })();
   </script>
