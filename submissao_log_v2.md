@@ -12,6 +12,15 @@ Versão atual registrada: **V0.3**.
 
 ## 2026-08-26
 
+### Correção: exclusão de usuário retornava 403 "O token de segurança não foi fornecido" (aspas mal fechadas no `onsubmit`)
+
+- Relato do usuário (26/08): ao clicar em **Excluir** em `/admin/users`, o sistema respondia com a página de erro `Solicitação inválida — O token de segurança não foi fornecido. Recarregue a página e tente novamente.` (403 do `security/csrf.js`).
+- Causa raiz: em `views/admin/users/list.ejs` (botão "Excluir" dos usuários aprovados), o atributo `onsubmit` do formulário estava sem a **aspas dupla de fechamento** — `onsubmit="return confirm('...')>` em vez de `...')">`. Com o HTML malformado, o navegador tratava os campos ocultos seguintes (`_csrf` e `_method=DELETE`) como parte do atributo, e o POST era enviado **sem o token CSRF** — daí a mensagem "não foi fornecido" (o servidor não recebe o `_csrf` no body). A validação de CSRF e o `method-override` estavam íntegros.
+- Por que os testes manuais por HTTP não reproduziam: scripts `curl`/`fetch` enviam o corpo diretamente, ignorando o parse do HTML; o defeito só se manifesta quando um **navegador real** faz o parse do formulário malformado.
+- Correção: fechada a aspas do atributo (`')">`). Uma linha, somente no template.
+- Verificação: `git diff --check` OK, `ejs.compile` de `list.ejs` OK. Efetiva após recarregar `/admin/users` (mudança apenas de template, sem reinício).
+- Status: **corrigido e validado** (efetivo após recarga da página).
+
 ### Correção crítica: login bloqueado por 403 (cookie de sessão suprimido sem `trust proxy`)
 
 - Sintoma: nenhum usuário conseguia autenticar. O GET `/login` renderizava o formulário com token CSRF, mas **não enviava nenhum `Set-Cookie`**; o POST seguinte chegava sem cookie de sessão, o servidor criava uma sessão vazia nova com outro token e toda tentativa retornava **403 "O token de segurança não é válido"** — inclusive com credenciais corretas.
