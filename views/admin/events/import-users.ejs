@@ -64,7 +64,7 @@
     </div>
   </main>
   <%- include("../../partials/csrf-inject") %>
-  <script>
+  <script nonce="<%= cspNonce %>">
     const dropZone=document.getElementById('drop-zone');
     const fileInput=document.getElementById('file-input');
     const fileNameEl=document.getElementById('file-name');

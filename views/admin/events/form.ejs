@@ -84,7 +84,7 @@
     </div>
 
     <% if (event) { %>
-      <form id="delete-event-form" method="POST" action="/admin/events/<%= event.id %>" onsubmit="return confirm('Tem certeza que deseja apagar o evento <%= event.name %>? Esta ação não poderá ser desfeita.');">
+      <form id="delete-event-form" method="POST" action="/admin/events/<%= event.id %>" nonce="<%= cspNonce %>" onsubmit="return confirm('Tem certeza que deseja apagar o evento <%= event.name %>? Esta ação não poderá ser desfeita.');">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="_method" value="DELETE">
       </form>
@@ -298,7 +298,7 @@
     </form>
   </main>
 
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function() {
       var toggle = document.getElementById('has_article_submission');
       var settings = document.querySelector('[data-submission-settings]');
@@ -356,9 +356,9 @@
      })();
    </script>
 
-  <script src="/lib/flatpickr/flatpickr.min.js"></script>
-  <script src="/lib/flatpickr/l10n/pt.js"></script>
-  <script src="/lib/flatpickr/init.js"></script>
+  <script src="/lib/flatpickr/flatpickr.min.js" nonce="<%= cspNonce %>"></script>
+  <script src="/lib/flatpickr/l10n/pt.js" nonce="<%= cspNonce %>"></script>
+  <script src="/lib/flatpickr/init.js" nonce="<%= cspNonce %>"></script>
 
    <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 <%- include("../../partials/csrf-inject") %>

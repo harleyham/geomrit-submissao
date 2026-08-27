@@ -92,7 +92,7 @@
         <input type="hidden" name="eventId" value="<%= event.id %>">
         <div class="filter-group">
           <label for="area">Filtrar por Área / Trilha</label>
-          <select id="area" name="area" onchange="this.form.submit()">
+          <select id="area" name="area" onchange="this.form.submit()" nonce="<%= cspNonce %>">
             <option value="all" <%= !filters || filters.area === 'all' ? 'selected' : '' %>>Todas as áreas</option>
             <% availableAreas.forEach(function(area) { %>
               <option value="<%= area %>" <%= filters && filters.area === area ? 'selected' : '' %>><%= area %></option>
@@ -101,7 +101,7 @@
         </div>
         <div class="filter-group">
           <label for="type">Filtrar por Modalidade</label>
-          <select id="type" name="type" onchange="this.form.submit()">
+          <select id="type" name="type" onchange="this.form.submit()" nonce="<%= cspNonce %>">
             <option value="all" <%= !filters || filters.type === 'all' ? 'selected' : '' %>>Todas as modalidades</option>
             <option value="oral" <%= filters && filters.type === 'oral' ? 'selected' : '' %>>Oral</option>
             <option value="poster" <%= filters && filters.type === 'poster' ? 'selected' : '' %>>Poster</option>
@@ -109,7 +109,7 @@
         </div>
         <div class="filter-group">
           <label for="status">Filtrar por Status</label>
-          <select id="status" name="status" onchange="this.form.submit()">
+          <select id="status" name="status" onchange="this.form.submit()" nonce="<%= cspNonce %>">
             <option value="all" <%= !filters || filters.status === 'all' ? 'selected' : '' %>>Todos os status</option>
             <option value="pending" <%= filters && filters.status === 'pending' ? 'selected' : '' %>>Pendente</option>
             <option value="in_review" <%= filters && filters.status === 'in_review' ? 'selected' : '' %>>Em análise</option>
@@ -123,7 +123,7 @@
         </div>
         <div class="filter-group">
           <label for="sort">Ordenar por</label>
-          <select id="sort" name="sort" onchange="this.form.submit()">
+          <select id="sort" name="sort" onchange="this.form.submit()" nonce="<%= cspNonce %>">
             <option value="date_desc" <%= filters && filters.sort === 'date_desc' ? 'selected' : '' %>>Data mais recente</option>
             <option value="date_asc" <%= filters && filters.sort === 'date_asc' ? 'selected' : '' %>>Data mais antiga</option>
             <option value="title_asc" <%= filters && filters.sort === 'title_asc' ? 'selected' : '' %>>Título A-Z</option>
@@ -158,7 +158,7 @@
             <td><span class="badge badge-<%= a.status %>"><%= a.status_label %></span></td>
             <td><%= new Date(a.created_at).toLocaleDateString('pt-BR') %></td>
             <td class="actions">
-              <select class="status-select" onchange="changeStatus(<%= a.id %>, this.value)">
+              <select class="status-select" onchange="changeStatus(<%= a.id %>, this.value)" nonce="<%= cspNonce %>">
                 <option value="pending" <%= a.status === 'pending' ? 'selected' : '' %>>Pendente</option>
                 <option value="in_review" <%= a.status === 'in_review' ? 'selected' : '' %>>Em análise</option>
                 <option value="approved" <%= a.status === 'approved' ? 'selected' : '' %>>Aprovado</option>
@@ -192,7 +192,7 @@
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 
-  <script>
+  <script nonce="<%= cspNonce %>">
     let pendingDelete = null;
     const deleteModal = document.getElementById('delete-modal');
     const deleteCancelBtn = document.getElementById('delete-cancel-btn');

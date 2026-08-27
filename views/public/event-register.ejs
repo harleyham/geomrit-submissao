@@ -253,7 +253,7 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function() {
       var checkbox = document.getElementById('subsidy_requested');
       var fields = document.getElementById('subsidy-fields');

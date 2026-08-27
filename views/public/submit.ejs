@@ -314,7 +314,7 @@
 
   <footer>&copy; <%= typeof year !== 'undefined' ? year : 2026 %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function() {
       var abstractInput = document.getElementById('abstract');
       var abstractCount = document.getElementById('abstract-count');

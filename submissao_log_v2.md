@@ -10,13 +10,19 @@ Versão atual registrada: **V0.3**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-08-27
+
+### CSP com nonce: removido `'unsafe-inline'` de `scriptSrc`/`scriptSrcAttr`
+
+- Pendência em `plano.md` (Ciclo 6, hardening remanescente): remover `'unsafe-inline'` de `scriptSrc`/`scriptSrcAttr` via nonce. O helmet 8 já estava com `'unsafe-inline'` nesses dois diretivos (na época, necessitado pelos blocos `<script>` inline e handlers `onclick`/`onsubmit`/`onchange`), e nenhum `<script>` externo usava CDN (tudo em `/lib/`, coberto por `'self'`).
+- `server.js`: adicionado middleware gerador de nonce **antes** do helmet — `res.locals.cspNonce = crypto.randomBytes(16).toString('base64')`. Os diretivos passaram a `scriptSrc: ["'self'", (req,res) => `'nonce-${res.locals.cspNonce}'`]` e `scriptSrcAttr: [(req,res) => `'nonce-${res.locals.cspNonce}'`]`. `'unsafe-inline'` removido de ambos; `'unsafe-eval'` nunca esteve presente.
+- Views: todos os `<script>` (inline e os `src="/lib/..."`) e todos os handlers inline (`onclick`/`onsubmit`/`onchange` — 27 elementos) ganharam o atributo `nonce="<%= cspNonce %>"`. O nonce é inserido **antes** do atributo `on*=` nas linhas com `confirm()` acentuada, para não tocar nas strings.
+- **Ajustes descobertos nesta build (helmet 8.3.0)**: a forma de objeto `{nonce:true}` não é suportada e gera `[object Object]` no header; escrever a função como *string* (`["(req,res) => ..."]`) é rejeitada porque a vírgula dos parâmetros ativa a validação de diretiva. Solução: usar a função real, sem aspas em volta.
+- Verificação: `node --check` em todos os `.js`; `git diff --check` OK; cabeçalho das páginas confirmando `script-src 'self' 'nonce-...'` e `script-src-attr 'nonce-...'` (por-request, coincidentes), **0** `<script>` sem nonce e o `<select onchange="filterReviewers()" nonce="...">` de `/revisores` carregando o nonce correspondente. `'unsafe-inline'` mantido apenas em `style-src` (blocos `<style>` inline e Google Fonts).
+- **Pendente relacionado**: reforçar sanitização de HTML armazenado (`sanitize-html`/`DOMPurify` — não instaladas). É endurecimento XSS separado do header CSP e exige nova dependência; não implementado nesta etapa.
+- Status: **implementado e validado** (efetivo após recarga do servidor — mudança de servidor).
+
 ## 2026-08-26
-
-### Verificação funcional do refinamento 0.3 (Fase 0) — confirmada
-
-- Pendência do Ciclo 1 (`plano.md`): a opção "Não possui curso de graduação" (0.3b: disponível em todas as áreas; 0.3c: titulação/status opcionais e gravados como `null`; 0.3d: campos ocultos nos 4 templates) aguardava verificação funcional ponta a ponta.
-- Confirmado pelo usuário em 2026-08-26: os refinamentos do 0.3 estão funcionando. Item marcado como concluído em `plano.md`.
-- Status: **verificação concluída**.
 
 ### Confirmação de exclusão de usuário: modal customizado no lugar do `confirm()` nativo
 
@@ -239,4 +245,6 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Fotinha redonda dos usuários
 - Os pôster ficarem arquivados e visíveis dentro do sistema
 - Galeria de fotos do evento
+- Em http://127.0.0.1:3000/evento/2, poderia mudar a visualização para um calendário compacto
+
 

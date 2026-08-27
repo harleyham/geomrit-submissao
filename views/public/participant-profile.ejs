@@ -205,7 +205,7 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function() {
       var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
       var noDegreeCourse = <%- JSON.stringify(noDegreeCourse || '') %>;

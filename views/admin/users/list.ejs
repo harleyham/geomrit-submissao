@@ -190,7 +190,7 @@
             <td class="actions-cell">
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
-              <form method="POST" action="/admin/users/<%= u.id %>/approve" style="display:inline" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
+              <form method="POST" action="/admin/users/<%= u.id %>/approve" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-primary btn-sm">Aprovar Cadastro</button>
               </form>
@@ -331,7 +331,7 @@
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
               <% if (u.id !== currentUser.id) { %>
-              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
+              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
               </form>
@@ -373,7 +373,7 @@
     </div>
   </div>
 
-  <script>
+  <script nonce="<%= cspNonce %>">
     document.querySelectorAll('.toggle-password').forEach(function(button) {
       button.addEventListener('click', function() {
         var input = document.getElementById(button.getAttribute('data-target'));
@@ -384,7 +384,7 @@
       });
     });
   </script>
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function() {
       var sel = document.getElementById('per-page-select');
       if (!sel) return;
@@ -400,7 +400,7 @@
     })();
   </script>
 
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function() {
       var modal = document.getElementById('delete-user-modal');
       var confirmBtn = document.getElementById('delete-user-confirm-btn');

@@ -293,7 +293,7 @@
                     <% if (participation.registration_type === 'listener') { %>
                       <a href="/evento/<%= participation.event_id %>/inscricao" class="btn btn-secondary">Ver Inscrição</a>
                       <% if (participation.can_cancel) { %>
-                        <form method="POST" action="/evento/<%= participation.event_id %>/inscricao/cancelar" style="display:inline;" onsubmit="return confirm('Cancelar sua inscrição neste evento?')">
+                        <form method="POST" action="/evento/<%= participation.event_id %>/inscricao/cancelar" style="display:inline;" onsubmit="return confirm('Cancelar sua inscripçao neste evento?')" nonce="<%= cspNonce %>">
                           <button type="submit" class="btn btn-danger">Cancelar</button>
                         </form>
                       <% } %>
@@ -362,7 +362,7 @@
   </div>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function() {
       var deleteForms = document.querySelectorAll('[data-draft-delete-form]');
       var totalStat = document.querySelector('[data-stat-total]');

@@ -60,7 +60,7 @@
     </div>
     <p class="footer-text">&copy; <%= typeof year !== 'undefined' ? year : new Date().getFullYear() %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></p>
   </div>
-  <script>
+  <script nonce="<%= cspNonce %>">
     document.querySelectorAll('.toggle-password').forEach(function(button) {
       button.addEventListener('click', function() {
         var input = document.getElementById(button.getAttribute('data-target'));

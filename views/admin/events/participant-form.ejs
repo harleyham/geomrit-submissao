@@ -279,7 +279,7 @@
   </main>
 
   <% if (!registration) { %>
-    <script>
+    <script nonce="<%= cspNonce %>">
       const accountModeSelect = document.getElementById('account_mode');
       const existingUserId = document.getElementById('existing_user_id');
       const existingUserSearch = document.getElementById('existing_user_search');
@@ -370,7 +370,7 @@
   <% } %>
 
   <% if (registration && registration.user_id) { %>
-    <script>
+    <script nonce="<%= cspNonce %>">
       (function() {
         var cursosMap = <%- JSON.stringify(cursosMap || {}) %>;
         var noDegreeCourse = <%- JSON.stringify(noDegreeCourse || '') %>;

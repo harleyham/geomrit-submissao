@@ -663,7 +663,7 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function() {
       var printButton = document.getElementById('print-report-btn');
       var sectionToggles = Array.prototype.slice.call(document.querySelectorAll('[data-report-toggle]'));

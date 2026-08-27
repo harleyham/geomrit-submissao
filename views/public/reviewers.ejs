@@ -69,7 +69,7 @@
 
     <div class="filter-group">
       <label>Filtrar por área:</label>
-      <select id="areaFilter" onchange="filterReviewers()">
+      <select id="areaFilter" onchange="filterReviewers()" nonce="<%= cspNonce %>">
         <option value="">Todas as áreas</option>
         <% areas.forEach(area => { %>
           <option value="<%= area %>"><%= area %></option>
@@ -108,7 +108,7 @@
     </div>
   </main>
 
-  <script>
+  <script nonce="<%= cspNonce %>">
     function filterReviewers() {
       const filter = document.getElementById('areaFilter').value;
       const cards = document.querySelectorAll('.reviewer-card');

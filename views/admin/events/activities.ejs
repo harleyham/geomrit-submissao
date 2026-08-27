@@ -89,7 +89,7 @@
           </small>
           <div class="item-actions">
             <a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>">Editar</a>
-            <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/delete" style="display:inline" onsubmit="return confirm('Excluir a atividade \"<%= activity.name %>\"? Isso remove também etapas, inscrições e avaliações vinculadas.');">
+            <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/delete" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Excluir a atividade \"<%= activity.name %>\"? Isso remove também etapas, inscrições e avaliações vinculadas.');">
               <button type="submit" style="display:inline;padding:2px 8px;font-size:10px;background:#1e293b;color:#f87171;border:1px solid #7f1d1d;border-radius:4px;cursor:pointer;width:auto">Excluir</button>
             </form>
             <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions">Etapas<% if (hasSessions) { %> (<%= activity.session_count %>)<% } %></a>
@@ -118,7 +118,7 @@
     <% } %>
   </main>
 <%- include("../../partials/csrf-inject") %>
-  <script>
+  <script nonce="<%= cspNonce %>">
     (function () {
       var type = document.getElementById('activity_type');
       var descriptionWrap = document.getElementById('activity-description-wrap');
@@ -133,8 +133,8 @@
       syncDescription();
     })();
   </script>
-  <script src="/lib/flatpickr/flatpickr.min.js"></script>
-  <script src="/lib/flatpickr/l10n/pt.js"></script>
-  <script src="/lib/flatpickr/init.js"></script>
+  <script src="/lib/flatpickr/flatpickr.min.js" nonce="<%= cspNonce %>"></script>
+  <script src="/lib/flatpickr/l10n/pt.js" nonce="<%= cspNonce %>"></script>
+  <script src="/lib/flatpickr/init.js" nonce="<%= cspNonce %>"></script>
   </body>
 </html>

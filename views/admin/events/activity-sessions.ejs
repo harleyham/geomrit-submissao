@@ -76,7 +76,7 @@
                   <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions?edit_session_id=<%= session.id %>" style="color:#93c5fd;text-decoration:none">Editar</a>
                   <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions/<%= session.id %>/delete" style="display:inline">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button type="submit" class="danger" onclick="return confirm('Remover esta etapa? As presenças marcadas nesta etapa serão removidas.')">Remover</button>
+                    <button type="submit" class="danger" nonce="<%= cspNonce %>" onclick="return confirm('Remover esta etapa? As presenças marcadas nesta etapa serão removidas.')">Remover</button>
                   </form>
                 </td>
               </tr>
@@ -87,8 +87,8 @@
     </section>
   </main>
   <%- include("../../partials/csrf-inject") %>
-  <script src="/lib/flatpickr/flatpickr.min.js"></script>
-  <script src="/lib/flatpickr/l10n/pt.js"></script>
-  <script src="/lib/flatpickr/init.js"></script>
+  <script src="/lib/flatpickr/flatpickr.min.js" nonce="<%= cspNonce %>"></script>
+  <script src="/lib/flatpickr/l10n/pt.js" nonce="<%= cspNonce %>"></script>
+  <script src="/lib/flatpickr/init.js" nonce="<%= cspNonce %>"></script>
   </body>
 </html>

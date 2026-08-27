@@ -40,7 +40,7 @@
       <% if (emailSummary.batch.email_authorized_at) { %><div class="alert alert-success">E-mails deste lote já autorizados.</div>
       <% } else if (!systemEmailSettings.email_enabled) { %><div class="alert alert-error">O master switch global de e-mails está desativado.</div>
       <% } else if (!event.email_enabled) { %><div class="alert alert-error">Os e-mails deste evento estão desativados. Ative o switch em Eventos ou na edição do evento.</div>
-      <% } else { %><form method="POST" action="/admin/events/<%= event.id %>/import-authorize-emails" onsubmit="return confirm('Autorizar <%= emailSummary.counts.total %> e-mail(s) deste lote?')"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn-primary">Autorizar e-mails aos participantes</button></form><% } %>
+      <% } else { %><form method="POST" action="/admin/events/<%= event.id %>/import-authorize-emails" nonce="<%= cspNonce %>" onsubmit="return confirm('Autorizar <%= emailSummary.counts.total %> e-mail(s) deste lote?')"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn-primary">Autorizar e-mails aos participantes</button></form><% } %>
     </div>
     <% } %>
 
@@ -48,7 +48,7 @@
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">
         <h2 style="margin:0">Relatório detalhado (<%= report.length %> registro(s))</h2>
-        <button type="button" id="toggleReport" class="btn-secondary" onclick="document.getElementById('reportTable').style.display=document.getElementById('reportTable').style.display==='none'?'block':'none';this.textContent=this.textContent.includes('Mostrar')?'Ocultar relatório':'Mostrar relatório';">Ocultar relatório</button>
+        <button type="button" id="toggleReport" class="btn-secondary" nonce="<%= cspNonce %>" onclick="document.getElementById('reportTable').style.display=document.getElementById('reportTable').style.display==='none'?'block':'none';this.textContent=this.textContent.includes('Mostrar')?'Ocultar relatório':'Mostrar relatório';">Ocultar relatório</button>
       </div>
       <table id="reportTable">
         <thead><tr><th class="th">Nome</th><th class="th">E-mail</th><th class="th">Status</th><th class="th">Detalhe</th></tr></thead>

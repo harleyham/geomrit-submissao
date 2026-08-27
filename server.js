@@ -11,6 +11,7 @@ const session = require('express-session');
 const helmet = require('helmet');
 const compression = require('compression');
 const methodOverride = require('method-override');
+const crypto = require('crypto');
 
 const { csrfProtection } = require('./security/csrf');
 const { defaultLimiter, adminLimiter } = require('./security/rate-limits');
@@ -34,12 +35,20 @@ const APP_VERSION = 'V0.3';
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Segurança e performance
+// Gera um nonce único por request ANTES do helmet: o nonce passa a constar no
+// cabeçalho Content-Security-Policy (via res.locals.cspNonce) e é replicado em
+// cada <script> e em handlers inline (onclick/onsubmit/onchange), permitindo
+// remover o 'unsafe-inline' de scriptSrc/scriptSrcAttr.
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrcAttr: ["'unsafe-inline'"],
+      scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+      scriptSrcAttr: [(req, res) => `'nonce-${res.locals.cspNonce}'`],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:"],

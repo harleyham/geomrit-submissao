@@ -271,8 +271,8 @@
     <button type="button" id="qr-camera-close">Fechar (Esc)</button>
   </div>
   <canvas id="qr-canvas" hidden></canvas>
-  <script src="/lib/jsQR.min.js"></script>
-  <script>
+  <script src="/lib/jsQR.min.js" nonce="<%= cspNonce %>"></script>
+  <script nonce="<%= cspNonce %>">
     (function () {
       var form = document.getElementById('qr-form');
       var codeInput = document.getElementById('qr-code-input');
