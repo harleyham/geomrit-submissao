@@ -12,7 +12,7 @@ const { resetDatabase } = require('../services/db-reset');
 const { createBackupZip, restoreFromZip, backupFileName } = require('../services/backup');
 const { requireSuperAdmin } = require('../security/super-admin');
 const { validateCsrfToken } = require('../security/csrf');
-const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, setSystemEmailEnabled } = require('../services/email');
+const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, setSystemEmailEnabled, enqueueDirectEmail } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
 fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
@@ -402,6 +402,25 @@ router.post('/email-settings/toggle', requireAuth, requireSuperAdmin, strictLimi
     : `Envio global de e-mails desativado. ${cancelled} mensagem(ns) pendente(s) cancelada(s).`;
   const returnTo = req.body.return_to === 'events' ? '/admin/events' : '/admin/dashboard';
   return res.redirect(`${returnTo}?email=${enabled ? 'enabled' : 'disabled'}&message=${encodeURIComponent(message)}`);
+});
+
+router.post('/email/direct', requireAuth, requireSuperAdmin, strictLimiter, (req, res) => {
+  const recipientEmail = String(req.body.recipient_email || '').trim().toLowerCase();
+  const subject = String(req.body.subject || '').trim();
+  const body = String(req.body.body || '').trim();
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(recipientEmail) || !subject || !body) {
+    const message = 'Preencha corretamente: e-mail de destinatário válido, assunto e mensagem.';
+    return res.redirect(`/admin/dashboard?email=error&message=${encodeURIComponent(message)}`);
+  }
+  enqueueDirectEmail({
+    userId: req.session.userId,
+    recipientEmail,
+    recipientName: recipientEmail,
+    subject,
+    body
+  });
+  return res.redirect(`/admin/dashboard?email=sent&message=${encodeURIComponent('E-mail enfileirado para ' + recipientEmail + '. Ele será enviado quando o envio global estiver ativado.')}`);
 });
 
 router.get('/db/reset', requireAuth, requireSuperAdmin, (req, res) => {

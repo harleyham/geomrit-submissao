@@ -140,6 +140,23 @@ function enqueueEmail(options) {
   return { id: result.lastInsertRowid || null, status, inserted: result.changes > 0 };
 }
 
+function enqueueDirectEmail(options) {
+  const identity = getGlobalIdentity();
+  const recipientName = options.recipientName || options.recipientEmail || '';
+  const payload = { body: text(options.body), recipientName, recipientEmail: text(options.recipientEmail), platformName: identity.platformName, signature: identity.signature };
+  return enqueueEmail({
+    userId: options.userId || null,
+    recipientEmail: options.recipientEmail,
+    recipientName,
+    messageType: 'direct',
+    templateName: 'direct-message',
+    subject: text(options.subject) || '(sem assunto)',
+    identity,
+    dedupeKey: `direct:${crypto.randomUUID()}`,
+    payload
+  });
+}
+
 function createSetupToken(userId) {
   const raw = crypto.randomBytes(32).toString('hex');
   const hash = crypto.createHash('sha256').update(raw).digest('hex');
@@ -518,7 +535,7 @@ function isValidHttpUrl(value) {
 
 module.exports = {
   getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getGlobalIdentity, getEventIdentity,
-  setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail,
+  setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail,
   queueAccountRequested, queueAccountApproved, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
   queueRegistrationReviewDecision, queueParticipantActivitiesUpdated,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
