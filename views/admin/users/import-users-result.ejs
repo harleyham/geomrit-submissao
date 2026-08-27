@@ -36,7 +36,7 @@
     <% if (emailSummary && emailSummary.counts.total > 0) { %>
     <div class="card">
       <h2>Envio de acessos por e-mail</h2>
-      <p style="color:#94a3b8"><strong><%= emailSummary.counts.account %></strong> nova(s) conta(s) podem receber um link individual para definir a senha, válido por 72 horas.</p>
+      <p style="color:#94a3b8"><strong><%= emailSummary.counts.account %></strong> nova(s) conta(s) pode(m) receber um link individual para definir a senha, válido por 72 horas.</p>
       <% if (emailSummary.batch.email_authorized_at) { %><div class="alert alert-success">E-mails deste lote já autorizados.</div>
       <% } else if (!systemEmailSettings.email_enabled) { %><div class="alert alert-error">O master switch global de e-mails está desativado.</div>
       <% } else { %><form method="POST" action="/admin/users/import/authorize-emails" nonce="<%= cspNonce %>" onsubmit="return confirm('Autorizar o envio para <%= emailSummary.counts.total %> nova(s) conta(s)?')"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn-primary">Autorizar envio dos acessos</button></form><% } %>
