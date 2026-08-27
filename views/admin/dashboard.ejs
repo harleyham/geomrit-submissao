@@ -1,5 +1,12 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+<%
+  function brDateTime(value) {
+    if (!value) return '-';
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : value;
+  }
+%>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -384,9 +391,9 @@
             <button type="submit" class="btn <%= systemEmailSettings.email_enabled ? 'btn-danger' : 'btn-success' %>"><%= systemEmailSettings.email_enabled ? 'Desativar todos os e-mails' : 'Ativar envio global' %></button>
           </form>
         </div>
-        <div style="margin-top:1.5rem;border-top:1px solid rgba(148,163,184,.15);padding-top:1.25rem;">
+        <div style="margin-top:1.5rem;border-top:1px solid rgba(148,163,184,.15);padding:1.25rem 1.5rem;">
           <div class="section-header"><h2 style="font-size:1rem;">Enviar e-mail para um destinatário</h2></div>
-          <form method="POST" action="/admin/email/direct" nonce="<%= cspNonce %>" style="display:flex;flex-direction:column;gap:.6rem;max-width:34rem;">
+          <form method="POST" action="/admin/email/direct" nonce="<%= cspNonce %>" style="display:flex;flex-direction:column;gap:.6rem;max-width:51rem;">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <input type="hidden" name="return_to" value="dashboard">
             <input type="email" name="recipient_email" placeholder="destinatário@email.com" required style="background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:.55rem .75rem;color:#f1f5f9;font-size:.875rem;">
@@ -410,7 +417,7 @@
                   <td><%= emailTypeLabels[email.message_type] || email.message_type %><br><small><%= email.subject %></small></td>
                   <td><% if (email.event_id) { %><a href="/admin/events/<%= email.event_id %>/edit"><%= email.event_name || ('Evento #' + email.event_id) %></a><% } else { %>Sistema<% } %></td>
                   <td><span class="badge email-status-<%= email.status %>"><%= email.status === 'failed' ? 'Falha / nova tentativa' : 'Na fila' %></span><br><small><%= email.attempts %> tentativa(s)</small><% if (email.last_error) { %><small class="email-error"><%= email.last_error %></small><% } %></td>
-                  <td><small>Criada: <%= email.created_at || '-' %><br>Disponível: <%= email.available_at || '-' %><% if (email.next_attempt_at) { %><br>Próxima tentativa: <%= email.next_attempt_at %><% } %></small></td>
+                  <td><small>Criada: <%= brDateTime(email.created_at) %><br>Disponível: <%= brDateTime(email.available_at) %><% if (email.next_attempt_at) { %><br>Próxima tentativa: <%= brDateTime(email.next_attempt_at) %><% } %></small></td>
                 </tr>
                 <% }) %>
               </tbody>
