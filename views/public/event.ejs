@@ -160,7 +160,7 @@
           var actOcc = [];
           activities.forEach(function(a){
             if (a.sessions && a.sessions.length) {
-              a.sessions.forEach(function(s){ if (s.session_date && s.time_start) actOcc.push({ day: s.session_date, hour: String(s.time_start).slice(0,2), name: s.name }); });
+              a.sessions.forEach(function(s){ if (s.session_date && s.time_start) actOcc.push({ day: s.session_date, hour: String(s.time_start).slice(0,2), name: a.name + ' : ' + s.name }); });
             } else if (a.date_start && a.time_start) {
               actOcc.push({ day: a.date_start, hour: String(a.time_start).slice(0,2), name: a.name });
             }
