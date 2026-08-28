@@ -255,5 +255,6 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Os pôster ficarem arquivados e visíveis dentro do sistema
 - Galeria de fotos do evento
 - Em http://127.0.0.1:3000/evento/2, poderia mudar a visualização para um calendário compacto
+- https://editorialexpress.com/conference/IIOC2026/program/IIOC2026.html
 
 
