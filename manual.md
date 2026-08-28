@@ -1,6 +1,6 @@
 # Manual do Sistema — Gerência de Eventos
 
-> Guia operacional inicial. Este documento acompanha a versão V0.3 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
+> Guia operacional inicial. Este documento acompanha a versão V0.31 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
 
 ## 1. Introdução
 
@@ -9,7 +9,8 @@ A Gerência de Eventos é um sistema web para organizar eventos acadêmicos e ci
 - cadastro e publicação de eventos;
 - inscrição e importação de participantes;
 - submissão e revisão de artigos;
-- cadastro de atividades e etapas/aulas;
+- cadastro de atividades e etapas/aulas, com horários e salas;
+- gestão de salas por tamanho, alocação sem sobreposição e relatórios de ocupação;
 - controle de presença manual e por QR Code;
 - configuração, emissão e verificação de certificados;
 - estatísticas e relatórios administrativos.
@@ -154,10 +155,11 @@ Abra a listagem de participantes e use **Analisar** para aprovar ou recusar a so
 
 1. Acesse `/admin/events/:id/activities`.
 2. Clique em **Nova atividade**.
-3. Informe nome, tipo, intervalo/data, carga horária e se a atividade emite certificado. Para **Palestra** e **Minicurso**, preencha também uma descrição breve ou ementa, com até 2000 caracteres.
+3. Informe nome, tipo, intervalo/data, **hora de início e hora de término**, carga horária e se a atividade emite certificado. Para **Palestra** e **Minicurso**, preencha também uma descrição breve ou ementa, com até 2000 caracteres.
 4. Defina os papéis elegíveis.
-5. (Opcional) Informe o **link da transmissão de vídeo** (ex.: YouTube). Ele aparece ao lado do nome da atividade na página pública do evento; deixe vazio para remover.
-6. Salve.
+5. (Opcional) Selecione a **sala** da atividade — disponível quando a atividade não possui etapas (veja a Seção 9).
+6. (Opcional) Informe o **link da transmissão de vídeo** (ex.: YouTube). Ele aparece ao lado do nome da atividade na página pública do evento; deixe vazio para remover.
+7. Salve.
 
 Tipos comuns: palestra, seminário, mesa-redonda, minicurso e apresentação oral ou pôster.
 
@@ -173,13 +175,44 @@ Use etapas quando uma atividade possui várias aulas ou partes, como um minicurs
 
 1. Na listagem de atividades, abra **Etapas**.
 2. Acesse `/admin/events/:id/activities/:activityId/sessions`.
-3. Informe nome, ordem, data e carga horária da etapa.
-4. Garanta que a data esteja dentro do intervalo da atividade.
-5. Salve e repita para as demais etapas.
+3. Informe nome, ordem, data, **hora de início e hora de término** e carga horária da etapa.
+4. Garanta que a data esteja dentro do intervalo da atividade (e os horários dentro do horário da atividade, quando a atividade ocupa um único dia).
+5. (Opcional) Selecione a **sala** da etapa (veja a Seção 9).
+6. Salve e repita para as demais etapas.
 
 Com etapas, a presença, a lista impressa e a carga horária do certificado são calculadas por etapa. Uma atividade sem etapas utiliza um único registro geral.
 
-## 9. Presença e QR Code
+## 9. Salas, horários e agenda
+
+### Cadastro de salas
+
+1. Na listagem de eventos, abra **Salas** (`/admin/events/:id/rooms`).
+2. Cadastre quantas salas desejar para o evento, dando um nome a cada uma e classificando pelo tamanho:
+   - **Pequena** — 10 lugares;
+   - **Média** — 50 lugares;
+   - **Grande** — 100 lugares;
+   - **Auditório** — capacidade livre, informada pelo administrador.
+3. Salas com alocações na agenda não podem ser excluídas; remova as alocações primeiro.
+
+### Alocação de salas
+
+A sala pode ser designada em três níveis, respeitando esta prioridade:
+
+1. **Etapa** — quando a atividade possui etapas, a sala é sempre alocada por etapa (formulário de etapa).
+2. **Atividade** — quando a atividade não possui etapas, a sala é alocada no formulário da atividade, usando a data e os horários cadastrados (em atividades de vários dias, a reserva vale no dia de início).
+3. **Evento** — quando o evento ainda não possui atividades, é possível reservar uma sala no card **Sala do evento**: a sala fica bloqueada no horário informado em todos os dias entre o início e o fim do evento.
+
+O sistema **não permite sobreposição**: se a sala já estiver ocupada na data e no horário pretendidos, a gravação é recusada com a indicação do conflito (sala, responsável e horário). A verificação é feita em transação — a atividade/etapa só é salva se a alocação couber na agenda.
+
+O card **Aguardando sala** na página de salas lista as etapas e as atividades sem etapas que ainda não têm sala, com link direto para alocar.
+
+### Relatórios e agenda
+
+- **Ocupação por dia** (`/admin/events/:id/rooms/occupancy`): para cada dia com alocações, as salas e os horários ocupados, com botão de impressão/PDF.
+- **Agenda por sala** (`/admin/events/:id/rooms/agenda`): cada sala com suas atividades, etapas e reservas em ordem cronológica, com botão de impressão/PDF.
+- Na página pública do evento (`/evento/:id`), o bloco **Programação nas Salas** aparece quando há alocações, com alternância **Por dia** / **Por sala**.
+
+## 10. Presença e QR Code
 
 Na atividade, abra **Presença** em `/admin/events/:id/activities/:activityId/attendance`.
 
@@ -197,7 +230,7 @@ O administrador pode:
 
 O auto-check-in é feito pela URL `/presenca/:eventId/:activityId(/:sessionId)`. O usuário precisa estar autenticado e vinculado à atividade quando estiver atuando como participante. A presença só pode ser registrada no dia da etapa ou no período da atividade.
 
-## 10. Configuração e emissão de certificados
+## 11. Configuração e emissão de certificados
 
 1. Acesse `/admin/events/:id/certificates`.
 2. Configure cada papel de certificado: título, texto, fundo, cor e presença mínima. A cor é escolhida numa paleta de 64 tons (grade 8×8).
@@ -216,7 +249,7 @@ Regras principais:
 
 O certificado pode ser baixado pelo participante e verificado publicamente pelo código de autenticidade.
 
-## 11. Dashboard administrativo
+## 12. Dashboard administrativo
 
 O dashboard (`/admin/dashboard`) apresenta um resumo operacional:
 
@@ -255,7 +288,7 @@ A mensagem é enfileirada e exibida na lista "Mensagens pendentes" com data de c
 
 Quando a fila apresenta mensagens pendentes, aparece o botão **Limpar fila de e-mails** acima da lista "Ver mensagens pendentes". Ele cancela todas as mensagens da fila de uma vez, removendo-as da exibição e impedindo seu envio. Antes de executar, o sistema pede confirmação; a ação é restrita ao `admin@admin.com` e registrada na trilha de auditoria dos e-mails. Os registros são marcados como cancelados (não excluídos), preservando o histórico.
 
-## 12. Estatísticas e relatórios
+## 13. Estatísticas e relatórios
 
 Abra `/admin/reports` e selecione o evento. O relatório consolida:
 
@@ -269,7 +302,9 @@ Abra `/admin/reports` e selecione o evento. O relatório consolida:
 
 É possível selecionar as seções antes de imprimir ou exportar pelo diálogo de impressão do navegador. A deliberação final do artigo também pode ser registrada pela página administrativa correspondente.
 
-## 13. Fluxo recomendado de um evento
+As salas também possuem relatórios próprios, acessíveis em `/admin/events/:id/rooms`: **Ocupação por dia** (grade de salas e horários bloqueados em cada dia) e **Agenda por sala** (atividades, etapas e reservas por sala em ordem cronológica). Ambos com botão de impressão/PDF (Seção 9).
+
+## 14. Fluxo recomendado de um evento
 
 1. Criar o evento e publicar as janelas.
 2. Cadastrar ou importar usuários.
@@ -281,7 +316,7 @@ Abra `/admin/reports` e selecione o evento. O relatório consolida:
 8. Emitir certificados.
 9. Consultar relatórios e encerrar o evento.
 
-## 14. Solução de problemas
+## 15. Solução de problemas
 
 - Após alterar rotas, serviços ou `server.js`, reinicie o servidor.
 - Se o logo não aparecer, confirme que o arquivo existe em `uploads/event-logos/` e que `logo_path` está preenchido no evento.
@@ -289,13 +324,15 @@ Abra `/admin/reports` e selecione o evento. O relatório consolida:
 - Se uma ação administrativa retornar acesso negado, confirme se o usuário possui o papel `admin` naquele evento.
 - Se uma conta não conseguir acessar o painel, verifique aprovação, conta ativa, troca de senha e conclusão do perfil.
 
-## 15. E-mails transacionais
+## 16. E-mails transacionais
 
 O envio possui dois níveis de autorização: o **master switch global**, restrito ao superadministrador, e o switch de cada evento. Ambos começam desligados. O global pode ser alterado no dashboard ou em `/admin/events`; o switch do evento também aparece na listagem e no card **Identidade dos e-mails** da criação/edição.
 
-Além dos envios automáticos, o `admin@admin.com` pode mandar um e-mail para um endereço específico diretamente do card **Envio global de e-mails** no dashboard (`/admin/dashboard`): um campo de destinatário, um de assunto, um de mensagem e um botão **Enviar e-mail**. A mensagem entra na fila (respeitando o master switch) e pode ser acompanhada em **Ver mensagens pendentes**. Detalhes dessa funcionalidade estão na seção **Envio de e-mail individual** (Seção 11).
+Além dos envios automáticos, o `admin@admin.com` pode mandar um e-mail para um endereço específico diretamente do card **Envio global de e-mails** no dashboard (`/admin/dashboard`): um campo de destinatário, um de assunto, um de mensagem e um botão **Enviar e-mail**. A mensagem entra na fila (respeitando o master switch) e pode ser acompanhada em **Ver mensagens pendentes**. Detalhes dessa funcionalidade estão na seção **Envio de e-mail individual** (Seção 12).
 
 Ao desligar um switch, mensagens pendentes do respectivo escopo são canceladas e não retornam ao reativar. O sistema nunca bloqueia cadastro, aprovação, emissão ou importação por indisponibilidade do SMTP.
+
+Mensagens geradas enquanto o envio está desativado (global ou do evento) entram na fila como **supensas** e não são enviadas enquanto o envio permanecer desligado. O card **Envio global de e-mails** no dashboard exibe um aviso com a contagem, permite **ver a lista de e-mails suspensos** (destinatário, mensagem, evento, motivo e datas) e **excluir a lista** definitivamente, com confirmação.
 
 O card do evento permite definir nome da plataforma, nome exibido do remetente, assinatura e e-mail de contato (`Reply-To`). Mensagens do evento usam seu logo quando configurado; sem logo, não há imagem padrão.
 
@@ -305,7 +342,7 @@ Nas inscrições públicas, o participante recebe uma confirmação imediata ou 
 
 Configure o Zoho por variáveis de ambiente (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`) e defina `APP_BASE_URL` com a URL pública da instalação.
 
-## 16. Próximas melhorias do manual
+## 17. Próximas melhorias do manual
 
 - adicionar capturas de tela de cada fluxo;
 - documentar o fluxo completo de submissão e revisão de artigos;
