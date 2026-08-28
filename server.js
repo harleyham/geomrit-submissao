@@ -30,7 +30,7 @@ const app = express();
 // (security/rate-limits.js), não `req.ip`.
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'V0.3';
+const APP_VERSION = 'V0.31';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
