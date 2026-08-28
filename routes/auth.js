@@ -26,6 +26,7 @@ const restoreUpload = multer({
 
 function authenticatedDestination(req) {
   if (req.session.isAdmin) return '/admin/dashboard';
+  if (req.session.userId && db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='staff' LIMIT 1").get(req.session.userId)) return '/admin/events';
   if (req.session.isReviewer) return '/reviewer';
   if (req.session.isPublic) return '/author';
   return '/';
