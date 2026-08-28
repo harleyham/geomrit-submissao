@@ -109,7 +109,7 @@ async function createBackupZip(destPath) {
 
     const meta = {
       app: 'gerencia-de-eventos',
-      version: 'V0.3',
+      version: 'V0.31',
       created_at: brNow().toISOString().replace('Z', '-03:00'),
       node: process.version,
       platform: process.platform,
