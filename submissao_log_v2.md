@@ -12,6 +12,15 @@ Versão atual registrada: **V0.3**.
 
 ## 2026-08-27
 
+### Dashboard: fila de e-mails pendentes com atualização automática
+
+- Relato do usuário: no `/admin/dashboard`, os e-mails enviados continuavam aparecendo na lista "Ver mensagens pendentes" como se estivessem na fila — a lista só corrigia ao sair da página e voltar (render nova). Causa: o bloco era renderizado apenas uma vez no HTML; o worker de envio roda em background (tick de 15 s em `services/email.js`) e não havia nada que atualizasse a seção.
+- `views/partials/email-queue.ejs` (novo): bloco da fila extraído do dashboard (form "Limpar fila" + `<details>` com a tabela), reutilizável em render inicial e em atualizações parciais. O `confirm()` do botão Limpar saiu do `onsubmit` inline (incompatível com fragmentos substituídos sob CSP nonce) e passou a um listener `submit` delegado registrado no script da página.
+- `routes/auth.js`: nova rota `GET /email/pending-list` (`requireAuth` + `requireSuperAdmin`) que renderiza o partial e devolve JSON `{ count, html }`.
+- `views/admin/dashboard.ejs`: bloco envolto em `#email-queue-live` (oculto quando a fila está vazia), contador do master switch marcado com `#email-pending-count`, e script com nonce que a cada 15 s (e ao voltar de aba oculta) busca o fragmento e substitui a seção apenas quando o HTML mudou, preservando o estado aberto do `<details>`; o texto do contador é atualizado junto.
+- Validação: `node --check` em `routes/auth.js`; compilação e render completo do dashboard com dados fictícios (linha da fila, span do contador, script com nonce, sem `onsubmit` inline no form da fila); partial vazio renderiza "Fila de e-mails vazia."; rota registrada (302 para `/login` sem sessão). Servidor de desenvolvimento reiniciado. Verificação funcional na fila real fica a cargo do usuário em homologação.
+- Status: **implementado e validado tecnicamente** (efetivo após reinício do servidor; não exige migração de banco).
+
 ### CSP com nonce: removido `'unsafe-inline'` de `scriptSrc`/`scriptSrcAttr`
 
 - Pendência em `plano.md` (Ciclo 6, hardening remanescente): remover `'unsafe-inline'` de `scriptSrc`/`scriptSrcAttr` via nonce. O helmet 8 já estava com `'unsafe-inline'` nesses dois diretivos (na época, necessitado pelos blocos `<script>` inline e handlers `onclick`/`onsubmit`/`onchange`), e nenhum `<script>` externo usava CDN (tudo em `/lib/`, coberto por `'self'`).

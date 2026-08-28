@@ -251,7 +251,7 @@ No card **Envio global de e-mails** do dashboard, visível apenas ao `admin@admi
 - **Mensagem**;
 - **Enviar e-mail**.
 
-A mensagem é enfileirada e exibida na lista "Mensagens pendentes" com data de criação e disponibilidade formatadas em `dd/mm/aaaa hh:mm` (horário de Brasília). O envio respeita o master switch global: quando ele está desativado, a mensagem fica na fila como suspensa e só é enviada após a reativação. O sistema tentaria enviar automaticamente, mas a saída para o servidor SMTP depende da rede/local de execução.
+A mensagem é enfileirada e exibida na lista "Mensagens pendentes" com data de criação e disponibilidade formatadas em `dd/mm/aaaa hh:mm` (horário de Brasília). A lista e o contador de pendentes se atualizam automaticamente na página (a cada 15 segundos, sem recarregar): conforme os e-mails vão sendo enviados, eles saem da listagem sozinhos; quando a fila esvazia, o bloco "Ver mensagens pendentes" desaparece. O envio respeita o master switch global: quando ele está desativado, a mensagem fica na fila como suspensa e só é enviada após a reativação. O sistema tentaria enviar automaticamente, mas a saída para o servidor SMTP depende da rede/local de execução.
 
 Quando a fila apresenta mensagens pendentes, aparece o botão **Limpar fila de e-mails** acima da lista "Ver mensagens pendentes". Ele cancela todas as mensagens da fila de uma vez, removendo-as da exibição e impedindo seu envio. Antes de executar, o sistema pede confirmação; a ação é restrita ao `admin@admin.com` e registrada na trilha de auditoria dos e-mails. Os registros são marcados como cancelados (não excluídos), preservando o histórico.
 

@@ -1,0 +1,37 @@
+<%
+  function brDateTime(value) {
+    if (!value) return '-';
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : value;
+  }
+%>
+<% if (pendingEmailCount > 0) { %>
+<form method="POST" action="/admin/email/clear" class="email-clear-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <button type="submit" class="btn btn-danger btn-sm" style="align-self:flex-end;">Limpar fila de e-mails</button>
+</form>
+<details>
+  <summary class="email-queue-summary">Ver mensagens pendentes (<%= pendingEmailCount %>)</summary>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Destinatário</th><th>Mensagem</th><th>Evento</th><th>Status</th><th>Agendamento</th></tr></thead>
+      <tbody>
+        <% const emailTypeLabels = { account_requested: 'Solicitação de cadastro', account_approved: 'Cadastro aprovado', imported_account: 'Conta criada', imported_account_registration: 'Conta e inscrição', imported_registration: 'Inscrição no evento', event_reminder: 'Lembrete do evento', certificate_issued: 'Certificado emitido', certificate_reissued: 'Certificado reemitido', video_link_changed: 'Alteração de transmissão' }; %>
+        <% pendingEmails.forEach(email => { %>
+        <tr>
+          <td>#<%= email.id %></td>
+          <td><strong><%= email.recipient_name || '-' %></strong><br><small><%= email.recipient_email %></small></td>
+          <td><%= emailTypeLabels[email.message_type] || email.message_type %><br><small><%= email.subject %></small></td>
+          <td><% if (email.event_id) { %><a href="/admin/events/<%= email.event_id %>/edit"><%= email.event_name || ('Evento #' + email.event_id) %></a><% } else { %>Sistema<% } %></td>
+          <td><span class="badge email-status-<%= email.status %>"><%= email.status === 'failed' ? 'Falha / nova tentativa' : 'Na fila' %></span><br><small><%= email.attempts %> tentativa(s)</small><% if (email.last_error) { %><small class="email-error"><%= email.last_error %></small><% } %></td>
+          <td><small>Criada: <%= brDateTime(email.created_at) %><br>Disponível: <%= brDateTime(email.available_at) %><% if (email.next_attempt_at) { %><br>Próxima tentativa: <%= brDateTime(email.next_attempt_at) %><% } %></small></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% if (pendingEmailCount > pendingEmails.length) { %><p style="padding:1rem 1.5rem;color:#94a3b8;">Exibindo as primeiras <%= pendingEmails.length %> de <%= pendingEmailCount %> mensagens.</p><% } %>
+</details>
+<% } else { %>
+<p style="color:#94a3b8;font-size:.875rem;margin:1rem 0 0;">Fila de e-mails vazia.</p>
+<% } %>

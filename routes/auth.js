@@ -428,6 +428,15 @@ router.post('/email/clear', requireAuth, requireSuperAdmin, strictLimiter, (req,
   return res.redirect(`/admin/dashboard?email=cleared&message=${encodeURIComponent('Fila de e-mails limpa. ' + cleared + ' mensagem(ns) cancelada(s).')}`);
 });
 
+router.get('/email/pending-list', requireAuth, requireSuperAdmin, (req, res) => {
+  const pendingEmailCount = getPendingEmailCount();
+  const pendingEmails = getPendingEmails();
+  res.render('partials/email-queue', { pendingEmailCount, pendingEmails }, (err, html) => {
+    if (err) return res.status(500).json({ error: 'Erro ao renderizar a fila de e-mails.' });
+    res.json({ count: pendingEmailCount, html });
+  });
+});
+
 router.get('/db/reset', requireAuth, requireSuperAdmin, (req, res) => {
   return res.render('admin/db-reset-confirm', {
     title: 'Resetar Banco de Dados',

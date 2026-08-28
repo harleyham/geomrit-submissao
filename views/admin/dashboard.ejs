@@ -383,7 +383,7 @@
         <div class="section-body" style="padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
           <div>
             <p style="color:<%= systemEmailSettings.email_enabled ? '#86efac' : '#fca5a5' %>;font-weight:700;margin:0 0 .35rem;"><%= systemEmailSettings.email_enabled ? 'Ativado' : 'Desativado' %></p>
-            <p style="color:#94a3b8;font-size:.875rem;margin:0;">Master switch do sistema. <%= pendingEmailCount %> mensagem(ns) pendente(s).</p>
+            <p style="color:#94a3b8;font-size:.875rem;margin:0;">Master switch do sistema. <span id="email-pending-count"><%= pendingEmailCount %></span> mensagem(ns) pendente(s).</p>
           </div>
           <form method="POST" action="/admin/email-settings/toggle" nonce="<%= cspNonce %>" onsubmit="return <%= systemEmailSettings.email_enabled ? "confirm('Desativar todos os e-mails e cancelar as mensagens pendentes?')" : 'true' %>;">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="return_to" value="dashboard">
@@ -402,34 +402,9 @@
             <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Enviar e-mail</button>
           </form>
         </div>
-        <% if (pendingEmailCount > 0) { %>
-        <form method="POST" action="/admin/email/clear" nonce="<%= cspNonce %>" class="email-clear-form" onsubmit="return confirm('Tem certeza de que deseja limpar a fila de e-mails? Todas as mensagens pendentes serão canceladas e não poderão ser recuperadas.');">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button type="submit" class="btn btn-danger btn-sm" style="align-self:flex-end;">Limpar fila de e-mails</button>
-        </form>
-        <details>
-          <summary class="email-queue-summary">Ver mensagens pendentes (<%= pendingEmailCount %>)</summary>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>ID</th><th>Destinatário</th><th>Mensagem</th><th>Evento</th><th>Status</th><th>Agendamento</th></tr></thead>
-              <tbody>
-                <% const emailTypeLabels = { account_requested: 'Solicitação de cadastro', account_approved: 'Cadastro aprovado', imported_account: 'Conta criada', imported_account_registration: 'Conta e inscrição', imported_registration: 'Inscrição no evento', event_reminder: 'Lembrete do evento', certificate_issued: 'Certificado emitido', certificate_reissued: 'Certificado reemitido', video_link_changed: 'Alteração de transmissão' }; %>
-                <% pendingEmails.forEach(email => { %>
-                <tr>
-                  <td>#<%= email.id %></td>
-                  <td><strong><%= email.recipient_name || '-' %></strong><br><small><%= email.recipient_email %></small></td>
-                  <td><%= emailTypeLabels[email.message_type] || email.message_type %><br><small><%= email.subject %></small></td>
-                  <td><% if (email.event_id) { %><a href="/admin/events/<%= email.event_id %>/edit"><%= email.event_name || ('Evento #' + email.event_id) %></a><% } else { %>Sistema<% } %></td>
-                  <td><span class="badge email-status-<%= email.status %>"><%= email.status === 'failed' ? 'Falha / nova tentativa' : 'Na fila' %></span><br><small><%= email.attempts %> tentativa(s)</small><% if (email.last_error) { %><small class="email-error"><%= email.last_error %></small><% } %></td>
-                  <td><small>Criada: <%= brDateTime(email.created_at) %><br>Disponível: <%= brDateTime(email.available_at) %><% if (email.next_attempt_at) { %><br>Próxima tentativa: <%= brDateTime(email.next_attempt_at) %><% } %></small></td>
-                </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
-          <% if (pendingEmailCount > pendingEmails.length) { %><p style="padding:1rem 1.5rem;color:#94a3b8;">Exibindo as primeiras <%= pendingEmails.length %> de <%= pendingEmailCount %> mensagens.</p><% } %>
-        </details>
-        <% } %>
+        <div id="email-queue-live" style="<%= pendingEmailCount > 0 ? '' : 'display:none;' %>">
+          <%- include('../partials/email-queue', { pendingEmailCount, pendingEmails }) %>
+        </div>
       </div>
       <% if (query && query.reset === 'success') { %>
       <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
@@ -467,6 +442,47 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+  <% if (userEmail === 'admin@admin.com') { %>
+  <script nonce="<%= cspNonce %>">
+    (function () {
+      var live = document.getElementById('email-queue-live');
+      var countEl = document.getElementById('email-pending-count');
+      if (!live || !countEl) return;
+      live.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (form && form.classList && form.classList.contains('email-clear-form')) {
+          if (!confirm('Tem certeza de que deseja limpar a fila de e-mails? Todas as mensagens pendentes serão canceladas e não poderão ser recuperadas.')) {
+            e.preventDefault();
+          }
+        }
+      });
+      var lastHtml = live.innerHTML;
+      function refreshEmailQueue() {
+        if (document.visibilityState !== 'visible') return;
+        fetch('/admin/email/pending-list', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            if (!data || typeof data.count !== 'number') return;
+            countEl.textContent = String(data.count);
+            var html = data.html || '';
+            if (html === lastHtml) return;
+            lastHtml = html;
+            var prevDetails = live.querySelector('details');
+            var wasOpen = prevDetails && prevDetails.open;
+            live.innerHTML = html;
+            live.style.display = data.count > 0 ? '' : 'none';
+            var nextDetails = live.querySelector('details');
+            if (nextDetails && wasOpen) nextDetails.open = true;
+          })
+          .catch(function () {});
+      }
+      setInterval(refreshEmailQueue, 15000);
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') refreshEmailQueue();
+      });
+    })();
+  </script>
+  <% } %>
 <%- include("../partials/csrf-inject") %>
   </body>
 </html>

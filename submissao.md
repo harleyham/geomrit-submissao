@@ -53,6 +53,7 @@ O sistema deve permitir:
 - Configuração explícita de evento com inscrições abertas ao público ou realizadas somente pela administração (toggle "Inscrições abertas ao público?", coluna `events.public_registration`, padrão público).
 - Configuração de confirmação automática ou de análise administrativa da inscrição pública, com aprovação total, parcial ou recusa das atividades solicitadas.
 - E-mails transacionais com fila persistente, master switch global e por evento, identidade editável por evento, logo opcional, retentativas e histórico de envio.
+- Dashboard com lista "Ver mensagens pendentes" e contador de pendentes em atualização automática (consulta periódica à fila, sem recarregar a página; o bloco desaparece quando a fila esvazia).
 - Configuração de subsídio a participantes por evento.
 - Acompanhamento de inscrições, participação e elegibilidade para certificados de participação por evento.
 - Gestão de usuários em `/admin/users`.
