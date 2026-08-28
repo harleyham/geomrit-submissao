@@ -193,18 +193,46 @@ function certificateText(value, eventName, activityName) {
   return text;
 }
 
-// Rotas que o papel 'staff' pode usar em um evento (operação de dia de evento:
-// presença, impressão de listas e QR Codes). Nada além disso é liberado ao staff.
+// Rotas que o papel 'staff' pode usar EM UM EVENTO onde foi marcado. O staff
+// concentra a operação do evento (participantes, presença/listas/QR, edição de
+// atividades e etapas já existentes e certificados), mas NÃO pode: criar ou
+// apagar evento, apagar usuários, criar/apagar atividades ou etapas, gerir
+// papéis, salas ou publicar/encerrar o evento. Nada fora desta allowlist é
+// liberado (as demais ações permanecem administrativas).
 const STAFF_ROUTES = [
+  ['GET', /^\/\d+$/],
+  ['GET', /^\/\d+\/subsidies$/],
+  ['GET', /^\/\d+\/subsidies\/\d+\/document\/[^/]+$/],
+  ['GET', /^\/\d+\/participants$/],
+  ['GET', /^\/\d+\/participants\/new$/],
+  ['GET', /^\/\d+\/participants\/user-search$/],
+  ['GET', /^\/\d+\/participants\/\d+\/edit$/],
+  ['GET', /^\/\d+\/participants\/\d+\/review$/],
+  ['GET', /^\/\d+\/participants\/[^/]+\/qr-presenca\/print$/],
+  ['GET', /^\/\d+\/import-template$/],
+  ['GET', /^\/\d+\/import-users$/],
+  ['GET', /^\/\d+\/import-download-csv$/],
+  ['GET', /^\/\d+\/import-result$/],
+  ['GET', /^\/\d+\/certificates(\/|$)/],
   ['GET', /^\/\d+\/activities$/],
   ['GET', /^\/\d+\/activities\/\d+\/sessions$/],
   ['GET', /^\/\d+\/activities\/\d+\/attendance$/],
   ['GET', /^\/\d+\/activities\/\d+\/attendance-print$/],
   ['GET', /^\/\d+\/activities\/\d+\/checkin-print$/],
-  ['GET', /^\/\d+\/participants\/\d+\/qr-presenca\/print$/],
+  ['POST', /^\/\d+\/participants$/],
+  ['POST', /^\/\d+\/participants\/\d+\/review$/],
+  ['POST', /^\/\d+\/subsidies\/\d+\/decision$/],
+  ['POST', /^\/\d+\/import-users$/],
+  ['POST', /^\/\d+\/import-authorize-emails$/],
+  ['POST', /^\/\d+\/activities\/\d+$/],
+  ['POST', /^\/\d+\/activities\/\d+\/certificate-enabled$/],
+  ['POST', /^\/\d+\/activities\/\d+\/sessions\/\d+$/],
   ['POST', /^\/\d+\/activities\/\d+\/attendance\/qr$/],
   ['POST', /^\/\d+\/activities\/\d+\/attendance\/\d+$/],
-  ['POST', /^\/\d+\/activities\/\d+\/attendance-bulk$/]
+  ['POST', /^\/\d+\/activities\/\d+\/attendance-bulk$/],
+  ['POST', /^\/\d+\/certificates(\/|$)/],
+  ['PUT', /^\/\d+\/participants\/\d+$/],
+  ['DELETE', /^\/\d+\/participants\/\d+$/]
 ];
 
 function staffRouteAllowed(method, path) {
@@ -212,7 +240,7 @@ function staffRouteAllowed(method, path) {
 }
 
 // Todas as rotas identificadas por evento exigem administração daquele evento.
-// O papel 'staff' é aceito apenas para a whitelist operacional acima.
+// O papel 'staff' é aceito apenas para a allowlist operacional acima.
 router.use((req, res, next) => {
   const match = req.path.match(/^\/(\d+)(?:\/|$)/);
   if (!match) return next();
@@ -223,7 +251,7 @@ router.use((req, res, next) => {
   const isStaff = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='staff' LIMIT 1")
     .get(eventId, req.session.userId);
   if (isStaff && staffRouteAllowed(req.method, req.path)) { req.eventRole = 'staff'; return next(); }
-  if (isStaff) return res.status(403).render('error', { title: 'Acesso negado', message: 'Como staff, você só pode registrar presença e imprimir listas e QR Codes deste evento.' });
+  if (isStaff) return res.status(403).render('error', { title: 'Acesso negado', message: 'Como staff, você não tem permissão para esta ação neste evento.' });
   return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não é administrador deste evento.' });
 });
 
@@ -769,11 +797,10 @@ router.get('/', (req, res) => {
     }
     eventsById.get(row.id).roles.add(row.role);
   });
-  const events = [...eventsById.values()].map((event) => ({
-    ...event,
-    roles: [...event.roles],
-    can_manage: event.roles.includes('admin')
-  }));
+  const events = [...eventsById.values()].map((event) => {
+    const roleSet = event.roles;
+    return { ...event, roles: [...roleSet], can_manage: roleSet.has('admin') };
+  });
   const canManageEvents = events.some((event) => event.can_manage) || req.session.isAdmin;
   res.render('admin/events/list', {
     events, title: 'Eventos',
@@ -1790,6 +1817,7 @@ router.get('/:id/activities', (req, res) => {
     event, activities, editingActivity,
     eventRooms: rooms.getEventRooms(event.id),
     canManage: req.eventRole === 'admin',
+    isStaff: req.eventRole === 'staff',
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -1950,6 +1978,7 @@ router.get('/:id/activities/:activityId/sessions', (req, res) => {
     title: `Etapas - ${activity.name}`, event, activity, sessions, editingSession,
     eventRooms: rooms.getEventRooms(event.id),
     canManage: req.eventRole === 'admin',
+    isStaff: req.eventRole === 'staff',
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -2899,7 +2928,7 @@ router.get('/:id/roles', (req, res) => {
   const assignments = db.prepare(`SELECT eur.*, u.name AS user_name, u.email AS user_email, a.title AS article_title
     FROM event_user_roles eur JOIN users u ON u.id=eur.user_id LEFT JOIN articles a ON a.id=eur.article_id
     WHERE eur.event_id=? ORDER BY eur.role, u.name COLLATE NOCASE`).all(event.id);
-  const users = db.prepare(`SELECT id,name,email,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter FROM users WHERE is_public=1 AND approval_status='approved' ORDER BY name COLLATE NOCASE`).all();
+  const users = db.prepare(`SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter FROM users WHERE is_public=1 AND approval_status='approved' ORDER BY name COLLATE NOCASE`).all();
   const articles = db.prepare(`SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title COLLATE NOCASE`).all(event.id);
   res.render('admin/events/roles', { title: `Papéis do evento - ${event.name}`, event, assignments, users, articles, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' }, staff: { label: 'Staff' } }, success: req.query.success || null, error: req.query.error || null });
 });
@@ -2916,7 +2945,7 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
   const userId = parseInt(req.body.user_id, 10);
   if (!event || !role || !Number.isInteger(userId)) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel válidos.')}`);
   let articleId = null;
-  const profileColumn = { speaker: 'is_speaker', teacher: 'is_teacher', oral_presenter: 'is_oral_presenter', poster_presenter: 'is_poster_presenter' }[role];
+  const profileColumn = { staff: 'is_staff', speaker: 'is_speaker', teacher: 'is_teacher', oral_presenter: 'is_oral_presenter', poster_presenter: 'is_poster_presenter' }[role];
   const user = profileColumn ? db.prepare(`SELECT id, ${profileColumn} AS profile_enabled FROM users WHERE id=?`).get(userId) : db.prepare('SELECT id, 1 AS profile_enabled FROM users WHERE id=?').get(userId);
   if (!user || !user.profile_enabled) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Ative primeiro este perfil no cadastro do usuário.')}`);
   if (role === 'oral_presenter' || role === 'poster_presenter') {

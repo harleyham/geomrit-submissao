@@ -147,12 +147,17 @@ No credenciamento, use **Imprimir crachá** na linha do participante. O crachá 
 
 ### Papel Staff
 
-O papel **Staff** é atribuído na página de Papéis do evento (`/admin/events/:id/roles`) e dá acesso operacional restrito ao dia do evento, sem tornar a pessoa administradora:
+O papel **Staff** combina duas marcações:
 
-- **pode**: abrir a chamada de cada atividade e etapa, marcar, atualizar, desfazer e marcar em lote a presença (manual, por leitura de QR do crachá ou digitação do código) e imprimir as listas de presença, as folhas de QR Code de check-in e os crachás;
-- **não pode**: acessar dashboard, usuários, artigos, relatórios, cadastro de participantes, certificados, salas ou qualquer criação/edição/exclusão de evento, atividade, etapa ou sala.
+1. **Elegibilidade global** — a chave **Staff** na listagem de usuários (`/admin/users`, junto das chaves de Administrador e Revisor) habilita a pessoa a ser designada Staff. Desligar essa chave revoga automaticamente todas as designações de Staff por evento.
+2. **Designação por evento** — marque **Staff** em cada evento na seção **Perfis por evento** da edição do usuário (`/admin/users/:id/edit`) ou na página de Papéis do evento (`/admin/events/:id/roles`). O acesso efetivo do Staff limita-se **apenas aos eventos em que foi designado**.
 
-O staff entra pelo menu **Eventos**, que passa a listar apenas os eventos em que foi designado, com a entrada **Atividades e Presença**. Qualquer rota fora da operação de presença retorna **Acesso negado**. O staff não é promovido a administrador de sessão: continua sem acesso aos demais módulos `/admin/*`.
+Dentro dos seus eventos, o Staff concentra a operação, sem ser administrador:
+
+- **pode**: gerenciar participantes (adicionar, editar, importar, analisar inscrições, remover a inscrição), abrir a chamada e marcar/atualizar/desfazer presença (manual, em lote e por QR), imprimir listas de presença, folhas de QR de check-in e crachás, **editar** atividades e etapas existentes, gerenciar **certificados**, e consultar **artigos/revisões** e **relatórios** daquele evento;
+- **não pode**: criar ou **apagar evento**, **apagar usuário**, **criar ou apagar atividades e etapas**, gerenciar papéis, salas, publicar/encerrar ou editar o evento, e acessar os demais módulos administrativos (dashboard, usuários, outros eventos).
+
+O Staff entra pelo menu **Eventos**, que lista apenas os seus eventos, com as entradas de participação, presença, certificados, artigos e relatórios. Rotas administrativas fora dessa alçada retornam **Acesso negado**. O Staff não é promovido a administrador de sessão.
 
 ### Análise de solicitações de inscrição
 

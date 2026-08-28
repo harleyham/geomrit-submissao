@@ -237,9 +237,9 @@ app.use('/', publicRouter);
 app.use('/admin', authRouter);
 app.use('/admin', adminLimiter);
 app.use('/admin/events', requireAdminOrStaff, eventsRouter);
-app.use('/admin/articles', requireAuth, articlesRouter);
+app.use('/admin/articles', requireAdminOrStaff, articlesRouter);
 app.use('/admin/users', requireAuth, usersRouter);
-app.use('/admin/reports', requireAuth, reportsRouter);
+app.use('/admin/reports', requireAdminOrStaff, reportsRouter);
 
 // Rotas do revisor
 app.use('/reviewer', reviewerRoutes);

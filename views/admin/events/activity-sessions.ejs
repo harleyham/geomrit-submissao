@@ -14,7 +14,7 @@
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
       <nav class="topbar-nav">
-        <% const canManageSessions = (typeof canManage !== 'undefined') ? canManage : true; %>
+        <% const canManageSessions = (typeof canManage !== 'undefined') ? canManage : true; const isStaffView = (typeof isStaff !== 'undefined') && isStaff; const canEditSessions = canManageSessions || isStaffView; %>
         <% if (isAdmin) { %><a href="/admin">Dashboard</a><% } %>
         <a href="/admin/events">Eventos</a>
         <a href="/admin/events/<%= event.id %>/activities">Atividades</a>
@@ -33,7 +33,7 @@
     <% if (success) { %><p class="alert success"><%= success %></p><% } %>
     <% if (error) { %><p class="alert error"><%= error %></p><% } %>
 
-    <% if (canManageSessions) { %>
+    <% if (canManageSessions || (isStaffView && editingSession)) { %>
     <section class="card">
       <h2><%= editingSession ? 'Editar etapa' : 'Adicionar etapa' %></h2>
       <form method="post" action="<%= editingSession ? `/admin/events/${event.id}/activities/${activity.id}/sessions/${editingSession.id}` : `/admin/events/${event.id}/activities/${activity.id}/sessions` %>">
@@ -68,7 +68,7 @@
       <% } else { %>
         <table>
           <thead>
-            <tr><th style="width:40px">#</th><th>Nome</th><th>Data</th><th>Horário</th><th>Sala</th><th>Carga</th><th>Descrição</th><th>Transmissão</th><% if (canManageSessions) { %><th style="width:140px">Ações</th><% } %></tr>
+            <tr><th style="width:40px">#</th><th>Nome</th><th>Data</th><th>Horário</th><th>Sala</th><th>Carga</th><th>Descrição</th><th>Transmissão</th><% if (canEditSessions) { %><th style="width:140px">Ações</th><% } %></tr>
           </thead>
           <tbody>
             <% sessions.forEach((session) => { %>
@@ -89,12 +89,14 @@
                     <span style="color:#64748b">—</span>
                   <% } %>
                 </td>
-                <% if (canManageSessions) { %><td>
+                <% if (canEditSessions) { %><td>
                   <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions?edit_session_id=<%= session.id %>" style="color:#93c5fd;text-decoration:none">Editar</a>
+                  <% if (canManageSessions) { %>
                   <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions/<%= session.id %>/delete" style="display:inline">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="danger" nonce="<%= cspNonce %>" onclick="return confirm('Remover esta etapa? As presenças marcadas nesta etapa serão removidas.')">Remover</button>
                    </form>
+                   <% } %>
                  </td>
                 <% } %>
               </tr>

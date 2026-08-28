@@ -52,6 +52,7 @@
     .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.65rem; font-weight: 600; }
     .badge-admin { background: rgba(167,139,250,0.15); color: #a78bfa; }
     .badge-reviewer { background: rgba(52,211,153,0.15); color: #34d399; }
+    .badge-staff { background: rgba(244,114,182,0.15); color: #f472b6; }
     .badge-public { background: rgba(59,130,246,0.15); color: #60a5fa; }
     .badge-active { background: rgba(52,211,153,0.15); color: #34d399; }
     .badge-inactive { background: rgba(100,116,139,0.2); color: #94a3b8; }
@@ -295,6 +296,11 @@
                   <span class="toggle-slider"></span>
                 </label>
                 <% if (u.is_reviewer) { %><span class="badge badge-reviewer">Revisor</span><% } else { %><span class="badge badge-inactive">Revisor</span><% } %>
+                <label class="toggle-switch" style="margin-left: 0.5rem;" title="Habilita elegibilidade a Staff (depois marque Staff em cada evento)">
+                  <input name="is_staff_<%= u.id %>" value="1" type="checkbox" form="bulk-flags-form" <%= u.is_staff ? 'checked' : '' %>>
+                  <span class="toggle-slider"></span>
+                </label>
+                <% if (u.is_staff) { %><span class="badge badge-staff">Staff</span><% } else { %><span class="badge badge-inactive">Staff</span><% } %>
               </div>
               <div style="margin-top: 0.45rem; color:#64748b; font-size:0.72rem;">
                 <% if (u.is_participant) { %><span class="badge badge-active">Participante</span><% } %>

@@ -309,7 +309,7 @@ router.get('/', requireAuth, (req, res) => {
 
   const allPending = db.prepare(`
     SELECT id, name, email, cpf, passport, country, institution, phone,
-           is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at,
+           is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_staff, is_public, approval_status, approved_at,
            password_changed, profile_completed, created_at
     FROM users
     WHERE approval_status = 'pending'
@@ -318,7 +318,7 @@ router.get('/', requireAuth, (req, res) => {
 
   const paginatedApproved = db.prepare(`
     SELECT id, name, email, cpf, passport, country, institution, phone,
-           is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at,
+           is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_staff, is_public, approval_status, approved_at,
            password_changed, profile_completed, created_at
     FROM users
     WHERE ${whereClause}
@@ -413,7 +413,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
   const hash = bcrypt.hashSync(password, 10);
   const createdUser = db.prepare(`
     INSERT INTO users (name, email, password, cpf, passport, country, institution, phone, reviewer_areas,
-      is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_public, approval_status, approved_at, password_changed, created_at, updated_at,
+      is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_staff, is_public, approval_status, approved_at, password_changed, created_at, updated_at,
       formacao_area, formacao_curso, formacao_titulacao, formacao_status, profile_completed)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'),
       ?, ?, ?, ?, 0)
@@ -474,6 +474,10 @@ router.post('/:id/event-roles', requireAuth, (req, res) => {
   if (!allowed) return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não administra este evento.' });
   const roles = Array.isArray(req.body.roles) ? req.body.roles : [req.body.roles];
   const valid = ['admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter'];
+  const targetIsStaff = db.prepare('SELECT is_staff FROM users WHERE id=?').get(userId)?.is_staff;
+  if (roles.includes('staff') && !targetIsStaff) {
+    return res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&error=${encodeURIComponent('Ative a chave Staff na lista de usuários antes de marcar Staff em um evento.')}`);
+  }
   const selected = valid.filter((role) => roles.includes(role));
   const currentAdmins = db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(eventId).count;
   const removingSelfAdmin = !selected.includes('admin') && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId,userId);
@@ -823,7 +827,7 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
 
   const updateStmt = db.prepare(`
     UPDATE users
-    SET is_admin = ?, is_reviewer = ?, is_public = ?, approval_status = ?,
+    SET is_admin = ?, is_reviewer = ?, is_staff = ?, is_public = ?, approval_status = ?,
         approved_at = CASE
           WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now', '-3 hours')
           ELSE approved_at
@@ -836,6 +840,8 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
     WHERE id = ?
   `);
 
+  const revokeStaffRolesStmt = db.prepare("DELETE FROM event_user_roles WHERE user_id = ? AND role = 'staff'");
+
   const updateMany = db.transaction((ids) => {
     ids.forEach((rawId) => {
       const id = parseInt(rawId, 10);
@@ -843,9 +849,11 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
       const currentUser = currentUsersById.get(id);
       const nextIsPublic = parseToggleValue(req.body[`is_public_${id}`]);
       const approvalStatus = getNextApprovalStatus(currentUser && currentUser.approval_status, nextIsPublic);
+      const nextIsStaff = parseToggleValue(req.body[`is_staff_${id}`]);
       updateStmt.run(
         parseToggleValue(req.body[`is_admin_${id}`]),
         parseToggleValue(req.body[`is_reviewer_${id}`]),
+        nextIsStaff,
         nextIsPublic,
         approvalStatus,
         approvalStatus,
@@ -853,6 +861,7 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
         req.session.userId,
         id
       );
+      if (!nextIsStaff) revokeStaffRolesStmt.run(id);
     });
   });
 

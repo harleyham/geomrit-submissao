@@ -11,9 +11,10 @@
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
       <nav class="topbar-nav">
-        <a href="/admin">Dashboard</a>
+        <% if (isAdmin) { %><a href="/admin">Dashboard</a><% } %>
         <a href="/admin/events" class="active">Eventos</a>
-        <a href="/admin/users">Usuários</a>
+        <% if (isAdmin) { %><a href="/admin/users">Usuários</a><% } %>
+        <% if (isEventStaff) { %><span class="session-pill" style="border-color:rgba(244,114,182,0.4);color:#f472b6">Staff</span><% } %>
         <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
         <form method="POST" action="/admin/logout" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-logout">Sair</button></form>
       </nav>

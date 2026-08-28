@@ -14,7 +14,7 @@
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
       <nav class="topbar-nav">
-        <% const canManageActivities = (typeof canManage !== 'undefined') ? canManage : true; %>
+        <% const canManageActivities = (typeof canManage !== 'undefined') ? canManage : true; const isStaffView = (typeof isStaff !== 'undefined') && isStaff; const canEditActivities = canManageActivities || isStaffView; %>
         <% if (isAdmin) { %><a href="/admin">Dashboard</a><% } %>
         <a href="/admin/events">Eventos</a>
         <% if (isAdmin) { %><a href="/admin/users">Usuários</a><% } %>
@@ -31,12 +31,12 @@
     <% if (canManageActivities) { %>
     <p class="hint">Os papéis elegíveis definem quem pode atuar na atividade. Inscrições de participantes são vinculadas ao criar ou <a href="/admin/events/<%= event.id %>/participants">editar participantes</a>; depois, a chamada registra a presença efetiva e o papel exercido.</p>
     <% } else { %>
-    <p class="hint">Você está no modo <strong>Staff</strong>: use <strong>Marcar Presença</strong>, <strong>Imp. Lista</strong> e <strong>QR Presença</strong> nas atividades e etapas. A criação e edição de atividades, etapas e salas ficam com a administração do evento.</p>
+    <p class="hint">Você está no modo <strong>Staff</strong>: edite atividades/etapas existentes e use <strong>Marcar Presença</strong>, <strong>Imp. Lista</strong> e <strong>QR Presença</strong>. Criar/excluir atividades, etapas e salas, além de configurar o evento, permanecem com a administração.</p>
     <% } %>
     <% if (success) { %><p class="alert success"><%= success %></p><% } %>
     <% if (error) { %><p class="alert error"><%= error %></p><% } %>
     <% const activityForm = editingActivity || {}; const selectedRoles = String(activityForm.eligible_roles || 'participant,reviewer,speaker,teacher,oral_presenter,poster_presenter').split(','); %>
-    <% if (canManageActivities) { %>
+    <% if (canManageActivities || (isStaffView && editingActivity)) { %>
     <section class="card">
       <h2><%= editingActivity ? 'Editar atividade' : 'Cadastrar atividade' %></h2>
       <form method="post" action="<%= editingActivity ? `/admin/events/${event.id}/activities/${editingActivity.id}` : `/admin/events/${event.id}/activities` %>">
@@ -112,8 +112,10 @@
             <% String(activity.eligible_roles || '').split(',').filter(Boolean).forEach((role) => { %><span class="badge" style="background:#334155;color:#94a3b8;font-size:10px"><%= activityRolesMap[role] || role %></span> <% }) %>
           </small>
           <div class="item-actions">
-            <% if (canManageActivities) { %>
+            <% if (canEditActivities) { %>
             <a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>">Editar</a>
+            <% } %>
+            <% if (canManageActivities) { %>
             <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/delete" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Excluir a atividade \"<%= activity.name %>\"? Isso remove também etapas, inscrições e avaliações vinculadas.');">
               <button type="submit" style="display:inline;padding:2px 8px;font-size:10px;background:#1e293b;color:#f87171;border:1px solid #7f1d1d;border-radius:4px;cursor:pointer;width:auto">Excluir</button>
             </form>

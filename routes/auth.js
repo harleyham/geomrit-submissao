@@ -187,22 +187,29 @@ function requireAuth(req, res, next) {
   next();
 }
 
-// Autoriza acesso à área de eventos: administradores (sessão admin ou papel
-// 'admin' em algum evento) e também usuários com papel 'staff', sem promover o
-// staff a sessão de admin. A alçada real do staff é definida pela whitelist de
-// rotas dentro de routes/events.js; os demais montes /admin/* continuam usando
-// requireAuth, que o staff não atravessa.
+// Autoriza acesso a áreas administrativas restritas (eventos, artigos e
+// relatórios). Administradores (sessão admin ou papel 'admin' em algum evento)
+// seguem com acesso pleno. Usuários com papel 'staff' recebem acesso apenas
+// aos eventos em que foram marcados como staff: `req.staffEventIds` lista esses
+// eventos e é usado pelos routers para restringir consultas e ações. O staff
+// não é promovido a sessão de admin (req.session.isAdmin continua false).
+function getStaffEventIds(userId) {
+  return db.prepare("SELECT event_id FROM event_user_roles WHERE user_id=? AND role='staff'").all(userId).map((row) => row.event_id);
+}
+
 function requireAdminOrStaff(req, res, next) {
   if (req.session && req.session.userId) {
     const hasEventAdminRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(req.session.userId);
     const canBootstrap = db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0 && db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId)?.is_admin;
     if (req.session.isAdmin || hasEventAdminRole || canBootstrap) {
       req.session.isAdmin = true;
+      req.staffEventIds = null; // acesso irrestrito
       return next();
     }
-    const hasStaffRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='staff' LIMIT 1").get(req.session.userId);
-    if (hasStaffRole) {
+    const staffEventIds = getStaffEventIds(req.session.userId);
+    if (staffEventIds.length) {
       req.session.isEventStaff = true;
+      req.staffEventIds = staffEventIds;
       return next();
     }
   }
@@ -785,4 +792,4 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
   return res.redirect(authenticatedDestination(req));
 });
 
-module.exports = { router, requireAuth, requireAdminOrStaff, requireOnboarding, requireActiveAccount };
+module.exports = { router, requireAuth, requireAdminOrStaff, getStaffEventIds, requireOnboarding, requireActiveAccount };

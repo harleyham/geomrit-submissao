@@ -33,18 +33,41 @@ function mapArticleStatusLabel(status) {
   return labels[status] || status;
 }
 
-// Middleware de autenticação admin
+// Autoriza administradores e staff. O staff só enxerga/age nos eventos em que
+// foi marcado (req.staffEventIds, definido por requireAdminOrStaff no mount).
 function requireAuth(req, res, next) {
-  if (!req.session.isAdmin) {
-    return res.redirect('/login');
+  if (req.session.isAdmin || Array.isArray(req.staffEventIds)) {
+    return next();
   }
-  next();
+  return res.redirect('/login');
 }
+
+function isStaffScoped(req) {
+  return Array.isArray(req.staffEventIds) && !req.session.isAdmin;
+}
+
+function staffDeny(res) {
+  return res.status(403).render('error', { title: 'Acesso negado', message: 'Você só pode acessar dados dos eventos em que é staff.' });
+}
+
+function staffEventAllowed(req, eventId) {
+  return !isStaffScoped(req) || req.staffEventIds.includes(Number(eventId));
+}
+
+// Rotas por artigo (:id) exigem que o artigo pertença a um evento do staff.
+router.param('id', (req, res, next, id) => {
+  if (!isStaffScoped(req)) return next();
+  const article = db.prepare('SELECT event_id FROM articles WHERE id = ?').get(id);
+  if (!article) return res.status(404).render('error', { title: 'Artigo não encontrado' });
+  if (!req.staffEventIds.includes(Number(article.event_id))) return staffDeny(res);
+  next();
+});
 
 // Listar artigos de um evento
 router.get('/', requireAuth, (req, res) => {
   const eventId = parseInt(req.query.eventId);
-  if (!eventId) return res.redirect('/admin');
+  if (!eventId) return res.redirect(isStaffScoped(req) ? '/admin/events' : '/admin');
+  if (!staffEventAllowed(req, eventId)) return staffDeny(res);
   const event = db.prepare('SELECT * FROM events WHERE id = ?').bind(eventId).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const filters = {
@@ -115,6 +138,7 @@ function safeArchiveFileName(value, fallback) {
 router.get('/download-all', requireAuth, (req, res, next) => {
   const eventId = parseInt(req.query.eventId, 10);
   if (!eventId) return res.redirect('/admin/events');
+  if (!staffEventAllowed(req, eventId)) return staffDeny(res);
 
   const event = db.prepare('SELECT id, name, short_name FROM events WHERE id = ?').get(eventId);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });

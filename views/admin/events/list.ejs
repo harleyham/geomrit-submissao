@@ -154,12 +154,19 @@
                       <button type="submit" class="btn btn-danger btn-sm">Encerrar</button>
                     </form>
                   <% } %>
-                <% } else { %>
+                 <% } else { %>
                   <% if (e.status !== 'draft') { %>
                     <a href="/evento/<%= e.id %>" rel="noopener noreferrer" class="btn btn-secondary btn-sm">Página pública</a>
                   <% } %>
+                  <a href="/admin/events/<%= e.id %>/participants" class="btn btn-ghost btn-sm">Participantes</a>
                   <a href="/admin/events/<%= e.id %>/activities" class="btn btn-ghost btn-sm">Atividades e Presença</a>
-                  <small style="color:#64748b;display:block;margin-top:4px">Papel Staff: presença, listas e QR Codes.</small>
+                  <a href="/admin/events/<%= e.id %>/certificates" class="btn btn-ghost btn-sm">Certificados</a>
+                  <a href="/admin/articles?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Artigos</a>
+                  <a href="/admin/reports?eventId=<%= e.id %>" class="btn btn-ghost btn-sm">Relatórios</a>
+                  <% if (e.offers_subsidy) { %>
+                    <a href="/admin/events/<%= e.id %>/subsidies" class="btn btn-ghost btn-sm">Subsídios</a>
+                  <% } %>
+                  <small style="color:#64748b;display:block;margin-top:4px">Papel Staff: gerencia participação, presença, listas, QR, certificados, artigos e relatórios deste evento. Criar/apagar evento, apagar usuários e criar/apagar atividades/etapas ficam com a administração.</small>
                 <% } %>
               </td>
             </tr>

@@ -131,6 +131,7 @@ function initializeDbSchema(db) {
       is_teacher INTEGER DEFAULT 0,
       is_oral_presenter INTEGER DEFAULT 0,
       is_poster_presenter INTEGER DEFAULT 0,
+      is_staff INTEGER DEFAULT 0,
       is_public INTEGER DEFAULT 1,
       approval_status TEXT DEFAULT 'approved',
       approved_at DATETIME,
@@ -536,7 +537,7 @@ function initializeDbSchema(db) {
   } catch(e) {}
   try {
     const userColumns = db.prepare('PRAGMA table_info(users)').all().map((column) => column.name);
-    for (const column of ['is_participant', 'is_speaker', 'is_teacher', 'is_oral_presenter', 'is_poster_presenter']) {
+    for (const column of ['is_participant', 'is_speaker', 'is_teacher', 'is_oral_presenter', 'is_poster_presenter', 'is_staff']) {
       if (!userColumns.includes(column)) db.exec(`ALTER TABLE users ADD COLUMN ${column} INTEGER DEFAULT 0`);
     }
     db.exec(`UPDATE users SET is_participant = 1 WHERE id IN (SELECT user_id FROM event_registrations WHERE user_id IS NOT NULL)`);
