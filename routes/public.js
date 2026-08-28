@@ -1027,7 +1027,11 @@ router.get('/evento/:id', (req, res) => {
     if (!sessionsByActivity[session.activity_id]) sessionsByActivity[session.activity_id] = [];
     sessionsByActivity[session.activity_id].push(session);
   });
-  activities.forEach((activity) => { activity.sessions = sessionsByActivity[activity.id] || []; });
+  activities.forEach((activity) => {
+    activity.sessions = sessionsByActivity[activity.id] || [];
+    activity.room_allocation = roomsService.targetAssignment({ activityId: activity.id });
+    activity.sessions.forEach((session) => { session.room_allocation = roomsService.targetAssignment({ sessionId: session.id }); });
+  });
   const scheduleAssignments = roomsService.eventAssignments(req.params.id);
   const scheduleRooms = roomsService.getEventRooms(req.params.id);
   const hasSchedule = scheduleAssignments.length > 0;
@@ -1367,6 +1371,19 @@ function getOwnedEventRegistration(eventId, req) {
     AND (user_id=? OR LOWER(TRIM(email))=LOWER(TRIM(?))) ORDER BY id LIMIT 1`)
     .get(eventId, req.session.userId, req.session.userEmail || '');
 }
+
+router.get('/evento/:id/atividades/:activityId/etapas', (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT * FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const sessions = db.prepare(`
+    SELECT id,name,session_date,time_start,time_end,description,video_url,has_video,workload_hours,sequence_no
+    FROM activity_sessions WHERE activity_id=? ORDER BY sequence_no, session_date, id
+  `).all(activity.id);
+  sessions.forEach((session) => { session.room_allocation = roomsService.targetAssignment({ sessionId: session.id }); });
+  res.render('public/activity-sessions', { event, activity, sessions, title: activity.name });
+});
 
 router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);

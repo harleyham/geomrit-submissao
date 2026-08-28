@@ -177,7 +177,9 @@ Abra a listagem de participantes e use **Analisar** para aprovar ou recusar a so
 
 Tipos comuns: palestra, seminário, mesa-redonda, minicurso e apresentação oral ou pôster.
 
-Na página pública do evento, a tabela **Atividades do Evento** apresenta a descrição/ementa em uma coluna própria. Para atividades sem esse conteúdo, a coluna exibe um traço.
+Na página pública do evento (`/evento/:id`), a seção **Atividades do Evento** oferece três visualizações alternáveis: **Cards** (padrão, agrupados por tipo, no mesmo formato do painel administrativo), **Lista** e **Grade (dia × hora)**, esta com os dias nas colunas, o horário de início nas linhas e apenas o nome das atividades/etapas nas células. Cada atividade exibe nome, descrição/ementa, data e horário; quando **não tem etapas**, mostra também a **sala**; quando **tem etapas**, cada etapa aparece com data, horário e sala.
+
+O botão **Etapas** aparece somente nas atividades que possuem etapas e abre a página pública somente-leitura `/evento/:id/atividades/:activityId/etapas` (sem nenhum campo de edição), com #, nome, data, horário, sala, carga e transmissão de cada etapa.
 
 O participante pode escolher atividades durante a inscrição ou posteriormente em `/evento/:id/atividades`. O administrador também pode fazer essa associação. Em eventos com inscrição sujeita à análise, a seleção aprovada pela organização não pode ser alterada pelo participante.
 
@@ -195,6 +197,8 @@ Use etapas quando uma atividade possui várias aulas ou partes, como um minicurs
 6. Salve e repita para as demais etapas.
 
 Com etapas, a presença, a lista impressa e a carga horária do certificado são calculadas por etapa. Uma atividade sem etapas utiliza um único registro geral.
+
+As etapas também ficam disponíveis ao público na página somente-leitura `/evento/:id/atividades/:activityId/etapas`, acessível pelo botão **Etapas** na seção de atividades da página pública (o botão só surge quando a atividade tem etapas).
 
 ## 9. Salas, horários e agenda
 
@@ -225,6 +229,7 @@ O card **Aguardando sala** na página de salas lista as etapas e as atividades s
 - **Ocupação por dia** (`/admin/events/:id/rooms/occupancy`): para cada dia com alocações, as salas e os horários ocupados, com botão de impressão/PDF.
 - **Agenda por sala** (`/admin/events/:id/rooms/agenda`): cada sala com suas atividades, etapas e reservas em ordem cronológica, com botão de impressão/PDF.
 - Na página pública do evento (`/evento/:id`), o bloco **Programação nas Salas** aparece quando há alocações, com alternância **Por dia** / **Por sala**.
+- Nos **Cards** da seção **Atividades do Evento**, a sala aparece ao lado da atividade sem etapas e de cada etapa (apenas o nome da sala).
 
 ## 10. Presença e QR Code
 

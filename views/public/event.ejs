@@ -156,7 +156,89 @@
       </div>
 
       <% if (activities && activities.length) { %>
+        <%
+          var actOcc = [];
+          activities.forEach(function(a){
+            if (a.sessions && a.sessions.length) {
+              a.sessions.forEach(function(s){ if (s.session_date && s.time_start) actOcc.push({ day: s.session_date, hour: String(s.time_start).slice(0,2), name: s.name }); });
+            } else if (a.date_start && a.time_start) {
+              actOcc.push({ day: a.date_start, hour: String(a.time_start).slice(0,2), name: a.name });
+            }
+          });
+          var gridDays = Array.from(new Set(actOcc.map(function(o){ return o.day; }))).sort();
+          var gridHours = Array.from(new Set(actOcc.map(function(o){ return o.hour; }))).sort();
+          var gridCell = {};
+          actOcc.forEach(function(o){ var k = o.day + '|' + o.hour; (gridCell[k] = gridCell[k] || []).push(o.name); });
+          var hasActivityGrid = gridDays.length > 0 && gridHours.length > 0;
+          var actTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', other:'Outra' };
+          var actTypeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','other'];
+          var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], other:['#1e293b','#94a3b8'] };
+          var actByType = {};
+          activities.forEach(function(a){ var t = a.activity_type || 'other'; (actByType[t] = actByType[t] || []).push(a); });
+        %>
         <div class="timeline-title">Atividades do Evento</div>
+        <div class="activities-toggle-block">
+          <style>
+            .activities-toggle-block .activities-radio { position:absolute;opacity:0;pointer-events:none; }
+            .activities-toggle-block .activities-toggle { display:flex;gap:8px;margin-bottom:12px; }
+            .activities-toggle-block .activities-toggle label { padding:6px 14px;border:1px solid rgba(148,163,184,.35);border-radius:999px;font-size:.8rem;color:#cbd5e1;cursor:pointer; }
+            .activities-toggle-block #activities-view-cards:checked ~ .activities-toggle label[for="activities-view-cards"],
+            .activities-toggle-block #activities-view-list:checked ~ .activities-toggle label[for="activities-view-list"],
+            .activities-toggle-block #activities-view-grid:checked ~ .activities-toggle label[for="activities-view-grid"] { background:rgba(59,130,246,.25);border-color:#60a5fa;color:#fff; }
+            .activities-toggle-block .activities-view { display:none; }
+            .activities-toggle-block #activities-view-cards:checked ~ .activities-view-cards,
+            .activities-toggle-block #activities-view-list:checked ~ .activities-view-list,
+            .activities-toggle-block #activities-view-grid:checked ~ .activities-view-grid { display:block; }
+            .activities-toggle-block .act-cards { display:flex; flex-direction:column; gap:16px; }
+            .activities-toggle-block .act-type-card { background:#1e293b; border-radius:10px; padding:16px; }
+            .activities-toggle-block .act-type-head { margin:0 0 12px; font-size:1rem; display:flex; align-items:center; gap:8px; }
+            .activities-toggle-block .act-type-count { color:#94a3b8; font-weight:400; font-size:.85rem; }
+            .activities-toggle-block .act-badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; letter-spacing:.3px; text-transform:uppercase; }
+            .activities-toggle-block .act-type-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; }
+            .activities-toggle-block .act-item { background:#0f172a; padding:12px 14px; border-radius:8px; border:1px solid #334155; display:flex; flex-direction:column; gap:5px; }
+            .activities-toggle-block .act-item-title { font-size:14px; color:#f1f5f9; }
+            .activities-toggle-block .act-item-desc, .activities-toggle-block .act-item-meta { color:#94a3b8; font-size:12px; line-height:1.5; }
+            .activities-toggle-block .act-item-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+            .activities-toggle-block .grid-wrap { border:1px solid rgba(148,163,184,0.12); border-radius:14px; background:rgba(2,6,23,0.3); overflow-x:auto; }
+            .activities-toggle-block .grid-table { width:100%; border-collapse:collapse; min-width:520px; }
+            .activities-toggle-block .grid-table th, .activities-toggle-block .grid-table td { border:1px solid rgba(148,163,184,0.1); padding:0.6rem 0.7rem; font-size:0.82rem; text-align:center; vertical-align:top; }
+            .activities-toggle-block .grid-table thead th { background:rgba(15,23,42,0.6); color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; font-size:0.72rem; }
+            .activities-toggle-block .grid-table tbody th { background:rgba(15,23,42,0.6); color:#94a3b8; white-space:nowrap; font-weight:600; text-align:left; }
+            .activities-toggle-block .grid-table td .grid-item { display:block; color:#f8fafc; }
+            .activities-toggle-block .grid-table td .grid-item + .grid-item { margin-top:6px; padding-top:6px; border-top:1px dashed rgba(148,163,184,0.15); }
+          </style>
+          <input type="radio" name="activities-view" id="activities-view-cards" class="activities-radio" checked>
+          <input type="radio" name="activities-view" id="activities-view-list" class="activities-radio">
+          <input type="radio" name="activities-view" id="activities-view-grid" class="activities-radio">
+          <div class="activities-toggle">
+            <label for="activities-view-cards">Cards</label>
+            <label for="activities-view-list">Lista</label>
+            <label for="activities-view-grid">Grade (dia × hora)</label>
+          </div>
+          <div class="activities-view activities-view-cards">
+            <div class="act-cards">
+              <% actTypeOrder.forEach(function(type){ var items = actByType[type]; if (!items) return; var st = actTypeStyle[type] || actTypeStyle.other; %>
+                <section class="act-type-card">
+                  <h3 class="act-type-head"><span class="act-badge" style="background:<%= st[0] %>;color:<%= st[1] %>"><%= actTypeMap[type] %></span> <span class="act-type-count">(<%= items.length %> atividade<%= items.length > 1 ? 's' : '' %>)</span></h3>
+                  <div class="act-type-grid">
+                    <% items.forEach(function(a){ var hasSess = a.sessions && a.sessions.length; %>
+                      <div class="act-item">
+                        <strong class="act-item-title"><%= a.name %></strong>
+                        <% if (a.description) { %><small class="act-item-desc"><%= a.description %></small><% } %>
+                        <small class="act-item-meta"><%= activityDateRange(a) || 'A definir' %><% if (a.time_start || a.time_end) { %> · <%= String(a.time_start || '?').slice(0,5) %>–<%= String(a.time_end || '?').slice(0,5) %><% } %><% if (!hasSess && a.room_allocation) { %> · <%= a.room_allocation.room_name %><% } %></small>
+                        <% if (hasSess) { a.sessions.forEach(function(s){ %><small class="act-item-meta">• <%= s.name %><% if (s.session_date) { %> — <%= formatBRDate(s.session_date) %><% } %><% if (s.time_start || s.time_end) { %> · <%= String(s.time_start || '?').slice(0,5) %>–<%= String(s.time_end || '?').slice(0,5) %><% } %><% if (s.room_allocation) { %> · <%= s.room_allocation.room_name %><% } %></small><% }) } %>
+                        <div class="act-item-actions">
+                          <% if (hasSess) { %><a class="btn btn-secondary activity-video" href="/evento/<%= event.id %>/atividades/<%= a.id %>/etapas">Etapas (<%= a.sessions.length %>)</a><% } %>
+                          <% if (a.video_url) { %><a class="btn btn-secondary activity-video" href="<%= a.video_url %>" target="_blank" rel="noopener noreferrer">Transmissão</a><% } else if (a.has_video) { %><span class="muted">Transmissão prevista</span><% } %>
+                        </div>
+                      </div>
+                    <% }) %>
+                  </div>
+                </section>
+              <% }) %>
+            </div>
+          </div>
+          <div class="activities-view activities-view-list">
         <div class="timeline-table-wrap">
           <table class="timeline-table">
             <thead>
@@ -204,6 +286,37 @@
               <% }) %>
             </tbody>
           </table>
+        </div>
+          </div>
+          <div class="activities-view activities-view-grid">
+            <% if (!hasActivityGrid) { %>
+              <p class="muted">Defina data e horário das atividades/etapas para visualizar em grade.</p>
+            <% } else { %>
+              <div class="grid-wrap">
+                <table class="grid-table">
+                  <thead>
+                    <tr>
+                      <th>Hora</th>
+                      <% gridDays.forEach(function(day){ %><th><%= formatBRDate(day) %></th><% }) %>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% gridHours.forEach(function(hour){ %>
+                      <tr>
+                        <th scope="row"><%= hour %>:00</th>
+                        <% gridDays.forEach(function(day){ %>
+                          <% var items = gridCell[day + '|' + hour] || []; %>
+                          <td>
+                            <% if (items.length) { items.forEach(function(nm){ %><span class="grid-item"><%= nm %></span><% }); } else { %><span class="muted">—</span><% } %>
+                          </td>
+                        <% }) %>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+            <% } %>
+          </div>
         </div>
       <% } %>
 

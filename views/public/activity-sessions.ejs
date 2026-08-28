@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= activity.name %> — <%= event.name %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
+    .logo-icon { color: #60a5fa; }
+    .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
+    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
+    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    .back-link { display:inline-block; margin-bottom: 12px; color:#93c5fd; text-decoration:none; }
+    .back-link:hover { text-decoration: underline; }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; color:#f8fafc; }
+    .hint { color:#94a3b8; font-size:0.88rem; margin-bottom: 1.25rem; }
+    .table-wrap { border: 1px solid rgba(148,163,184,0.12); border-radius: 14px; overflow: hidden; background: rgba(2,6,23,0.3); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.9rem 1rem; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; background: rgba(15,23,42,0.6); }
+    td { padding: 1rem; font-size: 0.94rem; color: #e2e8f0; border-top: 1px solid rgba(148,163,184,0.08); vertical-align: top; }
+    tr:first-child td { border-top: none; }
+    .muted { color: #94a3b8; }
+    .desc { color:#cbd5e1; }
+    .video-link { color: #93c5fd; text-decoration: none; }
+    .video-link:hover { text-decoration: underline; }
+    .empty { padding: 1.25rem; color:#94a3b8; font-size:0.9rem; }
+    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    @media (max-width: 860px) {
+      .main-content { padding: 1rem; }
+      th, td { padding: 0.75rem; font-size: 0.82rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
+      <nav class="topbar-nav">
+        <a href="/">← Eventos</a>
+        <a href="/evento/<%= event.id %>"><%= event.name %></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <a class="back-link" href="/evento/<%= event.id %>">← Voltar às atividades</a>
+    <h1>Etapas — <%= activity.name %></h1>
+    <p class="hint"><%= activityDateRange(activity) || 'Data a definir' %></p>
+
+    <% if (!sessions.length) { %>
+      <div class="table-wrap"><div class="empty">Esta atividade não possui etapas detalhadas.</div></div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th style="width:40px">#</th><th>Nome</th><th>Data</th><th>Horário</th><th>Sala</th><th>Carga</th><th>Descrição</th><th>Transmissão</th></tr>
+          </thead>
+          <tbody>
+            <% sessions.forEach((session) => { %>
+              <tr>
+                <td class="muted"><%= session.sequence_no %></td>
+                <td><strong><%= session.name %></strong></td>
+                <td class="muted"><%= session.session_date ? formatBRDate(session.session_date) : 'A definir' %></td>
+                <td class="muted"><%= (session.time_start && session.time_end) ? String(session.time_start).slice(0,5) + '–' + String(session.time_end).slice(0,5) : '—' %></td>
+                <td><%= session.room_allocation ? session.room_allocation.room_name : '—' %></td>
+                <td class="muted"><%= Number(session.workload_hours) > 0 ? session.workload_hours + 'h' : '—' %></td>
+                <td class="desc"><%= session.description ? session.description : '—' %></td>
+                <td>
+                  <% if (session.video_url) { %>
+                    <a class="video-link" href="<%= session.video_url %>" target="_blank" rel="noopener noreferrer">Assistir</a>
+                  <% } else if (session.has_video) { %>
+                    <span class="muted">Prevista</span>
+                  <% } else { %>
+                    <span class="muted">—</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+</body>
+</html>
