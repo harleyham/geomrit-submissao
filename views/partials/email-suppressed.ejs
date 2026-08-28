@@ -1,0 +1,38 @@
+<%
+  function brDateTime(value) {
+    if (!value) return '-';
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : value;
+  }
+%>
+<% if (suppressedEmailCount > 0) { %>
+<div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.25);border-radius:12px;padding:1rem 1.25rem;margin-top:1rem;color:#fde68a;">
+  <%= suppressedEmailCount %> e-mail(s) suspenso(s) de serem enviados porque o envio de e-mails está desativado no evento (ou no sistema). Esses e-mails não serão enviados enquanto o envio permanecer desativado.
+</div>
+<form method="POST" action="/admin/email/suppressed/delete" class="email-suppressed-delete-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <button type="submit" class="btn btn-danger btn-sm" style="align-self:flex-end;margin-top:1rem;">Excluir lista de e-mails suspensos</button>
+</form>
+<details>
+  <summary class="email-queue-summary">Ver e-mails suspensos (<%= suppressedEmailCount %>)</summary>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Destinatário</th><th>Mensagem</th><th>Evento</th><th>Status</th><th>Data</th></tr></thead>
+      <tbody>
+        <% const emailTypeLabels = { account_requested: 'Solicitação de cadastro', account_approved: 'Cadastro aprovado', imported_account: 'Conta criada', imported_account_registration: 'Conta e inscrição', imported_registration: 'Inscrição no evento', event_reminder: 'Lembrete do evento', certificate_issued: 'Certificado emitido', certificate_reissued: 'Certificado reemitido', video_link_changed: 'Alteração de transmissão', direct_message: 'Mensagem direta' }; %>
+        <% suppressedEmails.forEach(email => { %>
+        <tr>
+          <td>#<%= email.id %></td>
+          <td><strong><%= email.recipient_name || '-' %></strong><br><small><%= email.recipient_email %></small></td>
+          <td><%= emailTypeLabels[email.message_type] || email.message_type %><br><small><%= email.subject %></small></td>
+          <td><% if (email.event_id) { %><a href="/admin/events/<%= email.event_id %>/edit"><%= email.event_name || ('Evento #' + email.event_id) %></a><% } else { %>Sistema<% } %></td>
+          <td><span class="badge email-status-suppressed">Suspenso</span><% if (email.last_error) { %><small class="email-error"><%= email.last_error %></small><% } %></td>
+          <td><small>Criada: <%= brDateTime(email.created_at) %><br>Suprimida: <%= brDateTime(email.updated_at) %></small></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% if (suppressedEmailCount > suppressedEmails.length) { %><p style="padding:1rem 1.5rem;color:#94a3b8;">Exibindo as primeiras <%= suppressedEmails.length %> de <%= suppressedEmailCount %> mensagens.</p><% } %>
+</details>
+<% } %>

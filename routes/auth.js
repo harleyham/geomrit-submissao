@@ -12,7 +12,7 @@ const { resetDatabase } = require('../services/db-reset');
 const { createBackupZip, restoreFromZip, backupFileName } = require('../services/backup');
 const { requireSuperAdmin } = require('../security/super-admin');
 const { validateCsrfToken } = require('../security/csrf');
-const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue } = require('../services/email');
+const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
 fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
@@ -389,6 +389,8 @@ router.get('/dashboard', requireAuth, (req, res) => {
     systemEmailSettings: getSystemEmailSettings(),
     pendingEmailCount: getPendingEmailCount(),
     pendingEmails: isSuperAdmin ? getPendingEmails() : [],
+    suppressedEmailCount: getSuppressedEmailCount(),
+    suppressedEmails: isSuperAdmin ? getSuppressedEmails() : [],
     year: new Date().getFullYear(),
     query: req.query
   });
@@ -435,6 +437,20 @@ router.get('/email/pending-list', requireAuth, requireSuperAdmin, (req, res) => 
     if (err) return res.status(500).json({ error: 'Erro ao renderizar a fila de e-mails.' });
     res.json({ count: pendingEmailCount, html });
   });
+});
+
+router.get('/email/suppressed-list', requireAuth, requireSuperAdmin, (req, res) => {
+  const suppressedEmailCount = getSuppressedEmailCount();
+  const suppressedEmails = getSuppressedEmails();
+  res.render('partials/email-suppressed', { suppressedEmailCount, suppressedEmails }, (err, html) => {
+    if (err) return res.status(500).json({ error: 'Erro ao renderizar a lista de e-mails suprimidos.' });
+    res.json({ count: suppressedEmailCount, html });
+  });
+});
+
+router.post('/email/suppressed/delete', requireAuth, requireSuperAdmin, strictLimiter, (req, res) => {
+  const deleted = deleteSuppressedEmails(req.session.userId);
+  return res.redirect(`/admin/dashboard?email=suppressed-deleted&message=${encodeURIComponent('Lista de e-mails suprimidos excluída. ' + deleted + ' mensagem(ns) removida(s).')}`);
 });
 
 router.get('/db/reset', requireAuth, requireSuperAdmin, (req, res) => {

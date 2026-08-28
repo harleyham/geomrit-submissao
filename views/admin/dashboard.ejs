@@ -91,6 +91,8 @@
     .email-error { color: #fca5a5; display: block; margin-top: .25rem; max-width: 34rem; white-space: normal; }
     .email-status-queued { background: rgba(59,130,246,.15); color: #93c5fd; }
     .email-status-failed { background: rgba(239,68,68,.15); color: #fca5a5; }
+    .email-status-suppressed { background: rgba(251,191,36,.15); color: #fde68a; }
+    .email-suppressed-delete-form { display:flex; }
 
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
     a { color: #60a5fa; text-decoration: none; }
@@ -405,6 +407,9 @@
         <div id="email-queue-live" style="<%= pendingEmailCount > 0 ? '' : 'display:none;' %>">
           <%- include('../partials/email-queue', { pendingEmailCount, pendingEmails }) %>
         </div>
+        <div id="email-suppressed-live" style="<%= suppressedEmailCount > 0 ? '' : 'display:none;' %>">
+          <%- include('../partials/email-suppressed', { suppressedEmailCount, suppressedEmails }) %>
+        </div>
       </div>
       <% if (query && query.reset === 'success') { %>
       <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
@@ -448,6 +453,7 @@
       var live = document.getElementById('email-queue-live');
       var countEl = document.getElementById('email-pending-count');
       if (!live || !countEl) return;
+      var suppressedLive = document.getElementById('email-suppressed-live');
       live.addEventListener('submit', function (e) {
         var form = e.target;
         if (form && form.classList && form.classList.contains('email-clear-form')) {
@@ -456,7 +462,18 @@
           }
         }
       });
+      if (suppressedLive) {
+        suppressedLive.addEventListener('submit', function (e) {
+          var form = e.target;
+          if (form && form.classList && form.classList.contains('email-suppressed-delete-form')) {
+            if (!confirm('Tem certeza de que deseja excluir a lista de e-mails suspensos? As mensagens suspensas serão removidas definitivamente e não poderão ser recuperadas.')) {
+              e.preventDefault();
+            }
+          }
+        });
+      }
       var lastHtml = live.innerHTML;
+      var lastSuppressedHtml = suppressedLive ? suppressedLive.innerHTML : '';
       function refreshEmailQueue() {
         if (document.visibilityState !== 'visible') return;
         fetch('/admin/email/pending-list', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
@@ -475,6 +492,23 @@
             if (nextDetails && wasOpen) nextDetails.open = true;
           })
           .catch(function () {});
+        if (suppressedLive) {
+          fetch('/admin/email/suppressed-list', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+              if (!data || typeof data.count !== 'number') return;
+              var html = data.html || '';
+              if (html === lastSuppressedHtml) return;
+              lastSuppressedHtml = html;
+              var prevDetails = suppressedLive.querySelector('details');
+              var wasOpen = prevDetails && prevDetails.open;
+              suppressedLive.innerHTML = html;
+              suppressedLive.style.display = data.count > 0 ? '' : 'none';
+              var nextDetails = suppressedLive.querySelector('details');
+              if (nextDetails && wasOpen) nextDetails.open = true;
+            })
+            .catch(function () {});
+        }
       }
       setInterval(refreshEmailQueue, 15000);
       document.addEventListener('visibilitychange', function () {

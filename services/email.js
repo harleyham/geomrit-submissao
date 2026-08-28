@@ -44,6 +44,25 @@ function getPendingEmails(limit = 100) {
     LIMIT ?`).all(safeLimit);
 }
 
+function getSuppressedEmailCount(eventId = null) {
+  if (eventId == null) {
+    return db.prepare("SELECT COUNT(*) AS count FROM email_outbox WHERE status='suppressed'").get().count;
+  }
+  return db.prepare("SELECT COUNT(*) AS count FROM email_outbox WHERE event_id=? AND status='suppressed'").get(eventId).count;
+}
+
+function getSuppressedEmails(limit = 100) {
+  const safeLimit = Math.min(500, Math.max(1, Number.parseInt(limit, 10) || 100));
+  return db.prepare(`SELECT eo.id,eo.recipient_email,eo.recipient_name,eo.message_type,eo.subject,
+    eo.status,eo.last_error,eo.created_at,eo.updated_at,
+    e.id AS event_id,e.name AS event_name
+    FROM email_outbox eo
+    LEFT JOIN events e ON e.id=eo.event_id
+    WHERE eo.status='suppressed'
+    ORDER BY eo.created_at DESC,eo.id DESC
+    LIMIT ?`).all(safeLimit);
+}
+
 function getGlobalIdentity() {
   const address = text(process.env.MAIL_FROM_ADDRESS, text(process.env.SMTP_USER, 'eventos@ham.eng.br'));
   return {
@@ -113,6 +132,17 @@ function clearEmailQueue(actorUserId) {
       VALUES (1,?,?,'system',datetime('now','-3 hours'))`).run(actorUserId || null, cancelled);
   })();
   return cancelled;
+}
+
+function deleteSuppressedEmails(actorUserId) {
+  let deleted = 0;
+  db.transaction(() => {
+    revokeTokensForOutbox("status='suppressed'");
+    deleted = db.prepare("DELETE FROM email_outbox WHERE status='suppressed'").run().changes;
+    db.prepare(`INSERT INTO email_settings_log (enabled,changed_by,cancelled_count,scope,created_at)
+      VALUES (1,?,?,'system',datetime('now','-3 hours'))`).run(actorUserId || null, deleted);
+  })();
+  return deleted;
 }
 
 function setEventEmailEnabled(eventId, enabled, actorUserId) {
@@ -547,7 +577,7 @@ function isValidHttpUrl(value) {
 }
 
 module.exports = {
-  getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getGlobalIdentity, getEventIdentity,
+  getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, getGlobalIdentity, getEventIdentity,
   setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail, clearEmailQueue,
   queueAccountRequested, queueAccountApproved, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
   queueRegistrationReviewDecision, queueParticipantActivitiesUpdated,
