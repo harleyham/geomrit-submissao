@@ -473,7 +473,7 @@ router.post('/:id/event-roles', requireAuth, (req, res) => {
   const allowed = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId, req.session.userId);
   if (!allowed) return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não administra este evento.' });
   const roles = Array.isArray(req.body.roles) ? req.body.roles : [req.body.roles];
-  const valid = ['admin','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter'];
+  const valid = ['admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter'];
   const selected = valid.filter((role) => roles.includes(role));
   const currentAdmins = db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(eventId).count;
   const removingSelfAdmin = !selected.includes('admin') && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId,userId);
