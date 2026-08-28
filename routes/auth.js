@@ -186,6 +186,28 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Autoriza acesso à área de eventos: administradores (sessão admin ou papel
+// 'admin' em algum evento) e também usuários com papel 'staff', sem promover o
+// staff a sessão de admin. A alçada real do staff é definida pela whitelist de
+// rotas dentro de routes/events.js; os demais montes /admin/* continuam usando
+// requireAuth, que o staff não atravessa.
+function requireAdminOrStaff(req, res, next) {
+  if (req.session && req.session.userId) {
+    const hasEventAdminRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(req.session.userId);
+    const canBootstrap = db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0 && db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId)?.is_admin;
+    if (req.session.isAdmin || hasEventAdminRole || canBootstrap) {
+      req.session.isAdmin = true;
+      return next();
+    }
+    const hasStaffRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='staff' LIMIT 1").get(req.session.userId);
+    if (hasStaffRole) {
+      req.session.isEventStaff = true;
+      return next();
+    }
+  }
+  return res.redirect('/login');
+}
+
 function safeAfterLoginPath(value) {
   const path = String(value || '');
   if (!path.startsWith('/presenca/') || path.includes('//') || path.includes('\u0000') || path.length > 200) return null;
@@ -762,4 +784,4 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
   return res.redirect(authenticatedDestination(req));
 });
 
-module.exports = { router, requireAuth, requireOnboarding, requireActiveAccount };
+module.exports = { router, requireAuth, requireAdminOrStaff, requireOnboarding, requireActiveAccount };

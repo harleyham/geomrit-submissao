@@ -453,7 +453,7 @@ function initializeDbSchema(db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('admin', 'participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter')),
+      role TEXT NOT NULL CHECK(role IN ('admin', 'staff', 'participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter')),
       article_id INTEGER,
       assigned_by INTEGER,
       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
@@ -587,6 +587,24 @@ function initializeDbSchema(db) {
     }
     db.exec(`INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by)
       SELECT e.id,u.id,'admin',u.id FROM events e JOIN users u ON u.is_admin=1`);
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } catch (_) {} }
+  try {
+    const rolesSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_user_roles'").get()?.sql || '';
+    if (rolesSql.includes('event_user_roles') && !rolesSql.includes("'staff'")) {
+      db.pragma('foreign_keys = OFF');
+      db.transaction(() => {
+        db.exec(`CREATE TABLE event_user_roles_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,user_id INTEGER NOT NULL,
+          role TEXT NOT NULL CHECK(role IN ('admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter')),
+          article_id INTEGER,assigned_by INTEGER,created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+          UNIQUE(event_id,user_id,role),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,FOREIGN KEY(article_id) REFERENCES articles(id) ON DELETE SET NULL,
+          FOREIGN KEY(assigned_by) REFERENCES users(id) ON DELETE SET NULL);
+          INSERT INTO event_user_roles_new SELECT * FROM event_user_roles;
+          DROP TABLE event_user_roles; ALTER TABLE event_user_roles_new RENAME TO event_user_roles;`);
+      })();
+      db.pragma('foreign_keys = ON');
+    }
   } catch (e) { try { db.pragma('foreign_keys = ON'); } catch (_) {} }
   try {
     const activityColumns = db.prepare('PRAGMA table_info(event_activities)').all().map((column) => column.name);

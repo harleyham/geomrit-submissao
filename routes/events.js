@@ -181,6 +181,11 @@ const CERTIFICATE_ROLES = {
 };
 
 function certificateRoleMeta(role) { return CERTIFICATE_ROLES[role] || CERTIFICATE_ROLES.participant; }
+
+// Papéis atribuíveis na página "Papéis do evento". 'staff' opera presença,
+// listas e QR Codes do dia, sem acesso administrativo ao restante do evento.
+const EVENT_ASSIGNABLE_ROLES = ['admin', 'staff', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'];
+const EVENT_ROLE_LABELS = { admin: 'Administrador do evento', staff: 'Staff' };
 function certificateText(value, eventName, activityName) {
   let text = String(value || '');
   text = text.replaceAll('{event}', eventName || '');
@@ -188,15 +193,44 @@ function certificateText(value, eventName, activityName) {
   return text;
 }
 
+// Rotas que o papel 'staff' pode usar em um evento (operação de dia de evento:
+// presença, impressão de listas e QR Codes). Nada além disso é liberado ao staff.
+const STAFF_ROUTES = [
+  ['GET', /^\/\d+\/activities$/],
+  ['GET', /^\/\d+\/activities\/\d+\/sessions$/],
+  ['GET', /^\/\d+\/activities\/\d+\/attendance$/],
+  ['GET', /^\/\d+\/activities\/\d+\/attendance-print$/],
+  ['GET', /^\/\d+\/activities\/\d+\/checkin-print$/],
+  ['GET', /^\/\d+\/participants\/\d+\/qr-presenca\/print$/],
+  ['POST', /^\/\d+\/activities\/\d+\/attendance\/qr$/],
+  ['POST', /^\/\d+\/activities\/\d+\/attendance\/\d+$/],
+  ['POST', /^\/\d+\/activities\/\d+\/attendance-bulk$/]
+];
+
+function staffRouteAllowed(method, path) {
+  return STAFF_ROUTES.some(([allowedMethod, pattern]) => allowedMethod === method && pattern.test(path));
+}
+
 // Todas as rotas identificadas por evento exigem administração daquele evento.
+// O papel 'staff' é aceito apenas para a whitelist operacional acima.
 router.use((req, res, next) => {
   const match = req.path.match(/^\/(\d+)(?:\/|$)/);
   if (!match) return next();
-  const allowed = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin' LIMIT 1")
-    .get(Number(match[1]), req.session.userId);
-  if (!allowed) return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não é administrador deste evento.' });
-  next();
+  const eventId = Number(match[1]);
+  const isAdmin = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin' LIMIT 1")
+    .get(eventId, req.session.userId);
+  if (isAdmin) { req.eventRole = 'admin'; return next(); }
+  const isStaff = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='staff' LIMIT 1")
+    .get(eventId, req.session.userId);
+  if (isStaff && staffRouteAllowed(req.method, req.path)) { req.eventRole = 'staff'; return next(); }
+  if (isStaff) return res.status(403).render('error', { title: 'Acesso negado', message: 'Como staff, você só pode registrar presença e imprimir listas e QR Codes deste evento.' });
+  return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não é administrador deste evento.' });
 });
+
+function requireEventAdminOnly(req, res, next) {
+  if (req.eventRole === 'admin' || req.session.isAdmin) return next();
+  return res.status(403).render('error', { title: 'Acesso negado', message: 'Esta ação é restrita ao administrador do evento.' });
+}
 
 const certificateBackgroundDir = path.join(__dirname, '..', 'uploads', 'certificate-backgrounds');
 if (!fs.existsSync(certificateBackgroundDir)) fs.mkdirSync(certificateBackgroundDir, { recursive: true });
@@ -717,17 +751,33 @@ router.get('/', (req, res) => {
   const listenerRegistrationByEventId = new Map(getListenerRegistrationCountByEvent().map((row) => [row.event_id, row.count]));
   const pendingRegistrationByEventId = new Map(getPendingRegistrationCountByEvent().map((row) => [row.event_id, row.count]));
   const subsidyRequestByEventId = new Map(getSubsidyRequestCountByEvent().map((row) => [row.event_id, row.count]));
-  const events = db.prepare(`SELECT e.* FROM events e JOIN event_user_roles eur ON eur.event_id=e.id
-    WHERE eur.user_id=? AND eur.role='admin' ORDER BY e.date_start DESC`).all(req.session.userId).map((event) => ({
-    ...withAreaMeta(event),
-    author_registered_count: authorRegistrationByEventId.get(event.id) || 0,
-    listener_registered_count: listenerRegistrationByEventId.get(event.id) || 0,
-    pending_registration_count: pendingRegistrationByEventId.get(event.id) || 0,
-    subsidy_request_count: subsidyRequestByEventId.get(event.id) || 0,
-    registered_count: (authorRegistrationByEventId.get(event.id) || 0) + (listenerRegistrationByEventId.get(event.id) || 0)
+  const roleRows = db.prepare(`SELECT e.*, eur.role FROM events e JOIN event_user_roles eur ON eur.event_id=e.id
+    WHERE eur.user_id=? AND eur.role IN ('admin','staff') ORDER BY e.date_start DESC`).all(req.session.userId);
+  const eventsById = new Map();
+  roleRows.forEach((row) => {
+    if (!eventsById.has(row.id)) {
+      const { role, ...event } = row;
+      eventsById.set(event.id, {
+        ...withAreaMeta(event),
+        roles: new Set(),
+        author_registered_count: authorRegistrationByEventId.get(event.id) || 0,
+        listener_registered_count: listenerRegistrationByEventId.get(event.id) || 0,
+        pending_registration_count: pendingRegistrationByEventId.get(event.id) || 0,
+        subsidy_request_count: subsidyRequestByEventId.get(event.id) || 0,
+        registered_count: (authorRegistrationByEventId.get(event.id) || 0) + (listenerRegistrationByEventId.get(event.id) || 0)
+      });
+    }
+    eventsById.get(row.id).roles.add(row.role);
+  });
+  const events = [...eventsById.values()].map((event) => ({
+    ...event,
+    roles: [...event.roles],
+    can_manage: event.roles.includes('admin')
   }));
+  const canManageEvents = events.some((event) => event.can_manage) || req.session.isAdmin;
   res.render('admin/events/list', {
     events, title: 'Eventos',
+    canManageEvents,
     systemEmailSettings: getSystemEmailSettings(),
     pendingEmailCount: getPendingEmailCount(),
     message: req.query.message || null
@@ -746,12 +796,12 @@ router.post('/:id/email-enabled', strictLimiter, (req, res) => {
 });
 
 // Novo evento
-router.get('/new', (req, res) => {
+router.get('/new', requireEventAdminOnly, (req, res) => {
   renderEventForm(res, { event: null, title: 'Novo Evento' });
 });
 
 // Criar evento
-router.post('/', strictLimiter, runEventAssetUpload, (req, res, next) => {
+router.post('/', requireEventAdminOnly, strictLimiter, runEventAssetUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
@@ -1739,6 +1789,7 @@ router.get('/:id/activities', (req, res) => {
     title: `Atividades - ${event.name}`,
     event, activities, editingActivity,
     eventRooms: rooms.getEventRooms(event.id),
+    canManage: req.eventRole === 'admin',
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -1898,6 +1949,7 @@ router.get('/:id/activities/:activityId/sessions', (req, res) => {
   res.render('admin/events/activity-sessions', {
     title: `Etapas - ${activity.name}`, event, activity, sessions, editingSession,
     eventRooms: rooms.getEventRooms(event.id),
+    canManage: req.eventRole === 'admin',
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -2849,18 +2901,18 @@ router.get('/:id/roles', (req, res) => {
     WHERE eur.event_id=? ORDER BY eur.role, u.name COLLATE NOCASE`).all(event.id);
   const users = db.prepare(`SELECT id,name,email,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter FROM users WHERE is_public=1 AND approval_status='approved' ORDER BY name COLLATE NOCASE`).all();
   const articles = db.prepare(`SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title COLLATE NOCASE`).all(event.id);
-  res.render('admin/events/roles', { title: `Papéis do evento - ${event.name}`, event, assignments, users, articles, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' } }, success: req.query.success || null, error: req.query.error || null });
+  res.render('admin/events/roles', { title: `Papéis do evento - ${event.name}`, event, assignments, users, articles, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' }, staff: { label: 'Staff' } }, success: req.query.success || null, error: req.query.error || null });
 });
 
 router.post('/:id/roles', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, [
-    body('role').isIn(['admin', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.'),
+    body('role').isIn(['admin', 'staff', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.'),
     body('user_id').isInt({ min: 1 }).withMessage('Usuário inválido.'),
     body('article_id').optional().isInt({ min: 1 }).withMessage('Artigo inválido.')
   ]);
 }, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
-  const role = ['admin', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(req.body.role) ? req.body.role : null;
+  const role = EVENT_ASSIGNABLE_ROLES.includes(req.body.role) ? req.body.role : null;
   const userId = parseInt(req.body.user_id, 10);
   if (!event || !role || !Number.isInteger(userId)) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel válidos.')}`);
   let articleId = null;
@@ -2881,7 +2933,7 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
 });
 
 router.post('/:id/roles/:role/:userId/delete', strictLimiter, (req, res) => {
-  const role = ['admin', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(req.params.role) ? req.params.role : null;
+  const role = EVENT_ASSIGNABLE_ROLES.includes(req.params.role) ? req.params.role : null;
   if (role) db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').run(req.params.id, req.params.userId, role);
   res.redirect(`/admin/events/${req.params.id}/roles?success=${encodeURIComponent('Papel removido.')}`);
 });

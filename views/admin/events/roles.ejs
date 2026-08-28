@@ -39,6 +39,7 @@
     td { padding: 0.75rem 1rem; font-size: 0.8125rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.05); }
     .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.65rem; font-weight: 600; }
     .badge-admin { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .badge-staff { background: rgba(244,114,182,0.15); color: #f472b6; }
     .badge-reviewer { background: rgba(52,211,153,0.15); color: #34d399; }
     .badge-participant { background: rgba(59,130,246,0.15); color: #60a5fa; }
     .badge-speaker { background: rgba(251,191,36,0.15); color: #fbbf24; }
@@ -88,6 +89,7 @@
           <label for="role">Papel</label>
           <select name="role" id="role" required>
             <option value="admin">Administrador do evento</option>
+            <option value="staff">Staff (presença, listas e QR Codes do dia)</option>
             <option value="speaker">Palestrante</option>
             <option value="teacher">Professor</option>
             <option value="oral_presenter">Apresentador Oral</option>
@@ -114,7 +116,7 @@
         <tbody>
           <% assignments.forEach(a => { %><tr>
             <td><%= a.user_name %><br><small style="color:#64748b"><%= a.user_email %></small></td>
-            <td><span class="badge badge-<%= a.role === 'admin' ? 'admin' : a.role === 'reviewer' ? 'reviewer' : a.role === 'speaker' ? 'speaker' : a.role === 'teacher' ? 'teacher' : a.role === 'oral_presenter' ? 'oral' : 'poster' %>"><%= roleLabels[a.role] || a.role %></span></td>
+            <td><span class="badge badge-<%= a.role === 'admin' ? 'admin' : a.role === 'staff' ? 'staff' : a.role === 'reviewer' ? 'reviewer' : a.role === 'speaker' ? 'speaker' : a.role === 'teacher' ? 'teacher' : a.role === 'oral_presenter' ? 'oral' : 'poster' %>"><%= (roleMeta[a.role] && roleMeta[a.role].label) || a.role %></span></td>
             <td><%= a.article_title || '—' %></td>
             <td>
               <form method="POST" action="/admin/events/<%= event.id %>/roles/<%= a.role %>/<%= a.user_id %>/delete">

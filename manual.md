@@ -145,6 +145,15 @@ Os papéis disponíveis no evento incluem participante, administrador, revisor, 
 
 No credenciamento, use **Imprimir crachá** na linha do participante. O crachá contém o QR pessoal usado pelo operador para localizar a pessoa na chamada.
 
+### Papel Staff
+
+O papel **Staff** é atribuído na página de Papéis do evento (`/admin/events/:id/roles`) e dá acesso operacional restrito ao dia do evento, sem tornar a pessoa administradora:
+
+- **pode**: abrir a chamada de cada atividade e etapa, marcar, atualizar, desfazer e marcar em lote a presença (manual, por leitura de QR do crachá ou digitação do código) e imprimir as listas de presença, as folhas de QR Code de check-in e os crachás;
+- **não pode**: acessar dashboard, usuários, artigos, relatórios, cadastro de participantes, certificados, salas ou qualquer criação/edição/exclusão de evento, atividade, etapa ou sala.
+
+O staff entra pelo menu **Eventos**, que passa a listar apenas os eventos em que foi designado, com a entrada **Atividades e Presença**. Qualquer rota fora da operação de presença retorna **Acesso negado**. O staff não é promovido a administrador de sessão: continua sem acesso aos demais módulos `/admin/*`.
+
 ### Análise de solicitações de inscrição
 
 Quando o evento está configurado como **Sujeita à análise**, uma inscrição pública fica com o status **Aguardando análise** e ainda não integra o total de inscritos. Na listagem de eventos, a coluna **Em análise** mostra essas solicitações em laranja quando houver pendências.

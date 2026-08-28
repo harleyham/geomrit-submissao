@@ -14,7 +14,8 @@
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
       <nav class="topbar-nav">
-        <a href="/admin">Dashboard</a>
+        <% const canManageSessions = (typeof canManage !== 'undefined') ? canManage : true; %>
+        <% if (isAdmin) { %><a href="/admin">Dashboard</a><% } %>
         <a href="/admin/events">Eventos</a>
         <a href="/admin/events/<%= event.id %>/activities">Atividades</a>
         <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
@@ -32,6 +33,7 @@
     <% if (success) { %><p class="alert success"><%= success %></p><% } %>
     <% if (error) { %><p class="alert error"><%= error %></p><% } %>
 
+    <% if (canManageSessions) { %>
     <section class="card">
       <h2><%= editingSession ? 'Editar etapa' : 'Adicionar etapa' %></h2>
       <form method="post" action="<%= editingSession ? `/admin/events/${event.id}/activities/${activity.id}/sessions/${editingSession.id}` : `/admin/events/${event.id}/activities/${activity.id}/sessions` %>">
@@ -57,6 +59,7 @@
         <% if (editingSession) { %><a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions" class="btn-secondary">Cancelar</a><% } %>
       </form>
     </section>
+    <% } %>
 
     <section class="card">
       <h2>Etapas cadastradas (<%= sessions.length %>)</h2>
@@ -65,7 +68,7 @@
       <% } else { %>
         <table>
           <thead>
-            <tr><th style="width:40px">#</th><th>Nome</th><th>Data</th><th>Horário</th><th>Sala</th><th>Carga</th><th>Descrição</th><th>Transmissão</th><th style="width:140px">Ações</th></tr>
+            <tr><th style="width:40px">#</th><th>Nome</th><th>Data</th><th>Horário</th><th>Sala</th><th>Carga</th><th>Descrição</th><th>Transmissão</th><% if (canManageSessions) { %><th style="width:140px">Ações</th><% } %></tr>
           </thead>
           <tbody>
             <% sessions.forEach((session) => { %>
@@ -86,13 +89,14 @@
                     <span style="color:#64748b">—</span>
                   <% } %>
                 </td>
-                <td>
+                <% if (canManageSessions) { %><td>
                   <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions?edit_session_id=<%= session.id %>" style="color:#93c5fd;text-decoration:none">Editar</a>
                   <form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions/<%= session.id %>/delete" style="display:inline">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="danger" nonce="<%= cspNonce %>" onclick="return confirm('Remover esta etapa? As presenças marcadas nesta etapa serão removidas.')">Remover</button>
-                  </form>
-                </td>
+                   </form>
+                 </td>
+                <% } %>
               </tr>
             <% }) %>
           </tbody>

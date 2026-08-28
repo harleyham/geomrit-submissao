@@ -147,6 +147,7 @@ function jsonForScript(value) {
 // Dados globais para templates
 app.use((req, res, next) => {
   res.locals.isAdmin = req.session && req.session.isAdmin;
+  res.locals.isEventStaff = Boolean(req.session && req.session.isEventStaff) && Boolean(!(req.session && req.session.isAdmin));
   res.locals.isReviewer = req.session && req.session.isReviewer;
   res.locals.isPublic = req.session && req.session.isPublic;
   res.locals.userId = req.session && req.session.userId;
@@ -164,7 +165,7 @@ app.use((req, res, next) => {
 });
 
 // Importar rotas
-const { router: authRouter, requireAuth, requireOnboarding, requireActiveAccount } = require('./routes/auth');
+const { router: authRouter, requireAuth, requireAdminOrStaff, requireOnboarding, requireActiveAccount } = require('./routes/auth');
 const eventsRouter = require('./routes/events');
 const articlesRouter = require('./routes/articles');
 const usersRouter = require('./routes/users');
@@ -235,7 +236,7 @@ app.use('/', publicRouter);
 // Rotas admin
 app.use('/admin', authRouter);
 app.use('/admin', adminLimiter);
-app.use('/admin/events', requireAuth, eventsRouter);
+app.use('/admin/events', requireAdminOrStaff, eventsRouter);
 app.use('/admin/articles', requireAuth, articlesRouter);
 app.use('/admin/users', requireAuth, usersRouter);
 app.use('/admin/reports', requireAuth, reportsRouter);
