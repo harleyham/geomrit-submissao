@@ -27,6 +27,34 @@ function getRoom(eventId, roomId) {
   return db.prepare('SELECT * FROM event_rooms WHERE id=? AND event_id=?').get(roomId, eventId);
 }
 
+// Salas do evento livres na data e na faixa de horário informadas. Quando
+// excludeActivityId/excludeSessionId é informado, a alocação do próprio alvo é
+// ignorada (para manter selecionável a sala já atribuída em uma edição).
+function availableRooms({ eventId, date, timeStart, timeEnd, excludeActivityId = null, excludeSessionId = null }) {
+  const allRooms = getEventRooms(eventId);
+  const isoDate = normalizeDate(date);
+  const start = normalizeTime(timeStart);
+  const end = normalizeTime(timeEnd);
+  if (!isoDate || !start || !end || end <= start) {
+    return allRooms.map((room) => ({ id: room.id, name: room.name, size: room.size, capacity: room.capacity, available: true }));
+  }
+  const busyRows = db.prepare(`
+    SELECT ra.room_id AS room_id, ra.activity_id AS activity_id, ra.session_id AS session_id
+    FROM room_assignments ra
+    JOIN event_rooms r ON r.id = ra.room_id
+    WHERE r.event_id = ? AND ra.date = ? AND ra.time_start < ? AND ra.time_end > ?
+  `).all(eventId, isoDate, end, start);
+  const excludedActivity = excludeActivityId == null ? null : Number(excludeActivityId);
+  const excludedSession = excludeSessionId == null ? null : Number(excludeSessionId);
+  const busy = new Set();
+  busyRows.forEach((row) => {
+    if (excludedActivity != null && Number(row.activity_id) === excludedActivity) return;
+    if (excludedSession != null && Number(row.session_id) === excludedSession) return;
+    busy.add(Number(row.room_id));
+  });
+  return allRooms.map((room) => ({ id: room.id, name: room.name, size: room.size, capacity: room.capacity, available: !busy.has(Number(room.id)) }));
+}
+
 function roomLabel(size) {
   return (ROOM_SIZES[size] && ROOM_SIZES[size].label) || size;
 }
@@ -227,7 +255,7 @@ function agendaByRoom(eventId) {
 module.exports = {
   ROOM_SIZES, roomLabel, resolveRoomCapacity,
   normalizeTime, normalizeDate, daysBetween,
-  getEventRooms, getRoom,
+  getEventRooms, getRoom, availableRooms,
   findConflict, describeConflict, assignmentLabel,
   syncTargetAssignments, createEventReservation, clearEventReservations,
   roomAssignmentCount, targetAssignment, eventReservation, unallocatedTargets,

@@ -216,6 +216,7 @@ const STAFF_ROUTES = [
   ['GET', /^\/\d+\/certificates(\/|$)/],
   ['GET', /^\/\d+\/activities$/],
   ['GET', /^\/\d+\/activities\/\d+\/sessions$/],
+  ['GET', /^\/\d+\/rooms\/availability$/],
   ['GET', /^\/\d+\/activities\/\d+\/attendance$/],
   ['GET', /^\/\d+\/activities\/\d+\/attendance-print$/],
   ['GET', /^\/\d+\/activities\/\d+\/checkin-print$/],
@@ -1791,9 +1792,7 @@ function sessionTimeWithinActivityError(activity, sessionDate, timeStart, timeEn
   return null;
 }
 
-router.get('/:id/activities', (req, res) => {
-  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+function loadActivitiesData(eventId) {
   const activities = db.prepare(`
     SELECT ea.*,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
@@ -1803,12 +1802,60 @@ router.get('/:id/activities', (req, res) => {
     FROM event_activities ea
     WHERE ea.event_id = ?
     ORDER BY ea.date_start, ea.name
-  `).bind(req.params.id).all();
+  `).all(eventId);
   activities.forEach((activity) => {
     if (Number(activity.session_count || 0) > 0) activity.sessions = getActivitySessions(activity.id);
     activity.room_allocation = rooms.targetAssignment({ activityId: activity.id });
     if (activity.sessions) activity.sessions.forEach((session) => { session.room_allocation = rooms.targetAssignment({ sessionId: session.id }); });
   });
+  return activities;
+}
+
+const ACTIVITY_VALID_TYPES = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
+function buildActivityDraft(req, existing) {
+  const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : (req.body.eligible_roles ? [req.body.eligible_roles] : []);
+  const roomId = Number(req.body.room_id) || null;
+  const workloadRaw = req.body.workload_hours;
+  return {
+    id: existing ? existing.id : null,
+    name: String(req.body.name || ''),
+    activity_type: ACTIVITY_VALID_TYPES.includes(req.body.activity_type) ? req.body.activity_type : 'other',
+    description: String(req.body.description || ''),
+    date_start: req.body.date_start || null,
+    date_end: req.body.date_end || null,
+    time_start: req.body.time_start || null,
+    time_end: req.body.time_end || null,
+    workload_hours: (workloadRaw === undefined || workloadRaw === '') ? null : (Number(workloadRaw) || 0),
+    video_url: String(req.body.video_url || ''),
+    has_video: req.body.has_video === '1' ? 1 : 0,
+    certificate_enabled: req.body.certificate_enabled === '1' ? 1 : 0,
+    eligible_roles: submittedRoles.join(','),
+    session_count: existing ? (existing.session_count != null ? existing.session_count : db.prepare('SELECT COUNT(*) AS count FROM activity_sessions WHERE activity_id=?').get(existing.id).count) : 0,
+    room_allocation: roomId ? { room_id: roomId } : null
+  };
+}
+
+function renderActivitiesForm(req, res, { eventId, formDraft = null, editingActivity = null, error = null }) {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  return res.render('admin/events/activities', {
+    title: `Atividades - ${event.name}`,
+    event,
+    activities: loadActivitiesData(event.id),
+    editingActivity,
+    formDraft,
+    eventRooms: rooms.getEventRooms(event.id),
+    canManage: req.eventRole === 'admin',
+    isStaff: req.eventRole === 'staff',
+    success: null,
+    error
+  });
+}
+
+router.get('/:id/activities', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activities = loadActivitiesData(event.id);
   const editingActivity = req.query.edit_activity_id
     ? activities.find((activity) => Number(activity.id) === Number(req.query.edit_activity_id)) || null
     : null;
@@ -1827,12 +1874,14 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
 }, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const draft = buildActivityDraft(req, null);
+  const failActivities = (message) => renderActivitiesForm(req, res, { eventId: event.id, formDraft: draft, error: message });
   const name = String(req.body.name || '').trim();
   const validRoles = Object.keys(CERTIFICATE_ROLES);
   const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : [req.body.eligible_roles];
   const eligibleRoles = [...new Set(submittedRoles.filter((role) => validRoles.includes(role)))];
   if (!name || eligibleRoles.length === 0) {
-    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Informe o nome e ao menos um papel elegível para a atividade.')}`);
+    return failActivities('Informe o nome e ao menos um papel elegível para a atividade.');
   }
   const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
@@ -1845,25 +1894,25 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   const timeEndParsed = parseTimeInput(req, 'time_end');
   const activityTimeError = timeStartParsed.error || timeEndParsed.error || timeRangeError(timeStartParsed.value, timeEndParsed.value);
   if (activityTimeError) {
-    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(activityTimeError)}`);
+    return failActivities(activityTimeError);
   }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
-    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
+    return failActivities('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).');
   }
   if (!isValidHttpUrl(videoUrlRaw)) {
-    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Informe um link de transmissão HTTP ou HTTPS válido.')}`);
+    return failActivities('Informe um link de transmissão HTTP ou HTTPS válido.');
   }
   const videoUrl = videoUrlRaw || null;
   const hasVideo = videoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const rangeError = activityDateRangeError(dateStart, dateEnd);
   if (rangeError) {
-    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(rangeError)}`);
+    return failActivities(rangeError);
   }
   const allocationDate = dateStart || dateEnd;
   const allocation = resolveRoomAllocation(req, { eventId: event.id, allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value });
   if (allocation.error) {
-    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(allocation.error)}`);
+    return failActivities(allocation.error);
   }
   try {
     db.transaction(() => {
@@ -1878,7 +1927,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
       }
     })();
   } catch (error) {
-    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a atividade.')}`);
+    return failActivities((error && error.message) || 'Não foi possível salvar a atividade.');
   }
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
 });
@@ -1887,16 +1936,18 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
 }, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const draft = buildActivityDraft(req, activity);
+  const failActivities = (message) => renderActivitiesForm(req, res, { eventId: activity.event_id, formDraft: draft, editingActivity: draft, error: message });
   const name = String(req.body.name || '').trim();
   const validRoles = Object.keys(CERTIFICATE_ROLES);
   const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : [req.body.eligible_roles];
   const eligibleRoles = [...new Set(submittedRoles.filter((role) => validRoles.includes(role)))];
   if (!name || eligibleRoles.length === 0) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Informe o nome e ao menos um papel elegível.')}`);
+    return failActivities('Informe o nome e ao menos um papel elegível.');
   }
   const enrolledCount = db.prepare('SELECT COUNT(*) AS count FROM participant_activity_enrollments WHERE activity_id=?').get(activity.id).count;
   if (enrolledCount > 0 && !eligibleRoles.includes('participant')) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Não é possível retirar o papel Participante enquanto houver pessoas inscritas nesta atividade.')}`);
+    return failActivities('Não é possível retirar o papel Participante enquanto houver pessoas inscritas nesta atividade.');
   }
   const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
@@ -1909,26 +1960,26 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const timeEndParsed = parseTimeInput(req, 'time_end');
   const activityTimeError = timeStartParsed.error || timeEndParsed.error || timeRangeError(timeStartParsed.value, timeEndParsed.value);
   if (activityTimeError) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(activityTimeError)}`);
+    return failActivities(activityTimeError);
   }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
+    return failActivities('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).');
   }
   if (!isValidHttpUrl(videoUrlRaw)) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Informe um link de transmissão HTTP ou HTTPS válido.')}`);
+    return failActivities('Informe um link de transmissão HTTP ou HTTPS válido.');
   }
   const videoUrl = videoUrlRaw || null;
   const hasVideo = videoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const rangeError = activityDateRangeError(dateStart, dateEnd);
   if (rangeError) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(rangeError)}`);
+    return failActivities(rangeError);
   }
   const sessionCount = db.prepare('SELECT COUNT(*) AS count FROM activity_sessions WHERE activity_id=?').get(activity.id).count;
   const allocationDate = dateStart || dateEnd;
   const allocation = resolveRoomAllocation(req, { eventId: activity.event_id, allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, hasSessions: sessionCount > 0 });
   if (allocation.error) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(allocation.error)}`);
+    return failActivities(allocation.error);
   }
   try {
     db.transaction(() => {
@@ -1940,7 +1991,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
     })();
   } catch (error) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a atividade.')}`);
+    return failActivities((error && error.message) || 'Não foi possível salvar a atividade.');
   }
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity: { ...activity, name }, oldUrl: activity.video_url, newUrl: videoUrl });
@@ -1964,13 +2015,53 @@ router.post('/:id/activities/:activityId/delete', strictLimiter, (req, res) => {
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade removida.')}`);
 });
 
+function loadSessionsData(activityId) {
+  const sessions = getActivitySessions(activityId);
+  sessions.forEach((session) => { session.room_allocation = rooms.targetAssignment({ sessionId: session.id }); });
+  return sessions;
+}
+
+function buildSessionDraft(req, existing) {
+  const roomId = Number(req.body.room_id) || null;
+  const workloadRaw = req.body.workload_hours;
+  const videoUrl = String(req.body.video_url || '').trim();
+  return {
+    id: existing ? existing.id : null,
+    name: String(req.body.name || ''),
+    session_date: req.body.session_date || null,
+    time_start: req.body.time_start || null,
+    time_end: req.body.time_end || null,
+    workload_hours: (workloadRaw === undefined || workloadRaw === '') ? null : (Math.max(0, Number(workloadRaw) || 0)),
+    description: String(req.body.description || ''),
+    video_url: videoUrl,
+    has_video: videoUrl || req.body.has_video === '1' ? 1 : 0,
+    room_allocation: roomId ? { room_id: roomId } : null
+  };
+}
+
+function renderSessionsForm(req, res, { eventId, activityId, sessionDraft = null, editingSession = null, error = null }) {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(activityId, eventId);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  return res.render('admin/events/activity-sessions', {
+    title: `Etapas - ${activity.name}`, event, activity,
+    sessions: loadSessionsData(activity.id),
+    editingSession, sessionDraft,
+    eventRooms: rooms.getEventRooms(event.id),
+    canManage: req.eventRole === 'admin',
+    isStaff: req.eventRole === 'staff',
+    success: null,
+    error
+  });
+}
+
 router.get('/:id/activities/:activityId/sessions', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
-  const sessions = getActivitySessions(activity.id);
-  sessions.forEach((session) => { session.room_allocation = rooms.targetAssignment({ sessionId: session.id }); });
+  const sessions = loadSessionsData(activity.id);
   const editingSession = req.query.edit_session_id
     ? sessions.find((session) => Number(session.id) === Number(req.query.edit_session_id)) || null
     : null;
@@ -1987,14 +2078,16 @@ router.get('/:id/activities/:activityId/sessions', (req, res) => {
 router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const draft = buildSessionDraft(req, null);
+  const failSessions = (message) => renderSessionsForm(req, res, { eventId: activity.event_id, activityId: activity.id, sessionDraft: draft, error: message });
   const name = String(req.body.name || '').trim();
   if (!name) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('Informe o nome da etapa.')}`);
+    return failSessions('Informe o nome da etapa.');
   }
   const sessionDate = req.body.session_date || null;
   const dateError = sessionDateError(activity, sessionDate);
   if (dateError) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(dateError)}`);
+    return failSessions(dateError);
   }
   const sessionTimeStartParsed = parseTimeInput(req, 'time_start');
   const sessionTimeEndParsed = parseTimeInput(req, 'time_end');
@@ -2002,25 +2095,25 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
     || timeRangeError(sessionTimeStartParsed.value, sessionTimeEndParsed.value)
     || sessionTimeWithinActivityError(activity, sessionDate, sessionTimeStartParsed.value, sessionTimeEndParsed.value);
   if (sessionTimeError) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(sessionTimeError)}`);
+    return failSessions(sessionTimeError);
   }
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const description = String(req.body.description || '').trim();
   if (description.length > 2000) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('A descrição da etapa deve ter no máximo 2000 caracteres.')}`);
+    return failSessions('A descrição da etapa deve ter no máximo 2000 caracteres.');
   }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('Link da transmissão da etapa muito longo (máximo de 500 caracteres).')}`);
+    return failSessions('Link da transmissão da etapa muito longo (máximo de 500 caracteres).');
   }
   if (!isValidHttpUrl(videoUrlRaw)) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent('Informe um link de transmissão HTTP ou HTTPS válido.')}`);
+    return failSessions('Informe um link de transmissão HTTP ou HTTPS válido.');
   }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const sessionAllocation = resolveRoomAllocation(req, { eventId: activity.event_id, allocationDate: sessionDate, timeStart: sessionTimeStartParsed.value, timeEnd: sessionTimeEndParsed.value });
   if (sessionAllocation.error) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(sessionAllocation.error)}`);
+    return failSessions(sessionAllocation.error);
   }
   let createdSessionId = null;
   try {
@@ -2034,7 +2127,7 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
       }
     })();
   } catch (error) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a etapa.')}`);
+    return failSessions((error && error.message) || 'Não foi possível salvar a etapa.');
   }
   if (sessionVideoUrl) {
     const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
@@ -2048,14 +2141,16 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const session = db.prepare('SELECT * FROM activity_sessions WHERE id = ? AND activity_id = ?').get(req.params.sessionId, activity.id);
   if (!session) return res.status(404).render('error', { title: 'Etapa não encontrada' });
+  const draft = buildSessionDraft(req, session);
+  const failSessions = (message) => renderSessionsForm(req, res, { eventId: activity.event_id, activityId: activity.id, sessionDraft: draft, editingSession: draft, error: message });
   const name = String(req.body.name || '').trim();
   if (!name) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('Informe o nome da etapa.')}`);
+    return failSessions('Informe o nome da etapa.');
   }
   const sessionDate = req.body.session_date || null;
   const dateError = sessionDateError(activity, sessionDate);
   if (dateError) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(dateError)}`);
+    return failSessions(dateError);
   }
   const sessionTimeStartParsed = parseTimeInput(req, 'time_start');
   const sessionTimeEndParsed = parseTimeInput(req, 'time_end');
@@ -2063,25 +2158,25 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
     || timeRangeError(sessionTimeStartParsed.value, sessionTimeEndParsed.value)
     || sessionTimeWithinActivityError(activity, sessionDate, sessionTimeStartParsed.value, sessionTimeEndParsed.value);
   if (sessionTimeError) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(sessionTimeError)}`);
+    return failSessions(sessionTimeError);
   }
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const description = String(req.body.description || '').trim();
   if (description.length > 2000) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('A descrição da etapa deve ter no máximo 2000 caracteres.')}`);
+    return failSessions('A descrição da etapa deve ter no máximo 2000 caracteres.');
   }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('Link da transmissão da etapa muito longo (máximo de 500 caracteres).')}`);
+    return failSessions('Link da transmissão da etapa muito longo (máximo de 500 caracteres).');
   }
   if (!isValidHttpUrl(videoUrlRaw)) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent('Informe um link de transmissão HTTP ou HTTPS válido.')}`);
+    return failSessions('Informe um link de transmissão HTTP ou HTTPS válido.');
   }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
   const sessionAllocation = resolveRoomAllocation(req, { eventId: activity.event_id, allocationDate: sessionDate, timeStart: sessionTimeStartParsed.value, timeEnd: sessionTimeEndParsed.value });
   if (sessionAllocation.error) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(sessionAllocation.error)}`);
+    return failSessions(sessionAllocation.error);
   }
   try {
     db.transaction(() => {
@@ -2090,7 +2185,7 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
       rooms.syncTargetAssignments({ eventId: activity.event_id, sessionId: session.id, roomId: sessionAllocation.roomId, date: sessionDate, timeStart: sessionTimeStartParsed.value, timeEnd: sessionTimeEndParsed.value, assignedBy: req.session.userId });
     })();
   } catch (error) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a etapa.')}`);
+    return failSessions((error && error.message) || 'Não foi possível salvar a etapa.');
   }
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity, session: { ...session, name, session_date: sessionDate }, oldUrl: session.video_url, newUrl: sessionVideoUrl });
@@ -2216,6 +2311,20 @@ router.post('/:id/rooms/:roomId/delete', strictLimiter, (req, res) => {
   }
   db.prepare('DELETE FROM event_rooms WHERE id=?').run(room.id);
   return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Sala removida.')}`);
+});
+
+router.get('/:id/rooms/availability', (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Evento não encontrado' });
+  const list = rooms.availableRooms({
+    eventId: event.id,
+    date: req.query.date,
+    timeStart: req.query.timeStart,
+    timeEnd: req.query.timeEnd,
+    excludeActivityId: req.query.activityId || null,
+    excludeSessionId: req.query.sessionId || null
+  });
+  return res.json(list);
 });
 
 router.get('/:id/rooms/occupancy', (req, res) => {

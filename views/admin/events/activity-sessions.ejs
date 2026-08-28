@@ -36,25 +36,26 @@
     <% if (canManageSessions || (isStaffView && editingSession)) { %>
     <section class="card">
       <h2><%= editingSession ? 'Editar etapa' : 'Adicionar etapa' %></h2>
-      <form method="post" action="<%= editingSession ? `/admin/events/${event.id}/activities/${activity.id}/sessions/${editingSession.id}` : `/admin/events/${event.id}/activities/${activity.id}/sessions` %>">
-        <input name="name" required placeholder="Nome da etapa (ex.: Aula 1, Período da manhã)" value="<%= editingSession ? editingSession.name : '' %>">
-        <input name="session_date" type="text" class="datepicker" value="<%= editingSession && editingSession.session_date ? formatBRDate(editingSession.session_date) : '' %>">
-        <input name="time_start" type="time" title="Hora de início" value="<%= editingSession && editingSession.time_start ? editingSession.time_start : '' %>">
-        <input name="time_end" type="time" title="Hora de término" value="<%= editingSession && editingSession.time_end ? editingSession.time_end : '' %>">
+      <% const sessionForm = (typeof sessionDraft !== 'undefined' && sessionDraft) ? sessionDraft : (editingSession || {}); %>
+      <form method="post" class="availability-form" data-availability-url="/admin/events/<%= event.id %>/rooms/availability" data-date-field="session_date" data-exclude-session="<%= editingSession ? editingSession.id : '' %>" action="<%= editingSession ? `/admin/events/${event.id}/activities/${activity.id}/sessions/${editingSession.id}` : `/admin/events/${event.id}/activities/${activity.id}/sessions` %>">
+        <input name="name" required placeholder="Nome da etapa (ex.: Aula 1, Período da manhã)" value="<%= sessionForm.name || '' %>">
+        <input name="session_date" type="text" class="datepicker" value="<%= sessionForm.session_date ? formatBRDate(sessionForm.session_date) : '' %>">
+        <input name="time_start" type="time" title="Hora de início" value="<%= sessionForm.time_start || '' %>">
+        <input name="time_end" type="time" title="Hora de término" value="<%= sessionForm.time_end || '' %>">
         <% if (eventRooms && eventRooms.length) { %>
-          <select name="room_id" title="Sala da etapa">
+          <select name="room_id" id="room-select" title="Sala da etapa">
             <option value="">— Sem sala —</option>
             <% eventRooms.forEach((room) => { %>
-              <option value="<%= room.id %>" <%= editingSession && editingSession.room_allocation && editingSession.room_allocation.room_id === room.id ? 'selected' : '' %>><%= room.name %></option>
+              <option value="<%= room.id %>" <%= sessionForm.room_allocation && sessionForm.room_allocation.room_id === room.id ? 'selected' : '' %>><%= room.name %></option>
             <% }) %>
           </select>
         <% } else { %>
           <a href="/admin/events/<%= event.id %>/rooms" style="color:#93c5fd;font-size:13px">Cadastre salas</a> para alocar salas às etapas.
         <% } %>
-        <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária" value="<%= editingSession && editingSession.workload_hours ? editingSession.workload_hours : '' %>">
-        <input name="video_url" type="url" placeholder="Link da transmissão da etapa (opcional — se vazio, usa o vídeo da atividade)" value="<%= editingSession ? editingSession.video_url || '' : '' %>">
-        <label style="font-size:13px;color:#94a3b8"><input type="checkbox" name="has_video" value="1" style="margin:0 6px 0 0" <%= editingSession && (editingSession.has_video || editingSession.video_url) ? 'checked' : '' %>> Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)</label>
-        <textarea name="description" rows="3" maxlength="2000" placeholder="Descrição breve da etapa (opcional)"><%= editingSession ? (editingSession.description || '') : '' %></textarea>
+        <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária" value="<%= sessionForm.workload_hours != null ? sessionForm.workload_hours : '' %>">
+        <input name="video_url" type="url" placeholder="Link da transmissão da etapa (opcional — se vazio, usa o vídeo da atividade)" value="<%= sessionForm.video_url || '' %>">
+        <label style="font-size:13px;color:#94a3b8"><input type="checkbox" name="has_video" value="1" style="margin:0 6px 0 0" <%= sessionForm.has_video || sessionForm.video_url ? 'checked' : '' %>> Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)</label>
+        <textarea name="description" rows="3" maxlength="2000" placeholder="Descrição breve da etapa (opcional)"><%= sessionForm.description || '' %></textarea>
         <button type="submit"><%= editingSession ? 'Salvar etapa' : 'Adicionar etapa' %></button>
         <% if (editingSession) { %><a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions" class="btn-secondary">Cancelar</a><% } %>
       </form>
@@ -110,5 +111,64 @@
   <script src="/lib/flatpickr/flatpickr.min.js" nonce="<%= cspNonce %>"></script>
   <script src="/lib/flatpickr/l10n/pt.js" nonce="<%= cspNonce %>"></script>
   <script src="/lib/flatpickr/init.js" nonce="<%= cspNonce %>"></script>
+  <script nonce="<%= cspNonce %>">
+    (function () {
+      function isoOf(field) {
+        if (!field) return '';
+        var fp = field.flatpickrInstance || field._flatpickr;
+        if (fp && fp.selectedDates && fp.selectedDates[0]) {
+          var d = fp.selectedDates[0];
+          return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        var val = (field.value || '').trim();
+        var br = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (br) return br[3] + '-' + br[2].padStart(2, '0') + '-' + br[1].padStart(2, '0');
+        return /^\d{4}-\d{2}-\d{2}$/.test(val) ? val : '';
+      }
+      function setup(form) {
+        var select = form.querySelector('select[name="room_id"]');
+        if (!select || !form.dataset.availabilityUrl) return;
+        var url = form.dataset.availabilityUrl;
+        var excludeActivity = form.dataset.excludeActivity || '';
+        var excludeSession = form.dataset.excludeSession || '';
+        var dateField = form.querySelector('[name="' + (form.dataset.dateField || 'date_start') + '"]');
+        var ts = form.querySelector('[name="time_start"]');
+        var te = form.querySelector('[name="time_end"]');
+        var templates = Array.prototype.slice.call(select.options).filter(function (o) { return o.value !== ''; });
+        function rebuild(availableIds) {
+          var keep = select.value;
+          select.innerHTML = '';
+          var blank = document.createElement('option');
+          blank.value = ''; blank.textContent = '— Sem sala —';
+          select.appendChild(blank);
+          templates.forEach(function (o) {
+            if (availableIds && !availableIds[o.value]) return;
+            var opt = document.createElement('option');
+            opt.value = o.value; opt.textContent = o.textContent;
+            select.appendChild(opt);
+          });
+          if (keep && (!availableIds || availableIds[keep])) select.value = keep;
+        }
+        function refresh() {
+          var date = isoOf(dateField), t1 = ts ? (ts.value || '') : '', t2 = te ? (te.value || '') : '';
+          if (!date || !t1 || !t2) { rebuild(null); return; }
+          var qs = '?date=' + encodeURIComponent(date) + '&timeStart=' + encodeURIComponent(t1) + '&timeEnd=' + encodeURIComponent(t2);
+          if (excludeActivity) qs += '&activityId=' + encodeURIComponent(excludeActivity);
+          if (excludeSession) qs += '&sessionId=' + encodeURIComponent(excludeSession);
+          fetch(url + qs, { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (list) {
+              if (!Array.isArray(list)) { rebuild(null); return; }
+              var ids = {}; list.forEach(function (room) { if (room.available) ids[String(room.id)] = true; });
+              rebuild(ids);
+            })
+            .catch(function () { rebuild(null); });
+        }
+        [dateField, ts, te].forEach(function (el) { if (el) el.addEventListener('change', refresh); });
+        refresh();
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('form.availability-form'), setup);
+    })();
+  </script>
   </body>
 </html>

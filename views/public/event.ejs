@@ -244,16 +244,22 @@
             <thead>
               <tr>
                 <th>Data</th>
+                <th>Hora</th>
                 <th>Atividade</th>
+                <th>Sala</th>
                 <th>Descrição / Ementa</th>
                 <th>Transmissão</th>
               </tr>
             </thead>
             <tbody>
-              <% activities.forEach(function(activity) { %>
+              <% activities.forEach(function(activity) {
+                const activityTime = (activity.time_start || activity.time_end) ? String(activity.time_start || '?').slice(0,5) + '–' + String(activity.time_end || '?').slice(0,5) : '—';
+              %>
                 <tr>
                   <td class="muted"><%= activityDateRange(activity) || 'A definir' %></td>
+                  <td class="muted"><%= activityTime %></td>
                   <td class="timeline-label"><%= activity.name %></td>
+                  <td><%= activity.room_allocation ? activity.room_allocation.room_name : '—' %></td>
                   <td style="color:#f8fafc"><%= activity.description || '—' %></td>
                   <td class="timeline-action">
                     <% if (activity.video_url) { %>
@@ -267,10 +273,13 @@
                 </tr>
                 <% (activity.sessions || []).forEach(function(session) {
                   const sessionVideo = session.video_url || (session.has_video ? null : activity.video_url);
+                  const sessionTime = (session.time_start || session.time_end) ? String(session.time_start || '?').slice(0,5) + '–' + String(session.time_end || '?').slice(0,5) : '—';
                 %>
                 <tr class="session-row">
                   <td class="muted"><%= formatBRDate(session.session_date) || 'A definir' %></td>
+                  <td class="muted"><%= sessionTime %></td>
                   <td class="timeline-label">— <%= session.name %></td>
+                  <td class="muted"><%= session.room_allocation ? session.room_allocation.room_name : '—' %></td>
                   <td class="muted"><%= session.description || '—' %></td>
                   <td class="timeline-action">
                     <% if (sessionVideo) { %>

@@ -35,11 +35,11 @@
     <% } %>
     <% if (success) { %><p class="alert success"><%= success %></p><% } %>
     <% if (error) { %><p class="alert error"><%= error %></p><% } %>
-    <% const activityForm = editingActivity || {}; const selectedRoles = String(activityForm.eligible_roles || 'participant,reviewer,speaker,teacher,oral_presenter,poster_presenter').split(','); %>
+    <% const activityForm = (typeof formDraft !== 'undefined' && formDraft) ? formDraft : (editingActivity || {}); const selectedRoles = String(activityForm.eligible_roles || 'participant,reviewer,speaker,teacher,oral_presenter,poster_presenter').split(','); %>
     <% if (canManageActivities || (isStaffView && editingActivity)) { %>
     <section class="card">
       <h2><%= editingActivity ? 'Editar atividade' : 'Cadastrar atividade' %></h2>
-      <form method="post" action="<%= editingActivity ? `/admin/events/${event.id}/activities/${editingActivity.id}` : `/admin/events/${event.id}/activities` %>">
+      <form method="post" class="availability-form" data-availability-url="/admin/events/<%= event.id %>/rooms/availability" data-date-field="date_start" data-exclude-activity="<%= editingActivity ? editingActivity.id : '' %>" action="<%= editingActivity ? `/admin/events/${event.id}/activities/${editingActivity.id}` : `/admin/events/${event.id}/activities` %>">
         <input name="name" required placeholder="Nome da atividade" value="<%= activityForm.name || '' %>">
         <select id="activity_type" name="activity_type">
           <% [['lecture','Palestra'],['seminar','Seminário'],['roundtable','Mesa-redonda'],['course','Minicurso'],['oral_presentation','Apresentação oral'],['poster_presentation','Apresentação pôster'],['other','Outra']].forEach((type) => { %><option value="<%= type[0] %>" <%= activityForm.activity_type === type[0] ? 'selected' : '' %>><%= type[1] %></option><% }) %>
@@ -54,7 +54,7 @@
         <input name="time_end" type="time" title="Hora de término" value="<%= activityForm.time_end || '' %>">
         <% const activityHasSessions = Boolean(editingActivity) && Number(editingActivity.session_count || 0) > 0; %>
         <% if (!activityHasSessions && eventRooms && eventRooms.length) { %>
-          <select name="room_id" title="Sala (somente para atividades sem etapas)">
+          <select name="room_id" id="room-select" title="Sala (somente para atividades sem etapas)">
             <option value="">— Sem sala —</option>
             <% eventRooms.forEach((room) => { %>
               <option value="<%= room.id %>" <%= activityForm.room_allocation && activityForm.room_allocation.room_id === room.id ? 'selected' : '' %>><%= room.name %> (<%= room.size === 'auditorium' ? 'Auditório' : room.size === 'small' ? 'Pequena' : room.size === 'medium' ? 'Média' : 'Grande' %>)</option>
@@ -73,7 +73,7 @@
         <% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach((role) => { %>
           <label><input type="checkbox" name="eligible_roles" value="<%= role[0] %>" <%= selectedRoles.includes(role[0]) ? 'checked' : '' %>> <%= role[1] %></label>
         <% }) %>
-        <p><label><input type="checkbox" name="certificate_enabled" value="1" <%= !editingActivity || activityForm.certificate_enabled ? 'checked' : '' %>> Contabilizar esta atividade para certificados e carga horária</label></p>
+        <p><label><input type="checkbox" name="certificate_enabled" value="1" <%= ((typeof formDraft !== 'undefined' && formDraft) ? formDraft.certificate_enabled : !editingActivity) ? 'checked' : '' %>> Contabilizar esta atividade para certificados e carga horária</label></p>
         <button type="submit"><%= editingActivity ? 'Salvar atividade' : 'Cadastrar atividade' %></button>
         <% if (editingActivity) { %><a href="/admin/events/<%= event.id %>/activities">Cancelar edição</a><% } %>
       </form>
@@ -164,5 +164,64 @@
   <script src="/lib/flatpickr/flatpickr.min.js" nonce="<%= cspNonce %>"></script>
   <script src="/lib/flatpickr/l10n/pt.js" nonce="<%= cspNonce %>"></script>
   <script src="/lib/flatpickr/init.js" nonce="<%= cspNonce %>"></script>
+  <script nonce="<%= cspNonce %>">
+    (function () {
+      function isoOf(field) {
+        if (!field) return '';
+        var fp = field.flatpickrInstance || (field._flatpickr);
+        if (fp && fp.selectedDates && fp.selectedDates[0]) {
+          var d = fp.selectedDates[0];
+          return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        var val = (field.value || '').trim();
+        var br = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (br) return br[3] + '-' + br[2].padStart(2, '0') + '-' + br[1].padStart(2, '0');
+        return /^\d{4}-\d{2}-\d{2}$/.test(val) ? val : '';
+      }
+      function setup(form) {
+        var select = form.querySelector('select[name="room_id"]');
+        if (!select || !form.dataset.availabilityUrl) return;
+        var url = form.dataset.availabilityUrl;
+        var excludeActivity = form.dataset.excludeActivity || '';
+        var excludeSession = form.dataset.excludeSession || '';
+        var dateField = form.querySelector('[name="' + (form.dataset.dateField || 'date_start') + '"]');
+        var ts = form.querySelector('[name="time_start"]');
+        var te = form.querySelector('[name="time_end"]');
+        var templates = Array.prototype.slice.call(select.options).filter(function (o) { return o.value !== ''; });
+        function rebuild(availableIds) {
+          var keep = select.value;
+          select.innerHTML = '';
+          var blank = document.createElement('option');
+          blank.value = ''; blank.textContent = '— Sem sala —';
+          select.appendChild(blank);
+          templates.forEach(function (o) {
+            if (availableIds && !availableIds[o.value]) return;
+            var opt = document.createElement('option');
+            opt.value = o.value; opt.textContent = o.textContent;
+            select.appendChild(opt);
+          });
+          if (keep && (!availableIds || availableIds[keep])) select.value = keep;
+        }
+        function refresh() {
+          var date = isoOf(dateField), t1 = ts ? (ts.value || '') : '', t2 = te ? (te.value || '') : '';
+          if (!date || !t1 || !t2) { rebuild(null); return; }
+          var qs = '?date=' + encodeURIComponent(date) + '&timeStart=' + encodeURIComponent(t1) + '&timeEnd=' + encodeURIComponent(t2);
+          if (excludeActivity) qs += '&activityId=' + encodeURIComponent(excludeActivity);
+          if (excludeSession) qs += '&sessionId=' + encodeURIComponent(excludeSession);
+          fetch(url + qs, { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (list) {
+              if (!Array.isArray(list)) { rebuild(null); return; }
+              var ids = {}; list.forEach(function (room) { if (room.available) ids[String(room.id)] = true; });
+              rebuild(ids);
+            })
+            .catch(function () { rebuild(null); });
+        }
+        [dateField, ts, te].forEach(function (el) { if (el) el.addEventListener('change', refresh); });
+        refresh();
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('form.availability-form'), setup);
+    })();
+  </script>
   </body>
 </html>

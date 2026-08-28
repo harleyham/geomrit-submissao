@@ -222,6 +222,8 @@ A sala pode ser designada em três níveis, respeitando esta prioridade:
 
 O sistema **não permite sobreposição**: se a sala já estiver ocupada na data e no horário pretendidos, a gravação é recusada com a indicação do conflito (sala, responsável e horário). A verificação é feita em transação — a atividade/etapa só é salva se a alocação couber na agenda.
 
+Para evitar conflito, o seletor de **Sala** nos formulários de atividade e etapa lista **apenas as salas livres** para a data e o horário informados, atualizando-se automaticamente conforme esses campos mudam (a sala já atribuída à própria atividade/etapa permanece selecionável). Caso a gravação ainda assim falhe por validação ou conflito, o formulário é reexibido **com todos os dados já preenchidos**, sem exigir redigitação.
+
 O card **Aguardando sala** na página de salas lista as etapas e as atividades sem etapas que ainda não têm sala, com link direto para alocar.
 
 ### Relatórios e agenda
@@ -230,6 +232,7 @@ O card **Aguardando sala** na página de salas lista as etapas e as atividades s
 - **Agenda por sala** (`/admin/events/:id/rooms/agenda`): cada sala com suas atividades, etapas e reservas em ordem cronológica, com botão de impressão/PDF.
 - Na página pública do evento (`/evento/:id`), o bloco **Programação nas Salas** aparece quando há alocações, com alternância **Por dia** / **Por sala**.
 - Nos **Cards** da seção **Atividades do Evento**, a sala aparece ao lado da atividade sem etapas e de cada etapa (apenas o nome da sala).
+- Na visão **Lista** da mesma seção, cada linha exibe também o **horário** e a **sala** da atividade/etapa.
 
 ## 10. Presença e QR Code
 
