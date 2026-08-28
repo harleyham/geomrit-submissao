@@ -15,6 +15,7 @@ const { validateCsrfToken } = require('../security/csrf');
 const { body } = require('express-validator');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountRequested, queuePublicRegistrationSubmission } = require('../services/email');
+const roomsService = require('../services/rooms');
 
 const ABSTRACT_LIMIT = 2500;
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -1011,14 +1012,14 @@ router.get('/evento/:id', (req, res) => {
   const eventWithMeta = withSubmissionMeta(event);
   const isClosed = event.status === 'encerrado';
   const activities = db.prepare(`
-    SELECT id,name,activity_type,description,date_start,date_end,video_url,has_video
+    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video
     FROM event_activities
     WHERE event_id=?
     ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE
   `).all(req.params.id);
   const sessionsByActivity = {};
   db.prepare(`
-    SELECT id,activity_id,name,session_date,description,video_url,has_video
+    SELECT id,activity_id,name,session_date,time_start,time_end,description,video_url,has_video
     FROM activity_sessions
     WHERE activity_id IN (SELECT id FROM event_activities WHERE event_id=?)
     ORDER BY sequence_no, id
@@ -1027,6 +1028,9 @@ router.get('/evento/:id', (req, res) => {
     sessionsByActivity[session.activity_id].push(session);
   });
   activities.forEach((activity) => { activity.sessions = sessionsByActivity[activity.id] || []; });
+  const scheduleAssignments = roomsService.eventAssignments(req.params.id);
+  const scheduleRooms = roomsService.getEventRooms(req.params.id);
+  const hasSchedule = scheduleAssignments.length > 0;
   let timeline = buildEventTimeline(eventWithMeta, {
     registration,
     session: req.session
@@ -1049,7 +1053,12 @@ router.get('/evento/:id', (req, res) => {
     title: event.name,
     registration,
     timeline,
-    activities
+    activities,
+    hasSchedule,
+    scheduleAssignments,
+    scheduleRooms,
+    roomLabel: roomsService.roomLabel,
+    assignmentLabel: roomsService.assignmentLabel
   });
 });
 

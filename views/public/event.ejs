@@ -206,6 +206,82 @@
           </table>
         </div>
       <% } %>
+
+      <% if (hasSchedule) { %>
+        <%
+          const scheduleByDay = {};
+          scheduleAssignments.forEach(function(row) { (scheduleByDay[row.date] = scheduleByDay[row.date] || []).push(row); });
+          const scheduleDayKeys = Object.keys(scheduleByDay).sort();
+          const scheduleByRoom = {};
+          scheduleAssignments.forEach(function(row) { (scheduleByRoom[row.room_id] = scheduleByRoom[row.room_id] || []).push(row); });
+        %>
+        <div class="timeline-title">Programação nas Salas</div>
+        <div class="schedule-block">
+          <style>
+            .schedule-block .schedule-radio { position:absolute;opacity:0;pointer-events:none; }
+            .schedule-block .schedule-toggle { display:flex;gap:8px;margin-bottom:12px; }
+            .schedule-block .schedule-toggle label { padding:6px 14px;border:1px solid rgba(148,163,184,.35);border-radius:999px;font-size:.8rem;color:#cbd5e1;cursor:pointer; }
+            .schedule-block #schedule-view-day:checked ~ .schedule-toggle label[for="schedule-view-day"],
+            .schedule-block #schedule-view-room:checked ~ .schedule-toggle label[for="schedule-view-room"] { background:rgba(59,130,246,.25);border-color:#60a5fa;color:#fff; }
+            .schedule-block #schedule-view-day:checked ~ .schedule-view-room { display:none; }
+            .schedule-block #schedule-view-room:checked ~ .schedule-view-day { display:none; }
+            .schedule-day-title { font-weight:700;color:#93c5fd;margin:14px 0 6px; }
+            .schedule-block .timeline-table { table-layout:fixed; }
+            .schedule-block .timeline-table td { overflow-wrap:anywhere; }
+          </style>
+          <input type="radio" name="schedule-view" id="schedule-view-day" class="schedule-radio" checked>
+          <input type="radio" name="schedule-view" id="schedule-view-room" class="schedule-radio">
+          <div class="schedule-toggle">
+            <label for="schedule-view-day">Por dia</label>
+            <label for="schedule-view-room">Por sala</label>
+          </div>
+          <div class="schedule-view schedule-view-day">
+            <% scheduleDayKeys.forEach(function(day) { %>
+              <div class="schedule-day-title"><%= formatBRDate(day) %></div>
+              <div class="timeline-table-wrap">
+                <table class="timeline-table">
+                  <colgroup><col style="width:22%"><col style="width:28%"><col style="width:50%"></colgroup>
+                  <thead><tr><th>Horário</th><th>Sala</th><th>Item</th></tr></thead>
+                  <tbody>
+                    <% scheduleByDay[day].forEach(function(row) { %>
+                      <tr>
+                        <td class="muted"><%= String(row.time_start).slice(0,5) %>–<%= String(row.time_end).slice(0,5) %></td>
+                        <td><%= row.room_name %></td>
+                        <td><%= assignmentLabel(row) %></td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+            <% }) %>
+          </div>
+          <div class="schedule-view schedule-view-room">
+            <% scheduleRooms.forEach(function(room) { %>
+              <% const rows = scheduleByRoom[room.id] || []; %>
+              <div class="schedule-day-title"><%= room.name %> — <%= roomLabel(room.size) %><%= room.capacity ? ` (${room.capacity} lugares)` : '' %></div>
+              <% if (!rows.length) { %>
+                <p class="muted">Sem alocações.</p>
+              <% } else { %>
+                <div class="timeline-table-wrap">
+                  <table class="timeline-table">
+                    <colgroup><col style="width:22%"><col style="width:22%"><col style="width:56%"></colgroup>
+                    <thead><tr><th>Data</th><th>Horário</th><th>Item</th></tr></thead>
+                    <tbody>
+                      <% rows.forEach(function(row) { %>
+                        <tr>
+                          <td class="muted"><%= formatBRDate(row.date) %></td>
+                          <td class="muted"><%= String(row.time_start).slice(0,5) %>–<%= String(row.time_end).slice(0,5) %></td>
+                          <td><%= assignmentLabel(row) %></td>
+                        </tr>
+                      <% }) %>
+                    </tbody>
+                  </table>
+                </div>
+              <% } %>
+            <% }) %>
+          </div>
+        </div>
+      <% } %>
     </div>
   </main>
 

@@ -18,6 +18,7 @@ const { getSystemEmailSettings, getPendingEmailCount, setEventEmailEnabled, queu
   authorizeImportBatch, queueImportedAccount, queueImportedRegistration, queueRegistrationReviewDecision, queueParticipantActivitiesUpdated } = require('../services/email');
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
+const rooms = require('../services/rooms');
 
 function safeArchiveFileName(value, fallback) {
   const normalized = String(value || fallback)
@@ -1684,6 +1685,34 @@ function activityDateRangeError(dateStart, dateEnd) {
   if (dateStart && dateEnd && String(dateEnd) < String(dateStart)) return 'A data de fim não pode ser anterior à data de início.';
   return null;
 }
+function parseTimeInput(req, field) {
+  const raw = String(req.body[field] || '').trim();
+  if (!raw) return { value: null, error: null };
+  const value = rooms.normalizeTime(raw);
+  return value ? { value, error: null } : { value: null, error: 'Horários devem estar no formato HH:MM.' };
+}
+function timeRangeError(timeStart, timeEnd) {
+  if (timeStart && timeEnd && timeEnd <= timeStart) return 'O horário de término deve ser posterior ao de início.';
+  return null;
+}
+function resolveRoomAllocation(req, { eventId, allocationDate, timeStart, timeEnd, hasSessions = false }) {
+  const roomId = Number(req.body.room_id) || null;
+  if (!roomId) return { roomId: null, error: null };
+  if (hasSessions) return { roomId, error: 'Atividades com etapas têm a sala alocada por etapa; remova as etapas para alocar sala à atividade.' };
+  const room = rooms.getRoom(eventId, roomId);
+  if (!room) return { roomId, error: 'Selecione uma sala válida deste evento.' };
+  if (!allocationDate) return { roomId, error: 'Defina a data da atividade/etapa para alocar a sala.' };
+  if (!timeStart || !timeEnd) return { roomId, error: 'Informe os horários de início e término para alocar a sala.' };
+  return { roomId, error: null };
+}
+function sessionTimeWithinActivityError(activity, sessionDate, timeStart, timeEnd) {
+  if (!timeStart || !timeEnd || !activity.time_start || !activity.time_end) return null;
+  const singleDay = activity.date_start && activity.date_start === activity.date_end;
+  if (singleDay && sessionDate && sessionDate === activity.date_start && (timeStart < activity.time_start || timeEnd > activity.time_end)) {
+    return `Os horários da etapa devem ficar dentro do horário da atividade (${activity.time_start}–${activity.time_end}).`;
+  }
+  return null;
+}
 
 router.get('/:id/activities', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
@@ -1700,6 +1729,8 @@ router.get('/:id/activities', (req, res) => {
   `).bind(req.params.id).all();
   activities.forEach((activity) => {
     if (Number(activity.session_count || 0) > 0) activity.sessions = getActivitySessions(activity.id);
+    activity.room_allocation = rooms.targetAssignment({ activityId: activity.id });
+    if (activity.sessions) activity.sessions.forEach((session) => { session.room_allocation = rooms.targetAssignment({ sessionId: session.id }); });
   });
   const editingActivity = req.query.edit_activity_id
     ? activities.find((activity) => Number(activity.id) === Number(req.query.edit_activity_id)) || null
@@ -1707,6 +1738,7 @@ router.get('/:id/activities', (req, res) => {
   res.render('admin/events/activities', {
     title: `Atividades - ${event.name}`,
     event, activities, editingActivity,
+    eventRooms: rooms.getEventRooms(event.id),
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -1730,6 +1762,12 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
   const dateStart = req.body.date_start || null;
   const dateEnd = req.body.date_end || null;
+  const timeStartParsed = parseTimeInput(req, 'time_start');
+  const timeEndParsed = parseTimeInput(req, 'time_end');
+  const activityTimeError = timeStartParsed.error || timeEndParsed.error || timeRangeError(timeStartParsed.value, timeEndParsed.value);
+  if (activityTimeError) {
+    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(activityTimeError)}`);
+  }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
     return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
@@ -1743,12 +1781,26 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   if (rangeError) {
     return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(rangeError)}`);
   }
-  db.prepare(`INSERT INTO event_activities
-    (event_id,name,activity_type,description,date_start,date_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    event.id, name, activityType, description, dateStart, dateEnd, workloadHours,
-    certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo
-  );
+  const allocationDate = dateStart || dateEnd;
+  const allocation = resolveRoomAllocation(req, { eventId: event.id, allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value });
+  if (allocation.error) {
+    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent(allocation.error)}`);
+  }
+  try {
+    db.transaction(() => {
+      const created = db.prepare(`INSERT INTO event_activities
+        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        event.id, name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours,
+        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo
+      );
+      if (allocation.roomId) {
+        rooms.syncTargetAssignments({ eventId: event.id, activityId: created.lastInsertRowid, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
+      }
+    })();
+  } catch (error) {
+    return res.redirect(`/admin/events/${event.id}/activities?error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a atividade.')}`);
+  }
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
 });
 router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
@@ -1774,6 +1826,12 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
   const dateStart = req.body.date_start || null;
   const dateEnd = req.body.date_end || null;
+  const timeStartParsed = parseTimeInput(req, 'time_start');
+  const timeEndParsed = parseTimeInput(req, 'time_end');
+  const activityTimeError = timeStartParsed.error || timeEndParsed.error || timeRangeError(timeStartParsed.value, timeEndParsed.value);
+  if (activityTimeError) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(activityTimeError)}`);
+  }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
     return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).')}`);
@@ -1787,11 +1845,24 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   if (rangeError) {
     return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(rangeError)}`);
   }
-  db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,workload_hours=?,
-    certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=? WHERE id=?`).run(
-    name, activityType, description, dateStart, dateEnd, workloadHours, certificateEnabled,
-    eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, activity.id
-  );
+  const sessionCount = db.prepare('SELECT COUNT(*) AS count FROM activity_sessions WHERE activity_id=?').get(activity.id).count;
+  const allocationDate = dateStart || dateEnd;
+  const allocation = resolveRoomAllocation(req, { eventId: activity.event_id, allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, hasSessions: sessionCount > 0 });
+  if (allocation.error) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent(allocation.error)}`);
+  }
+  try {
+    db.transaction(() => {
+      db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,time_start=?,time_end=?,workload_hours=?,
+        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=? WHERE id=?`).run(
+        name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
+        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, activity.id
+      );
+      rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
+    })();
+  } catch (error) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?edit_activity_id=${activity.id}&error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a atividade.')}`);
+  }
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity: { ...activity, name }, oldUrl: activity.video_url, newUrl: videoUrl });
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade atualizada.')}`);
@@ -1820,11 +1891,13 @@ router.get('/:id/activities/:activityId/sessions', (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
   const sessions = getActivitySessions(activity.id);
+  sessions.forEach((session) => { session.room_allocation = rooms.targetAssignment({ sessionId: session.id }); });
   const editingSession = req.query.edit_session_id
     ? sessions.find((session) => Number(session.id) === Number(req.query.edit_session_id)) || null
     : null;
   res.render('admin/events/activity-sessions', {
     title: `Etapas - ${activity.name}`, event, activity, sessions, editingSession,
+    eventRooms: rooms.getEventRooms(event.id),
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -1842,6 +1915,14 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
   if (dateError) {
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(dateError)}`);
   }
+  const sessionTimeStartParsed = parseTimeInput(req, 'time_start');
+  const sessionTimeEndParsed = parseTimeInput(req, 'time_end');
+  const sessionTimeError = sessionTimeStartParsed.error || sessionTimeEndParsed.error
+    || timeRangeError(sessionTimeStartParsed.value, sessionTimeEndParsed.value)
+    || sessionTimeWithinActivityError(activity, sessionDate, sessionTimeStartParsed.value, sessionTimeEndParsed.value);
+  if (sessionTimeError) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(sessionTimeError)}`);
+  }
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const description = String(req.body.description || '').trim();
   if (description.length > 2000) {
@@ -1856,12 +1937,27 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
   }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
-  const nextSequence = db.prepare('SELECT COALESCE(MAX(sequence_no),0) + 1 AS next FROM activity_sessions WHERE activity_id=?').get(activity.id).next;
-  const createdSession = db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,workload_hours,description,video_url,has_video) VALUES (?,?,?,?,?,?,?,?)')
-    .run(activity.id, name, nextSequence, sessionDate, workloadHours, description, sessionVideoUrl, hasVideo);
+  const sessionAllocation = resolveRoomAllocation(req, { eventId: activity.event_id, allocationDate: sessionDate, timeStart: sessionTimeStartParsed.value, timeEnd: sessionTimeEndParsed.value });
+  if (sessionAllocation.error) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent(sessionAllocation.error)}`);
+  }
+  let createdSessionId = null;
+  try {
+    db.transaction(() => {
+      const nextSequence = db.prepare('SELECT COALESCE(MAX(sequence_no),0) + 1 AS next FROM activity_sessions WHERE activity_id=?').get(activity.id).next;
+      const created = db.prepare('INSERT INTO activity_sessions (activity_id,name,sequence_no,session_date,time_start,time_end,workload_hours,description,video_url,has_video) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(activity.id, name, nextSequence, sessionDate, sessionTimeStartParsed.value, sessionTimeEndParsed.value, workloadHours, description, sessionVideoUrl, hasVideo);
+      createdSessionId = created.lastInsertRowid;
+      if (sessionAllocation.roomId) {
+        rooms.syncTargetAssignments({ eventId: activity.event_id, sessionId: createdSessionId, roomId: sessionAllocation.roomId, date: sessionDate, timeStart: sessionTimeStartParsed.value, timeEnd: sessionTimeEndParsed.value, assignedBy: req.session.userId });
+      }
+    })();
+  } catch (error) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a etapa.')}`);
+  }
   if (sessionVideoUrl) {
     const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
-    queueVideoLinkNotifications({ event, activity, session: { id: createdSession.lastInsertRowid, name, session_date: sessionDate }, oldUrl: null, newUrl: sessionVideoUrl });
+    queueVideoLinkNotifications({ event, activity, session: { id: createdSessionId, name, session_date: sessionDate }, oldUrl: null, newUrl: sessionVideoUrl });
   }
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa adicionada.')}`);
 });
@@ -1880,6 +1976,14 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
   if (dateError) {
     return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(dateError)}`);
   }
+  const sessionTimeStartParsed = parseTimeInput(req, 'time_start');
+  const sessionTimeEndParsed = parseTimeInput(req, 'time_end');
+  const sessionTimeError = sessionTimeStartParsed.error || sessionTimeEndParsed.error
+    || timeRangeError(sessionTimeStartParsed.value, sessionTimeEndParsed.value)
+    || sessionTimeWithinActivityError(activity, sessionDate, sessionTimeStartParsed.value, sessionTimeEndParsed.value);
+  if (sessionTimeError) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(sessionTimeError)}`);
+  }
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const description = String(req.body.description || '').trim();
   if (description.length > 2000) {
@@ -1894,8 +1998,19 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
   }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
-  db.prepare('UPDATE activity_sessions SET name=?,session_date=?,workload_hours=?,description=?,video_url=?,has_video=? WHERE id=?')
-    .run(name, sessionDate, workloadHours, description, sessionVideoUrl, hasVideo, session.id);
+  const sessionAllocation = resolveRoomAllocation(req, { eventId: activity.event_id, allocationDate: sessionDate, timeStart: sessionTimeStartParsed.value, timeEnd: sessionTimeEndParsed.value });
+  if (sessionAllocation.error) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent(sessionAllocation.error)}`);
+  }
+  try {
+    db.transaction(() => {
+      db.prepare('UPDATE activity_sessions SET name=?,session_date=?,time_start=?,time_end=?,workload_hours=?,description=?,video_url=?,has_video=? WHERE id=?')
+        .run(name, sessionDate, sessionTimeStartParsed.value, sessionTimeEndParsed.value, workloadHours, description, sessionVideoUrl, hasVideo, session.id);
+      rooms.syncTargetAssignments({ eventId: activity.event_id, sessionId: session.id, roomId: sessionAllocation.roomId, date: sessionDate, timeStart: sessionTimeStartParsed.value, timeEnd: sessionTimeEndParsed.value, assignedBy: req.session.userId });
+    })();
+  } catch (error) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?edit_session_id=${session.id}&error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a etapa.')}`);
+  }
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity, session: { ...session, name, session_date: sessionDate }, oldUrl: session.video_url, newUrl: sessionVideoUrl });
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa atualizada.')}`);
@@ -1912,6 +2027,137 @@ router.post('/:id/activities/:activityId/sessions/:sessionId/delete', strictLimi
   }
   db.prepare('DELETE FROM activity_sessions WHERE id=?').run(session.id);
   return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa removida.')}`);
+});
+
+// ---------- Salas ----------
+function parseRoomForm(req) {
+  const name = String(req.body.name || '').trim();
+  if (!name) return { error: 'Informe o nome da sala.' };
+  if (name.length > 80) return { error: 'O nome da sala deve ter no máximo 80 caracteres.' };
+  const size = rooms.ROOM_SIZES[req.body.size] ? req.body.size : null;
+  if (!size) return { error: 'Selecione um tamanho de sala válido.' };
+  let capacity = null;
+  if (size === 'auditorium' && String(req.body.capacity || '').trim() !== '') {
+    capacity = Number.parseInt(req.body.capacity, 10);
+    if (!Number.isFinite(capacity) || capacity <= 0) return { error: 'A capacidade do auditório deve ser um número inteiro maior que zero.' };
+  }
+  capacity = rooms.resolveRoomCapacity(size, capacity);
+  return { name, size, capacity };
+}
+
+router.get('/:id/rooms', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const roomsList = rooms.getEventRooms(event.id).map((room) => ({ ...room, assignment_count: rooms.roomAssignmentCount(room.id) }));
+  const reservations = rooms.eventAssignments(event.id).filter((row) => row.is_event_reservation);
+  const activitiesCount = db.prepare('SELECT COUNT(*) AS count FROM event_activities WHERE event_id=?').get(event.id).count;
+  const editingRoom = req.query.edit_room_id ? roomsList.find((room) => Number(room.id) === Number(req.query.edit_room_id)) || null : null;
+  res.render('admin/events/rooms', {
+    title: `Salas - ${event.name}`,
+    event, roomsList, reservations, activitiesCount, editingRoom,
+    unallocated: rooms.unallocatedTargets(event.id),
+    roomSizes: rooms.ROOM_SIZES,
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+});
+
+router.post('/:id/rooms', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id,name FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const parsed = parseRoomForm(req);
+  if (parsed.error) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent(parsed.error)}`);
+  try {
+    db.prepare('INSERT INTO event_rooms (event_id,name,size,capacity) VALUES (?,?,?,?)').run(event.id, parsed.name, parsed.size, parsed.capacity);
+  } catch (error) {
+    if (String(error.message).includes('UNIQUE')) {
+      return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Já existe uma sala com este nome neste evento.')}`);
+    }
+    throw error;
+  }
+  return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Sala cadastrada.')}`);
+});
+
+router.post('/:id/rooms/reservations', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activitiesCount = db.prepare('SELECT COUNT(*) AS count FROM event_activities WHERE event_id=?').get(event.id).count;
+  if (activitiesCount > 0) {
+    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('A sala do evento só pode ser designada quando o evento não possui atividades; aloque a sala por atividade ou por etapa.')}`);
+  }
+  const roomId = Number(req.body.room_id) || null;
+  if (!roomId) {
+    rooms.clearEventReservations(event.id);
+    return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Reserva de sala do evento removida.')}`);
+  }
+  const room = rooms.getRoom(event.id, roomId);
+  if (!room) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Selecione uma sala válida deste evento.')}`);
+  const rangeStart = req.body.range_start || event.date_start || null;
+  const rangeEnd = req.body.range_end || event.date_end || event.date_start || null;
+  const timeStart = rooms.normalizeTime(req.body.time_start);
+  const timeEnd = rooms.normalizeTime(req.body.time_end);
+  if (!rangeStart || !rangeEnd) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Informe o intervalo de datas da reserva (ou preencha as datas do evento).')}`);
+  if (!timeStart || !timeEnd) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Informe os horários de início e término da reserva.')}`);
+  try {
+    rooms.createEventReservation({ eventId: event.id, roomId, rangeStart, rangeEnd, timeStart, timeEnd, assignedBy: req.session.userId });
+  } catch (error) {
+    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a reserva.')}`);
+  }
+  return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Reserva de sala do evento salva para todos os dias do intervalo.')}`);
+});
+
+router.post('/:id/rooms/:roomId', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const room = rooms.getRoom(event.id, req.params.roomId);
+  if (!room) return res.status(404).render('error', { title: 'Sala não encontrada' });
+  const parsed = parseRoomForm(req);
+  if (parsed.error) return res.redirect(`/admin/events/${event.id}/rooms?edit_room_id=${room.id}&error=${encodeURIComponent(parsed.error)}`);
+  try {
+    db.prepare('UPDATE event_rooms SET name=?,size=?,capacity=?,updated_at=datetime(\'now\',\'-3 hours\') WHERE id=?').run(parsed.name, parsed.size, parsed.capacity, room.id);
+  } catch (error) {
+    if (String(error.message).includes('UNIQUE')) {
+      return res.redirect(`/admin/events/${event.id}/rooms?edit_room_id=${room.id}&error=${encodeURIComponent('Já existe uma sala com este nome neste evento.')}`);
+    }
+    throw error;
+  }
+  return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Sala atualizada.')}`);
+});
+
+router.post('/:id/rooms/:roomId/delete', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const room = rooms.getRoom(event.id, req.params.roomId);
+  if (!room) return res.status(404).render('error', { title: 'Sala não encontrada' });
+  const assignmentCount = rooms.roomAssignmentCount(room.id);
+  if (assignmentCount > 0) {
+    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent(`Não é possível excluir "${room.name}": possui ${assignmentCount} alocação(ões) de agenda. Remova as alocações primeiro (desmarque a sala nas atividades/etapas ou cancele a reserva do evento).`)}`);
+  }
+  db.prepare('DELETE FROM event_rooms WHERE id=?').run(room.id);
+  return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Sala removida.')}`);
+});
+
+router.get('/:id/rooms/occupancy', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  res.render('admin/events/rooms-occupancy', {
+    title: `Ocupação de Salas - ${event.name}`,
+    event,
+    days: rooms.occupancyByDay(event.id),
+    roomLabel: rooms.roomLabel
+  });
+});
+
+router.get('/:id/rooms/agenda', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  res.render('admin/events/rooms-agenda', {
+    title: `Agenda por Sala - ${event.name}`,
+    event,
+    roomsAgenda: rooms.agendaByRoom(event.id),
+    assignmentLabel: rooms.assignmentLabel,
+    roomLabel: rooms.roomLabel
+  });
 });
 router.get('/:id/activities/:activityId/attendance', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);

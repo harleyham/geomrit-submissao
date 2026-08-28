@@ -51,6 +51,7 @@ const TABLES = [
   'event_certificate_rules',
   'event_registrations',
   'event_qr_codes',
+  'event_rooms',
   'event_user_roles',
   'events',
   'email_outbox',
@@ -64,6 +65,7 @@ const TABLES = [
   'reports',
   'reviewer_availability',
   'reviewers',
+  'room_assignments',
   'sessions',
   'subsidy_documents',
   'subsidy_requests',
@@ -72,6 +74,41 @@ const TABLES = [
   'system_settings',
   'users',
 ];
+
+const ROOM_DDL = `
+    CREATE TABLE IF NOT EXISTS event_rooms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      size TEXT NOT NULL DEFAULT 'medium',
+      capacity INTEGER,
+      created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      updated_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      UNIQUE(event_id,name),
+      FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS room_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      room_id INTEGER NOT NULL,
+      activity_id INTEGER,
+      session_id INTEGER,
+      date DATE NOT NULL,
+      time_start TIME NOT NULL,
+      time_end TIME NOT NULL,
+      is_event_reservation INTEGER NOT NULL DEFAULT 0,
+      assigned_by INTEGER,
+      created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      updated_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      CHECK ((activity_id IS NOT NULL) + (session_id IS NOT NULL) + (is_event_reservation = 1) <= 1),
+      FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY(room_id) REFERENCES event_rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+      FOREIGN KEY(session_id) REFERENCES activity_sessions(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_room_assignments_room ON room_assignments(room_id,date);
+    CREATE INDEX IF NOT EXISTS idx_room_assignments_event ON room_assignments(event_id,date);
+`;
 
 function initializeDbSchema(db) {
   const hadParticipantActivityEnrollments = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='participant_activity_enrollments'").get());
@@ -444,8 +481,8 @@ function initializeDbSchema(db) {
       FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
-    CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',description TEXT DEFAULT '',activity_date DATE,date_start DATE,date_end DATE,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',video_url TEXT,has_video INTEGER DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
-    CREATE TABLE IF NOT EXISTS activity_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,name TEXT NOT NULL,sequence_no INTEGER NOT NULL DEFAULT 1,session_date DATE,workload_hours REAL DEFAULT 0,description TEXT DEFAULT '',video_url TEXT,has_video INTEGER DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',description TEXT DEFAULT '',activity_date DATE,date_start DATE,date_end DATE,time_start TIME,time_end TIME,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',video_url TEXT,has_video INTEGER DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS activity_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,name TEXT NOT NULL,sequence_no INTEGER NOT NULL DEFAULT 1,session_date DATE,time_start TIME,time_end TIME,workload_hours REAL DEFAULT 0,description TEXT DEFAULT '',video_url TEXT,has_video INTEGER DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_evaluations (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,activity_id INTEGER NOT NULL,user_id INTEGER NOT NULL,evaluation TEXT NOT NULL,created_at DATETIME DEFAULT (datetime('now','-3 hours')),updated_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,user_id),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS participant_activity_enrollments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -474,6 +511,7 @@ function initializeDbSchema(db) {
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE UNIQUE INDEX IF NOT EXISTS uq_event_qr_codes_token ON event_qr_codes(token);
+    ${ROOM_DDL}
   `);
 
   if (!hadParticipantActivityEnrollments) {
@@ -578,6 +616,15 @@ function initializeDbSchema(db) {
     if (!sessionVideoColumns.includes('has_video')) db.exec('ALTER TABLE activity_sessions ADD COLUMN has_video INTEGER DEFAULT 0');
     if (!sessionVideoColumns.includes('description')) db.exec("ALTER TABLE activity_sessions ADD COLUMN description TEXT DEFAULT ''");
     db.exec('UPDATE event_activities SET date_start=activity_date WHERE date_start IS NULL AND activity_date IS NOT NULL');
+  } catch (e) {}
+  try {
+    const activityTimeColumns = db.prepare('PRAGMA table_info(event_activities)').all().map((column) => column.name);
+    if (!activityTimeColumns.includes('time_start')) db.exec('ALTER TABLE event_activities ADD COLUMN time_start TIME');
+    if (!activityTimeColumns.includes('time_end')) db.exec('ALTER TABLE event_activities ADD COLUMN time_end TIME');
+    const sessionTimeColumns = db.prepare('PRAGMA table_info(activity_sessions)').all().map((column) => column.name);
+    if (!sessionTimeColumns.includes('time_start')) db.exec('ALTER TABLE activity_sessions ADD COLUMN time_start TIME');
+    if (!sessionTimeColumns.includes('time_end')) db.exec('ALTER TABLE activity_sessions ADD COLUMN time_end TIME');
+    db.exec(ROOM_DDL);
   } catch (e) {}
   try {
     const sessionColumns = db.prepare('PRAGMA table_info(activity_attendance_records)').all().map((c) => c.name);
