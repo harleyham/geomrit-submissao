@@ -65,6 +65,7 @@
       .hero, .grid, .stats { grid-template-columns: 1fr; }
     }
   </style>
+  <%- include('../partials/mobile-fixes') %>
 </head>
 <body>
   <header class="topbar">
@@ -210,7 +211,7 @@
         <div class="section-title">
           <h2>Meus Rascunhos</h2>
         </div>
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>Título</th>
@@ -236,7 +237,7 @@
               </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       </section>
     <% } %>
 
@@ -245,7 +246,7 @@
         <h2>Minhas Participações</h2>
       </div>
       <% if (participations.length > 0) { %>
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>Evento</th>
@@ -303,7 +304,7 @@
               </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       <% } else { %>
         <div class="empty">Você ainda não possui participações registradas em eventos.</div>
       <% } %>
@@ -314,7 +315,7 @@
         <h2>Submissões Enviadas</h2>
       </div>
       <% if (submittedSubmissions.length > 0) { %>
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>Título</th>
@@ -343,7 +344,7 @@
               </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       <% } else { %>
         <div class="empty">Você ainda não possui submissões enviadas vinculadas a esta conta.</div>
       <% } %>

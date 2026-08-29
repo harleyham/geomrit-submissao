@@ -10,6 +10,19 @@ Versão atual registrada: **V0.3**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-08-28
+
+### Responsividade mobile: cards/tabelas com rolagem horizontal e grids adaptativos
+
+- Sintoma: em celulares, diversos cards não se adaptavam à rolagem horizontal — tabelas largas cortavam o conteúdo (botões de ação inacessíveis), a página inteira arrastava para o lado e formulários mantinham colunas lado a lado.
+- Auditoria completa das 54 views (sem CSS global; cada página repete um `<style>` próprio): ~30 tabelas sem contêiner de rolagem; 2 contêineres com `overflow:hidden` (cortavam); 11 páginas sem `box-sizing:border-box` (inputs `width:100%` + padding estouravam a viewport); grades fixas `1fr 1fr`/`repeat(3,1fr)` sem breakpoint; `minmax(N px)` > largura útil de telas ≤375px; `textarea{min-width:320px}`; topbars sem `flex-wrap`.
+- Novo partial `views/partials/mobile-fixes.ejs` (injetado antes do `</head>` de **todas** as 50 páginas, via `scripts/fix-mobile.js`): `box-sizing:border-box` universal; utilitário `.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}` (visível no print); topbar com `height:auto` + `flex-wrap` ≤860px; colapso de `.form-row`/`.detail-grid`/`.decision-grid`/`#formacao-titulacao-status` para 1 coluna ≤720px (com `!important` para vencer style inline).
+- Envolvidas com `<div class="table-scroll">` as tabelas sem contêiner (13 arquivos, 27 tabelas): `admin/dashboard` (a classe existia no CSS mas nunca era usada no markup), `admin/users/list` (2), `admin/users/import-users-result`, `admin/articles/list`, `admin/events/roles`, `admin/events/activity-sessions`, `admin/events/rooms` (3), `admin/events/rooms-agenda`, `admin/events/rooms-occupancy`, `admin/events/import-users-result`, `admin/reports/list` (6), `public/author-dashboard` (3), `reviewer/dashboard` (2). Já rolavam via `.section`/`.section-body`/`.grid-wrap`: `events/list`, `participants`, `activity-attendance`, grade do `event.ejs`.
+- `public/event.ejs` (`.timeline-table-wrap`) e `public/activity-sessions.ejs` (`.table-wrap`): `overflow:hidden` → `overflow-x:auto` com `-webkit-overflow-scrolling:touch` (as 5+1 tabelas do cronograma/etapas cortavam no celular).
+- `admin/events/certificates.ejs`: stats inline `repeat(3,1fr)` → `repeat(auto-fit,minmax(min(100%,180px),1fr))` (style inline não era afetado pela media query existente).
+- `minmax(≥200px,1fr)` → `minmax(min(100%,Npx),1fr)` em 10 ocorrências (home, evento, atividades, certificados, participantes-form, relatórios, inscrição, revisores, dashboard do revisor/admin); `textarea{min-width:320px}` → `min(320px,100%)` em `rooms`, `rooms-agenda`, `rooms-occupancy` e `activity-sessions`.
+- Verificação: compilação EJS das 68 views (0 erros); resolução do include do partial testada em todas as profundidades; servidor sobe e `/`, `/login`, `/evento/1` (timeline+grade), `/evento/1/atividades/1/etapas`, `/revisores`, `/consultar`, `/cadastro` respondem 200 com o novo CSS presente; wrappers `<div class="table-scroll">` pareados 1:1 com as tabelas nos 13 arquivos. Painéis administrativos verificados por compilação (acesso E2E não executado por não dispor da senha do admin). Efetivo após reinício do servidor; sem migração de banco.
+
 ## 2026-08-27
 
 ### Dashboard: fila de e-mails pendentes com atualização automática
@@ -254,7 +267,6 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Fotinha redonda dos usuários
 - Os pôster ficarem arquivados e visíveis dentro do sistema
 - Galeria de fotos do evento
-- Em http://127.0.0.1:3000/evento/2, poderia mudar a visualização para um calendário compacto
 - https://editorialexpress.com/conference/IIOC2026/program/IIOC2026.html
 
 

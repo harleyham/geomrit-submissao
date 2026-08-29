@@ -28,7 +28,7 @@
     .event-link-card .value a { color: #93c5fd; text-decoration: none; }
     .event-link-card .value a:hover { text-decoration: underline; }
     .timeline-title { font-size: 1rem; font-weight: 700; color: #f8fafc; margin: 1.5rem 0 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; }
-    .timeline-table-wrap { border: 1px solid rgba(148,163,184,0.12); border-radius: 14px; overflow: hidden; background: rgba(2,6,23,0.3); }
+    .timeline-table-wrap { border: 1px solid rgba(148,163,184,0.12); border-radius: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; background: rgba(2,6,23,0.3); }
     .timeline-table { width: 100%; border-collapse: collapse; }
     .timeline-table th { text-align: left; padding: 0.9rem 1rem; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; background: rgba(15,23,42,0.6); }
     .timeline-table td { padding: 1rem; font-size: 0.94rem; color: #e2e8f0; border-top: 1px solid rgba(148,163,184,0.08); }
@@ -60,6 +60,7 @@
       .timeline-table th, .timeline-table td { padding: 0.75rem; font-size: 0.82rem; }
     }
   </style>
+  <%- include('../partials/mobile-fixes') %>
 </head>
 <body>
   <header class="topbar">
@@ -194,7 +195,7 @@
             .activities-toggle-block .act-type-head { margin:0 0 12px; font-size:1rem; display:flex; align-items:center; gap:8px; }
             .activities-toggle-block .act-type-count { color:#94a3b8; font-weight:400; font-size:.85rem; }
             .activities-toggle-block .act-badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; letter-spacing:.3px; text-transform:uppercase; }
-            .activities-toggle-block .act-type-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; }
+            .activities-toggle-block .act-type-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr)); gap:10px; }
             .activities-toggle-block .act-item { background:#0f172a; padding:12px 14px; border-radius:8px; border:1px solid #334155; display:flex; flex-direction:column; gap:5px; }
             .activities-toggle-block .act-item-title { font-size:14px; color:#f1f5f9; }
             .activities-toggle-block .act-item-desc, .activities-toggle-block .act-item-meta { color:#94a3b8; font-size:12px; line-height:1.5; }

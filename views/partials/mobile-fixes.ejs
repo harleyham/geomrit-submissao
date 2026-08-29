@@ -1,0 +1,15 @@
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  @media (max-width: 860px) {
+    .topbar { height: auto; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+    .topbar-inner { flex-wrap: wrap; gap: 0.5rem; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+  }
+  @media (max-width: 720px) {
+    .form-row, .detail-grid, .decision-grid { grid-template-columns: 1fr !important; }
+    #formacao-titulacao-status { grid-template-columns: 1fr !important; }
+  }
+  @media print {
+    .table-scroll { overflow: visible; }
+  }
+</style>

@@ -92,6 +92,7 @@
       @page { size: A4 portrait; margin: 12mm; }
     }
   </style>
+  <%- include('../../partials/mobile-fixes') %>
 </head>
 <body>
   <header class="topbar">
@@ -142,7 +143,7 @@
         <label class="report-selection no-print"><input type="checkbox" data-report-toggle="event-info" checked> Incluir no PDF</label>
       </div>
       <div class="section-body" style="padding: 1.5rem;">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%,250px), 1fr)); gap: 1.5rem;">
           <div>
             <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Nome</h3>
             <p style="font-size: 1.0625rem; color: #f1f5f9; font-weight: 600;"><%= event.name %></p>
@@ -323,7 +324,7 @@
         <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-oral" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>#</th>
@@ -350,7 +351,7 @@
             </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
     <% } else { %>
@@ -373,7 +374,7 @@
         <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-poster" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>#</th>
@@ -400,7 +401,7 @@
             </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
     <% } else { %>
@@ -423,7 +424,7 @@
         <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-oral" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>#</th>
@@ -452,7 +453,7 @@
             </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
     <% } else { %>
@@ -475,7 +476,7 @@
         <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-poster" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>#</th>
@@ -504,7 +505,7 @@
             </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
     <% } else { %>
@@ -527,7 +528,7 @@
       </div>
       <div class="section-body">
         <% if (participants.length > 0) { %>
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>Nome</th>
@@ -574,7 +575,7 @@
             </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
         <% } else { %>
         <div class="empty-state"><p>Nenhum participante registrado para este evento.</p></div>
         <% } %>
@@ -589,7 +590,7 @@
         <label class="report-selection no-print"><input type="checkbox" data-report-toggle="article-decisions" checked> Incluir no PDF</label>
       </div>
       <div class="section-body">
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th>Título</th>
@@ -643,7 +644,7 @@
             </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
     <% } %>

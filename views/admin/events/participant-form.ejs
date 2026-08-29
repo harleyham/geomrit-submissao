@@ -37,7 +37,7 @@
     .btn-secondary { background: transparent; color: #cbd5e1; border-color: rgba(148,163,184,0.2); }
     .event-role-option { display:flex !important; align-items:center; gap:.6rem; margin:.6rem 0 !important; cursor:pointer; }
     .event-role-option input[type="checkbox"] { width:auto !important; min-width:16px; height:16px; margin:0; accent-color:#f97316; }
-    .activity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.75rem; margin-top:.65rem; }
+    .activity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:.75rem; margin-top:.65rem; }
     .activity-option { display:flex !important; align-items:flex-start; gap:.7rem; padding:.85rem; margin:0 !important; border:1px solid rgba(148,163,184,.16); border-radius:10px; background:rgba(2,6,23,.28); cursor:pointer; }
     .activity-option:has(input:checked) { border-color:#3b82f6; background:rgba(37,99,235,.12); }
     .activity-option input { width:auto !important; min-width:17px; height:17px; margin-top:.1rem; accent-color:#3b82f6; }
@@ -52,6 +52,7 @@
     footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
     @media (max-width: 720px) { .meta-grid { grid-template-columns: 1fr; } }
   </style>
+  <%- include('../../partials/mobile-fixes') %>
 </head>
 <body>
   <header class="topbar">

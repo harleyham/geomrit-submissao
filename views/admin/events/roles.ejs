@@ -51,6 +51,7 @@
     .alert-error { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
     footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
   </style>
+  <%- include('../../partials/mobile-fixes') %>
 </head>
 <body>
   <header class="topbar">
@@ -111,7 +112,7 @@
 
     <section class="section">
       <h2 class="section-title">Papéis atribuídos</h2>
-      <table>
+      <div class="table-scroll"><table>
         <thead><tr><th>Pessoa</th><th>Papel</th><th>Artigo</th><th></th></tr></thead>
         <tbody>
           <% assignments.forEach(a => { %><tr>
@@ -126,7 +127,7 @@
             </td>
           </tr><% }) %>
         </tbody>
-      </table>
+      </table></div>
     </section>
   </main>
 
