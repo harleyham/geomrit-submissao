@@ -1,11 +1,11 @@
 # Plano de Implementação — Gerência de Eventos (V0.3 → V1)
 
-Plano aprovado pelo usuário, organizado em 4 ciclos de execução sequencial.
+Plano aprovado pelo usuário, organizado em ciclos de execução sequencial.
 Documento vivo: atualizar o `Status` de cada item conforme a execução.
 
-> **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026, todos registrados em `submissao_log_v2.md`. Inclui: datas em `dd/mm/yyyy` via flatpickr em todos os formulários (evento, atividades e etapas) com a correção crítica da conversão dia/mês; descrição breve das etapas; correções críticas (login bloqueado por 403 — `trust proxy` restaurado + rate limit por IP do socket; restore de backup — escopo de `uploadsBackupPath` no `finally`); hardening remanescente do Ciclo 6 (ZIP-bomb, CSRF em uploads multipart, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas) e o plano de administração por evento documentado em `Plano_admin.md`.
+> **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026, todos registrados em `submissao_log_v2.md`. Inclui: datas em `dd/mm/yyyy` via flatpickr em todos os formulários (evento, atividades e etapas) com a correção crítica da conversão dia/mês; descrição breve das etapas; correções críticas (login bloqueado por 403 — `trust proxy` restaurado + rate limit por IP do socket; restore de backup — escopo de `uploadsBackupPath` no `finally`); hardening remanescente do Ciclo 7 (ZIP-bomb, CSRF em uploads multipart, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas) e o plano de administração por evento documentado em `Plano_admin.md`.
 
-> **Sobre a V0.2**: versão de lançamento inicial do projeto. Consolida a funcionalidade entregue (eventos, inscrições, submissão/artigos, presença por QR, certificados, e-mails transacionais, avaliações, triagem de inscrições etc.) e o **hardening de segurança** de 24/08/2026 (Ciclo 6 do plano). As pendentes de hardening seguem listadas e a serem implementadas a partir desta versão.
+> **Sobre a V0.2**: versão de lançamento inicial do projeto. Consolida a funcionalidade entregue (eventos, inscrições, submissão/artigos, presença por QR, certificados, e-mails transacionais, avaliações, triagem de inscrições etc.) e o **hardening de segurança** de 24/08/2026 (Ciclo 7 do plano). As pendentes de hardening seguem listadas e a serem implementadas a partir desta versão.
 
 ## Convenções do projeto
 - Node.js/Express + SQLite (`better-sqlite3`) + EJS + PDFKit.
@@ -173,7 +173,79 @@ Status geral: **CONCLUÍDO (código)** — 20/08/2026.
 
 ---
 
-## Ciclo 5 — Fase 2: Auditoria
+## Ciclo 5 — TRILHAS (conceito, filtros e alocação de revisores)
+Status geral: **PENDENTE**.
+
+Conceito: TRILHA = conjunto de Atividades (e Etapas) com tema em comum
+(ex.: Engenharia Elétrica, Química, Física). Em eventos multi-trilha,
+atividades/etapas ocorrem simultaneamente; cada Atividade e Etapa pode
+pertencer a mais de uma TRILHA. Referência de apresentação: programa do
+IIOC (sessões temáticas simultâneas por bloco horário).
+
+### 5.1 Modelo de dados — `services/db-reset.js` + novo `services/tracks.js`
+- `event_tracks` (id, event_id, name UNIQUE(event_id,name), color opcional
+  #rrggbb, description, sequence_no) + junctions `track_activities`
+  (UNIQUE event_track_id+activity_id) e `track_sessions`
+  (UNIQUE event_track_id+session_id), todos FK ON DELETE CASCADE.
+- `track_reviewers` (event_track_id, user_id) e `track_articles`
+  (event_track_id, article_id) — UNIQUE + CASCADE, mesmo padrão.
+- `participant_track_interests` (UNIQUE event_id+user_id+track_id).
+- `event_registrations.requested_track_ids` (JSON, ALTER idempotente) para a
+  fila de aprovação, espelhando `requested_activity_ids`.
+- Tudo no padrão ROOM_DDL: const DDL interpolada no exec principal, array
+  `TABLES`, índices, migração idempotente.
+- Herança de etapas: etapa grava links só quando divergem da seleção da
+  atividade; seleção igual → links removidos (herda sempre). Exibição:
+  links da etapa, senão os da atividade.
+
+### 5.2 Administração
+- `/admin/events/:id/tracks`: CRUD de trilhas (nome, cor, ordem, descrição)
+  no padrão da página de Salas; exclusão bloqueada com contagem de uso
+  ("N atividades/etapas/revisores/artigos usam esta trilha").
+- Página de trilhas também atribui **revisores** por trilha (checkboxes;
+  pool = `is_reviewer=1`, mesmo da UI de alocação).
+- Atividades e etapas: checkboxes "Trilhas" (padrão `eligible_roles`:
+  parse `Array.isArray` + whitelist + sync no `db.transaction`); etapa vem
+  pré-marcada com as trilhas herdadas. Com **2+ trilhas** no evento, salvar
+  atividade/etapa sem trilha é **bloqueado** ("Selecione ao menos uma trilha.").
+- Badges coloridos nas listagens admin de atividades e etapas; trilha do
+  artigo marcada pelo admin no editor de artigo + mini-painel na listagem.
+
+### 5.3 Página pública `/evento/:id`
+- Chips de **filtro multi-seleção** de trilhas acima de "Atividades do
+  Evento", reaplicando em Cards/Lista/Grade, Programação nas Salas,
+  Transmissões e sub-linhas de etapas via `data-tracks` + inline
+  `<script nonce>` (padrão `reviewers.ejs`).
+- Pré-seleção: interesses salvos do visitante logado; senão `localStorage`
+  por evento. Badges coloridos em cards/lista/etapas/Transmissões (ponto
+  colorido na grade).
+- Toggle **"Por trilha"** (agrupamento CSS puro, estilo "Por dia/Por sala"),
+  com grupo "Sem trilha" quando vazio.
+- Inscrição (`/evento/:id/inscricao`, `/evento/:id/atividades`): bloco
+  "Trilhas de interesse" quando o evento tem trilhas; aprovados →
+  `participant_track_interests`; pendentes → `requested_track_ids`,
+  convertido na aprovação (`routes/events.js`).
+
+### 5.4 Revisores e alocação de artigos
+- Alocação (`/admin/events/:id/articles`, `routes/articles.js`): revisores
+  exibem badges das trilhas no evento; os que **compartilham trilha com o
+  artigo** ganham selo "Coincide com trilha" e ordenam no topo (ao lado do
+  flag de área existente); filtro rápido "Somente trilhas do artigo".
+- Painel do revisor: artigos atribuídos exibem badges de trilha (leitura).
+
+### 5.5 Verificação e documentação
+- `node --check`, compilação EJS, renders com dados mock (trilhas admin +
+  público com filtro), smoke HTTP em `/evento/:id`, migração conferida no
+  dev, seed de trilhas no dev para validação visual.
+- Docs: `submissao.md` (versão **V0.32**: tabelas, regras, rotas, bullets),
+  `manual.md` (seção "Trilhas" + alocação por trilha), `README.md`,
+  `submissao_log_v2.md`.
+
+Ordem de execução: 5.1 → 5.2 → 5.3 → 5.4 → 5.5.
+
+---
+
+## Ciclo 6 — Fase 2: Auditoria
 Status geral: **PENDENTE**.
 - Trilha de auditoria (quem fez o quê e quando) nas operações relevantes
   (criação/edição/exclusão de usuários, eventos, inscrições, presenças).
@@ -181,7 +253,7 @@ Status geral: **PENDENTE**.
 
 ---
 
-## Ciclo 6 — Auditoria de Segurança (hardening)
+## Ciclo 7 — Auditoria de Segurança (hardening)
 
 Data: **24/08/2026**. Auditoria pontual de segurança (análise de código + 5 agentes especializados por área).
 

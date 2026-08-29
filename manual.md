@@ -247,8 +247,8 @@ O administrador pode:
 - marcar ou desmarcar todos;
 - ler o QR do crachá pela câmera;
 - digitar manualmente o código do crachá;
-- imprimir a lista de assinaturas;
-- imprimir a folha de presença com QR Code;
+- imprimir a lista de assinaturas (a sala aparece no cabeçalho);
+- imprimir a folha de presença com QR Code (a sala aparece no cabeçalho, abaixo da data);
 - visualizar as avaliações registradas pelos participantes na atividade.
 
 O auto-check-in é feito pela URL `/presenca/:eventId/:activityId(/:sessionId)`. O usuário precisa estar autenticado e vinculado à atividade quando estiver atuando como participante. A presença só pode ser registrada no dia da etapa ou no período da atividade.

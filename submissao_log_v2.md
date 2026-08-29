@@ -12,6 +12,13 @@ Versão atual registrada: **V0.3**.
 
 ## 2026-08-28
 
+### Nome da sala nas folhas de presença (lista e QR Code)
+
+- As duas folhas impressas de presença passam a exibir a **sala** no cabeçalho, abaixo da data: a **lista de presença** (`GET /admin/events/:id/activities/:activityId/attendance-print`, linha `Sala: <nome>` entre a data e a tabela Nome/E-mail/Assinatura) e a **folha com QR Code** (`GET .../checkin-print`, linha `Sala: <nome>` após `Data:`/`Etapa:`, antes do QR).
+- Resolução centralizada no helper `resolvePrintRoomName` (`routes/events.js`): alocação direta da etapa (`targetAssignment` por `session_id`) ou da atividade sem etapas (`activity_id`); sem alocação direta, usa a **reserva do evento** (`eventReservation` + nome via `getRoom`); sem nenhuma, imprime `Sala: A definir` (mesmo padrão da data quando indefinida).
+- Verificação: `node --check`; função validada no dev contra dados reais (etapa alocada → nome da sala; sem alocação → "A definir"; com reserva do evento → nome da sala reservada, inserida e removida em teste); servidor sobe limpo e as rotas seguem protegidas (302 sem login). Efetivo após reinício do servidor.
+- Status: **concluído (código + verificação técnica)**.
+
 ### Salas: novos tipos com capacidade livre
 
 - Os tipos de sala deixam de ser "tamanho com capacidade fixa" (Pequena 10 / Média 50 / Grande 100 / Auditório livre) e passam a ser **tipo com capacidade livre** (informada pelo admin): **Tipo 1, Tipo 2, Tipo 3, Auditório, Mini Auditório, Foyer, Coffee break, Restaurante e Posters**.
@@ -291,5 +298,6 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Os pôster ficarem arquivados e visíveis dentro do sistema
 - Galeria de fotos do evento
 - https://editorialexpress.com/conference/IIOC2026/program/IIOC2026.html
-
-
+- Conceito de TRILHA
+- Várias Atividades/Etapas ao mesmo tempo. Melhor forma de mostrar no grade de dia e horário ?
+- Filtro por trilha ? Filtro por Sala ?

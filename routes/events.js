@@ -2396,6 +2396,17 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
   });
 });
 
+function resolvePrintRoomName(eventId, sessionId, activityId) {
+  const direct = rooms.targetAssignment(sessionId != null ? { sessionId } : { activityId });
+  if (direct) return direct.room_name;
+  const reservation = rooms.eventReservation(eventId);
+  if (reservation) {
+    const room = rooms.getRoom(eventId, reservation.room_id);
+    if (room) return room.name;
+  }
+  return 'A definir';
+}
+
 router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -2469,6 +2480,7 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
     headerDate = parts.length === 2 && parts[0] !== parts[1] ? `${parts[0]} a ${parts[1]}` : parts[0] || 'A definir';
   } else headerDate = 'A definir';
   doc.fontSize(11).text(headerDate, { align: 'center' });
+  doc.fontSize(11).text(`Sala: ${resolvePrintRoomName(event.id, selectedSession ? selectedSession.id : null, activity.id)}`, { align: 'center' });
   doc.moveDown(1);
 
   const colWidth = pageWidth / 3;
@@ -2576,6 +2588,7 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
     doc.moveDown(0.3);
     doc.fontSize(12).text(`Data: ${headerDate}`, { align: 'center' });
     if (selectedSession) doc.fontSize(12).text(`Etapa: ${selectedSession.name}`, { align: 'center' });
+    doc.fontSize(12).text(`Sala: ${resolvePrintRoomName(event.id, selectedSession ? selectedSession.id : null, activity.id)}`, { align: 'center' });
     doc.moveDown(1.5);
 
     const qrSize = 220;
