@@ -4,7 +4,9 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Este arquivo é a continuação de `submissao_log.md`, que registra o histórico até **2026-08-23**. A partir de agora, as novas entradas devem ser registradas **aqui**, mantendo o mesmo formato: seções `## YYYY-MM-DD` com subtítulos `### <título da alteração>` e, ao final de cada item, a linha `Status: ...`.
 
-Versão atual registrada: **V0.3**.
+Versão atual registrada: **V0.32**.
+
+> **Sobre a V0.32**: versão em desenvolvimento desde 28/08/2026, consolidando: responsividade mobile completa (partial `mobile-fixes.ejs` em todas as views, tabelas com rolagem horizontal), seção **Transmissões** na página pública do evento, tipos de sala remodelados (Tipo 1/2/3, Auditório, Mini Auditório, Foyer, Coffee break, Restaurante, Posters) com **capacidade livre** e migração idempotente dos tipos legados, padronização de botões (classe base `.btn`) e **nome da sala** no cabeçalho das folhas de presença (lista de assinaturas e folha com QR Code). Planejamento aprovado do **Ciclo 5 — TRILHAS** (conceito, filtros públicos, trilhas de revisores e artigos) registrado em `plano.md`. Branch de release: `V0.32` (master acompanha a versão).
 
 > **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026 registrados neste arquivo: hardening remanescente do Ciclo 6 (ZIP-bomb no restore, CSRF em uploads multipart, rate limiting imune a spoof de IP, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas e escape de dados), correções críticas (login bloqueado por 403 e restore de backup), refinamentos de usabilidade (datas em `dd/mm/yyyy` via flatpickr em evento/atividades/etapas com correção da conversão dia/mês, descrição breve das etapas, cor uniforme na linha de sessão) e a documentação do plano de administração por evento (`Plano_admin.md`).
 

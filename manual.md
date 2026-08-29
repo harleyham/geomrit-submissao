@@ -1,6 +1,6 @@
 # Manual do Sistema — Gerência de Eventos
 
-> Guia operacional inicial. Este documento acompanha a versão V0.31 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
+> Guia operacional inicial. Este documento acompanha a versão V0.32 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
 
 ## 1. Introdução
 

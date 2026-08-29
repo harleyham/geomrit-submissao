@@ -1,7 +1,7 @@
 # Gerência de Eventos
 
 ## Versão atual
-V0.31
+V0.32
 
 
 Aplicação web para gestão de eventos acadêmicos e científicos, com inscrição de participantes, submissão de artigos, revisão por pares, controle de presença e emissão de certificados de participação.
