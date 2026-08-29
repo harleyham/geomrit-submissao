@@ -4,9 +4,9 @@
 
 Aplicação web para gestão de eventos acadêmicos e científicos, com inscrição de participantes, submissão de artigos, revisão, controle de presença e emissão de certificados de participação.
 
-Versão atual do projeto: **V0.3**.
+Versão atual do projeto: **V0.31**.
 
-Data de referência desta especificação: **14/08/2026**.
+Data de referência desta especificação: **28/08/2026**.
 
 ## Objetivo do Produto
 
@@ -78,6 +78,8 @@ O sistema deve permitir:
 - Checkbox "Haverá transmissão de vídeo" ao lado do campo de link (`has_video`): marca a atividade como transmitida mesmo sem o link ainda disponível; o link preenchido impõe a flag automaticamente; a listagem administrativa exibe o rótulo "Transmissão" (sem link) quando a flag está definida sem URL.
 - Gestão de etapas: campo opcional de link da transmissão da etapa (máximo de 500 caracteres; vazio → usa o vídeo da atividade) e checkbox "Haverá transmissão de vídeo" (`activity_sessions.has_video`), no mesmo padrão da atividade; a listagem de etapas exibe "Vídeo" (com link) ou "Transmissão" (flag sem link).
 - Descrição breve da etapa: campo opcional de até 2000 caracteres na criação e edição de etapas (coluna `activity_sessions.description`), exibido na coluna **Descrição** da listagem de etapas; validação server-side com erro para textos acima do limite.
+- Gestão de salas por evento (`/admin/events/:id/rooms`): cadastro de quantas salas desejar, cada uma com nome, **tipo** (`type1` Tipo 1, `type2` Tipo 2, `type3` Tipo 3, `auditorium` Auditório, `mini_auditorium` Mini Auditório, `foyer` Foyer, `coffee_break` Coffee break, `restaurant` Restaurante, `posters` Posters) e **capacidade livre** informada pelo administrador (opcional; se preenchida, inteiro maior que zero, para qualquer tipo). Os rótulos vêm de `services/rooms.js` (`ROOM_SIZES`/`roomLabel`); o tipo é armazenado em `event_rooms.size` e a capacidade em `event_rooms.capacity`. Salas com alocações não podem ser excluídas.
+- Página de salas com formulário de criação/edição (nome, tipo e capacidade sempre visível), listagem (Nome, Tipo, Capacidade, Alocações, Ações), card "Aguardando sala" (etapas e atividades sem etapas ainda sem sala), reserva de sala pelo próprio evento (quando não há atividades) e botões de relatório "Ocupação por dia" e "Agenda por sala".
 - Controle de presença simples por evento e chamada por atividade, com ações explícitas para marcar, atualizar ou remover presença.
 - Chamada da atividade com seção "Avaliações dos participantes" (nome, data e texto de cada avaliação registrada na atividade, com estado vazio quando não há avaliações).
 - Download em lote dos PDFs submetidos em arquivo ZIP por evento.
@@ -112,6 +114,7 @@ O sistema deve permitir:
 - Logo do evento exibida no card do evento na página inicial e no topo da página pública do evento (quando configurada).
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
 - Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; espaço vazio quando não há transmissão). Atividades com etapas exibem uma sub-linha por etapa (data e nome indentados), com a descrição breve da etapa na coluna **Descrição / Ementa** (traço quando vazia); a etapa mostra o próprio vídeo quando configurado, senão herda o vídeo da atividade (com o aviso de transmissão prevista quando a flag da etapa ou da atividade está definida).
+- Página pública do evento com seção **Transmissões** (após "Programação nas Salas"): lista atividades e etapas com vídeo, na ordem cronológica (sem data por último), exibindo botão "Assistir transmissão" (nova aba) para o link próprio ou herdado da atividade ("vídeo da atividade"), e aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; a seção só aparece quando o evento tem ao menos uma atividade/etapa com vídeo configurado.
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Inscrição somente pela administração: quando o evento tem `public_registration = 0`, a página `/evento/:id/inscricao` exibe a mensagem "As inscrições deste evento são realizadas somente pela administração." com o botão de envio desabilitado, o `POST` é bloqueado e a linha "Inscrições" não aparece no cronograma público da página do evento (participantes já inscritos continuam vendo "Minhas participações").
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
@@ -463,6 +466,14 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 
 Único por `(event_id, user_id)`. O token é criado sob demanda na primeira visualização do crachá e permanece estável: reimprimir ou perder o crachá não altera o código nem afeta presenças já registradas.
 
+### `event_rooms`
+
+Salas de um evento (`UNIQUE(event_id,name)`): `name` é o nome livre da sala; `size` é o tipo (um de `type1`, `type2`, `type3`, `auditorium`, `mini_auditorium`, `foyer`, `coffee_break`, `restaurant`, `posters` — default `type1`); `capacity` é a capacidade em lugares, informada livremente pelo administrador (opcional, inteiro maior que zero quando preenchida, para qualquer tipo). Salas pequenas/medias/grandes legadas (`small`/`medium`/`large`) foram convertidas por migração para `type1`/`type2`/`type3`, preservando a capacidade.
+
+### `room_assignments`
+
+Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entre `activity_id` (atividade sem etapas), `session_id` (etapa) ou `is_event_reservation = 1` (reserva do próprio evento, válida em todos os dias do intervalo, enquanto não há atividades) — garantido por `CHECK`. Período nas colunas `date`, `time_start`, `time_end`; sobreposição de horário na mesma sala é bloqueada com verificação transacional.
+
 ### `assignments`
 
 - `id`
@@ -640,6 +651,13 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 - Presença por QR Code: o administrador imprime, por etapa (ou atividade sem etapas), uma folha letter com o QR Code do link de presença (`/presenca/:eventId/:activityId(/:sessionId)`). A origem do link vem do campo "URL do Evento" (apenas a origem da URL); sem URL configurada, usa o host de quem imprime. O registro é feito pelo próprio usuário na página pública: exige login (com retorno automático à página via `?next=`), e só é permitido no dia da etapa (ou no período da atividade, sem etapas), em UTC-3. Papéis aceitos: `participant` (exige inscrição no evento e vinculação à atividade), `speaker`, `teacher`, `oral_presenter` e `poster_presenter` (exigem o papel em `event_user_roles`). O registro grava em `activity_attendance_records` com `marked_by` = o próprio usuário e é idempotente por atividade + pessoa + etapa, integrando-se à chamada, à carga horária e à elegibilidade de certificados sem mudança de regra.
 - Presença por QR Code do crachá: cada usuário com inscrição ou papel no evento possui um código pessoal por evento (`event_qr_codes`, 10 caracteres, estável), exibido e imprimível em `/evento/:id/qr-presenca`. Na chamada da atividade, o operador lê o QR pela câmera (jsQR servido localmente, sem CDN) ou digita o código; a presença é registrada com o mesmo efeito da marcação manual — papel resolvido automaticamente (mantém o já marcado na etapa; senão `participant` se a pessoa está inscrita na atividade; senão o primeiro papel elegível que a pessoa possui no evento) — e auditada em `participant_audit_logs` com o detalhe `via_qr`. O código é válido apenas para o evento e não dá acesso à conta.
 
+### Salas
+
+- Cada evento gerencia suas salas em `/admin/events/:id/rooms` (somente admin do evento): nome livre, tipo escolhido entre os 9 tipos de `services/rooms.js` (`ROOM_SIZES`), e capacidade livre em lugares (opcional; se preenchida, inteiro maior que zero). Não há mais capacidade fixa por tipo.
+- A sala é designada por etapa, pela atividade sem etapas, ou reservada pelo próprio evento (`is_event_reservation = 1`) quando ainda não há atividades, valendo em todos os dias do intervalo do evento.
+- Sobreposição de horário na mesma sala e mesmo dia é bloqueada com verificação transacional (checagem e gravação na mesma transação). Nos formulários de atividade/etapa, o seletor traz apenas as salas livres no dia/horário escolhidos, exibindo tipo e capacidade (`roomLabel`).
+- Sala com alocações não pode ser excluída (erro na página). A página lista "Aguardando sala" (etapas/atividades sem sala) e oferece os relatórios "Ocupação por dia" e "Agenda por sala". A grade de salas da página pública e as listas de transmissão usam os mesmos rótulos de tipo.
+
 ### Autenticação e senha
 
 - Usuários inativos (`is_public = 0`) não conseguem autenticar, e a inativação tem efeito prático imediato: qualquer sessão ativa é derrubada no próximo request (middleware `requireActiveAccount` global, redireciona ao login com aviso). Os usuários inativos **não aparecem** na chamada da atividade nem na lista de presença impressa (PDF), e a impressão do crachá (credenciamento) é bloqueada com mensagem explicativa — a marcação de presença (manual, QR do crachá ou em lote "Marcar todos") permanece bloqueada no backend para a conta inativa. O histórico existente (inscrições, presenças já registradas, elegibilidade) é preservado, e a desmarcação/correção continua permitida. A listagem de participantes do evento continua exibindo o badge "Conta inativa" (visibilidade administrativa para reativação), com o botão "Imprimir crachá" oculto para a pessoa.
@@ -746,6 +764,10 @@ Código pessoal de presença (crachá) por usuário e por evento: o participante
 | `/admin/events/:id/import-template` | Download do modelo CSV vazio para importação de participantes |
 | `/admin/events/:id/import-download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
 | `/admin/events/:id/import-result` | Resultado da importação com relatório detalhado |
+| `/admin/events/:id/rooms` | Gestão de salas: criar/editar (`POST`), excluir (`POST /:roomId/delete`), card "Aguardando sala" e reserva pelo evento (`POST /reservations`) |
+| `/admin/events/:id/rooms/availability` | Salas livres num dia/horário (usado nos formulários de atividade/etapa) |
+| `/admin/events/:id/rooms/occupancy` | Relatório de ocupação por dia |
+| `/admin/events/:id/rooms/agenda` | Relatório de agenda por sala |
 | `/admin/users/import` | Importação de usuários via CSV ou XLSX (cria apenas usuário, sem inscrição) |
 | `/admin/users/import-template` | Download do modelo CSV vazio para importação de usuários |
 | `/admin/users/import/download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
@@ -945,6 +967,9 @@ Observações operacionais:
 - Logo do evento: upload de PNG/JPEG (até 5 MB) no formulário de criação/edição do evento (`enctype="multipart/form-data"`, campo `logo`), com prévia imediata do arquivo selecionado, preview persistido e checkbox "Remover logo atual"; arquivo em `uploads/event-logos/` (`<timestamp>-<hex>.<ext>`) via `multer`, cujo `fileFilter` aceita imagens válidas com `cb(null, true)`; colunas `logo_path`/`logo_original_name` em `events` (migração idempotente em `services/db-reset.js`); servido em `/uploads/event-logos/` (`server.js`) e exibido no card da home, na página pública do evento, no crachá (`services/cracha.js`, QR reduzido para 216pt com logo), na lista de presença e na folha com QR Code — renderização centralizada em `services/event-logo.js` (`drawEventLogo` com `fit`, `getEventLogoAbsPath` com proteção contra path traversal); o arquivo é removido ao substituir o logo, ao marcar "Remover logo atual" e ao excluir o evento.
 - Listagem administrativa de atividades (`/admin/events/:id/activities`): a ordenação dentro de cada card de tipo de atividade passou a ser por data de início (`date_start`; atividades sem data por último, com desempate por nome), substituindo a ordenação alfabética por nome — alinhada à query da rota (`ORDER BY ea.date_start, ea.name`), que antes era sobrescrita pelo sort do template.
 - Correção do período do evento deslocado um dia na área do participante (`/author` e prévia `/admin/users/:id/participant`): `new Date('YYYY-MM-DD')` interpretava a data como meia-noite UTC e, em UTC-3, renderizava o dia anterior; o `withSubmissionMeta` de `routes/public.js` e `routes/users.js` passa a parsear a data como meia-noite local (padrão do `formatBRDate`), e a tabela "Minhas Participações" de `views/public/author-dashboard.ejs` usa o helper `formatBRDate`.
+- Gestão de salas por evento (`/admin/events/:id/rooms`) com tipos e capacidade livre: tipos Tipo 1/Tipo 2/Tipo 3/Auditório/Mini Auditório/Foyer/Coffee break/Restaurante/Posters (`ROOM_SIZES` em `services/rooms.js`, armazenados em `event_rooms.size`), capacidade informada livremente para qualquer tipo (opcional, inteiro > 0); designação de sala por etapa/atividade ou reserva pelo evento, bloqueio transacional de sobreposição, seletor com apenas salas livres no dia/horário, card "Aguardando sala", relatórios "Ocupação por dia" e "Agenda por sala", e grade "Programação nas Salas" na página pública. Migração idempotente converte tipos legados `small`/`medium`/`large` em `type1`/`type2`/`type3` preservando a capacidade (`services/db-reset.js`).
+- Seção "Transmissões" na página pública do evento (`views/public/event.ejs`, após "Programação nas Salas"): lista atividades e etapas com vídeo em ordem cronológica, com link próprio ou herdado da atividade e aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está sem link; exibida somente quando há conteúdo.
+- Responsividade mobile: partial compartilhado `views/partials/mobile-fixes.ejs` (injetado em todas as 50 views) com `table-layout`/scroll horizontal em tabelas densas e ajustes de grade; wrappers `.table-scroll` nas tabelas; `minmax(min(100%,Npx),auto)` nas grades responsivas; `overflow` das colunas de agenda corrigido; botões padronizados com a classe base `.btn` (cores via `.btn-secondary`) e `.btn-secondary` ganhou padding/radio próprio onde usado sem a base.
 
 ### Segurança reforçada (V0.2)
 

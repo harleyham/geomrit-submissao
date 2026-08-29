@@ -405,6 +405,76 @@
           </div>
         </div>
       <% } %>
+
+      <%
+        const transmissions = [];
+        (activities || []).forEach(function(activity) {
+          if (activity.sessions && activity.sessions.length) {
+            activity.sessions.forEach(function(session) {
+              const sessionVideo = session.video_url || (session.has_video ? null : activity.video_url);
+              const planned = !sessionVideo && (session.has_video || activity.has_video);
+              if (sessionVideo || planned) {
+                transmissions.push({
+                  date: session.session_date || activity.date_start,
+                  time_start: session.time_start || activity.time_start,
+                  time_end: session.time_end || activity.time_end,
+                  label: activity.name + ' : ' + session.name,
+                  room: session.room_allocation ? session.room_allocation.room_name : '—',
+                  video: sessionVideo,
+                  planned: planned,
+                });
+              }
+            });
+          } else if (activity.video_url || activity.has_video) {
+            transmissions.push({
+              date: activity.date_start,
+              time_start: activity.time_start,
+              time_end: activity.time_end,
+              label: activity.name,
+              room: activity.room_allocation ? activity.room_allocation.room_name : '—',
+              video: activity.video_url,
+              planned: !activity.video_url && activity.has_video,
+            });
+          }
+        });
+        transmissions.sort(function(a, b) {
+          return String(a.date || '9999-12-31').localeCompare(String(b.date || '9999-12-31'))
+            || String(a.time_start || '').localeCompare(String(b.time_start || ''));
+        });
+      %>
+      <% if (transmissions.length) { %>
+        <div class="timeline-title">Transmissões</div>
+        <div class="timeline-table-wrap">
+          <table class="timeline-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Horário</th>
+                <th>Atividade / Etapa</th>
+                <th>Sala</th>
+                <th>Vídeo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% transmissions.forEach(function(item) { %>
+                <tr>
+                  <td class="muted"><%= item.date ? formatBRDate(item.date) : 'A definir' %></td>
+                  <td class="muted"><%= (item.time_start || item.time_end) ? String(item.time_start || '?').slice(0,5) + '–' + String(item.time_end || '?').slice(0,5) : '—' %></td>
+                  <td class="timeline-label"><%= item.label %></td>
+                  <td class="muted"><%= item.room %></td>
+                  <td class="timeline-action">
+                    <% if (item.video) { %>
+                      <a href="<%= item.video %>" target="_blank" rel="noopener noreferrer" class="btn btn-secondary activity-video">Assistir transmissão</a>
+                    <% } else { %>
+                      <span class="muted">Transmissão prevista — link a ser divulgado</span>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
     </div>
   </main>
 

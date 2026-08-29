@@ -205,11 +205,11 @@ As etapas também ficam disponíveis ao público na página somente-leitura `/ev
 ### Cadastro de salas
 
 1. Na listagem de eventos, abra **Salas** (`/admin/events/:id/rooms`).
-2. Cadastre quantas salas desejar para o evento, dando um nome a cada uma e classificando pelo tamanho:
-   - **Pequena** — 10 lugares;
-   - **Média** — 50 lugares;
-   - **Grande** — 100 lugares;
-   - **Auditório** — capacidade livre, informada pelo administrador.
+2. Cadastre quantas salas desejar para o evento, dando um nome a cada uma, escolhendo o **tipo** e informando a **capacidade** (livre, em lugares, para qualquer tipo):
+   - **Tipo 1**, **Tipo 2** e **Tipo 3**;
+   - **Auditório** e **Mini Auditório**;
+   - **Foyer**, **Coffee break**, **Restaurante** e **Posters**.
+   - Todos os tipos têm capacidade livre, informada pelo administrador (opcional; se preenchida, deve ser inteiro maior que zero).
 3. Salas com alocações na agenda não podem ser excluídas; remova as alocações primeiro.
 
 ### Alocação de salas
@@ -231,6 +231,7 @@ O card **Aguardando sala** na página de salas lista as etapas e as atividades s
 - **Ocupação por dia** (`/admin/events/:id/rooms/occupancy`): para cada dia com alocações, as salas e os horários ocupados, com botão de impressão/PDF.
 - **Agenda por sala** (`/admin/events/:id/rooms/agenda`): cada sala com suas atividades, etapas e reservas em ordem cronológica, com botão de impressão/PDF.
 - Na página pública do evento (`/evento/:id`), o bloco **Programação nas Salas** aparece quando há alocações, com alternância **Por dia** / **Por sala**.
+- Logo abaixo, a seção **Transmissões** lista as atividades e etapas que terão vídeo (link próprio ou herdado da atividade), em ordem cronológica, com botão "Assistir transmissão"; atividades marcadas com "Haverá transmissão" mas ainda sem link aparecem com o aviso "Transmissão prevista — link a ser divulgado". A seção só aparece quando o evento tem ao menos uma transmissão configurada.
 - Nos **Cards** da seção **Atividades do Evento**, a sala aparece ao lado da atividade sem etapas e de cada etapa (apenas o nome da sala).
 - Na visão **Lista** da mesma seção, cada linha exibe também o **horário** e a **sala** da atividade/etapa.
 

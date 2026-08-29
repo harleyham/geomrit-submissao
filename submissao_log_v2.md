@@ -12,6 +12,29 @@ Versão atual registrada: **V0.3**.
 
 ## 2026-08-28
 
+### Salas: novos tipos com capacidade livre
+
+- Os tipos de sala deixam de ser "tamanho com capacidade fixa" (Pequena 10 / Média 50 / Grande 100 / Auditório livre) e passam a ser **tipo com capacidade livre** (informada pelo admin): **Tipo 1, Tipo 2, Tipo 3, Auditório, Mini Auditório, Foyer, Coffee break, Restaurante e Posters**.
+- `services/rooms.js`: `ROOM_SIZES` redefinido com as 9 chaves (`type1`…`type3`, `auditorium`, `mini_auditorium`, `foyer`, `coffee_break`, `restaurant`, `posters`), sem capacidade fixa; `resolveRoomCapacity` passa a aceitar a capacidade informada para **qualquer** tipo (inteiro > 0 ou nulo).
+- `routes/events.js`: `parseRoomForm` valida a capacidade para todos os tipos (opcional; se preenchida, inteiro > 0), mensagem "Selecione um tipo de sala válido."; as renderizações de atividades passaram a expor `roomLabel` à view.
+- Views: `admin/events/rooms.ejs` — campo de capacidade sempre visível (antes só aparecia para `auditorium`), cabeçalho "Tamanho"→"Tipo" e redação "classificando por tipo e informando a capacidade"; `admin/events/activities.ejs` — o `<select>` de sala usava um ternário hardcoded com os rótulos antigos, trocado por `roomLabel(room.size)` (+ capacidade). Páginas que já usavam `roomLabel` (agenda, ocupação, programação pública) acompanham automaticamente.
+- Migração idempotente em `services/db-reset.js` (`initializeDbSchema`): `small→type1` (cap. 10), `medium→type2` (cap. 50), `large→type3` (cap. 100); `auditorium` permanece; capacidade existente preservada como valor livre inicial. Coluna `size` e demais dados não mudam; default da tabela passou a `type1`.
+- Verificação: `node --check` em `rooms.js`/`db-reset.js`/`events.js`; migração aplicada no dev (`Sala 01→type1(10)`, `Sala 02→type2(50)`, `Auditório→auditorium`); `rooms.ejs` renderiza com os 9 tipos no seletor, capacidade visível e coluna "Tipo"; servidor sobe limpo e `/`, `/evento/1`, `/revisores` respondem 200. Efetivo após reinício do servidor.
+
+### Botões "Ocupação por dia" e "Agenda por sala" fora do padrão
+
+- Sintoma: em `/admin/events/:id/rooms`, os botões "Ocupação por dia" e "Agenda por sala" apareciam como texto solto com leve fundo, sem a forma de botão (sem `padding`/`border-radius`/`inline-flex`).
+- Causa: o padrão do app é `class="btn btn-secondary"` — a classe base `.btn` fornece formato (padding, raio, `inline-flex`, tamanho) e a `.btn-secondary` só fornece a cor. Os dois `<a>` tinham apenas `btn-secondary`, então herdavam só a cor.
+- Correção: padronizados os links "Ocupação por dia"/"Agenda por sala" e "Cancelar" em `admin/events/rooms.ejs`, "Cancelar" em `admin/events/activity-sessions.ejs` e "Voltar ao Início" em `public/reviewers.ejs` para `class="btn btn-secondary"`. Nas páginas de importação que não têm a classe base `.btn`, a cor `.btn-secondary` recebeu `padding`/`border-radius`/`font-size` próprios (`admin/events/import-users.ejs`, `admin/users/import-users.ejs`), alinhando ao mesmo formato.
+- Verificação: todas as views afetadas compilam; `/revisores` responde 200 já com o botão no padrão. Painéis administrativos validados por compilação. Efetivo após reinício do servidor; sem migração de banco.
+
+### Página pública do evento: nova seção "Transmissões"
+
+- `/evento/:id` ganhou a seção **Transmissões** (após "Programação nas Salas"), listando apenas atividades/etapas com transmissão: botão **Assistir transmissão** quando há link (o da etapa quando preenchido, senão herdado da atividade) e o aviso "Transmissão prevista — link a ser divulgado" quando a flag está marcada sem link — mesma regra de herança já usada na visão Lista.
+- Linhas com data (formato `dd/mm/aaaa`), horário início–término, nome "Atividade : Etapa" (ou só a atividade, quando sem etapas), sala e vídeo; ordenação por data e horário. Seção oculta quando não há transmissões.
+- Implementação somente no template `views/public/event.ejs` (dados `activities`/`sessions` já chegavam à view); reutiliza `.timeline-table-wrap` (rolagem horizontal no celular).
+- Verificação: servidor sobe e `/evento/1` e `/evento/2` respondem 200 com a seção presente (evento 2: "C++ : Aula 1" e "Python" com botão, "C++ : Aula 2" como prevista; evento 1 com os vídeos próprios). Efetivo após reinício do servidor; sem migração de banco.
+
 ### Responsividade mobile: cards/tabelas com rolagem horizontal e grids adaptativos
 
 - Sintoma: em celulares, diversos cards não se adaptavam à rolagem horizontal — tabelas largas cortavam o conteúdo (botões de ação inacessíveis), a página inteira arrastava para o lado e formulários mantinham colunas lado a lado.
@@ -261,7 +284,7 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Verificação: `node --check` OK em `services/backup.js` e `routes/auth.js`. Teste funcional com o módulo real (`adm-zip`): (1) ZIP vazio rejeitado; (2) ZIP válido e pequeno (padrão de backup real) aprovado; (3) ZIP-bomb por razão (payload de 6 MB de zeros, razão >> 100) rejeitado com "razão de compressão excede o limite permitido (possível ZIP-bomb)"; (4) ZIP com 100.001 entradas rejeitado pelo teto de nº de entradas. **4/4 checks.**
 - Status: **corrigido e validado** (efetiva após reinício do servidor; não exige migração de banco).
 
-### Meus comentários
+### Meus comentários de funções a implementar
 
 - Fotinha redonda e mini currículo dos palestrantes e professores
 - Fotinha redonda dos usuários

@@ -58,7 +58,7 @@
           <select name="room_id" id="room-select" title="Sala (somente para atividades sem etapas)">
             <option value="">— Sem sala —</option>
             <% eventRooms.forEach((room) => { %>
-              <option value="<%= room.id %>" <%= activityForm.room_allocation && activityForm.room_allocation.room_id === room.id ? 'selected' : '' %>><%= room.name %> (<%= room.size === 'auditorium' ? 'Auditório' : room.size === 'small' ? 'Pequena' : room.size === 'medium' ? 'Média' : 'Grande' %>)</option>
+              <option value="<%= room.id %>" <%= activityForm.room_allocation && activityForm.room_allocation.room_id === room.id ? 'selected' : '' %>><%= room.name %> (<%= roomLabel(room.size) %><%= room.capacity ? ' · ' + room.capacity + ' lugares' : '' %>)</option>
             <% }) %>
           </select>
           <span class="hint" style="display:block;margin:6px 4px">A sala usa a data e os horários acima (em atividades de vários dias, a reserva vale no dia de início).</span>

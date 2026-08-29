@@ -1845,6 +1845,7 @@ function renderActivitiesForm(req, res, { eventId, formDraft = null, editingActi
     editingActivity,
     formDraft,
     eventRooms: rooms.getEventRooms(event.id),
+    roomLabel: rooms.roomLabel,
     canManage: req.eventRole === 'admin',
     isStaff: req.eventRole === 'staff',
     success: null,
@@ -1863,6 +1864,7 @@ router.get('/:id/activities', (req, res) => {
     title: `Atividades - ${event.name}`,
     event, activities, editingActivity,
     eventRooms: rooms.getEventRooms(event.id),
+    roomLabel: rooms.roomLabel,
     canManage: req.eventRole === 'admin',
     isStaff: req.eventRole === 'staff',
     success: req.query.success || null,
@@ -2211,11 +2213,12 @@ function parseRoomForm(req) {
   if (!name) return { error: 'Informe o nome da sala.' };
   if (name.length > 80) return { error: 'O nome da sala deve ter no máximo 80 caracteres.' };
   const size = rooms.ROOM_SIZES[req.body.size] ? req.body.size : null;
-  if (!size) return { error: 'Selecione um tamanho de sala válido.' };
+  if (!size) return { error: 'Selecione um tipo de sala válido.' };
   let capacity = null;
-  if (size === 'auditorium' && String(req.body.capacity || '').trim() !== '') {
-    capacity = Number.parseInt(req.body.capacity, 10);
-    if (!Number.isFinite(capacity) || capacity <= 0) return { error: 'A capacidade do auditório deve ser um número inteiro maior que zero.' };
+  const capacityRaw = String(req.body.capacity || '').trim();
+  if (capacityRaw !== '') {
+    capacity = Number.parseInt(capacityRaw, 10);
+    if (!Number.isFinite(capacity) || capacity <= 0) return { error: 'A capacidade deve ser um número inteiro maior que zero.' };
   }
   capacity = rooms.resolveRoomCapacity(size, capacity);
   return { name, size, capacity };

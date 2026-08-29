@@ -13,7 +13,7 @@
   <main class="main-content">
     <p style="margin-bottom:8px"><a href="/admin/events" style="color:#93c5fd;text-decoration:none">← Voltar aos eventos</a></p>
     <h1 style="font-size:1.5rem;margin:0 0 4px">Salas — <%= event.name %></h1>
-    <p class="hint">Crie quantas salas quiser para este evento, classificando pelo tamanho. Alocule salas às atividades sem etapas, às etapas e (quando o evento não tem atividades) ao próprio evento — sobreposições de horário na mesma sala são bloqueadas.</p>
+    <p class="hint">Crie quantas salas quiser para este evento, classificando por tipo e informando a capacidade. Alocule salas às atividades sem etapas, às etapas e (quando o evento não tem atividades) ao próprio evento — sobreposições de horário na mesma sala são bloqueadas.</p>
     <% if (success) { %><p class="alert success"><%= success %></p><% } %>
     <% if (error) { %><p class="alert error"><%= error %></p><% } %>
 
@@ -22,14 +22,14 @@
       <form method="post" action="<%= editingRoom ? `/admin/events/${event.id}/rooms/${editingRoom.id}` : `/admin/events/${event.id}/rooms` %>">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input name="name" required maxlength="80" placeholder="Nome da sala (ex.: Sala A, Lab. de Informática)" value="<%= editingRoom ? editingRoom.name : '' %>">
-        <select name="size" id="room-size" onchange="document.getElementById('room-capacity').style.display = this.value === 'auditorium' ? '' : 'none'">
+        <select name="size" id="room-size">
           <% Object.entries(roomSizes).forEach(([key, meta]) => { %>
             <option value="<%= key %>" <%= editingRoom && editingRoom.size === key ? 'selected' : '' %>><%= meta.label %><% if (meta.capacity) { %> (<%= meta.capacity %> lugares)<% } %></option>
           <% }) %>
         </select>
-        <input name="capacity" id="room-capacity" type="number" min="1" placeholder="Capacidade (lugares)" value="<%= editingRoom && editingRoom.size === 'auditorium' && editingRoom.capacity ? editingRoom.capacity : '' %>" style="<%= editingRoom && editingRoom.size === 'auditorium' ? '' : 'display:none' %>">
+        <input name="capacity" id="room-capacity" type="number" min="1" placeholder="Capacidade (lugares)" value="<%= editingRoom && editingRoom.capacity ? editingRoom.capacity : '' %>">
         <button type="submit"><%= editingRoom ? 'Salvar sala' : 'Adicionar sala' %></button>
-        <% if (editingRoom) { %><a href="/admin/events/<%= event.id %>/rooms" class="btn-secondary">Cancelar</a><% } %>
+        <% if (editingRoom) { %><a href="/admin/events/<%= event.id %>/rooms" class="btn btn-secondary">Cancelar</a><% } %>
       </form>
     </section>
 
@@ -40,7 +40,7 @@
       <% } else { %>
         <div class="table-scroll"><table>
           <thead>
-            <tr><th>Nome</th><th>Tamanho</th><th>Capacidade</th><th>Alocações</th><th style="width:140px">Ações</th></tr>
+            <tr><th>Nome</th><th>Tipo</th><th>Capacidade</th><th>Alocações</th><th style="width:140px">Ações</th></tr>
           </thead>
           <tbody>
             <% roomsList.forEach((room) => { %>
@@ -137,8 +137,8 @@
     <section class="card">
       <h2>Relatórios de salas</h2>
       <p>
-        <a class="btn-secondary" href="/admin/events/<%= event.id %>/rooms/occupancy">Ocupação por dia</a>
-        <a class="btn-secondary" href="/admin/events/<%= event.id %>/rooms/agenda">Agenda por sala</a>
+        <a class="btn btn-secondary" href="/admin/events/<%= event.id %>/rooms/occupancy">Ocupação por dia</a>
+        <a class="btn btn-secondary" href="/admin/events/<%= event.id %>/rooms/agenda">Agenda por sala</a>
       </p>
     </section>
   </main>

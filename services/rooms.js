@@ -1,10 +1,15 @@
 const { db } = require('../db');
 
 const ROOM_SIZES = {
-  small: { label: 'Pequena', capacity: 10 },
-  medium: { label: 'Média', capacity: 50 },
-  large: { label: 'Grande', capacity: 100 },
-  auditorium: { label: 'Auditório', capacity: null }
+  type1: { label: 'Tipo 1' },
+  type2: { label: 'Tipo 2' },
+  type3: { label: 'Tipo 3' },
+  auditorium: { label: 'Auditório' },
+  foyer: { label: 'Foyer' },
+  mini_auditorium: { label: 'Mini Auditório' },
+  coffee_break: { label: 'Coffee break' },
+  restaurant: { label: 'Restaurante' },
+  posters: { label: 'Posters' }
 };
 
 function normalizeTime(value) {
@@ -59,12 +64,9 @@ function roomLabel(size) {
   return (ROOM_SIZES[size] && ROOM_SIZES[size].label) || size;
 }
 
-function resolveRoomCapacity(size, capacity) {
-  if (size === 'auditorium') {
-    const parsed = Number.parseInt(capacity, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-  return (ROOM_SIZES[size] && ROOM_SIZES[size].capacity) || null;
+function resolveRoomCapacity(_size, capacity) {
+  const parsed = Number.parseInt(capacity, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function daysBetween(start, end) {

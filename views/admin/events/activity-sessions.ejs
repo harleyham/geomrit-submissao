@@ -58,7 +58,7 @@
         <label style="font-size:13px;color:#94a3b8"><input type="checkbox" name="has_video" value="1" style="margin:0 6px 0 0" <%= sessionForm.has_video || sessionForm.video_url ? 'checked' : '' %>> Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)</label>
         <textarea name="description" rows="3" maxlength="2000" placeholder="Descrição breve da etapa (opcional)"><%= sessionForm.description || '' %></textarea>
         <button type="submit"><%= editingSession ? 'Salvar etapa' : 'Adicionar etapa' %></button>
-        <% if (editingSession) { %><a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions" class="btn-secondary">Cancelar</a><% } %>
+        <% if (editingSession) { %><a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions" class="btn btn-secondary">Cancelar</a><% } %>
       </form>
     </section>
     <% } %>

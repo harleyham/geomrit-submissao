@@ -80,7 +80,7 @@ const ROOM_DDL = `
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id INTEGER NOT NULL,
       name TEXT NOT NULL,
-      size TEXT NOT NULL DEFAULT 'medium',
+      size TEXT NOT NULL DEFAULT 'type1',
       capacity INTEGER,
       created_at DATETIME DEFAULT (datetime('now','-3 hours')),
       updated_at DATETIME DEFAULT (datetime('now','-3 hours')),
@@ -532,8 +532,15 @@ function initializeDbSchema(db) {
     if (!emissionCols.includes('text_color')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
   } catch(e) {}
   try {
-    const ruleCols = db.prepare("PRAGMA table_info(certificate_rules)").all().map(c => c.name);
+    const ruleCols = db.prepare('PRAGMA table_info(certificate_rules)').all().map(c => c.name);
     if (!ruleCols.includes('text_color')) db.exec('ALTER TABLE certificate_rules ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
+  } catch(e) {}
+  try {
+    db.exec(`
+      UPDATE event_rooms SET size='type1', capacity=COALESCE(capacity,10)  WHERE size='small';
+      UPDATE event_rooms SET size='type2', capacity=COALESCE(capacity,50)  WHERE size='medium';
+      UPDATE event_rooms SET size='type3', capacity=COALESCE(capacity,100) WHERE size='large';
+    `);
   } catch(e) {}
   try {
     const userColumns = db.prepare('PRAGMA table_info(users)').all().map((column) => column.name);
