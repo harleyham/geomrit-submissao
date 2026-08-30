@@ -161,15 +161,19 @@
           var actOcc = [];
           activities.forEach(function(a){
             if (a.sessions && a.sessions.length) {
-              a.sessions.forEach(function(s){ if (s.session_date && s.time_start) actOcc.push({ day: s.session_date, hour: String(s.time_start).slice(0,2), name: a.name + ' : ' + s.name }); });
+              a.sessions.forEach(function(s){ if (s.session_date && s.time_start) actOcc.push({ day: String(s.session_date).slice(0,10), hour: String(s.time_start).slice(0,2), name: a.name + ' : ' + s.name, time: String(s.time_start).slice(0,5) + '–' + String(s.time_end || '?').slice(0,5) }); });
             } else if (a.date_start && a.time_start) {
-              actOcc.push({ day: a.date_start, hour: String(a.time_start).slice(0,2), name: a.name });
+              var gStart = String(a.date_start).slice(0,10);
+              var gEnd = (a.date_end && String(a.date_end).slice(0,10) > gStart) ? String(a.date_end).slice(0,10) : gStart;
+              for (var gd = new Date(gStart + 'T00:00:00Z'), gLim = new Date(gEnd + 'T00:00:00Z'), gN = 0; gd <= gLim && gN < 92; gd.setUTCDate(gd.getUTCDate() + 1), gN++) {
+                actOcc.push({ day: gd.toISOString().slice(0,10), hour: String(a.time_start).slice(0,2), name: a.name, time: String(a.time_start).slice(0,5) + '–' + String(a.time_end || '?').slice(0,5) });
+              }
             }
           });
           var gridDays = Array.from(new Set(actOcc.map(function(o){ return o.day; }))).sort();
           var gridHours = Array.from(new Set(actOcc.map(function(o){ return o.hour; }))).sort();
           var gridCell = {};
-          actOcc.forEach(function(o){ var k = o.day + '|' + o.hour; (gridCell[k] = gridCell[k] || []).push(o.name); });
+          actOcc.forEach(function(o){ var k = o.day + '|' + o.hour; (gridCell[k] = gridCell[k] || []).push(o); });
           var hasActivityGrid = gridDays.length > 0 && gridHours.length > 0;
           var actTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', other:'Outra' };
           var actTypeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','other'];
@@ -317,7 +321,7 @@
                         <% gridDays.forEach(function(day){ %>
                           <% var items = gridCell[day + '|' + hour] || []; %>
                           <td>
-                            <% if (items.length) { items.forEach(function(nm){ %><span class="grid-item"><%= nm %></span><% }); } else { %><span class="muted">—</span><% } %>
+                            <% if (items.length) { items.forEach(function(o){ %><span class="grid-item"><strong style="color:#cbd5e1;font-weight:600"><%= o.time %></strong> · <%= o.name %></span><% }); } else { %><span class="muted">—</span><% } %>
                           </td>
                         <% }) %>
                       </tr>

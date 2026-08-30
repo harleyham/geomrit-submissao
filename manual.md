@@ -123,7 +123,7 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 9. Se o evento não possui site próprio, envie em **Conteúdo do evento em PDF** um documento de até 50 MB com sua programação e demais informações.
 10. Salve o evento.
 
-Ao criar o evento, o usuário criador recebe automaticamente o papel de administrador daquele evento. Um evento publicado aparece na página inicial. Ao encerrá-lo, a página pública e os certificados permanecem acessíveis, mas novas inscrições e submissões são bloqueadas.
+Ao criar o evento, o usuário criador recebe automaticamente o papel de administrador daquele evento. Um evento publicado aparece na página inicial. Ao encerrá-lo, o evento deixa de figurar na lista principal e passa ao bloco **Eventos Encerrados** da página inicial; a página pública e os certificados permanecem acessíveis, mas novas inscrições e submissões são bloqueadas.
 
 Na edição, é possível substituir o logo ou marcar **Remover logo atual**. O logo é usado no card da home, página pública, crachás, listas de assinatura e folhas de presença com QR Code.
 
@@ -177,7 +177,7 @@ Abra a listagem de participantes e use **Analisar** para aprovar ou recusar a so
 
 Tipos comuns: palestra, seminário, mesa-redonda, minicurso e apresentação oral ou pôster.
 
-Na página pública do evento (`/evento/:id`), a seção **Atividades do Evento** oferece três visualizações alternáveis: **Cards** (padrão, agrupados por tipo, no mesmo formato do painel administrativo), **Lista** e **Grade (dia × hora)**, esta com os dias nas colunas, o horário de início nas linhas e apenas o nome das atividades/etapas nas células. Cada atividade exibe nome, descrição/ementa, data e horário; quando **não tem etapas**, mostra também a **sala**; quando **tem etapas**, cada etapa aparece com data, horário e sala.
+Na página pública do evento (`/evento/:id`), a seção **Atividades do Evento** oferece três visualizações alternáveis: **Cards** (padrão, agrupados por tipo, no mesmo formato do painel administrativo), **Lista** e **Grade (dia × hora)**, esta com os dias nas colunas, o horário de início nas linhas e, em cada célula, o intervalo de horário (início–fim) e o nome das atividades/etapas. Uma atividade sem etapas cadastrada com intervalo de vários dias aparece em **todos os dias** do intervalo. Cada atividade exibe nome, descrição/ementa, data e horário; quando **não tem etapas**, mostra também a **sala**; quando **tem etapas**, cada etapa aparece com data, horário e sala.
 
 O botão **Etapas** aparece somente nas atividades que possuem etapas e abre a página pública somente-leitura `/evento/:id/atividades/:activityId/etapas` (sem nenhum campo de edição), com #, nome, data, horário, sala, carga e transmissão de cada etapa.
 
@@ -230,7 +230,7 @@ O card **Aguardando sala** na página de salas lista as etapas e as atividades s
 
 - **Ocupação por dia** (`/admin/events/:id/rooms/occupancy`): para cada dia com alocações, as salas e os horários ocupados, com botão de impressão/PDF.
 - **Agenda por sala** (`/admin/events/:id/rooms/agenda`): cada sala com suas atividades, etapas e reservas em ordem cronológica, com botão de impressão/PDF.
-- Na página pública do evento (`/evento/:id`), o bloco **Programação nas Salas** aparece quando há alocações, com alternância **Por dia** / **Por sala**.
+- Na página pública do evento (`/evento/:id`), o bloco **Programação nas Salas** aparece quando há alocações, com alternância **Por dia** / **Por sala**. Os itens são exibidos com o nome da atividade (somente o nome quando não há etapas), como `Atividade: Etapa` (quando há etapas) ou como "Reserva do evento" (reserva do evento inteiro).
 - Logo abaixo, a seção **Transmissões** lista as atividades e etapas que terão vídeo (link próprio ou herdado da atividade), em ordem cronológica, com botão "Assistir transmissão"; atividades marcadas com "Haverá transmissão" mas ainda sem link aparecem com o aviso "Transmissão prevista — link a ser divulgado". A seção só aparece quando o evento tem ao menos uma transmissão configurada.
 - Nos **Cards** da seção **Atividades do Evento**, a sala aparece ao lado da atividade sem etapas e de cada etapa (apenas o nome da sala).
 - Na visão **Lista** da mesma seção, cada linha exibe também o **horário** e a **sala** da atividade/etapa.

@@ -27,6 +27,7 @@
     .event-card .submission-badge { display: inline-block; margin-left: 0.5rem; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
     .event-card .submission-open { background: rgba(52,211,153,0.15); color: #34d399; }
     .event-card .submission-closed { background: rgba(248,113,113,0.12); color: #f87171; }
+    .event-card .submission-ended { background: rgba(251,191,36,0.14); color: #fbbf24; }
     .event-card p { color: #94a3b8; font-size: 0.875rem; line-height: 1.6; margin-bottom: 1rem; }
     .event-section-label { display: block; color: #94a3b8; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
     .event-meta { display: flex; gap: 1rem; color: #64748b; font-size: 0.75rem; margin-bottom: 1rem; }
@@ -81,39 +82,22 @@
     <% if (events.length > 0) { %>
       <div class="events-grid">
         <% events.forEach(event => { %>
-          <a href="/evento/<%= event.id %>" class="event-card" aria-label="Abrir detalhes do evento <%= event.name %>">
-            <% if (event.logo_path) { %>
-              <img src="/uploads/event-logos/<%= String(event.logo_path).split('/').pop() %>" alt="" class="event-logo">
-            <% } %>
-            <span class="area"><%= event.area_display %></span>
-            <% if (event.submission.isConfigured) { %>
-              <span class="submission-badge <%= event.submission.isOpen ? 'submission-open' : 'submission-closed' %>">
-                <%= event.submission.isOpen ? 'Submissão aberta' : 'Submissão fechada' %>
-              </span>
-            <% } %>
-            <h3><%= event.name %></h3>
-            <span class="event-section-label">Período do Evento</span>
-            <div class="event-meta">
-              <span>📅 <%= new Date(event.date_start).toLocaleDateString('pt-BR') %><% if (event.date_end) { %> - <%= new Date(event.date_end).toLocaleDateString('pt-BR') %><% } %></span>
-              <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
-            </div>
-            <% if (event.submission.start || event.submission.end) { %>
-              <span class="event-section-label">Período de Submissão de Artigos</span>
-              <div class="event-meta">
-                <% if (event.submission.start) { %><span>🟢 Início: <%= event.submission.start.toLocaleDateString('pt-BR') %></span><% } %>
-                <% if (event.submission.end) { %><span>⏰ Fim: <%= event.submission.end.toLocaleDateString('pt-BR') %></span><% } %>
-              </div>
-            <% } %>
-            <% if (event.description) { %>
-              <p><%= event.description.length > 150 ? event.description.substring(0, 150) + '...' : event.description %></p>
-            <% } %>
-          </a>
+          <%- include('home-event-card', { event: event, isClosed: false }) %>
         <% }) %>
       </div>
     <% } else { %>
       <div class="empty-state">
         <h2>Nenhum evento publicado</h2>
         <p>Em breve novos eventos serão disponibilizados.</p>
+      </div>
+    <% } %>
+
+    <% if (closedEvents && closedEvents.length > 0) { %>
+      <h2 class="section-title" style="margin-top: 4rem;">Eventos Encerrados</h2>
+      <div class="events-grid">
+        <% closedEvents.forEach(event => { %>
+          <%- include('home-event-card', { event: event, isClosed: true }) %>
+        <% }) %>
       </div>
     <% } %>
   </main>

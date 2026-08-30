@@ -1,0 +1,29 @@
+<a href="/evento/<%= event.id %>" class="event-card" aria-label="Abrir detalhes do evento <%= event.name %>">
+  <% if (event.logo_path) { %>
+    <img src="/uploads/event-logos/<%= String(event.logo_path).split('/').pop() %>" alt="" class="event-logo">
+  <% } %>
+  <span class="area"><%= event.area_display %></span>
+  <% if (locals.isClosed) { %>
+    <span class="submission-badge submission-ended">Encerrado</span>
+  <% } else if (event.submission.isConfigured) { %>
+    <span class="submission-badge <%= event.submission.isOpen ? 'submission-open' : 'submission-closed' %>">
+      <%= event.submission.isOpen ? 'Submissão aberta' : 'Submissão fechada' %>
+    </span>
+  <% } %>
+  <h3><%= event.name %></h3>
+  <span class="event-section-label">Período do Evento</span>
+  <div class="event-meta">
+    <span>📅 <%= new Date(event.date_start).toLocaleDateString('pt-BR') %><% if (event.date_end) { %> - <%= new Date(event.date_end).toLocaleDateString('pt-BR') %><% } %></span>
+    <% if (event.location) { %><span>📍 <%= event.location %></span><% } %>
+  </div>
+  <% if (event.submission.start || event.submission.end) { %>
+    <span class="event-section-label">Período de Submissão de Artigos</span>
+    <div class="event-meta">
+      <% if (event.submission.start) { %><span>🟢 Início: <%= event.submission.start.toLocaleDateString('pt-BR') %></span><% } %>
+      <% if (event.submission.end) { %><span>⏰ Fim: <%= event.submission.end.toLocaleDateString('pt-BR') %></span><% } %>
+    </div>
+  <% } %>
+  <% if (event.description) { %>
+    <p><%= event.description.length > 150 ? event.description.substring(0, 150) + '...' : event.description %></p>
+  <% } %>
+</a>

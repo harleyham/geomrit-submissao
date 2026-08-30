@@ -6,11 +6,42 @@ Este arquivo é a continuação de `submissao_log.md`, que registra o histórico
 
 Versão atual registrada: **V0.32**.
 
-> **Sobre a V0.32**: versão em desenvolvimento desde 28/08/2026, consolidando: responsividade mobile completa (partial `mobile-fixes.ejs` em todas as views, tabelas com rolagem horizontal), seção **Transmissões** na página pública do evento, tipos de sala remodelados (Tipo 1/2/3, Auditório, Mini Auditório, Foyer, Coffee break, Restaurante, Posters) com **capacidade livre** e migração idempotente dos tipos legados, padronização de botões (classe base `.btn`) e **nome da sala** no cabeçalho das folhas de presença (lista de assinaturas e folha com QR Code). Planejamento aprovado do **Ciclo 5 — TRILHAS** (conceito, filtros públicos, trilhas de revisores e artigos) registrado em `plano.md`. Branch de release: `V0.32` (master acompanha a versão).
+> **Sobre a V0.32**: versão em desenvolvimento desde 28/08/2026, consolidando: responsividade mobile completa (partial `mobile-fixes.ejs` em todas as views, tabelas com rolagem horizontal), seção **Transmissões** na página pública do evento, tipos de sala remodelados (Tipo 1/2/3, Auditório, Mini Auditório, Foyer, Coffee break, Restaurante, Posters) com **capacidade livre** e migração idempotente dos tipos legados, padronização de botões (classe base `.btn`), **nome da sala** no cabeçalho das folhas de presença (lista de assinaturas e folha com QR Code) e, em 30/08, melhorias na página pública: grade (dia × hora) com **intervalo início–fim nas células** e atividades multi-dia em **todos os dias do intervalo**, rótulo **sem o prefixo "Atividade:"** na Programação nas Salas/Agenda por sala e bloco **"Eventos Encerrados"** na página inicial. Planejamento aprovado do **Ciclo 5 — TRILHAS** (conceito, filtros públicos, trilhas de revisores e artigos) registrado em `plano.md`. Branch de release: `V0.32` (master acompanha a versão).
 
 > **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026 registrados neste arquivo: hardening remanescente do Ciclo 6 (ZIP-bomb no restore, CSRF em uploads multipart, rate limiting imune a spoof de IP, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas e escape de dados), correções críticas (login bloqueado por 403 e restore de backup), refinamentos de usabilidade (datas em `dd/mm/yyyy` via flatpickr em evento/atividades/etapas com correção da conversão dia/mês, descrição breve das etapas, cor uniforme na linha de sessão) e a documentação do plano de administração por evento (`Plano_admin.md`).
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
+
+## 2026-08-30
+
+### Home: seção "Eventos Encerrados"
+
+- Requisito: eventos com status `encerrado` não apareciam em `/` (decisão anterior os mantinha fora da home, acessíveis apenas por URL); passam a ser listados em uma seção própria **"Eventos Encerrados"**, abaixo dos eventos publicados.
+- `routes/public.js` (`GET /`): nova consulta `closedEvents` (`status = 'encerrado'`, ordem `date_start DESC`), com os mesmos wraps `withSubmissionMeta`/`withAreaMeta` da lista de publicados.
+- `views/public/home.ejs`: o card do evento foi extraído para o partial `views/public/home-event-card.ejs` (reutilizado pelas duas seções); a seção encerrada exibe o badge âmbar **"Encerrado"** no lugar do badge de submissão (status encerrado já bloqueia inscrição/submissão na página do evento); a seção só aparece quando há eventos encerrados; o estado vazio da lista publicada permanece inalterado.
+- Verificação: `node --check` em `routes/public.js`; render com dados mock — título "Eventos Encerrados" presente, badge "Encerrado" no card encerrado, card publicado mantém o badge de submissão. Efetivo após reinício do servidor; sem migração de banco.
+- Status: **implementado e validado tecnicamente**.
+
+### Programação nas Salas: atividade sem etapas exibida sem o prefixo "Atividade:"
+
+- Sintoma: no bloco **Programação nas Salas** da página pública (e na **Agenda por sala** administrativa), uma alocação de atividade sem etapas aparecia como `Atividade: <nome>`, enquanto uma etapa aparecia como `<Atividade>: <Etapa>` — o prefixo na atividade sozinha era redundante.
+- `services/rooms.js` (`assignmentLabel`): alocação de atividade sem etapas passa a exibir **somente o nome da atividade**; permanecem `Atividade: Etapa` para etapas, `Etapa: <nome>` quando a etapa não traz a atividade e `Reserva do evento` para reservas do evento. O helper é compartilhado por `/evento/:id` (Por dia/Por sala) e `/admin/events/:id/rooms/agenda` — as duas telas acompanham.
+- Verificação: `node --check` + chamada direta do helper (atividade → `Cofee Break`; etapa → `C++: Aula 1`; reserva → `Reserva do evento`; etapa sem atividade → `Etapa: Aula 1`). Efetivo após reinício do servidor; sem migração de banco.
+- Status: **implementado e validado tecnicamente**.
+
+### Grade (dia × hora): atividade de vários dias aparece em todos os dias
+
+- Sintoma: atividade cadastrada com intervalo de vários dias (ex.: "Almoço", 14/09 a 18/09/2026) aparecia na grade **apenas no dia de início**.
+- `views/public/event.ejs`: na construção do `actOcc` da grade, atividade **sem etapas** passou a ser expandida dia a dia entre `date_start` e `date_end` (iteração em UTC com teto de 92 dias, sem efeito de fuso/DST); cada dia recebe a própria célula no horário de início. As colunas de dias da grade acompanham automaticamente (derivação por `Set`). Etapas permanecem no dia próprio (`session_date` é um único dia); a reserva de sala de atividade multi-dia continua valendo no dia de início (regra da Seção 9 do manual, sem mudança).
+- Verificação: compilação EJS e render mock com dados reais do evento 2 ("Almoço" 14–18/09 12:00–14:00) — 5 colunas de dias na grade e "Almoço" nas células dos 5 dias; etapas de "C++" seguem nos dias corretos. Efetivo após reinício do servidor; sem migração de banco.
+- Status: **implementado e validado tecnicamente**.
+
+### Grade (dia × hora): hora de início e fim nas células
+
+- A visão **Grade (dia × hora)** da seção "Atividades do Evento" (`/evento/:id`) exibia apenas o nome da atividade/etapa na célula; passa a exibir também o intervalo **início–fim** (`HH:MM–HH:MM`) antes do nome, no mesmo padrão das demais visualizações (o fim ausente aparece como `?`).
+- `views/public/event.ejs`: `actOcc` passou a carregar o campo `time` (derivado de `time_start`/`time_end` da etapa ou da atividade sem etapas); `gridCell` acumula os objetos (em vez de só o nome) e a célula renderiza o intervalo em destaque seguido do nome.
+- Verificação: compilação EJS e render com dados mock (atividade sem etapas, etapas com e sem hora de fim) — intervalos corretos nas células. Efetivo após reinício do servidor; sem migração de banco.
+- Status: **implementado e validado tecnicamente**.
 
 ## 2026-08-28
 

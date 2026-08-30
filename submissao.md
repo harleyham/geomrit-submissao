@@ -6,7 +6,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 
 Versão atual do projeto: **V0.32**.
 
-Data de referência desta especificação: **28/08/2026**.
+Data de referência desta especificação: **30/08/2026**.
 
 ## Objetivo do Produto
 
@@ -110,11 +110,13 @@ O sistema deve permitir:
 
 ### Público
 
-- Listagem de eventos publicados.
+- Listagem de eventos publicados; eventos encerrados aparecem em bloco separado **"Eventos Encerrados"** ao final da página inicial, com badge âmbar "Encerrado".
 - Logo do evento exibida no card do evento na página inicial e no topo da página pública do evento (quando configurada).
 - Página pública do evento com URL destacada e tabela de cronograma por etapa.
 - Página pública do evento com card "Atividades do Evento": atividades do evento ordenadas por data (sem data por último) e nome, com o link da transmissão de vídeo ao lado do nome da atividade (botão "Assistir transmissão" em nova aba quando configurado; aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; espaço vazio quando não há transmissão). Atividades com etapas exibem uma sub-linha por etapa (data e nome indentados), com a descrição breve da etapa na coluna **Descrição / Ementa** (traço quando vazia); a etapa mostra o próprio vídeo quando configurado, senão herda o vídeo da atividade (com o aviso de transmissão prevista quando a flag da etapa ou da atividade está definida).
 - Página pública do evento com seção **Transmissões** (após "Programação nas Salas"): lista atividades e etapas com vídeo, na ordem cronológica (sem data por último), exibindo botão "Assistir transmissão" (nova aba) para o link próprio ou herdado da atividade ("vídeo da atividade"), e aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está definida sem link; a seção só aparece quando o evento tem ao menos uma atividade/etapa com vídeo configurado.
+- Visualizações da seção "Atividades do Evento" na página pública: **Cards** (padrão, agrupados por tipo), **Lista** e **Grade (dia × hora)** — na grade, os dias ficam nas colunas, o horário de início nas linhas e cada célula exibe o intervalo **início–fim** e o nome da atividade/etapa; atividade **sem etapas** cadastrada com intervalo de vários dias aparece em **todos os dias** do intervalo (etapas permanecem no dia próprio).
+- Bloco "Programação nas Salas" (página pública) e "Agenda por sala" (administração) rotulam as alocações via `assignmentLabel` (`services/rooms.js`): atividade sem etapas aparece **somente com o próprio nome**, etapa como `<Atividade>: <Etapa>`, etapa sem atividade como `Etapa: <nome>` e reserva do evento como `Reserva do evento`.
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Inscrição somente pela administração: quando o evento tem `public_registration = 0`, a página `/evento/:id/inscricao` exibe a mensagem "As inscrições deste evento são realizadas somente pela administração." com o botão de envio desabilitado, o `POST` é bloqueado e a linha "Inscrições" não aparece no cronograma público da página do evento (participantes já inscritos continuam vendo "Minhas participações").
 - Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
@@ -498,7 +500,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 
 ### Eventos e submissão
 
-- Apenas eventos com `status = 'published'` aparecem na listagem pública inicial.
+- Apenas eventos com `status = 'published'` aparecem na listagem principal da página inicial; eventos com `status = 'encerrado'` são listados em bloco próprio ("Eventos Encerrados") abaixo dela; rascunhos nunca aparecem.
 - O status `encerrado` é um terceiro estado explícito (além de `draft` e `published`), atribuído por ação administrativa (`POST /admin/events/:id/close`), somente a partir do estado `published`.
 - O cronograma público do evento é organizado por `Inscrições`, `Submissão Artigos`, `Análise Submissão`, `Evento` e `Certificados`; a linha `Inscrições` só aparece quando o evento tem inscrições abertas ao público (`public_registration = 1`).
 - Cada etapa do cronograma pode ter período próprio configurado na administração do evento.
@@ -970,6 +972,9 @@ Observações operacionais:
 - Gestão de salas por evento (`/admin/events/:id/rooms`) com tipos e capacidade livre: tipos Tipo 1/Tipo 2/Tipo 3/Auditório/Mini Auditório/Foyer/Coffee break/Restaurante/Posters (`ROOM_SIZES` em `services/rooms.js`, armazenados em `event_rooms.size`), capacidade informada livremente para qualquer tipo (opcional, inteiro > 0); designação de sala por etapa/atividade ou reserva pelo evento, bloqueio transacional de sobreposição, seletor com apenas salas livres no dia/horário, card "Aguardando sala", relatórios "Ocupação por dia" e "Agenda por sala", e grade "Programação nas Salas" na página pública. Migração idempotente converte tipos legados `small`/`medium`/`large` em `type1`/`type2`/`type3` preservando a capacidade (`services/db-reset.js`).
 - Seção "Transmissões" na página pública do evento (`views/public/event.ejs`, após "Programação nas Salas"): lista atividades e etapas com vídeo em ordem cronológica, com link próprio ou herdado da atividade e aviso "Transmissão prevista — link a ser divulgado" quando a flag `has_video` está sem link; exibida somente quando há conteúdo.
 - Responsividade mobile: partial compartilhado `views/partials/mobile-fixes.ejs` (injetado em todas as 50 views) com `table-layout`/scroll horizontal em tabelas densas e ajustes de grade; wrappers `.table-scroll` nas tabelas; `minmax(min(100%,Npx),auto)` nas grades responsivas; `overflow` das colunas de agenda corrigido; botões padronizados com a classe base `.btn` (cores via `.btn-secondary`) e `.btn-secondary` ganhou padding/radio próprio onde usado sem a base.
+- Grade (dia × hora) da página pública (`views/public/event.ejs`): células passaram a exibir o intervalo de horário início–fim antes do nome da atividade/etapa (mesmo padrão das demais visualizações; fim ausente exibido como `?`); atividade sem etapas com intervalo de vários dias é expandida dia a dia (`date_start`→`date_end`, iteração em UTC com teto de 92 dias) e aparece em **todos os dias** do intervalo, com as colunas de dias derivadas automaticamente.
+- Programação nas Salas / Agenda por sala: `assignmentLabel` (`services/rooms.js`) deixou de prefixar atividade sem etapas com "Atividade:" — o item aparece somente com o nome; permanecem `<Atividade>: <Etapa>` para etapas, `Etapa: <nome>` sem atividade e `Reserva do evento` para reservas.
+- Página inicial (`GET /` em `routes/public.js` + `views/public/home.ejs`): nova seção **"Eventos Encerrados"** listando eventos `status='encerrado'` (ordem `date_start DESC`) abaixo dos publicados, com badge âmbar "Encerrado" no card; o card foi extraído para o partial `views/public/home-event-card.ejs` reutilizado pelas duas seções (decisão de 14/08 que mantinha encerrados fora da home foi substituída em 30/08).
 
 ### Segurança reforçada (V0.2)
 
@@ -1029,7 +1034,7 @@ Observações operacionais:
 1. `Gerenciar eventos`
    Status atual: implementado, com lacunas administrativas pontuais.
    Base existente: CRUD de eventos, cronograma público, janelas de inscrição, submissão, revisão e certificados de participação.
-   Principais lacunas: política para eventos encerrados na área pública e eventual módulo financeiro, caso entre no escopo.
+   Principais lacunas: eventual módulo financeiro, caso entre no escopo (a política para eventos encerrados na área pública foi resolvida em 30/08: aparecem na home sob "Eventos Encerrados").
 
 2. `Gerenciar e analisar submissão de artigos científicos`
    Status atual: implementado em nível operacional.
@@ -1217,7 +1222,7 @@ Critério de pronto:
 
 ### Observações editoriais e backlog
 
-1. ~~Ampliar o dashboard com contadores para total de eventos realizados, eventos publicados, inscritos totais e inscritos em eventos futuros. Também vale decidir se eventos encerrados continuam visíveis na área pública.~~ Implementado em 2026-08-14 (Fase 0): contadores `Total de Usuários`, `Eventos Realizados` e `Inscritos em Eventos Futuros`; decisão adotada — eventos encerrados ficam fora da listagem inicial, mas permanecem acessíveis por URL (detalhes e certificados) com aviso de encerramento.
+1. ~~Ampliar o dashboard com contadores para total de eventos realizados, eventos publicados, inscritos totais e inscritos em eventos futuros. Também vale decidir se eventos encerrados continuam visíveis na área pública.~~ Implementado em 2026-08-14 (Fase 0): contadores `Total de Usuários`, `Eventos Realizados` e `Inscritos em Eventos Futuros`; decisão adotada — eventos encerrados ficam fora da listagem inicial, mas permanecem acessíveis por URL (detalhes e certificados) com aviso de encerramento. **Atualizado em 2026-08-30:** a decisão foi substituída — eventos encerrados passaram a aparecer na página inicial, em bloco próprio "Eventos Encerrados".
 2. Implementar controle de pagamento. Em uma primeira versão, basta informar cobranças, tabela de valores, pedido de isenção, cupom de desconto e upload de comprovante.
 3. Criar uma página única com a listagem dos relatórios possíveis.
 Programada

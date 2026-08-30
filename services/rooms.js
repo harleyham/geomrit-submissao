@@ -116,7 +116,7 @@ function assignmentLabel(row) {
     const sessionName = row.session_name || 'Etapa';
     return row.activity_name ? `${row.activity_name}: ${sessionName}` : `Etapa: ${sessionName}`;
   }
-  return `Atividade: ${row.activity_name || '-'}`;
+  return row.activity_name || '-';
 }
 
 function replaceTargetAssignments({ roomId, date, timeStart, timeEnd, activityId = null, sessionId = null, eventReservation = false, eventId, assignedBy = null }) {
