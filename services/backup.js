@@ -7,6 +7,7 @@ const { getDb, initializeDbSchema } = require('./db-reset');
 
 const DB_PATH = path.join(__dirname, '..', 'artigos.db');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+const APP_VERSION = 'V' + require('../package.json').version.split('.').slice(0, 2).join('.');
 
 // Proteção contra ZIP-bomb / ataque de descompressão: limitam o número de
 // entradas, o tamaño comprimido e descomprimido, a relação entre eles e a
@@ -109,7 +110,7 @@ async function createBackupZip(destPath) {
 
     const meta = {
       app: 'gerencia-de-eventos',
-      version: 'V0.31',
+      version: APP_VERSION,
       created_at: brNow().toISOString().replace('Z', '-03:00'),
       node: process.version,
       platform: process.platform,
