@@ -369,6 +369,11 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Verificação: EJS compila; HTML renderido conferido (sem `onsubmit` inline, `data-background-name` presente, listener dentro do `<script nonce>`). Necessário reiniciar o servidor.
 - Status: **corrigido** (visual: confirmar pop-up ao excluir e campo de nome largo na página de certificados).
 
+### Texto orientativo de proporção no card "Biblioteca de fundos"
+
+- Pedido: incluir no card o texto informando que os certificados são A4 paisagem (297×210 mm / 842×595 pt), que o fundo é esticado para a página inteira e que imagens na mesma proporção (ex.: 1980×1400, 2970×2100 px) evitam distorção.
+- Implementação: segundo parágrafo `.hint` no card "Biblioteca de fundos" (`views/admin/events/certificates.ejs`), antes do formulário de upload; sem mudança de código/lógica. EJS compila OK; efetivo após reinício do servidor.
+
 ### Meus comentários de funções a implementar
 
 - Fotinha redonda e mini currículo dos palestrantes e professores
