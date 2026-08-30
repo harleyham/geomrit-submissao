@@ -1556,6 +1556,16 @@ function getCertificateRule(eventId, role) {
   return rule || { certificate_role: role, min_attendance: 75, background_id: null, text_color: '#0f172a', title: meta.title, body_text: meta.body };
 }
 
+function getEventBackground(eventId, backgroundId) {
+  const id = Number.parseInt(backgroundId, 10);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return db.prepare('SELECT * FROM certificate_backgrounds WHERE id = ? AND (file_path LIKE ? OR event_id = ?)').get(id, 'assets/Fundos/%', eventId) || null;
+}
+
+function listEventBackgrounds(eventId) {
+  return db.prepare("SELECT * FROM certificate_backgrounds WHERE file_path LIKE 'assets/Fundos/%' OR event_id = ? ORDER BY name COLLATE NOCASE").all(eventId);
+}
+
 // Tipos de atividade em que qualquer presença já qualifica a pessoa.
 const ANY_ATTENDANCE_CERTIFICATE_TYPES = ['oral_presentation', 'poster_presentation', 'roundtable'];
 
@@ -1649,7 +1659,7 @@ router.get('/:id/certificates', (req, res) => {
     candidates: getCertificateCandidates(event.id, rule.certificate_role, rule),
     certificatesIssued: issuedByRole[rule.certificate_role] || 0
   }));
-  const backgrounds = db.prepare('SELECT * FROM certificate_backgrounds ORDER BY name COLLATE NOCASE').all();
+  const backgrounds = listEventBackgrounds(event.id);
   const activities = db.prepare(`
     SELECT ea.*,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
@@ -1672,7 +1682,7 @@ router.get('/:id/certificates', (req, res) => {
 });
 
 router.get('/:id/certificates/backgrounds/:backgroundId/view', (req, res) => {
-  const bg = db.prepare('SELECT * FROM certificate_backgrounds WHERE id = ?').get(req.params.backgroundId);
+  const bg = getEventBackground(req.params.id, req.params.backgroundId);
   if (!bg) return res.status(404).render('error', { title: 'Fundo não encontrado' });
   const filePath = bg.file_path.startsWith('certificate-backgrounds/')
     ? path.join(__dirname, '..', 'uploads', bg.file_path)
@@ -1721,7 +1731,7 @@ router.get('/:id/certificates/preview', (req, res) => {
     return res.status(400).render('error', { title: 'Prévia indisponível', message: 'Selecione e salve um fundo para este tipo de certificado antes de abrir a prévia.' });
   }
 
-  const background = db.prepare('SELECT * FROM certificate_backgrounds WHERE id = ?').get(backgroundId);
+  const background = getEventBackground(event.id, backgroundId);
   if (!background) {
     return res.status(400).render('error', { title: 'Prévia indisponível', message: 'O fundo de certificado selecionado não foi encontrado.' });
   }
@@ -2824,8 +2834,8 @@ router.post('/:id/certificates/rule', strictLimiter, (req, res, next) => {
   const backgroundId = req.body.background_id ? parseInt(req.body.background_id, 10) : null;
   const textColor = String(req.body.text_color || '#0f172a').trim();
   const normalizedTextColor = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#0f172a';
-  if (!backgroundId || !db.prepare('SELECT id FROM certificate_backgrounds WHERE id = ?').get(backgroundId)) {
-    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado válido.')}`);
+  if (!backgroundId || !getEventBackground(event.id, backgroundId)) {
+    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado válido para este evento.')}`);
   }
   const meta = certificateRoleMeta(role);
   const title = String(req.body.title || meta.title).trim().slice(0, 160);
@@ -2844,8 +2854,8 @@ router.post('/:id/certificates/rule/apply-to-all', strictLimiter, (req, res) => 
   const backgroundId = req.body.background_id ? parseInt(req.body.background_id, 10) : null;
   const textColor = String(req.body.text_color || '#0f172a').trim();
   const normalizedTextColor = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#0f172a';
-  if (!backgroundId || !db.prepare('SELECT id FROM certificate_backgrounds WHERE id = ?').get(backgroundId)) {
-    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado válido.')}`);
+  if (!backgroundId || !getEventBackground(event.id, backgroundId)) {
+    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado válido para este evento.')}`);
   }
 
   const upsert = db.prepare(`
@@ -2871,11 +2881,56 @@ router.post('/:id/certificates/backgrounds', strictLimiter, (req, res) => {
       return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent(message)}`);
     }
     validateCsrfToken(req, res, () => {
-      db.prepare(`INSERT INTO certificate_backgrounds (name,file_path,original_name,mime_type,created_by,created_at) VALUES (?,?,?,?,?,datetime('now','-3 hours'))`)
-        .run(String(req.body.name).trim(), `uploads/certificate-backgrounds/${req.file.filename}`, req.file.originalname, req.file.mimetype, req.session.userId);
-      return res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Fundo enviado para a biblioteca.')}`);
+      const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+      if (!event) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        return res.status(404).render('error', { title: 'Evento não encontrado' });
+      }
+      db.prepare(`INSERT INTO certificate_backgrounds (name,file_path,original_name,mime_type,created_by,event_id,created_at) VALUES (?,?,?,?,?,?,datetime('now','-3 hours'))`)
+        .run(String(req.body.name).trim(), `uploads/certificate-backgrounds/${req.file.filename}`, req.file.originalname, req.file.mimetype, req.session.userId, event.id);
+      return res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Fundo enviado e disponível apenas para este evento.')}`);
     });
   });
+});
+
+function findOwnedBackground(eventId, backgroundId) {
+  const id = Number.parseInt(backgroundId, 10);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return db.prepare("SELECT * FROM certificate_backgrounds WHERE id = ? AND event_id = ? AND substr(file_path,1,7) = 'uploads'").get(id, eventId) || null;
+}
+
+router.post('/:id/certificates/backgrounds/:backgroundId/rename', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const background = findOwnedBackground(event.id, req.params.backgroundId);
+  if (!background) return res.status(404).render('error', { title: 'Fundo não encontrado' });
+  const name = String(req.body.name || '').trim().slice(0, 120);
+  if (!name) {
+    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Informe um nome para o fundo.')}`);
+  }
+  db.prepare('UPDATE certificate_backgrounds SET name = ? WHERE id = ?').run(name, background.id);
+  return res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Nome do fundo atualizado.')}`);
+});
+
+router.post('/:id/certificates/backgrounds/:backgroundId/delete', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const background = findOwnedBackground(event.id, req.params.backgroundId);
+  if (!background) return res.status(404).render('error', { title: 'Fundo não encontrado' });
+  const inUse = db.prepare('SELECT COUNT(*) AS count FROM certificate_emissions WHERE background_id = ?').get(background.id).count;
+  if (inUse) {
+    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent(`O fundo está em uso em ${inUse} certificado(s) emitido(s) e não pode ser excluído.`)}`);
+  }
+  const usedByRules = db.prepare('SELECT COUNT(*) AS count FROM event_certificate_rules WHERE background_id = ?').get(background.id).count;
+  db.prepare('DELETE FROM certificate_backgrounds WHERE id = ?').run(background.id);
+  const stillReferenced = db.prepare('SELECT COUNT(*) AS count FROM certificate_backgrounds WHERE file_path = ?').get(background.file_path).count;
+  if (!stillReferenced) {
+    try { fs.unlinkSync(path.join(__dirname, '..', background.file_path)); } catch (e) {}
+  }
+  const message = usedByRules
+    ? 'Fundo excluído. As regras que o utilizavam ficaram sem fundo; selecione outro.'
+    : 'Fundo excluído.';
+  return res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent(message)}`);
 });
 
 const CODE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

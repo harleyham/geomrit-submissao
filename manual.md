@@ -269,6 +269,8 @@ Regras principais:
 - apresentações e mesas-redondas qualificam com qualquer presença;
 - a carga horária é a soma das etapas presentes;
 - revisor é elegível quando possui parecer enviado.
+- fundos enviados na **Biblioteca de fundos** pertencem ao evento onde foram enviados: os demais eventos não os veem nem podem usá-los; os fundos padrão são compartilhados por todos os eventos.
+- o card **Biblioteca de fundos** mostra as miniaturas dos fundos do evento com **Renomear** e **Excluir**; a exclusão é bloqueada enquanto houver certificados emitidos usando o fundo, e as regras que o utilizavam ficam sem fundo até você selecionar outro.
 
 O certificado pode ser baixado pelo participante e verificado publicamente pelo código de autenticidade.
 

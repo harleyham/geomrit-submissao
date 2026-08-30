@@ -401,6 +401,7 @@ function initializeDbSchema(db) {
       mime_type TEXT NOT NULL,
       created_by INTEGER,
       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+      event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
@@ -743,6 +744,40 @@ function initializeDbSchema(db) {
     db.prepare(`INSERT OR IGNORE INTO event_certificate_rules
       (event_id,certificate_role,min_attendance,background_id,text_color,updated_by,created_at,updated_at)
       SELECT event_id,'participant',min_attendance,background_id,COALESCE(text_color,'#0f172a'),updated_by,created_at,updated_at FROM certificate_rules`).run();
+  } catch (e) {}
+
+  try {
+    const backgroundCols = db.prepare('PRAGMA table_info(certificate_backgrounds)').all().map((column) => column.name);
+    if (!backgroundCols.includes('event_id')) db.exec('ALTER TABLE certificate_backgrounds ADD COLUMN event_id INTEGER REFERENCES events(id) ON DELETE CASCADE');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_certificate_backgrounds_event ON certificate_backgrounds(event_id)');
+    const unownedUploads = db.prepare(`
+      SELECT id FROM certificate_backgrounds
+      WHERE event_id IS NULL AND substr(file_path,1,7) = 'uploads'
+    `).all();
+    const referencingEvents = db.prepare('SELECT DISTINCT event_id FROM event_certificate_rules WHERE background_id = ? ORDER BY event_id');
+    const ownershipRules = [
+      { table: 'event_certificate_rules', key: 'event_id' },
+      { table: 'certificate_rules', key: 'event_id' }
+    ];
+    for (const background of unownedUploads) {
+      const owners = referencingEvents.all(background.id);
+      owners.forEach((owner, index) => {
+        if (index === 0) {
+          db.prepare('UPDATE certificate_backgrounds SET event_id = ? WHERE id = ?').run(owner.event_id, background.id);
+          return;
+        }
+        const source = db.prepare('SELECT name,file_path,original_name,mime_type,created_by,created_at FROM certificate_backgrounds WHERE id = ?').get(background.id);
+        const copy = db.prepare(`INSERT INTO certificate_backgrounds (name,file_path,original_name,mime_type,created_by,created_at,event_id)
+          VALUES (?,?,?,?,?,?,?)`)
+          .run(source.name, source.file_path, source.original_name, source.mime_type, source.created_by, source.created_at, owner.event_id);
+        for (const rule of ownershipRules) {
+          try {
+            db.prepare(`UPDATE ${rule.table} SET background_id = ? WHERE ${rule.key} = ? AND background_id = ?`)
+              .run(copy.lastInsertRowid, owner.event_id, background.id);
+          } catch (e) {}
+        }
+      });
+    }
   } catch (e) {}
 
   db.exec(`
