@@ -292,8 +292,8 @@ Use os cards como atalhos para localizar pendências.
 
 A seção "Backup e Restaração" no dashboard concentra as operações de manutenção do banco de dados, acessíveis **exclusivamente** ao `admin@admin.com` (superadministrador):
 
-- **Baixar Backup**: gera um ZIP com o banco (`artigos.db`), a pasta `uploads/` completa e um `BACKUP_META.json` (versão, data, tamanhos). Útil para sincronizar o estado entre as máquinas de desenvolvimento.
-- **Restaurar Backup**: faz upload de um ZIP válido, confirma a ação digitando `RESTAURAR` e substitui o banco e os uploads. Antes de trocar, o sistema faz uma cópia de segurança do banco atual e rola de volta em caso de falha.
+- **Baixar Backup**: gera um ZIP com o banco (`artigos.db`), a pasta `uploads/` completa (logos de eventos, fundos de certificado enviados, PDFs de conteúdo, certificados emitidos e importações), as imagens substituíveis de `assets/` (**fundos padrão de certificado** em `assets/Fundos/` e o **logo da plataforma** `assets/Ligem.png`) e um `BACKUP_META.json` (versão, data, tamanhos e contagem de arquivos). Útil para sincronizar o estado entre as máquinas de desenvolvimento.
+- **Restaurar Backup**: faz upload de um ZIP válido, confirma a ação digitando `RESTAURAR` e substitui o banco, os uploads e as imagens de `assets/` (fundos e logo) — backups antigos sem essas imagens não alteram os assets do destino. Antes de trocar, o sistema verifica a integridade de cada arquivo do ZIP (tamanho e CRC32) — um ZIP incompletamente baixado/copiado é **rejeitado com erro claro** em vez de restaurar imagens truncadas — e faz uma cópia de segurança do banco atual e dos arquivos substituídos, com rollback em caso de falha.
 - **Resetar Banco de Dados**: apaga todas as tabelas, arquivos de upload e recria o banco limpo, com schema, índices, triggers e o seed do administrador padrão.
 
 Backup e restauração não exigem reinício do servidor — a conexão é trocada em tempo de execução.

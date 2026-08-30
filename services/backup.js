@@ -1,12 +1,20 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const zlib = require('zlib');
 const archiver = require('archiver');
 const AdmZip = require('adm-zip');
 const { getDb, initializeDbSchema } = require('./db-reset');
 
 const DB_PATH = path.join(__dirname, '..', 'artigos.db');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+const ASSETS_DIR = path.join(__dirname, '..', 'assets');
+const ASSETS_FUNDOS_DIR = path.join(ASSETS_DIR, 'Fundos');
+const ASSETS_LOGO_PATH = path.join(ASSETS_DIR, 'Ligem.png');
+// Imagens substituíveis pelo usuário dentro de assets/ (fundos de certificado e
+// logo da plataforma) viajam no ZIP sob este prefixo; os demais arquivos de
+// assets/ (CSVs de código) nunca são empacotados nem restaurados.
+const USER_ASSETS_ZIP_PREFIX = 'assets-user';
 const APP_VERSION = 'V' + require('../package.json').version.split('.').slice(0, 2).join('.');
 
 // Proteção contra ZIP-bomb / ataque de descompressão: limitam o número de
@@ -96,6 +104,44 @@ function assertZipSafeForRestore(zip) {
   }
 }
 
+// Verifica a integridade de cada arquivo do ZIP antes de extraí-lo, comparando
+// o tamanho descomprimido informado no cabeçalho central com os bytes
+// realmente obtidos e, quando disponível, o CRC32. Um ZIP baixado/copiado de
+// forma incompleta (ou com uma entrada truncada) é rejeitado aqui — com erro
+// claro — em vez de restaurar imagens quebradas/truncadas silenciosamente.
+function assertZipIntegrityForRestore(zip) {
+  const hasCrc32 = typeof zlib.crc32 === 'function';
+  const problems = [];
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue;
+    const expectedSize = entry.header ? entry.header.size : undefined;
+    if (typeof expectedSize !== 'number') continue;
+
+    let data;
+    try {
+      data = entry.getData();
+    } catch (err) {
+      problems.push(`"${entry.entryName}" (falha ao descomprimir: ${err.message})`);
+      continue;
+    }
+    if (data.length !== expectedSize) {
+      problems.push(`"${entry.entryName}" (esperado ${expectedSize} bytes, obtido ${data.length} — arquivo truncado)`);
+      continue;
+    }
+    if (hasCrc32 && entry.header.crc) {
+      const expectedCrc = entry.header.crc >>> 0;
+      const actualCrc = zlib.crc32(data) >>> 0;
+      if (actualCrc !== expectedCrc) {
+        problems.push(`"${entry.entryName}" (CRC32 divergente — dados corrompidos)`);
+      }
+    }
+    if (problems.length >= 20) break;
+  }
+  if (problems.length) {
+    throw new Error(`Backup incompleto ou corrompido (${problems.length} arquivo(s) verificados com problema): ${problems.slice(0, 5).join('; ')}${problems.length > 5 ? ' …' : ''}. Gere um novo backup e tente novamente.`);
+  }
+}
+
 // Cria um snapshot consistente do banco (VACUUM INTO) e empacota
 // banco + uploads + metadados em um ZIP.
 async function createBackupZip(destPath) {
@@ -115,7 +161,8 @@ async function createBackupZip(destPath) {
       node: process.version,
       platform: process.platform,
       db_size_bytes: fs.statSync(snapshotPath).size,
-      uploads_file_count: countFilesRecursive(UPLOADS_DIR)
+      uploads_file_count: countFilesRecursive(UPLOADS_DIR),
+      user_assets_file_count: (fs.existsSync(ASSETS_FUNDOS_DIR) ? countFilesRecursive(ASSETS_FUNDOS_DIR) : 0) + (fs.existsSync(ASSETS_LOGO_PATH) ? 1 : 0)
     };
 
     await new Promise((resolve, reject) => {
@@ -132,6 +179,15 @@ async function createBackupZip(destPath) {
       archive.append(JSON.stringify(meta, null, 2), { name: 'BACKUP_META.json' });
       if (fs.existsSync(UPLOADS_DIR)) {
         archive.directory(UPLOADS_DIR, 'uploads');
+      }
+      // Imagens substituíveis pelo usuário dentro de assets/ (fundos padrão de
+      // certificado e logo da plataforma): viajam no ZIP e são re-aplicadas no
+      // restore, sem tocar nos demais arquivos de assets/ (CSVs de código).
+      if (fs.existsSync(ASSETS_FUNDOS_DIR)) {
+        archive.directory(ASSETS_FUNDOS_DIR, `${USER_ASSETS_ZIP_PREFIX}/Fundos`);
+      }
+      if (fs.existsSync(ASSETS_LOGO_PATH)) {
+        archive.file(ASSETS_LOGO_PATH, { name: `${USER_ASSETS_ZIP_PREFIX}/Ligem.png` });
       }
       archive.finalize();
     });
@@ -159,6 +215,9 @@ function restoreFromZip(zipPath) {
 
   // Exige o ZIP válido e o valida contra padrões de ZIP-bomb/descompressão.
   assertZipSafeForRestore(zip);
+  // Rejeita ZIP incompleto/corrompido (entradas truncadas ou CRC divergente)
+  // antes de extrair — evita restaurar imagens quebradas silenciosamente.
+  assertZipIntegrityForRestore(zip);
 
   const entries = zip.getEntries();
 
@@ -269,8 +328,48 @@ function restoreFromZip(zipPath) {
     require('../db').setDb(newDb);
     newDb = null;
 
+    // Re-aplica as imagens de usuário que viajam no ZIP sob assets-user/:
+    // fundos de certificado (assets/Fundos) e logo da plataforma
+    // (assets/Ligem.png). Backups antigos (sem esse prefixo) simplesmente
+    // pulam esta etapa e não alteram os assets do destino.
+    const extractedUserAssets = path.join(workDir, USER_ASSETS_ZIP_PREFIX);
+    const extractedFundos = path.join(extractedUserAssets, 'Fundos');
+    const extractedLogo = path.join(extractedUserAssets, 'Ligem.png');
+    let userAssetsRestored = false;
+    if (fs.existsSync(extractedFundos) || fs.existsSync(extractedLogo)) {
+      const fundosBackup = path.join(workDir, 'fundos-pre-restore');
+      const logoBackup = path.join(workDir, 'ligem-pre-restore.png');
+      try {
+        if (fs.existsSync(extractedFundos)) {
+          if (fs.existsSync(ASSETS_FUNDOS_DIR)) fs.cpSync(ASSETS_FUNDOS_DIR, fundosBackup, { recursive: true });
+          fs.rmSync(ASSETS_FUNDOS_DIR, { recursive: true, force: true });
+          fs.mkdirSync(ASSETS_FUNDOS_DIR, { recursive: true });
+          fs.cpSync(extractedFundos, ASSETS_FUNDOS_DIR, { recursive: true });
+        }
+        if (fs.existsSync(extractedLogo)) {
+          if (fs.existsSync(ASSETS_LOGO_PATH)) fs.copyFileSync(ASSETS_LOGO_PATH, logoBackup);
+          fs.copyFileSync(extractedLogo, ASSETS_LOGO_PATH);
+        }
+        userAssetsRestored = true;
+      } catch (err) {
+        // Rollback dos assets ao estado anterior (o catch externo devolve o banco).
+        try {
+          if (fs.existsSync(fundosBackup)) {
+            fs.rmSync(ASSETS_FUNDOS_DIR, { recursive: true, force: true });
+            fs.mkdirSync(ASSETS_FUNDOS_DIR, { recursive: true });
+            fs.cpSync(fundosBackup, ASSETS_FUNDOS_DIR, { recursive: true });
+          }
+          if (fs.existsSync(logoBackup)) fs.copyFileSync(logoBackup, ASSETS_LOGO_PATH);
+        } catch (rollbackErr) {
+          console.error('Falha ao reverter assets após erro no restore:', rollbackErr.message);
+        }
+        throw err;
+      }
+    }
+
     return {
       uploadsRestored,
+      userAssetsRestored,
       dbSize: fs.statSync(DB_PATH).size,
       uploadsFileCount: countFilesRecursive(UPLOADS_DIR)
     };
@@ -305,4 +404,4 @@ function restoreFromZip(zipPath) {
   }
 }
 
-module.exports = { createBackupZip, restoreFromZip, assertZipSafeForRestore, backupFileName, DB_PATH, UPLOADS_DIR };
+module.exports = { createBackupZip, restoreFromZip, assertZipSafeForRestore, assertZipIntegrityForRestore, backupFileName, DB_PATH, UPLOADS_DIR };
