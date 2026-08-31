@@ -177,7 +177,6 @@ const reviewerRoutes = require('./routes/reviewer');
 // (session.previewUserId, gravado em GET /admin/users/:id/participant), as
 // rotas públicas agem em nome do usuário pré-visualizado. Qualquer request em
 // /admin/* sai da visualização e restaura a identidade real do admin.
-const previewTargetQuery = db.prepare('SELECT id, name, email, institution, is_public, is_admin, is_reviewer FROM users WHERE id = ?');
 app.use((req, res, next) => {
   const session = req.session;
   if (!session || !session.previewUserId) return next();
@@ -194,7 +193,7 @@ app.use((req, res, next) => {
     delete session.realIdentity;
     return next();
   }
-  const target = previewTargetQuery.get(session.previewUserId);
+  const target = db.prepare('SELECT id, name, email, institution, is_public, is_admin, is_reviewer FROM users WHERE id = ?').get(session.previewUserId);
   if (!target || !target.is_public) {
     Object.assign(session, real);
     delete session.previewUserId;
