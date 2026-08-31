@@ -792,7 +792,7 @@ router.post('/:id/reset-password', requireAuth, (req, res) => {
   if (emailUsable) {
     const result = queuePasswordReset({ user });
     if (result.status === 'queued') {
-      return res.redirect(`/admin/users?success=${encodeURIComponent(`E-mail de redefinição de senha preparado para ${user.email}.`)}`);
+      return res.redirect(`/admin/users?success=${encodeURIComponent(`E-mail de redefinição de senha enviado para ${user.email}.`)}`);
     }
     if (result.status === 'sent') {
       return res.redirect(`/admin/users?success=${encodeURIComponent(`E-mail de redefinição de senha enviado para ${user.email}.`)}`);
