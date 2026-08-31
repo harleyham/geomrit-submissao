@@ -28,7 +28,7 @@ function drawEventLogo(doc, event, { x, y, width, height }) {
   const logoAbs = getEventLogoAbsPath(event);
   if (!logoAbs) return false;
   try {
-    doc.image(logoAbs, x, y, { fit: [width, height] });
+    doc.image(logoAbs, x, y, { fit: [width, height], align: 'center', valign: 'center' });
     return true;
   } catch (err) {
     console.error('Erro ao renderizar o logo do evento no PDF:', err && err.message);
