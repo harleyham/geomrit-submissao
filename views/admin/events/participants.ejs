@@ -245,6 +245,7 @@
                   <div><%= participant.participation_label %></div>
                   <% if (participant.registration_status === 'pending') { %><div><span class="badge badge-subsidy">Inscrição pendente de análise</span></div><% } %>
                   <% if (participant.registration_status === 'rejected') { %><div><span class="badge badge-rejected">Inscrição rejeitada</span></div><% } %>
+                  <% if (participant.registration_status !== 'pending' && participant.pending_activity_requests) { %><div><a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/edit" class="badge badge-subsidy" style="text-decoration:none"><%= participant.pending_activity_requests %> pedido(s) de atividade aguardando análise</a></div><% } %>
                   <% if (participant.approved_articles > 0) { %>
                     <div class="muted"><%= participant.approved_articles %> artigo(s) aprovado(s)</div>
                   <% } %>

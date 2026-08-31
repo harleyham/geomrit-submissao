@@ -392,6 +392,54 @@ router.get('/dashboard', requireAuth, (req, res) => {
     ORDER BY created_at DESC
     LIMIT 10
   `).all();
+  const activityRequestCandidates = db.prepare(`
+    SELECT er.id, er.event_id, er.name, er.email, er.requested_activity_ids, er.rejected_activity_ids, er.updated_at, e.name AS event_name
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    WHERE er.registration_status = 'approved'
+      AND e.status != 'encerrado'
+      AND er.requested_activity_ids IS NOT NULL
+      AND er.requested_activity_ids != '[]'
+    ORDER BY er.updated_at DESC
+    LIMIT 50
+  `).all();
+  const pendingActivityEnrollmentRequests = [];
+  if (activityRequestCandidates.length) {
+    const parseIds = (value) => {
+      try {
+        const parsed = JSON.parse(value || '[]');
+        return Array.isArray(parsed) ? [...new Set(parsed.map(Number).filter(Number.isInteger))] : [];
+      } catch (_) { return []; }
+    };
+    const enrolledByRegistration = new Map();
+    db.prepare(`SELECT registration_id, activity_id FROM participant_activity_enrollments WHERE registration_id IN (${activityRequestCandidates.map(() => '?').join(',')})`)
+      .all(...activityRequestCandidates.map((candidate) => candidate.id)).forEach((row) => {
+        if (!enrolledByRegistration.has(row.registration_id)) enrolledByRegistration.set(row.registration_id, new Set());
+        enrolledByRegistration.get(row.registration_id).add(Number(row.activity_id));
+      });
+    const pendingActivityIds = [...new Set(activityRequestCandidates.flatMap((candidate) => parseIds(candidate.requested_activity_ids)))];
+    const activityNamesById = new Map();
+    if (pendingActivityIds.length) {
+      db.prepare(`SELECT id, name FROM event_activities WHERE id IN (${pendingActivityIds.map(() => '?').join(',')})`)
+        .all(...pendingActivityIds).forEach((activity) => activityNamesById.set(activity.id, activity.name));
+    }
+    activityRequestCandidates.forEach((candidate) => {
+      const enrolled = enrolledByRegistration.get(candidate.id) || new Set();
+      const rejected = new Set(parseIds(candidate.rejected_activity_ids));
+      const pending = parseIds(candidate.requested_activity_ids).filter((id) => !enrolled.has(id) && !rejected.has(id));
+      if (!pending.length) return;
+      candidate.activity_names = pending.map((id) => activityNamesById.get(id) || `Atividade #${id}`).join(' · ');
+      pendingActivityEnrollmentRequests.push({
+        id: candidate.id,
+        event_id: candidate.event_id,
+        event_name: candidate.event_name,
+        name: candidate.name,
+        email: candidate.email,
+        activity_names: candidate.activity_names,
+        updated_at: candidate.updated_at
+      });
+    });
+  }
   
   res.render('admin/dashboard', {
     title: 'Dashboard',
@@ -416,6 +464,7 @@ router.get('/dashboard', requireAuth, (req, res) => {
     readyForDecisionArticles,
     pendingSubsidyRequests,
     pendingRegistrationRequests,
+    pendingActivityEnrollmentRequests,
     systemEmailSettings: getSystemEmailSettings(),
     pendingEmailCount: getPendingEmailCount(),
     pendingEmails: isSuperAdmin ? getPendingEmails() : [],

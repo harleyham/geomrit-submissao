@@ -70,6 +70,12 @@
         <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária (total, se sem etapas)" value="<%= activityForm.workload_hours ?? '' %>">
         <input name="video_url" type="url" title="Link da transmissão de vídeo" placeholder="Link da transmissão de vídeo (ex.: YouTube)" value="<%= activityForm.video_url || '' %>">
         <label style="margin-left:10px;font-size:13px;color:#94a3b8"><input type="checkbox" name="has_video" value="1" style="margin:0 6px 0 0" <%= activityForm.has_video || activityForm.video_url ? 'checked' : '' %>> Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)</label>
+        <div style="margin:10px 0 4px">
+          <label for="max_participants" style="display:block;font-size:13px;color:#94a3b8;margin-bottom:4px">Número máximo de participantes</label>
+          <input id="max_participants" name="max_participants" type="number" min="1" step="1" placeholder="Máximo de participantes (vazio = sem limite)" value="<%= activityForm.max_participants || '' %>" style="width:min(320px,100%)">
+        </div>
+        <% const eventForcesApproval = event.registration_approval_mode === 'review'; %>
+        <label style="display:block;margin:6px 0;font-size:13px;color:#94a3b8"><input type="checkbox" name="requires_approval" value="1" style="margin:0 6px 0 0" <%= (eventForcesApproval || Number(activityForm.requires_approval) === 1) ? 'checked' : '' %> <%= eventForcesApproval ? 'disabled' : '' %>> Inscrição nesta atividade exige aprovação da organização<% if (eventForcesApproval) { %> <span style="color:#fdba74">(exigida pela configuração do evento: inscrições sujeitas a análise)</span><% } %></label>
         <h3>Papéis elegíveis na chamada</h3>
         <% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach((role) => { %>
           <label><input type="checkbox" name="eligible_roles" value="<%= role[0] %>" <%= selectedRoles.includes(role[0]) ? 'checked' : '' %>> <%= role[1] %></label>
@@ -135,7 +141,10 @@
             <% } %>
           </div>
           <div style="display:flex;gap:10px;align-items:center;margin-top:2px">
-            <span style="font-size:11px;color:#64748b">Inscritos: <%= activity.enrolled_count || 0 %></span>
+            <% const enrolled = activity.enrolled_count || 0; const maxP = activity.max_participants ? Number(activity.max_participants) : null; const seatsFull = maxP !== null && enrolled >= maxP; %>
+            <span style="font-size:11px;color:<%= seatsFull ? '#fca5a5' : '#64748b' %>">Inscritos: <%= enrolled %><%= maxP !== null ? '/' + maxP : '' %></span>
+            <% if (seatsFull) { %><span class="badge" style="background:#7f1d1d;color:#fca5a5;font-size:10px">Vagas esgotadas</span><% } %>
+            <% if (Number(activity.requires_approval) === 1 || event.registration_approval_mode === 'review') { %><span class="badge" style="background:#78350f;color:#fdba74;font-size:10px">Aprovação obrigatória<%= event.registration_approval_mode === 'review' && Number(activity.requires_approval) !== 1 ? ' (do evento)' : '' %></span><% } %>
             <span style="font-size:11px;color:#64748b">Presentes: <%= activity.attendees_count || 0 %></span>
             <% if (activity.certificate_enabled) { %><span class="badge" style="background:#14532d;color:#86efac;font-size:10px">Certificável</span><% } else if (canManageActivities) { %><form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/certificate-enabled"><input type="hidden" name="enabled" value="1"><button type="submit" style="display:inline;padding:2px 8px;font-size:10px;background:#1e293b;color:#64748b;border:1px solid #334155;border-radius:4px;cursor:pointer;width:auto">Ativar cert.</button></form><% } %>
           </div>

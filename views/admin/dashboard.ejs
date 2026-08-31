@@ -343,6 +343,39 @@
 
     <div class="section" style="margin-top:1.5rem;">
       <div class="section-header">
+        <h2>Pedidos de inclusão em atividades não analisados</h2>
+      </div>
+      <div class="section-body">
+        <% if (pendingActivityEnrollmentRequests.length > 0) { %>
+        <div class="table-scroll"><table>
+          <thead>
+            <tr><th>Participante</th><th>Evento</th><th>Atividades solicitadas</th><th>Solicitado em</th></tr>
+          </thead>
+          <tbody>
+            <% pendingActivityEnrollmentRequests.forEach(request => { %>
+            <tr>
+              <td>
+                <a href="/admin/events/<%= request.event_id %>/participants/<%= request.id %>/edit"><%= request.name %></a><br>
+                <small style="color:#64748b;"><%= request.email %></small>
+              </td>
+              <td><a href="/admin/events/<%= request.event_id %>/participants"><%= request.event_name %></a></td>
+              <td><%= request.activity_names %></td>
+              <td><%= new Date(request.updated_at).toLocaleDateString('pt-BR') %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table></div>
+        <% } else { %>
+        <div class="empty">
+          <p>Não há pedidos de inclusão em atividades aguardando análise.</p>
+          <p>Os pedidos surgem quando o participante solicita inscrição em um minicurso que exige aprovação (pelo checkbox da página do evento).</p>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="section" style="margin-top:1.5rem;">
+      <div class="section-header">
         <h2>Solicitações de cadastro não analisadas</h2>
       </div>
       <div class="section-body">

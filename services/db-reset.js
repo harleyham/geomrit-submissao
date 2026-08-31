@@ -341,6 +341,7 @@ function initializeDbSchema(db) {
       registration_type TEXT NOT NULL DEFAULT 'listener',
       registration_status TEXT NOT NULL DEFAULT 'approved',
       requested_activity_ids TEXT DEFAULT '[]',
+      rejected_activity_ids TEXT DEFAULT '[]',
       registration_review_notes TEXT DEFAULT '',
       registration_reviewed_at DATETIME,
       registration_reviewed_by INTEGER,
@@ -485,7 +486,7 @@ function initializeDbSchema(db) {
       FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
-    CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',description TEXT DEFAULT '',activity_date DATE,date_start DATE,date_end DATE,time_start TIME,time_end TIME,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',video_url TEXT,has_video INTEGER DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS event_activities (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,name TEXT NOT NULL,activity_type TEXT NOT NULL DEFAULT 'other',description TEXT DEFAULT '',activity_date DATE,date_start DATE,date_end DATE,time_start TIME,time_end TIME,workload_hours REAL DEFAULT 0,certificate_enabled INTEGER DEFAULT 1,eligible_roles TEXT DEFAULT 'participant',certificate_role TEXT DEFAULT 'participant',video_url TEXT,has_video INTEGER DEFAULT 0,max_participants INTEGER,requires_approval INTEGER DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,name TEXT NOT NULL,sequence_no INTEGER NOT NULL DEFAULT 1,session_date DATE,time_start TIME,time_end TIME,workload_hours REAL DEFAULT 0,description TEXT DEFAULT '',video_url TEXT,has_video INTEGER DEFAULT 0,created_at DATETIME DEFAULT (datetime('now','-3 hours')),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_evaluations (id INTEGER PRIMARY KEY AUTOINCREMENT,event_id INTEGER NOT NULL,activity_id INTEGER NOT NULL,user_id INTEGER NOT NULL,evaluation TEXT NOT NULL,created_at DATETIME DEFAULT (datetime('now','-3 hours')),updated_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,user_id),FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS participant_activity_enrollments (
@@ -653,6 +654,8 @@ function initializeDbSchema(db) {
     if (!activityDateColumns.includes('date_end')) db.exec('ALTER TABLE event_activities ADD COLUMN date_end DATE');
     if (!activityDateColumns.includes('video_url')) db.exec('ALTER TABLE event_activities ADD COLUMN video_url TEXT');
     if (!activityDateColumns.includes('has_video')) db.exec('ALTER TABLE event_activities ADD COLUMN has_video INTEGER DEFAULT 0');
+    if (!activityDateColumns.includes('max_participants')) db.exec('ALTER TABLE event_activities ADD COLUMN max_participants INTEGER');
+    if (!activityDateColumns.includes('requires_approval')) db.exec('ALTER TABLE event_activities ADD COLUMN requires_approval INTEGER DEFAULT 0');
     const sessionVideoColumns = db.prepare('PRAGMA table_info(activity_sessions)').all().map((column) => column.name);
     if (!sessionVideoColumns.includes('video_url')) db.exec('ALTER TABLE activity_sessions ADD COLUMN video_url TEXT');
     if (!sessionVideoColumns.includes('has_video')) db.exec('ALTER TABLE activity_sessions ADD COLUMN has_video INTEGER DEFAULT 0');
@@ -1014,6 +1017,7 @@ function initializeDbSchema(db) {
     if (!registrationColumns.includes('phone')) db.exec("ALTER TABLE event_registrations ADD COLUMN phone TEXT DEFAULT ''");
     if (!registrationColumns.includes('registration_status')) db.exec("ALTER TABLE event_registrations ADD COLUMN registration_status TEXT NOT NULL DEFAULT 'approved'");
     if (!registrationColumns.includes('requested_activity_ids')) db.exec("ALTER TABLE event_registrations ADD COLUMN requested_activity_ids TEXT DEFAULT '[]'");
+    if (!registrationColumns.includes('rejected_activity_ids')) db.exec("ALTER TABLE event_registrations ADD COLUMN rejected_activity_ids TEXT DEFAULT '[]'");
     if (!registrationColumns.includes('registration_review_notes')) db.exec("ALTER TABLE event_registrations ADD COLUMN registration_review_notes TEXT DEFAULT ''");
     if (!registrationColumns.includes('registration_reviewed_at')) db.exec('ALTER TABLE event_registrations ADD COLUMN registration_reviewed_at DATETIME');
     if (!registrationColumns.includes('registration_reviewed_by')) db.exec('ALTER TABLE event_registrations ADD COLUMN registration_reviewed_by INTEGER');

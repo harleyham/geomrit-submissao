@@ -8,7 +8,7 @@ const { db, recordParticipantAudit } = require('../db');
 const bcrypt = require('bcryptjs');
 const { renderCertificatePdf } = require('../services/certificates');
 const { QR_ROLE_LABELS, ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
-const { registrationLimiter, interestsLimiter, strictLimiter } = require('../security/rate-limits');
+const { registrationLimiter, interestsLimiter, activityEnrollLimiter, strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { brDate, brToday, brFormatDate } = require('../services/datetime');
 const { validateCsrfToken } = require('../security/csrf');
@@ -749,6 +749,20 @@ function saveActivityInterests(eventId, userId, registrationId, activityIds) {
   replace();
 }
 
+// Vagas de uma atividade: max_participants NULL = sem limite. Usado pelos
+// fluxos de auto-inscricao do participante (o admin pode exceder o limite).
+function getActivitySeats(activityId) {
+  const activity = db.prepare('SELECT max_participants FROM event_activities WHERE id=?').get(activityId);
+  const max = activity && activity.max_participants ? Number(activity.max_participants) : null;
+  const enrolled = db.prepare('SELECT COUNT(*) AS count FROM participant_activity_enrollments WHERE activity_id=?').get(activityId).count;
+  return { enrolled, max, remaining: max === null ? null : Math.max(0, max - enrolled), full: max !== null && enrolled >= max };
+}
+
+// IDs que a pessoa esta adicionando agora (ja inscritos nao contam) e estao com as vagas esgotadas.
+function getCapacityBlockedActivityIds(selectedIds, alreadyEnrolledIds) {
+  return selectedIds.filter((id) => !alreadyEnrolledIds.includes(id) && getActivitySeats(id).full);
+}
+
 function parseRequestedActivityIds(value) {
   try {
     const ids = JSON.parse(value || '[]');
@@ -1017,7 +1031,7 @@ router.get('/evento/:id', (req, res) => {
   let registration = null;
   if (req.session && req.session.userId) {
     registration = db.prepare(`
-      SELECT id, registration_type, registration_status
+      SELECT id, registration_type, registration_status, requested_activity_ids, rejected_activity_ids
       FROM event_registrations
       WHERE event_id = ?
         AND (
@@ -1032,7 +1046,7 @@ router.get('/evento/:id', (req, res) => {
   const eventWithMeta = withSubmissionMeta(event);
   const isClosed = event.status === 'encerrado';
   const activities = db.prepare(`
-    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video
+    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video,max_participants,requires_approval
     FROM event_activities
     WHERE event_id=?
     ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE
@@ -1080,6 +1094,21 @@ router.get('/evento/:id', (req, res) => {
     : new Set();
   const canMarkInterests = !!(req.session && req.session.userId && registration && registration.registration_status === 'approved' && !isClosed);
 
+  const seatsByActivity = {};
+  activities.forEach((activity) => {
+    if (activity.activity_type === 'course' && activity.max_participants) seatsByActivity[activity.id] = getActivitySeats(activity.id);
+  });
+  const registrationApproved = !!(registration && registration.registration_status === 'approved');
+  let enrolledActivityIds = new Set();
+  let pendingActivityRequests = new Set();
+  let rejectedActivityIds = new Set();
+  if (registration) {
+    if (registrationApproved) enrolledActivityIds = new Set(getRegistrationActivityIds(registration.id));
+    rejectedActivityIds = new Set(parseRequestedActivityIds(registration.rejected_activity_ids));
+    pendingActivityRequests = new Set(parseRequestedActivityIds(registration.requested_activity_ids).filter((id) => !enrolledActivityIds.has(id) && !rejectedActivityIds.has(id)));
+  }
+  const canEnrollCourses = registrationApproved && !isClosed;
+
   res.render('public/event', {
     event: eventWithMeta,
     title: event.name,
@@ -1089,6 +1118,11 @@ router.get('/evento/:id', (req, res) => {
     interestActivities,
     interestIds,
     canMarkInterests,
+    seatsByActivity,
+    enrolledActivityIds,
+    pendingActivityRequests,
+    rejectedActivityIds,
+    canEnrollCourses,
     hasInterestActivities: interestActivities.length > 0,
     isLoggedIn: !!(req.session && req.session.userId),
     success: req.query.success || null,
@@ -1246,6 +1280,11 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
   }
 
   const errors = validateListenerRegistrationForm(formData, event, existingRegistration, uploadedFiles);
+
+  const previouslyEnrolledForCapacity = existingRegistration ? getRegistrationActivityIds(existingRegistration.id) : [];
+  if (getCapacityBlockedActivityIds(formData.activity_ids, previouslyEnrolledForCapacity).length > 0) {
+    errors.push('Uma ou mais atividades selecionadas não possui mais vagas disponíveis.');
+  }
 
   if (errors.length > 0) {
     removeUploadedRegistrationFiles(uploadedFiles);
@@ -1519,6 +1558,9 @@ router.post('/evento/:id/atividades', registrationLimiter, requireNonAdminAuthor
     const activityIds = [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
     const validationError = validateRegistrationActivities(event.id, activityIds);
     if (validationError) return res.redirect(backTo(`error=${encodeURIComponent(validationError)}`));
+    if (getCapacityBlockedActivityIds(activityIds, getRegistrationActivityIds(registration.id)).length > 0) {
+      return res.redirect(backTo(`error=${encodeURIComponent('Uma das atividades selecionadas não possui mais vagas disponíveis.')}`));
+    }
     targetActivityIds = activityIds;
   }
 
@@ -1586,6 +1628,105 @@ router.post('/evento/:id/interesses', interestsLimiter, requireNonAdminAuthorAcc
     action: 'participant_interests_updated', details: { activity_ids: interestIds }
   });
   return backToEvent(`success=${encodeURIComponent('Atividades de interesse salvas com sucesso.')}`, null);
+});
+
+// Auto-inscricao em minicurso pela pagina do evento (checkbox dos cards).
+// Vai para analise (requested_activity_ids) quando o evento esta no modo de
+// analise (que, na configuracao do evento, e justamente "administracao aprova
+// ou rejeita atividades") OU quando a atividade exige aprovacao (flag exibido
+// travado e marcado no form admin nesses eventos); entra direto com vagas caso
+// contrario. O admin pode exceder o limite pelos fluxos administrativos.
+router.post('/evento/:id/atividades/inscricao', activityEnrollLimiter, requireNonAdminAuthorAccess, (req, res) => {
+  const wantsJson = String(req.accepts(['html', 'json']) || '') === 'json';
+  const finish = (ok, payload, redirectParams, jsonError) => {
+    if (wantsJson) return res.status(jsonError ? 400 : 200).json(ok ? { ok: true, ...payload } : { ok: false, error: jsonError });
+    return res.redirect(`/evento/${req.params.id}${redirectParams.includes('?') ? '&' : '?'}${redirectParams}`);
+  };
+  const fail = (message, redirectTo) => finish(false, null, `error=${encodeURIComponent(message)}`, redirectTo ? { error: message, redirectTo } : message);
+
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (event.status === 'encerrado') return fail('O evento está encerrado e não permite inscrições em atividades.');
+
+  const activityId = Number(req.body.activity_id);
+  const enable = String(req.body.enabled) !== '0';
+  if (!Number.isInteger(activityId) || activityId <= 0) return fail('Atividade inválida.');
+  const activity = db.prepare(`
+    SELECT id,name,requires_approval FROM event_activities
+    WHERE id=? AND event_id=? AND activity_type='course'
+      AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
+  `).get(activityId, event.id);
+  if (!activity) return fail('Esta atividade não está aberta para inscrição de participantes.');
+
+  const registration = getOwnedEventRegistration(event.id, req);
+  if (!registration) {
+    if (wantsJson) return res.status(403).json({ ok: false, error: 'Faça a sua inscrição no evento para solicitar minicursos.', redirectTo: `/evento/${event.id}/inscricao` });
+    return res.redirect(`/evento/${event.id}/inscricao?error=${encodeURIComponent('Faça a sua inscrição no evento para solicitar minicursos.')}`);
+  }
+  if (registration.registration_status !== 'approved') {
+    return fail(registration.registration_status === 'pending' ? 'Sua inscrição no evento ainda está aguardando análise.' : 'Sua inscrição no evento não foi aprovada.');
+  }
+
+  const enrollment = db.prepare('SELECT id FROM participant_activity_enrollments WHERE activity_id=? AND registration_id=?').get(activityId, registration.id);
+  const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
+  const rejectedIds = parseRequestedActivityIds(registration.rejected_activity_ids);
+  const requiresAnalysis = event.registration_approval_mode === 'review' || Number(activity.requires_approval) === 1;
+
+  const updateRequested = (ids) => {
+    db.prepare("UPDATE event_registrations SET requested_activity_ids=?,updated_at=datetime('now','-3 hours') WHERE id=?")
+      .run(JSON.stringify(ids), registration.id);
+  };
+
+  if (enable) {
+    if (enrollment) return finish(true, { state: 'enrolled', ...getActivitySeats(activityId) }, 'success=' + encodeURIComponent(`Você já está inscrito em "${activity.name}".`));
+    if (rejectedIds.includes(activityId)) return fail(`O pedido de inscrição em "${activity.name}" foi negado pela organização. Entre em contato com ela para mais informações.`);
+    if (requiresAnalysis) {
+      if (!requestedIds.includes(activityId)) updateRequested([...requestedIds, activityId]);
+      recordParticipantAudit({
+        eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+        action: 'participant_activity_requested', details: { activity_id: activityId, source: 'event_page' }
+      });
+      return finish(true, { state: 'requested' }, `success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" enviado para análise da organização.`)}`);
+    }
+    try {
+      db.transaction(() => {
+        const seats = getActivitySeats(activityId);
+        if (seats.full) throw new Error('FULL');
+        db.prepare(`INSERT INTO participant_activity_enrollments (activity_id,registration_id,user_id,enrolled_by,created_at,updated_at)
+          VALUES (?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`).run(activityId, registration.id, req.session.userId, req.session.userId);
+        recordParticipantAudit({
+          eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+          action: 'participant_activity_enrolled_self', details: { activity_id: activityId, source: 'event_page' }
+        });
+      })();
+    } catch (error) {
+      if (error && error.message === 'FULL') return fail(`A atividade "${activity.name}" não possui mais vagas disponíveis.`);
+      throw error;
+    }
+    return finish(true, { state: 'enrolled', ...getActivitySeats(activityId) }, `success=${encodeURIComponent(`Inscrição realizada em "${activity.name}".`)}`);
+  }
+
+  if (enrollment) {
+    const attended = db.prepare("SELECT 1 AS present FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND role='participant' LIMIT 1").get(activityId, req.session.userId);
+    if (attended) return fail(`Não é possível cancelar "${activity.name}": você já possui presença registrada nesta atividade.`);
+    db.transaction(() => {
+      db.prepare('DELETE FROM participant_activity_enrollments WHERE activity_id=? AND registration_id=?').run(activityId, registration.id);
+      recordParticipantAudit({
+        eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+        action: 'participant_activity_unenrolled_self', details: { activity_id: activityId, source: 'event_page' }
+      });
+    })();
+    return finish(true, { state: 'none', ...getActivitySeats(activityId) }, `success=${encodeURIComponent(`Inscrição em "${activity.name}" cancelada.`)}`);
+  }
+  if (requestedIds.includes(activityId)) {
+    updateRequested(requestedIds.filter((id) => id !== activityId));
+    recordParticipantAudit({
+      eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+      action: 'participant_activity_request_canceled', details: { activity_id: activityId, source: 'event_page' }
+    });
+    return finish(true, { state: 'none' }, `success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" cancelado.`)}`);
+  }
+  return finish(true, { state: 'none', ...getActivitySeats(activityId) }, 'success=' + encodeURIComponent(''));
 });
 
 // Presença por QR Code do participante (um código por usuário e por evento) — helpers em services/cracha.js

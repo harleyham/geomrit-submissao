@@ -39,6 +39,17 @@ const interestsLimiter = rateLimit({
   message: { error: 'Muitas alterações de interesse. Aguarde alguns minutos antes de tentar novamente.' }
 });
 
+// Marcar/desmarcar inscrição em minicurso pela página do evento (auto-save via fetch);
+// teto alto para evitar 429 em uso normal, baixo o suficiente para conter abuso.
+const activityEnrollLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: socketKeyGenerator,
+  message: { error: 'Muitas alterações de inscrição em atividades. Aguarde alguns minutos antes de tentar novamente.' }
+});
+
 const defaultLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -66,4 +77,4 @@ const strictLimiter = rateLimit({
   message: { error: 'Muitas requisições. Aguarde antes de tentar novamente.' }
 });
 
-module.exports = { loginLimiter, registrationLimiter, interestsLimiter, defaultLimiter, adminLimiter, strictLimiter };
+module.exports = { loginLimiter, registrationLimiter, interestsLimiter, activityEnrollLimiter, defaultLimiter, adminLimiter, strictLimiter };

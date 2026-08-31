@@ -1178,6 +1178,21 @@ router.get('/:id/participants', (req, res) => {
   const clampedOffset = (clampedPage - 1) * perPage;
 
   const participants = getEventParticipantSummary(req.params.id, filters, { perPage, offset: clampedOffset });
+  const enrolledByRegistration = new Map();
+  const pageRegistrationIds = participants.map((participant) => participant.id).filter(Boolean);
+  if (pageRegistrationIds.length) {
+    db.prepare(`SELECT registration_id, activity_id FROM participant_activity_enrollments WHERE registration_id IN (${pageRegistrationIds.map(() => '?').join(',')})`)
+      .all(...pageRegistrationIds).forEach((row) => {
+        if (!enrolledByRegistration.has(row.registration_id)) enrolledByRegistration.set(row.registration_id, new Set());
+        enrolledByRegistration.get(row.registration_id).add(Number(row.activity_id));
+      });
+  }
+  participants.forEach((participant) => {
+    const requestedIds = parseRequestedActivityIds(participant.requested_activity_ids);
+    const enrolled = enrolledByRegistration.get(participant.id) || new Set();
+    const rejected = new Set(parseRequestedActivityIds(participant.rejected_activity_ids));
+    participant.pending_activity_requests = requestedIds.filter((id) => !enrolled.has(id) && !rejected.has(id)).length;
+  });
   const summary = countEventParticipantsDetailed(req.params.id, filters);
 
   res.render('admin/events/participants', {
@@ -1822,6 +1837,16 @@ function loadActivitiesData(eventId) {
 }
 
 const ACTIVITY_VALID_TYPES = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner', 'other'];
+function parseActivitySeatSettings(req) {
+  const raw = String(req.body.max_participants || '').trim();
+  if (raw === '') return { maxParticipants: null, error: null };
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return { maxParticipants: null, error: 'O número máximo de participantes deve ser um inteiro maior que zero (ou deixe vazio para não limitar).' };
+  }
+  return { maxParticipants: parsed, error: null };
+}
+
 function buildActivityDraft(req, existing) {
   const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : (req.body.eligible_roles ? [req.body.eligible_roles] : []);
   const roomId = Number(req.body.room_id) || null;
@@ -1838,6 +1863,8 @@ function buildActivityDraft(req, existing) {
     workload_hours: (workloadRaw === undefined || workloadRaw === '') ? null : (Number(workloadRaw) || 0),
     video_url: String(req.body.video_url || ''),
     has_video: req.body.has_video === '1' ? 1 : 0,
+    max_participants: String(req.body.max_participants || '').trim() || null,
+    requires_approval: req.body.requires_approval === '1' ? 1 : 0,
     certificate_enabled: req.body.certificate_enabled === '1' ? 1 : 0,
     eligible_roles: submittedRoles.join(','),
     session_count: existing ? (existing.session_count != null ? existing.session_count : db.prepare('SELECT COUNT(*) AS count FROM activity_sessions WHERE activity_id=?').get(existing.id).count) : 0,
@@ -1926,13 +1953,18 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   if (allocation.error) {
     return failActivities(allocation.error);
   }
+  const seatSettings = parseActivitySeatSettings(req);
+  if (seatSettings.error) {
+    return failActivities(seatSettings.error);
+  }
+  const requiresApproval = event.registration_approval_mode === 'review' ? 1 : (req.body.requires_approval === '1' ? 1 : 0);
   try {
     db.transaction(() => {
       const created = db.prepare(`INSERT INTO event_activities
-        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         event.id, name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours,
-        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo
+        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval
       );
       if (allocation.roomId) {
         rooms.syncTargetAssignments({ eventId: event.id, activityId: created.lastInsertRowid, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
@@ -1993,12 +2025,18 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   if (allocation.error) {
     return failActivities(allocation.error);
   }
+  const seatSettings = parseActivitySeatSettings(req);
+  if (seatSettings.error) {
+    return failActivities(seatSettings.error);
+  }
+  const parentEvent = db.prepare('SELECT registration_approval_mode FROM events WHERE id=?').get(activity.event_id);
+  const requiresApproval = parentEvent && parentEvent.registration_approval_mode === 'review' ? 1 : (req.body.requires_approval === '1' ? 1 : 0);
   try {
     db.transaction(() => {
       db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,time_start=?,time_end=?,workload_hours=?,
-        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=? WHERE id=?`).run(
+        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=? WHERE id=?`).run(
         name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
-        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, activity.id
+        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, activity.id
       );
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
     })();
@@ -3158,6 +3196,7 @@ router.get('/:id/participants/new', (req, res) => {
     formData: { name: '', email: '', institution: '', registration_type: 'listener', account_mode: 'new', existing_user_id: '', activity_ids: [] },
     selectedExistingUser: null,
     activities: getActivitiesForParticipantForm(event.id),
+    pendingActivityRequests: [],
     error: null
   });
 });
@@ -3207,6 +3246,19 @@ function getParticipantActivityIds(registrationId) {
   if (!registrationId) return [];
   return db.prepare('SELECT activity_id FROM participant_activity_enrollments WHERE registration_id=? ORDER BY activity_id')
     .all(registrationId).map((row) => Number(row.activity_id));
+}
+
+// Pedidos de atividade aguardando analise: solicitados, ainda nao inscritos e nao negados.
+function getPendingActivityRequests(registration) {
+  if (!registration) return [];
+  const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
+  if (!requestedIds.length) return [];
+  const enrolled = getParticipantActivityIds(registration.id);
+  const rejected = new Set(parseRequestedActivityIds(registration.rejected_activity_ids));
+  const pending = requestedIds.filter((id) => !enrolled.includes(id) && !rejected.has(id));
+  if (!pending.length) return [];
+  return db.prepare(`SELECT id,name FROM event_activities WHERE event_id=? AND id IN (${pending.map(() => '?').join(',')})`)
+    .all(registration.event_id, ...pending);
 }
 
 function validateParticipantActivities(eventId, activityIds) {
@@ -3274,6 +3326,7 @@ function renderParticipantFormError(res, event, registration, formData, error) {
     formData,
     selectedExistingUser: formData.account_mode === 'existing' ? getParticipantSelectableUser(formData.existing_user_id) : null,
     activities: getActivitiesForParticipantForm(event.id),
+    pendingActivityRequests: registration ? getPendingActivityRequests(registration) : [],
     eventRoles: getParticipantEventRoles(event.id, registration && registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
     areas: areas,
@@ -3456,6 +3509,56 @@ router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res
   return res.redirect(`/admin/events/${event.id}/participants?success=${encodeURIComponent(decision === 'approved' ? 'Inscrição aprovada.' : 'Solicitação de inscrição rejeitada.')}`);
 });
 
+// Decisao (SIM/N AO) de pedido de inscricao em atividade para participante ja
+// aprovado: aprovar gera a inscricao e remove o pedido; negar move o id para
+// rejected_activity_ids (o checkbox da pessoa fica travado em nao inscrita ate
+// a administracao inscreve-la manualmente).
+router.post('/:id/participants/:registrationId/activities/decide', strictLimiter, (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id));
+  const registration = event && getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
+  if (!event || !registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
+  const back = (params) => res.redirect(`/admin/events/${event.id}/participants/${registration.id}/edit?${params}`);
+  const activityId = Number(req.body.activity_id);
+  const decision = req.body.decision === 'approve' ? 'approve' : req.body.decision === 'reject' ? 'reject' : null;
+  if (!Number.isInteger(activityId) || activityId <= 0 || !decision) return back(`error=${encodeURIComponent('Decisão inválida.')}`);
+  const activity = db.prepare('SELECT id,name FROM event_activities WHERE id=? AND event_id=?').get(activityId, event.id);
+  if (!activity) return back(`error=${encodeURIComponent('Atividade não encontrada neste evento.')}`);
+  const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
+  if (!requestedIds.includes(activityId)) return back(`error=${encodeURIComponent('Este pedido não está aguardando análise.')}`);
+  const rejectedIds = parseRequestedActivityIds(registration.rejected_activity_ids);
+  const newRequested = JSON.stringify(requestedIds.filter((id) => id !== activityId));
+
+  if (decision === 'approve') {
+    if (!registration.user_id) {
+      return back(`error=${encodeURIComponent('Vincule uma conta a este participante antes de aprovar pedidos de atividade.')}`);
+    }
+    db.transaction(() => {
+      const enrolled = db.prepare('SELECT id FROM participant_activity_enrollments WHERE activity_id=? AND registration_id=?').get(activityId, registration.id);
+      if (!enrolled) {
+        db.prepare(`INSERT INTO participant_activity_enrollments (activity_id,registration_id,user_id,enrolled_by,created_at,updated_at)
+          VALUES (?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`).run(activityId, registration.id, registration.user_id, req.session.userId);
+      }
+      db.prepare("UPDATE event_registrations SET requested_activity_ids=?, rejected_activity_ids=?, updated_at=datetime('now','-3 hours') WHERE id=?")
+        .run(newRequested, JSON.stringify(rejectedIds.filter((id) => id !== activityId)), registration.id);
+      recordParticipantAudit({
+        eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+        action: 'participant_activity_request_approved', details: { activity_id: activityId }
+      });
+    })();
+    return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" aprovado.`)}`);
+  }
+
+  db.transaction(() => {
+    db.prepare("UPDATE event_registrations SET requested_activity_ids=?, rejected_activity_ids=?, updated_at=datetime('now','-3 hours') WHERE id=?")
+      .run(newRequested, JSON.stringify([...new Set([...rejectedIds, activityId])]), registration.id);
+    recordParticipantAudit({
+      eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+      action: 'participant_activity_request_rejected', details: { activity_id: activityId }
+    });
+  })();
+  return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" negado. A pessoa ficará impossibilitada de solicitá-la novamente.`)}`);
+});
+
 router.get('/:id/participants/:registrationId/edit', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -3485,6 +3588,7 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
     },
     selectedExistingUser: null,
     activities: getActivitiesForParticipantForm(event.id),
+    pendingActivityRequests: getPendingActivityRequests(registration),
     eventRoles: getParticipantEventRoles(event.id, registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
     areas: areas,

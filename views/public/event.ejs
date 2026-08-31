@@ -253,9 +253,23 @@
                 <section class="act-type-card">
                   <h3 class="act-type-head"><span class="act-badge" style="background:<%= st[0] %>;color:<%= st[1] %>"><%= actTypeMap[type] %></span> <span class="act-type-count">(<%= items.length %> atividade<%= items.length > 1 ? 's' : '' %>)</span></h3>
                   <div class="act-type-grid">
-                    <% items.forEach(function(a){ var hasSess = a.sessions && a.sessions.length; var isInterest = canMarkInterests && interestEligibleIds.has(a.id); %>
+                    <% items.forEach(function(a){ var hasSess = a.sessions && a.sessions.length; var isInterest = canMarkInterests && interestEligibleIds.has(a.id);
+                       var isCourse = type === 'course';
+                       var seats = isCourse && seatsByActivity ? seatsByActivity[a.id] : null;
+                       var isEnrolled = isCourse && typeof enrolledActivityIds !== 'undefined' && enrolledActivityIds.has(a.id);
+                       var isRequested = isCourse && typeof pendingActivityRequests !== 'undefined' && pendingActivityRequests.has(a.id);
+                       var isDenied = isCourse && !isEnrolled && typeof rejectedActivityIds !== 'undefined' && rejectedActivityIds.has(a.id);
+                       var canToggle = isCourse && canEnrollCourses && !isEnrolled && !isRequested && !isDenied && (!seats || !seats.full); %>
                       <div class="act-item">
-                        <% if (isInterest) { %>
+                        <% if (isCourse) { %>
+                          <label class="act-item-interest">
+                            <input type="checkbox" class="course-enroll" data-activity="<%= a.id %>" data-url="/evento/<%= event.id %>/atividades/inscricao" <%= (isEnrolled || isRequested) ? 'checked' : '' %> <%= canToggle ? '' : 'disabled' %>>
+                            <span class="act-item-title"><%= a.name %></span>
+                          </label>
+                          <% var enrollState = []; if (seats) { enrollState.push('Inscritos: ' + seats.enrolled + '/' + seats.max + (seats.full ? ' · Esgotado' : (' · Restam ' + seats.remaining + ' vaga' + (seats.remaining === 1 ? '' : 's')))); } if (isEnrolled) { enrollState.push('✓ Inscrito'); } else if (isRequested) { enrollState.push('Pedido em análise'); } else if (isDenied) { enrollState.push('Pedido negado pela organização'); } else if (!canEnrollCourses) { enrollState.push(registration ? 'Inscrição no evento necessária para solicitar' : 'Entre e inscreva-se no evento para solicitar'); } %>
+                          <small class="act-item-meta course-enroll-state" style="color:#94a3b8"><%= enrollState.join(' · ') %></small>
+                          <small class="course-enroll-feedback" hidden style="display:block;color:#fca5a5"></small>
+                        <% } else if (isInterest) { %>
                           <label class="act-item-interest">
                             <input type="checkbox" name="interest_ids" value="<%= a.id %>" <%= interestIds.has(a.id) ? 'checked' : '' %>>
                             <span class="act-item-title"><%= a.name %></span>
@@ -578,6 +592,58 @@
   })();
   </script>
   <% } %>
-<%- include("../partials/csrf-inject") %>
+  <script nonce="<%= cspNonce %>">
+  (function() {
+    function init() {
+      var boxes = Array.prototype.slice.call(document.querySelectorAll('input.course-enroll'));
+      if (!boxes.length) return;
+          var csrf = '<%- csrfToken %>';
+          var queue = Promise.resolve();
+          function seatsLabel(data) {
+            var parts = [];
+            if (typeof data.max === 'number') parts.push('Inscritos: ' + data.enrolled + '/' + data.max + (data.full ? ' · Esgotado' : (' · Restam ' + data.remaining + ' vaga' + (data.remaining === 1 ? '' : 's'))));
+            return parts;
+          }
+          boxes.forEach(function(cb) {
+        cb.addEventListener('change', function() {
+          var item = cb.closest('.act-item');
+          var feedback = item ? item.querySelector('.course-enroll-feedback') : null;
+          var state = item ? item.querySelector('.course-enroll-state') : null;
+          var wasChecked = cb.checked;
+          var sending = '_csrf=' + encodeURIComponent(csrf) + '&activity_id=' + encodeURIComponent(cb.getAttribute('data-activity')) + '&enabled=' + (wasChecked ? '1' : '0');
+          cb.disabled = true;
+          if (feedback) { feedback.hidden = true; feedback.textContent = ''; }
+          queue = queue.then(function() {
+            return fetch(cb.getAttribute('data-url'), {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' },
+              body: sending
+            }).then(function(res) { return res.json().then(function(data) { return { data: data }; }); });
+          }).then(function(r) {
+            var data = r.data || {};
+            if (data.ok !== true) throw new Error(data.error || 'Não foi possível alterar a inscrição.');
+            if (data.state === 'requested') {
+              cb.checked = true; cb.disabled = true;
+              if (state) state.textContent = seatsLabel(data).concat('Pedido em análise').join(' · ');
+            } else if (data.state === 'enrolled') {
+              cb.checked = true; cb.disabled = true;
+              if (state) state.textContent = seatsLabel(data).concat('✓ Inscrito').join(' · ');
+            } else {
+              cb.checked = false; cb.disabled = false;
+              if (state) state.textContent = seatsLabel(data).join(' · ');
+            }
+          }).catch(function(err) {
+            cb.checked = !wasChecked; cb.disabled = false;
+            if (feedback) { feedback.hidden = false; feedback.textContent = (err && err.message) || 'Falha ao alterar a inscrição.'; }
+          });
+        });
+      });
+    }
+    if (document.readyState !== 'loading') init();
+    else document.addEventListener('DOMContentLoaded', init);
+  })();
+  </script>
+  <%- include("../partials/csrf-inject") %>
   </body>
 </html>
