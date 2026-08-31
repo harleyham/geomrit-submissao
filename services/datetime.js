@@ -14,4 +14,13 @@ function brToday() {
   return new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00-03:00`);
 }
 
-module.exports = { brDate, brToday };
+// Formata uma data (possivelmente construida por brDate com hora 23:59:59-03:00)
+// sempre no fuso America/Sao_Paulo, para que o dia exibido independa do fuso
+// do host (num servidor UTC, 23:59-03:00 ja e o dia seguinte).
+function brFormatDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+}
+
+module.exports = { brDate, brToday, brFormatDate };

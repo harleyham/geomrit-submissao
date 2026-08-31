@@ -10,7 +10,7 @@ const { renderCertificatePdf } = require('../services/certificates');
 const { QR_ROLE_LABELS, ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
 const { registrationLimiter, interestsLimiter, strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
-const { brDate, brToday } = require('../services/datetime');
+const { brDate, brToday, brFormatDate } = require('../services/datetime');
 const { validateCsrfToken } = require('../security/csrf');
 const { body } = require('express-validator');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
@@ -102,10 +102,10 @@ function getSubmissionWindow(event) {
     message = 'Este evento não possui período de submissão de artigos configurado.';
   } else if (now < start) {
     isOpen = false;
-    message = `As submissões para este evento abrem em ${start.toLocaleDateString('pt-BR')}.`;
+    message = `As submissões para este evento abrem em ${brFormatDate(start)}.`;
   } else if (now > end) {
     isOpen = false;
-    message = `O período de submissão deste evento encerrou em ${end.toLocaleDateString('pt-BR')}.`;
+    message = `O período de submissão deste evento encerrou em ${brFormatDate(end)}.`;
   } else {
     isOpen = true;
   }
@@ -115,11 +115,7 @@ function getSubmissionWindow(event) {
 
 function withSubmissionMeta(event) {
   const submission = getSubmissionWindow(event);
-  const formatDate = (value) => {
-    if (!value) return null;
-    const date = new Date(String(value).slice(0, 10) + 'T00:00:00');
-    return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('pt-BR');
-  };
+  const formatDate = (value) => brFormatDate(brDate(value));
 
   return {
     ...event,
@@ -134,9 +130,7 @@ function withSubmissionMeta(event) {
 }
 
 function formatDisplayDate(value) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('pt-BR');
+  return brFormatDate(value);
 }
 
 function getEventStatus(event) {
@@ -207,7 +201,7 @@ function getRegistrationWindow(event) {
     return {
       isOpen: false,
       isConfigured: true,
-      message: `As inscrições para este evento abrem em ${start.toLocaleDateString('pt-BR')}.`,
+      message: `As inscrições para este evento abrem em ${brFormatDate(start)}.`,
       start,
       end
     };
@@ -217,7 +211,7 @@ function getRegistrationWindow(event) {
     return {
       isOpen: false,
       isConfigured: true,
-      message: `O período de inscrições deste evento encerrou em ${end.toLocaleDateString('pt-BR')}.`,
+      message: `O período de inscrições deste evento encerrou em ${brFormatDate(end)}.`,
       start,
       end
     };
@@ -245,7 +239,7 @@ function getCertificatesWindow(event) {
     return {
       isOpen: false,
       isConfigured: true,
-      message: `Os certificados deste evento estarão disponíveis a partir de ${start.toLocaleDateString('pt-BR')}.`,
+      message: `Os certificados deste evento estarão disponíveis a partir de ${brFormatDate(start)}.`,
       start,
       end
     };
@@ -255,7 +249,7 @@ function getCertificatesWindow(event) {
     return {
       isOpen: false,
       isConfigured: true,
-      message: `O período para acesso aos certificados deste evento encerrou em ${end.toLocaleDateString('pt-BR')}.`,
+      message: `O período para acesso aos certificados deste evento encerrou em ${brFormatDate(end)}.`,
       start,
       end
     };
