@@ -180,8 +180,18 @@
           var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], other:['#1e293b','#94a3b8'] };
           var actByType = {};
           activities.forEach(function(a){ var t = a.activity_type || 'other'; (actByType[t] = actByType[t] || []).push(a); });
+          var interestEligibleIds = new Set((interestActivities || []).map(function(a){ return a.id; }));
         %>
         <div class="timeline-title">Atividades do Evento</div>
+        <% if (locals.success) { %>
+          <div class="interest-alert interest-alert-success"><%= success %></div>
+        <% } %>
+        <% if (locals.error) { %>
+          <div class="interest-alert interest-alert-error"><%= error %></div>
+        <% } %>
+        <% if (isLoggedIn && !registration && hasInterestActivities) { %>
+          <div class="interest-alert interest-alert-note">Faça a sua <a href="/evento/<%= event.id %>/inscricao">inscrição</a> para marcar as atividades de seu interesse.</div>
+        <% } %>
         <div class="activities-toggle-block">
           <style>
             .activities-toggle-block .activities-radio { position:absolute;opacity:0;pointer-events:none; }
@@ -211,6 +221,19 @@
             .activities-toggle-block .grid-table tbody th { background:rgba(15,23,42,0.6); color:#94a3b8; white-space:nowrap; font-weight:600; text-align:left; }
             .activities-toggle-block .grid-table td .grid-item { display:block; color:#f8fafc; }
             .activities-toggle-block .grid-table td .grid-item + .grid-item { margin-top:6px; padding-top:6px; border-top:1px dashed rgba(148,163,184,0.15); }
+            .interest-alert { margin:0 0 12px; padding:.7rem .9rem; border-radius:10px; font-size:.85rem; line-height:1.5; }
+            .interest-alert a { color:#93c5fd; }
+            .interest-alert-success { color:#86efac; background:rgba(34,197,94,.1); border:1px solid rgba(74,222,128,.2); }
+            .interest-alert-error { color:#fca5a5; background:rgba(239,68,68,.1); border:1px solid rgba(248,113,113,.25); }
+            .interest-alert-note { color:#93c5fd; background:rgba(59,130,246,.1); border:1px solid rgba(96,165,250,.25); }
+            .act-item-interest { display:flex; gap:.55rem; align-items:flex-start; cursor:pointer; }
+            .act-item-interest input[type=checkbox] { width:17px; height:17px; margin-top:.1rem; accent-color:#3b82f6; flex:none; }
+            .act-item:has(input:checked) { border-color:#3b82f6; background:rgba(37,99,235,.10); }
+            .interest-form-actions { display:flex; align-items:center; gap:1rem; margin-top:14px; flex-wrap:wrap; }
+            .interest-form-help { color:#94a3b8; font-size:.8rem; }
+            .interest-status { font-size:.8rem; font-weight:600; }
+            .interest-status-ok { color:#86efac; }
+            .interest-status-error { color:#fca5a5; }
           </style>
           <input type="radio" name="activities-view" id="activities-view-cards" class="activities-radio" checked>
           <input type="radio" name="activities-view" id="activities-view-list" class="activities-radio">
@@ -221,14 +244,25 @@
             <label for="activities-view-grid">Grade (dia × hora)</label>
           </div>
           <div class="activities-view activities-view-cards">
+            <% if (canMarkInterests) { %>
+            <form id="interest-form" method="POST" action="/evento/<%= event.id %>/interesses">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <% } %>
             <div class="act-cards">
               <% actTypeOrder.forEach(function(type){ var items = actByType[type]; if (!items) return; var st = actTypeStyle[type] || actTypeStyle.other; %>
                 <section class="act-type-card">
                   <h3 class="act-type-head"><span class="act-badge" style="background:<%= st[0] %>;color:<%= st[1] %>"><%= actTypeMap[type] %></span> <span class="act-type-count">(<%= items.length %> atividade<%= items.length > 1 ? 's' : '' %>)</span></h3>
                   <div class="act-type-grid">
-                    <% items.forEach(function(a){ var hasSess = a.sessions && a.sessions.length; %>
+                    <% items.forEach(function(a){ var hasSess = a.sessions && a.sessions.length; var isInterest = canMarkInterests && interestEligibleIds.has(a.id); %>
                       <div class="act-item">
-                        <strong class="act-item-title"><%= a.name %></strong>
+                        <% if (isInterest) { %>
+                          <label class="act-item-interest">
+                            <input type="checkbox" name="interest_ids" value="<%= a.id %>" <%= interestIds.has(a.id) ? 'checked' : '' %>>
+                            <span class="act-item-title"><%= a.name %></span>
+                          </label>
+                        <% } else { %>
+                          <strong class="act-item-title"><%= a.name %></strong>
+                        <% } %>
                         <% if (a.description) { %><small class="act-item-desc"><%= a.description %></small><% } %>
                         <small class="act-item-meta"><%= activityDateRange(a) || 'A definir' %><% if (a.time_start || a.time_end) { %> · <%= String(a.time_start || '?').slice(0,5) %>–<%= String(a.time_end || '?').slice(0,5) %><% } %><% if (!hasSess && a.room_allocation) { %> · <%= a.room_allocation.room_name %><% } %></small>
                         <% if (hasSess) { a.sessions.forEach(function(s){ %><small class="act-item-meta">• <%= s.name %><% if (s.session_date) { %> — <%= formatBRDate(s.session_date) %><% } %><% if (s.time_start || s.time_end) { %> · <%= String(s.time_start || '?').slice(0,5) %>–<%= String(s.time_end || '?').slice(0,5) %><% } %><% if (s.room_allocation) { %> · <%= s.room_allocation.room_name %><% } %></small><% }) } %>
@@ -242,6 +276,14 @@
                 </section>
               <% }) %>
             </div>
+            <% if (canMarkInterests) { %>
+              <div class="interest-form-actions">
+                <button id="interest-save" class="btn btn-primary" type="submit">Salvar interesses</button>
+                <span id="interest-help" class="interest-form-help">Minicursos não aparecem aqui — eles exigem inscrição.</span>
+                <span id="interest-status" class="interest-status" role="status" aria-live="polite"></span>
+              </div>
+            </form>
+            <% } %>
           </div>
           <div class="activities-view activities-view-list">
         <div class="timeline-table-wrap">
@@ -483,6 +525,59 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+  <% if (canMarkInterests) { %>
+  <script nonce="<%= cspNonce %>">
+  (function() {
+    function init() {
+      var form = document.getElementById('interest-form');
+      if (!form) return;
+      var tokenInput = form.querySelector('input[name="_csrf"]');
+      var button = document.getElementById('interest-save');
+      var help = document.getElementById('interest-help');
+      var status = document.getElementById('interest-status');
+      var queue = Promise.resolve();
+      function payload() {
+        var parts = ['_csrf=' + encodeURIComponent(tokenInput ? tokenInput.value : '')];
+        form.querySelectorAll('input[name="interest_ids"]:checked').forEach(function(cb) {
+          parts.push('interest_ids=' + encodeURIComponent(cb.value));
+        });
+        return parts.join('&');
+      }
+      function setStatus(text, ok) {
+        if (!status) return;
+        status.textContent = text;
+        status.className = 'interest-status ' + (ok ? 'interest-status-ok' : 'interest-status-error');
+      }
+      function save(checkbox) {
+        var sending = payload();
+        queue = queue.then(function() {
+          return fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' },
+            body: sending
+          }).then(function(res) {
+            return res.json().then(function(data) { return { res: res, data: data }; });
+          }).then(function(r) {
+            if (!r.data || r.data.ok !== true) throw new Error((r.data && r.data.error) || 'Não foi possível salvar os interesses.');
+            setStatus('✓ Interesses salvos', true);
+          }).catch(function(err) {
+            if (checkbox) checkbox.checked = !checkbox.checked;
+            setStatus(err.message || 'Falha ao salvar os interesses.', false);
+          });
+        });
+      }
+      form.querySelectorAll('input[name="interest_ids"]').forEach(function(cb) {
+        cb.addEventListener('change', function() { save(cb); });
+      });
+      if (button) button.style.display = 'none';
+      if (help) help.textContent = 'As escolhas são salvas automaticamente. Minicursos não aparecem aqui — eles exigem inscrição.';
+    }
+    if (document.readyState !== 'loading') init();
+    else document.addEventListener('DOMContentLoaded', init);
+  })();
+  </script>
+  <% } %>
 <%- include("../partials/csrf-inject") %>
   </body>
 </html>

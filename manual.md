@@ -95,6 +95,10 @@ Contas novas podem exigir troca de senha e conclusão do perfil antes de acessar
 
 Quando o usuário não possui curso de graduação, selecione essa opção. Os campos de titulação e status ficam ocultos e são armazenados como nulos.
 
+### Reset de senha
+
+Na listagem de usuários, o botão **Resetar Senha** gera uma senha temporária (a antiga deixa de valer e a troca passa a ser obrigatória no primeiro acesso) e envia ao usuário um **e-mail com link de uso único** (válido por 72 horas) para ele definir a nova senha — a senha não transita no e-mail. Se o envio de e-mails estiver **desativado** (master switch global) ou a conta **não tiver e-mail**, o sistema abre uma página mostrando a senha temporária para você comunicá-la por canal seguro.
+
 ### Importação
 
 Há dois fluxos:
@@ -181,9 +185,11 @@ Na página pública do evento (`/evento/:id`), a seção **Atividades do Evento*
 
 O botão **Etapas** aparece somente nas atividades que possuem etapas e abre a página pública somente-leitura `/evento/:id/atividades/:activityId/etapas` (sem nenhum campo de edição), com #, nome, data, horário, sala, carga e transmissão de cada etapa.
 
-O participante pode escolher atividades durante a inscrição ou posteriormente em `/evento/:id/atividades`. O administrador também pode fazer essa associação. Em eventos com inscrição sujeita à análise, a seleção aprovada pela organização não pode ser alterada pelo participante.
+O participante escolhe atividades durante a inscrição e pode reconfigurá-las na própria página de inscrição (`/evento/:id/inscricao`); o administrador também pode fazer essa associação. A página `/evento/:id/atividades` lista **somente as atividades em que a pessoa está inscrita** (com as avaliações de cada uma), mais a seção "Atividades de meu interesse". Em eventos com inscrição sujeita à análise, a seleção aprovada pela organização não pode ser alterada pelo participante.
 
 Na mesma página, o participante pode registrar uma avaliação por atividade inscrita (texto livre de até 2000 caracteres; texto vazio remove a avaliação). Após o encerramento do evento, as inscrições ficam travadas, mas as avaliações continuam editáveis.
+
+**Atividades de meu interesse:** o participante inscrito e aprovado pode marcar, na visão **Cards** de "Atividades do Evento" na página do evento (`/evento/:id`), as atividades que deseja assistir — **todos os tipos, exceto minicursos**, que exigem inscrição. Cada marcação/desmarcação é **salva automaticamente** (um indicador "✓ Interesses salvos" confirma a gravação; sem JavaScript no navegador, usa-se o botão **Salvar interesses**). A escolha é somente de preferência (não substitui a inscrição nem gera presença) e aparece na seção **"Atividades de meu interesse"** de `/evento/:id/atividades`, de onde também se retorna ao evento para alterá-la. Quem estiver logado sem inscrição vê apenas um aviso com link para se inscrever; com o evento encerrado, os interesses não podem mais ser alterados.
 
 ## 8. Criação de etapas/aulas
 

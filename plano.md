@@ -3,9 +3,9 @@
 Plano aprovado pelo usuário, organizado em ciclos de execução sequencial.
 Documento vivo: atualizar o `Status` de cada item conforme a execução.
 
-> **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026, todos registrados em `submissao_log_v2.md`. Inclui: datas em `dd/mm/yyyy` via flatpickr em todos os formulários (evento, atividades e etapas) com a correção crítica da conversão dia/mês; descrição breve das etapas; correções críticas (login bloqueado por 403 — `trust proxy` restaurado + rate limit por IP do socket; restore de backup — escopo de `uploadsBackupPath` no `finally`); hardening remanescente do Ciclo 7 (ZIP-bomb, CSRF em uploads multipart, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas) e o plano de administração por evento documentado em `Plano_admin.md`.
+> **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026, todos registrados em `submissao_log_v2.md`. Inclui: datas em `dd/mm/yyyy` via flatpickr em todos os formulários (evento, atividades e etapas) com a correção crítica da conversão dia/mês; descrição breve das etapas; correções críticas (login bloqueado por 403 — `trust proxy` restaurado + rate limit por IP do socket; restore de backup — escopo de `uploadsBackupPath` no `finally`); hardening remanescente do Ciclo 8 (ZIP-bomb, CSRF em uploads multipart, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas) e o plano de administração por evento documentado em `Plano_admin.md`.
 
-> **Sobre a V0.2**: versão de lançamento inicial do projeto. Consolida a funcionalidade entregue (eventos, inscrições, submissão/artigos, presença por QR, certificados, e-mails transacionais, avaliações, triagem de inscrições etc.) e o **hardening de segurança** de 24/08/2026 (Ciclo 7 do plano). As pendentes de hardening seguem listadas e a serem implementadas a partir desta versão.
+> **Sobre a V0.2**: versão de lançamento inicial do projeto. Consolida a funcionalidade entregue (eventos, inscrições, submissão/artigos, presença por QR, certificados, e-mails transacionais, avaliações, triagem de inscrições etc.) e o **hardening de segurança** de 24/08/2026 (Ciclo 8 do plano). As pendentes de hardening seguem listadas e a serem implementadas a partir desta versão.
 
 ## Convenções do projeto
 - Node.js/Express + SQLite (`better-sqlite3`) + EJS + PDFKit.
@@ -173,7 +173,42 @@ Status geral: **CONCLUÍDO (código)** — 20/08/2026.
 
 ---
 
-## Ciclo 5 — TRILHAS (conceito, filtros e alocação de revisores)
+## Ciclo 5 — Atividades de interesse do participante (filtros)
+Status geral: **CONCLUÍDO ✔** (implementado e validado E2E em sandbox isolado — 22/22 checks — em 30/08/2026; docs atualizadas em `submissao.md`, `submissao_log_v2.md`, `README.md` e `manual.md`). Refinamentos na mesma data: **sala** na seção de interesse (3/3), **auto-save** dos checkboxes via fetch com limitador próprio e resposta JSON, botão mantido como fallback sem JS (10/10; decisão de 30/08 substitui "form com botão, sem AJAX"), e **"Minhas atividades" restrito às atividades inscritas** (interesse segue na seção própria; 11/11).
+
+Conceito: o participante marca, na página do evento (`/evento/:id`), quais atividades são de seu interesse (checkboxes com botão "Salvar"). **Minicursos (`course`) ficam fora** — eles exigem inscrição, que segue o fluxo existente (`participant_activity_enrollments`). As escolhas aparecem em uma seção própria em `/evento/:id/atividades`. A inscrição atual em atividades permanece inalterada (palestras continuam nos dois lugares).
+
+Decisões do usuário (30/08/2026):
+- Interesse = toda atividade elegível a participante **exceto** `course` (Palestra, Seminário, Mesa-redonda, Apresentação oral/pôster, Outra).
+- Manter a inscrição em atividades como está (não remover palestras de lá).
+- Somente **participante inscrito** (login + inscrição no evento) pode marcar interesse.
+- ~~Salvar via **form com botão "Salvar"** (POST clássico, sem AJAX).~~ **Substituído em 30/08:** gravação automática a cada clique (fetch + JSON, `interestsLimiter`), botão "Salvar interesses" mantido apenas como fallback sem JavaScript.
+
+### 5.1 Modelo de dados — `services/db-reset.js`
+- Tabela `participant_activity_interests` (event_id, activity_id, user_id, registration_id, created_at; `UNIQUE(activity_id,user_id)`; FKs `ON DELETE CASCADE`) + índice `(user_id,event_id)`; inclusão na lista `TABLES` (reset), no padrão `CREATE TABLE IF NOT EXISTS` já usado.
+
+### 5.2 Rotas públicas — `routes/public.js`
+- Helpers `getInterestActivities(eventId)` (não-`course` com `eligible_roles` contendo `participant`) e `getInterestActivityIds(userId,eventId)`, junto a `getPublicEventActivities`.
+- `GET /evento/:id`: quando logado, carregar inscrição + interesses e passar `interestActivities`/`interestIds` ao template; aceitar `success`/`error` via query.
+- Novo `POST /evento/:id/interesses` (`requireNonAdminAuthorAccess`): exige inscrição (sem ela, redireciona à inscrição); bloqueia evento `encerrado`; valida os ids (pertencem ao evento, `!= 'course'`, elegíveis a participante); substitui as linhas do usuário no evento em transação; auditoria `participant_interests_updated`; redirect com `success`/`error`.
+
+### 5.3 Página do evento — `views/public/event.ejs`
+- Visão **Cards** (padrão): `.act-cards` envolvida em `<form method="POST" action="/evento/:id/interesses">` (com `_csrf`) para participante inscrito aprovado; checkbox `interest_ids` em cada atividade não-`course` elegível, marcada quando salva; botão "Salvar interesses" + nota "Minicursos não aparecem aqui — exigem inscrição."
+- Logado sem inscrição: nota com link para `/evento/:id/inscricao`; anônimo: sem checkboxes (comportamento atual).
+
+### 5.4 Minhas atividades — `views/public/event-activities.ejs`
+- `GET /evento/:id/atividades` consulta os interesses do usuário e renderiza a nova seção **"Atividades de meu interesse"** (read-only: nome, tipo, data/hora), com empty state e link "Marcar na página do evento".
+
+### 5.5 Verificação e documentação
+- Sem mudanças em inscrição de atividades, presença, certificados e avaliações.
+- Cenários: inscrito salva e vê a seção; minicurso sem checkbox; não inscrito/anônimo sem checkboxes; POST com id de curso/outro evento ou evento encerrado → erro sem gravar; tabela criada sem migração de dados.
+- Docs: `submissao.md`, `submissao_log_v2.md`, `README.md`, `manual.md`.
+
+Ordem de execução: 5.1 → 5.2 → 5.3 → 5.4 → 5.5.
+
+---
+
+## Ciclo 6 — TRILHAS (conceito, filtros e alocação de revisores)
 Status geral: **PENDENTE**.
 
 Conceito: TRILHA = conjunto de Atividades (e Etapas) com tema em comum
@@ -182,7 +217,7 @@ atividades/etapas ocorrem simultaneamente; cada Atividade e Etapa pode
 pertencer a mais de uma TRILHA. Referência de apresentação: programa do
 IIOC (sessões temáticas simultâneas por bloco horário).
 
-### 5.1 Modelo de dados — `services/db-reset.js` + novo `services/tracks.js`
+### 6.1 Modelo de dados — `services/db-reset.js` + novo `services/tracks.js`
 - `event_tracks` (id, event_id, name UNIQUE(event_id,name), color opcional
   #rrggbb, description, sequence_no) + junctions `track_activities`
   (UNIQUE event_track_id+activity_id) e `track_sessions`
@@ -198,7 +233,7 @@ IIOC (sessões temáticas simultâneas por bloco horário).
   atividade; seleção igual → links removidos (herda sempre). Exibição:
   links da etapa, senão os da atividade.
 
-### 5.2 Administração
+### 6.2 Administração
 - `/admin/events/:id/tracks`: CRUD de trilhas (nome, cor, ordem, descrição)
   no padrão da página de Salas; exclusão bloqueada com contagem de uso
   ("N atividades/etapas/revisores/artigos usam esta trilha").
@@ -211,7 +246,7 @@ IIOC (sessões temáticas simultâneas por bloco horário).
 - Badges coloridos nas listagens admin de atividades e etapas; trilha do
   artigo marcada pelo admin no editor de artigo + mini-painel na listagem.
 
-### 5.3 Página pública `/evento/:id`
+### 6.3 Página pública `/evento/:id`
 - Chips de **filtro multi-seleção** de trilhas acima de "Atividades do
   Evento", reaplicando em Cards/Lista/Grade, Programação nas Salas,
   Transmissões e sub-linhas de etapas via `data-tracks` + inline
@@ -226,14 +261,14 @@ IIOC (sessões temáticas simultâneas por bloco horário).
   `participant_track_interests`; pendentes → `requested_track_ids`,
   convertido na aprovação (`routes/events.js`).
 
-### 5.4 Revisores e alocação de artigos
+### 6.4 Revisores e alocação de artigos
 - Alocação (`/admin/events/:id/articles`, `routes/articles.js`): revisores
   exibem badges das trilhas no evento; os que **compartilham trilha com o
   artigo** ganham selo "Coincide com trilha" e ordenam no topo (ao lado do
   flag de área existente); filtro rápido "Somente trilhas do artigo".
 - Painel do revisor: artigos atribuídos exibem badges de trilha (leitura).
 
-### 5.5 Verificação e documentação
+### 6.5 Verificação e documentação
 - `node --check`, compilação EJS, renders com dados mock (trilhas admin +
   público com filtro), smoke HTTP em `/evento/:id`, migração conferida no
   dev, seed de trilhas no dev para validação visual.
@@ -241,11 +276,11 @@ IIOC (sessões temáticas simultâneas por bloco horário).
   `manual.md` (seção "Trilhas" + alocação por trilha), `README.md`,
   `submissao_log_v2.md`.
 
-Ordem de execução: 5.1 → 5.2 → 5.3 → 5.4 → 5.5.
+Ordem de execução: 6.1 → 6.2 → 6.3 → 6.4 → 6.5.
 
 ---
 
-## Ciclo 6 — Fase 2: Auditoria
+## Ciclo 7 — Fase 2: Auditoria
 Status geral: **PENDENTE**.
 - Trilha de auditoria (quem fez o quê e quando) nas operações relevantes
   (criação/edição/exclusão de usuários, eventos, inscrições, presenças).
@@ -253,7 +288,7 @@ Status geral: **PENDENTE**.
 
 ---
 
-## Ciclo 7 — Auditoria de Segurança (hardening)
+## Ciclo 8 — Auditoria de Segurança (hardening)
 
 Data: **24/08/2026**. Auditoria pontual de segurança (análise de código + 5 agentes especializados por área).
 

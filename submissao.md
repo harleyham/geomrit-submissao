@@ -119,7 +119,7 @@ O sistema deve permitir:
 - Bloco "Programação nas Salas" (página pública) e "Agenda por sala" (administração) rotulam as alocações via `assignmentLabel` (`services/rooms.js`): atividade sem etapas aparece **somente com o próprio nome**, etapa como `<Atividade>: <Etapa>`, etapa sem atividade como `Etapa: <nome>` e reserva do evento como `Reserva do evento`.
 - Inscrição pública de participante sem artigo, vinculada a conta autenticada.
 - Inscrição somente pela administração: quando o evento tem `public_registration = 0`, a página `/evento/:id/inscricao` exibe a mensagem "As inscrições deste evento são realizadas somente pela administração." com o botão de envio desabilitado, o `POST` é bloqueado e a linha "Inscrições" não aparece no cronograma público da página do evento (participantes já inscritos continuam vendo "Minhas participações").
-- Seleção das atividades durante a inscrição e manutenção posterior em `/evento/:id/atividades`; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
+- Seleção das atividades durante a inscrição (reconfigurável na própria página de inscrição) e manutenção em `/evento/:id/atividades`, que lista somente as atividades em que o participante está inscrito; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
 - Avaliação de atividades: em `/evento/:id/atividades`, o participante inscrito registra uma avaliação por atividade (texto livre de até 2000 caracteres); com o evento encerrado, as inscrições ficam travadas, mas as avaliações das atividades já inscritas continuam editáveis.
 - Submissão de artigo com geração de código de acesso.
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive em contas com perfil de revisor.
@@ -368,6 +368,19 @@ Registra em quais atividades cada participante está inscrito. Este vínculo é 
 - `created_at`
 - `updated_at`
 
+### `participant_activity_interests`
+
+Marca quais atividades são de interesse do participante, escolhidas na página pública do evento (`/evento/:id`). É independente da inscrição em atividades (`participant_activity_enrollments`): minicursos (`course`) não participam do interesse por exigirem inscrição.
+
+- `id`
+- `event_id`
+- `activity_id`
+- `user_id`
+- `registration_id` (inscrição vigente no momento da marcação)
+- `created_at`
+
+Único por `(activity_id, user_id)`. A substituição da lista é feita por usuário e evento (salvar sem nenhuma marcada limpa os interesses).
+
 ### `activity_evaluations`
 
 Avaliações de atividades registradas pelos participantes (texto livre opcional, uma por atividade inscrita).
@@ -554,7 +567,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - Contas novas possuem `profile_completed = 0` e, depois de trocar a senha, devem completar identificação, país, instituição, telefone e formação acadêmica antes de acessar qualquer painel.
 - A formação acadêmica possui a opção especial `Não possui curso de graduação`, disponível em todas as áreas de formação; quando selecionada, os campos Titulação e Status ficam ocultos e são gravados como nulos.
 - A migração preserva contas anteriores como perfil completo; o bloqueio é aplicado às novas contas administrativas, importadas, criadas na inscrição administrativa e solicitadas pelo cadastro público.
-- Administrador pode resetar a senha de outro usuário.
+- Administrador pode resetar a senha de outro usuário (`POST /admin/users/:id/reset-password`): a senha anterior é substituída por uma temporária forte e aleatória com `password_changed = 0` (troca obrigatória no primeiro acesso) e o usuário recebe **e-mail com link de uso único** (token com hash no banco, 72 horas, `/definir-senha?token=…`, o mesmo mecanismo das importações) para definir a nova senha — sem senha no corpo do e-mail. Se o master switch global de e-mails estiver desligado ou a conta não tiver e-mail, uma página do painel administrativo exibe a senha temporária para comunicação por canal seguro. Tokens anteriores do usuário são revogados a cada reset.
 - A tela `/admin/users` separa papel no sistema e status de conta.
 - O conceito de `Revisor` é independente do conceito de `Conta ativa`.
 - Deve existir pelo menos uma conta ativa com perfil de administrador.
@@ -618,9 +631,10 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - Quando o evento oferece subsídio, os dados e anexos da candidatura ficam vinculados à própria inscrição do evento.
 - A administração pode criar, editar e remover inscrições manualmente. Toda inscrição manual possui conta vinculada: o admin seleciona uma conta ativa existente ou cria uma conta com senha temporária, obrigando a troca no primeiro acesso; uma inscrição com artigo submetido não pode ser removida diretamente.
 - Na inclusão administrativa, quando o evento possui atividades, deve ser selecionada ao menos uma atividade. Os vínculos ficam em `participant_activity_enrollments` e podem ser alterados posteriormente no formulário de edição do participante.
-- Na inscrição pública, o próprio participante seleciona as atividades e pode alterá-las depois em `/evento/:id/atividades`; uma atividade com presença já registrada não pode ser removida. O administrador mantém a mesma possibilidade de edição no cadastro do participante.
+- Na inscrição pública, o próprio participante seleciona as atividades e pode reconfigurar a inscrição na própria página de inscrição (`/evento/:id/inscricao`); uma atividade com presença já registrada não pode ser removida. O administrador mantém a mesma possibilidade de edição no cadastro do participante. A página `/evento/:id/atividades` lista **somente as atividades em que o participante está inscrito** (com avaliações e proteção das que já têm presença); a inscrição em novas atividades não é feita ali — as preferências sem inscrição são marcadas como **interesse** na página do evento.
 - Em eventos sujeitos à análise, a inscrição pública inicia como `pending`, preserva as atividades solicitadas sem criar vínculos efetivos e não conta como inscrita. A administração pode recusá-la, aprová-la integralmente ou aprová-la parcialmente; somente as atividades aprovadas criam vínculos em `participant_activity_enrollments`.
 - Após uma decisão em evento sujeito à análise, o participante não pode alterar os checkboxes de atividades pela área pública; a administração continua podendo ajustar a inscrição e o participante recebe aviso por e-mail quando isso ocorre.
+- Independente da inscrição, o participante inscrito e aprovado pode marcar **atividades de interesse** na página pública do evento (`/evento/:id`, visão Cards) via `POST /evento/:id/interesses`: checkboxes somente em atividades elegíveis a participante que **não** sejam minicurso (`activity_type != 'course'`). A escolha é gravada automaticamente a cada marcação/desmarcação (fetch com resposta JSON `{ ok }`, limitador próprio `interestsLimiter` — 120/15 min por IP); sem JavaScript o botão "Salvar interesses" envia o formulário com redirect e aviso (fallback). A escolha fica em `participant_activity_interests`, é substituída a cada salvamento, não afeta presença/certificados/avaliações e aparece na seção "Atividades de meu interesse" de `/evento/:id/atividades`. Usuário logado sem inscrição vê apenas a nota com link para a inscrição (via JSON recebe 403 com `redirectTo`); evento encerrado ou id inválido são recusados com erro; toda alteração é auditada em `participant_audit_logs` (`participant_interests_updated`).
 - Em `/evento/:id/atividades`, cada atividade inscrita exibe um campo de avaliação (máximo 2000 caracteres); texto vazio (apenas espaços) remove a avaliação existente, e o envio acima do limite é rejeitado sem gravar nada.
 - Campos de avaliação de atividades não inscritas pelo participante são ignorados no backend (anti-tampering), tanto em evento publicado quanto encerrado.
 - Com o evento encerrado, a página de atividades permanece acessível com inscrições travadas (sem checkboxes de envio) e apenas as avaliações das atividades já inscritas podem ser salvas; as inscrições existentes são preservadas.
@@ -678,6 +692,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - O lembrete é criado às 09h (America/Sao_Paulo) no dia anterior ao evento para inscritos ativos.
 - Alterações de transmissão notificam inscritos ativos da atividade; atividade e etapa são suportadas, remoção também notifica e mudanças feitas em até cinco minutos são consolidadas.
 - Importações exigem autorização explícita na tela de resultado. Novas contas usam token de definição de senha (hash no banco, uso único, 72 horas), sem senha no e-mail.
+- Reset administrativo de senha envia e-mail (tipo `password_reset`, template `password-reset`) com o mesmo tipo de token de definição de senha; com o master global desligado nenhuma mensagem é enfileirada e o fluxo cai na página administrativa com a senha temporária.
 - A inscrição pública gera mensagem de confirmação imediata no modo automático ou de recebimento para análise no modo sujeito à análise. A decisão administrativa gera mensagem de aprovação, aprovação parcial (com as atividades aprovadas) ou recusa.
 - Alterações administrativas nas atividades de uma inscrição geram mensagem ao participante somente quando a seleção efetivamente muda.
 - A fila persiste estados `queued`, `sending`, `sent`, `failed`, `cancelled` e `suppressed`; falha SMTP não desfaz a operação principal.
@@ -724,7 +739,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 | Rota | Finalidade |
 |------|------------|
 | `/` | Página inicial com eventos publicados |
-| `/evento/:id` | Detalhes do evento |
+| `/evento/:id` | Detalhes do evento; para participante inscrito e aprovado, checkboxes de **atividades de interesse** na visão Cards de "Atividades do Evento" (exceto minicursos), gravados automaticamente via `POST /evento/:id/interesses` (JSON no auto-save; formulário com botão como fallback sem JavaScript) |
 | `/evento/:id/conteudo` | Página pública que apresenta o conteúdo do evento a partir do PDF enviado pela administração |
 | `/evento/:id/conteudo/pdf` | Exibição direta, em modo inline, do PDF público do evento |
 | `/evento/:id/inscricao` | Inscrição do participante no evento, automática ou sujeita à análise conforme configuração do evento |
@@ -732,7 +747,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 | `/author` | Página do participante |
 | `/author/profile` | Perfil do participante: dados cadastrais, formação acadêmica e troca de senha |
 | `/author/certificates` | Consulta e download autenticado de certificados emitidos |
-| `/evento/:id/atividades` | Seleção e edição, pelo participante, das atividades em que está inscrito; em eventos sujeitos à análise, mantém as atividades decididas pela organização somente para leitura |
+| `/evento/:id/atividades` | Lista **somente as atividades em que o participante está inscrito**, com avaliações (e remoção quando ainda sem presença); em eventos sujeitos à análise, somente para leitura; inclui a seção "Atividades de meu interesse" (o que foi marcado na página do evento) |
 | `/evento/:id/qr-presenca` | Crachá do participante: QR Code pessoal de presença (código estável por evento), exibível na tela (exige login e inscrição ou papel no evento) |
 | `/evento/:id/qr-presenca/print` | Crachá do participante em **PDF** pronto para impressão (mesmos guards da página) — padrão das demais rotas de impressão do sistema |
 | `/presenca/:eventId/:activityId` | Registro de presença por QR Code em atividade sem etapas (exige login) |

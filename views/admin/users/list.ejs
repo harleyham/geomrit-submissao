@@ -338,7 +338,7 @@
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
               <% if (u.id !== currentUser.id) { %>
-              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Resetar senha de <%= u.email %> para 123456?')">
+              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Enviar e-mail de redefinição de senha para <%= u.email %>?')">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
               </form>

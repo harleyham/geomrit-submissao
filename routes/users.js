@@ -12,7 +12,7 @@ const { strictLimiter } = require('../security/rate-limits');
 const { validateCsrfToken } = require('../security/csrf');
 const { validators: v, validateAndHandle, sanitizeHtml } = require('../security/validation');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
-const { queueAccountApproved, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
+const { queueAccountApproved, queuePasswordReset, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   canQueueEmail, getSystemEmailSettings } = require('../services/email');
 const { brDate, brToday } = require('../services/datetime');
 
@@ -761,27 +761,41 @@ router.post('/change-password', requireAuth, strictLimiter, (req, res, next) => 
   res.redirect('/admin/users?success=Senha alterada com sucesso');
 });
 
-// Resetar senha de usuário (admin)
+// Resetar senha de usuário (admin): gera senha temporária (invalida a antiga e
+// força troca no primeiro acesso) e envia ao usuário um e-mail com link de uso
+// único para definir nova senha (72h). Sem e-mail disponível (master switch
+// global desligado ou conta sem e-mail), exibe a senha temporária em página do
+// admin para comunicação por canal seguro.
 router.post('/:id/reset-password', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id) || id <= 0) {
     return res.redirect('/admin/users?error=Identificação de usuário inválida');
   }
-  // Gera uma senha temporária forte e aleatória em vez de um valor fixo,
-  // impedindo reutilização de credenciais conhecidas. O usuário é obrigado
-  // a trocar a senha no primeiro acesso (password_changed = 0).
+  const user = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(id);
+  if (!user) {
+    return res.redirect('/admin/users?error=Usuário não encontrado');
+  }
   const tempPassword = crypto.randomBytes(16).toString('base64');
-  db.prepare('UPDATE users SET password = ?, password_changed = 0, updated_at = datetime(\'now\') WHERE id = ?')
-    .bind(bcrypt.hashSync(tempPassword, 10), id).run();
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Senha redefinida</title>
-<style>body{font-family:sans-serif;padding:24px;max-width:640px} .pw{font-family:monospace;background:#f4f4f4;padding:8px 12px;border-radius:4px;display:inline-block}</style>
-</head><body>
-<h1>Senha redefinida</h1>
-<p>A senha temporária do usuário foi redefinida. Compute-a ao usuário por um canal seguro; ele será obrigado a trocar a senha no primeiro acesso.</p>
-<p>Senha temporária: <span class="pw">${sanitizeHtml(tempPassword)}</span></p>
-<p><a href="/admin/users">Voltar para Usuários</a></p>
-</body></html>`;
-  return res.status(200).send(html);
+  db.prepare("UPDATE users SET password = ?, password_changed = 0, updated_at = datetime('now','-3 hours') WHERE id = ?")
+    .run(bcrypt.hashSync(tempPassword, 10), id);
+  const emailUsable = Boolean(user.email) && canQueueEmail(null).allowed;
+  if (emailUsable) {
+    const result = queuePasswordReset({ user });
+    if (result.status === 'queued') {
+      return res.redirect(`/admin/users?success=${encodeURIComponent(`E-mail de redefinição de senha preparado para ${user.email}.`)}`);
+    }
+    if (result.status === 'sent') {
+      return res.redirect(`/admin/users?success=${encodeURIComponent(`E-mail de redefinição de senha enviado para ${user.email}.`)}`);
+    }
+  }
+  return res.render('admin/users/password-reset-fallback', {
+    title: 'Senha temporária',
+    targetUser: user,
+    tempPassword: sanitizeHtml(tempPassword),
+    reason: user.email ? 'O envio de e-mails está desativado (master switch global). Comunique a senha abaixo ao usuário por um canal seguro.' : 'Esta conta não possui e-mail cadastrado. Comunique a senha abaixo ao usuário por um canal seguro.',
+    success: null,
+    error: null
+  });
 });
 
 router.post('/bulk-update-flags', requireAuth, (req, res, next) => {

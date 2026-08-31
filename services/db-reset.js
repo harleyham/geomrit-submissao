@@ -60,6 +60,7 @@ const TABLES = [
   'import_batches',
   'notifications',
   'participant_activity_enrollments',
+  'participant_activity_interests',
   'participant_audit_logs',
   'payments',
   'reports',
@@ -500,6 +501,19 @@ function initializeDbSchema(db) {
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY(enrolled_by) REFERENCES users(id) ON DELETE SET NULL
     );
+    CREATE TABLE IF NOT EXISTS participant_activity_interests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      activity_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      registration_id INTEGER,
+      created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      UNIQUE(activity_id,user_id),
+      FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE
+    );
     CREATE TABLE IF NOT EXISTS activity_attendance_records (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,registration_id INTEGER,user_id INTEGER,marked_by INTEGER,attended_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,registration_id),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_certificate_rules (activity_id INTEGER PRIMARY KEY,min_attendance INTEGER NOT NULL DEFAULT 1,background_id INTEGER,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL);
     CREATE TABLE IF NOT EXISTS event_qr_codes (
@@ -795,6 +809,7 @@ function initializeDbSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_event_user_roles_event ON event_user_roles(event_id, role);
     CREATE INDEX IF NOT EXISTS idx_participant_activity_registration ON participant_activity_enrollments(registration_id, activity_id);
     CREATE INDEX IF NOT EXISTS idx_participant_activity_user ON participant_activity_enrollments(user_id, activity_id);
+    CREATE INDEX IF NOT EXISTS idx_participant_activity_interests_user_event ON participant_activity_interests(user_id, event_id);
     CREATE INDEX IF NOT EXISTS idx_activity_evaluations_event ON activity_evaluations(event_id, activity_id);
     CREATE INDEX IF NOT EXISTS idx_activity_evaluations_user ON activity_evaluations(user_id);
     CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_email

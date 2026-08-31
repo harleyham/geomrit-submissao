@@ -245,6 +245,20 @@ function queueImportedAccount({ user, event = null, registration = false, dedupe
   });
 }
 
+function queuePasswordReset({ user }) {
+  const identity = getGlobalIdentity();
+  const token = createSetupToken(user.id);
+  const setupUrl = `${appBaseUrl()}/definir-senha?token=${encodeURIComponent(token.raw)}`;
+  return enqueueEmail({
+    userId: user.id, setupTokenId: token.id,
+    recipientEmail: user.email, recipientName: user.name,
+    messageType: 'password_reset', templateName: 'password-reset',
+    subject: 'Redefinição de senha solicitada', identity,
+    dedupeKey: `password-reset:${token.id}`,
+    payload: { name: user.name, setupUrl, platformName: identity.platformName }
+  });
+}
+
 function queueImportedRegistration({ user, event, dedupeKey }) {
   const identity = getEventIdentity(event);
   return enqueueEmail({
@@ -579,7 +593,7 @@ function isValidHttpUrl(value) {
 module.exports = {
   getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, getGlobalIdentity, getEventIdentity,
   setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail, clearEmailQueue,
-  queueAccountRequested, queueAccountApproved, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
+  queueAccountRequested, queueAccountApproved, queuePasswordReset, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
   queueRegistrationReviewDecision, queueParticipantActivitiesUpdated,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   queueCertificateIssued, queueVideoLinkNotifications, queueDueEventReminders,

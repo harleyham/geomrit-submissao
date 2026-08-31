@@ -8,7 +8,7 @@ const { db, recordParticipantAudit } = require('../db');
 const bcrypt = require('bcryptjs');
 const { renderCertificatePdf } = require('../services/certificates');
 const { QR_ROLE_LABELS, ensureEventQrToken, getEventQrRoles, renderCrachaPdf } = require('../services/cracha');
-const { registrationLimiter, strictLimiter } = require('../security/rate-limits');
+const { registrationLimiter, interestsLimiter, strictLimiter } = require('../security/rate-limits');
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { brDate, brToday } = require('../services/datetime');
 const { validateCsrfToken } = require('../security/csrf');
@@ -732,6 +732,29 @@ function getRegistrationActivityIds(registrationId) {
     .all(registrationId).map((row) => Number(row.activity_id));
 }
 
+function getInterestActivities(eventId) {
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,time_start,time_end,workload_hours
+    FROM event_activities WHERE event_id=? AND activity_type != 'course'
+      AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
+    ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE`).all(eventId);
+}
+
+function getInterestActivityIds(userId, eventId) {
+  if (!userId) return [];
+  return db.prepare('SELECT activity_id FROM participant_activity_interests WHERE user_id=? AND event_id=? ORDER BY activity_id')
+    .all(userId, eventId).map((row) => Number(row.activity_id));
+}
+
+function saveActivityInterests(eventId, userId, registrationId, activityIds) {
+  const replace = db.transaction(() => {
+    db.prepare('DELETE FROM participant_activity_interests WHERE user_id=? AND event_id=?').run(userId, eventId);
+    const insert = db.prepare(`INSERT INTO participant_activity_interests (event_id,activity_id,user_id,registration_id,created_at)
+      VALUES (?,?,?,?,datetime('now','-3 hours'))`);
+    activityIds.forEach((activityId) => insert.run(eventId, activityId, userId, registrationId));
+  });
+  replace();
+}
+
 function parseRequestedActivityIds(value) {
   try {
     const ids = JSON.parse(value || '[]');
@@ -1000,7 +1023,7 @@ router.get('/evento/:id', (req, res) => {
   let registration = null;
   if (req.session && req.session.userId) {
     registration = db.prepare(`
-      SELECT id, registration_type
+      SELECT id, registration_type, registration_status
       FROM event_registrations
       WHERE event_id = ?
         AND (
@@ -1055,12 +1078,27 @@ router.get('/evento/:id', (req, res) => {
     });
   }
 
+  const interestActivities = (req.session && req.session.userId)
+    ? getInterestActivities(req.params.id)
+    : [];
+  const interestIds = (req.session && req.session.userId)
+    ? new Set(getInterestActivityIds(req.session.userId, req.params.id))
+    : new Set();
+  const canMarkInterests = !!(req.session && req.session.userId && registration && registration.registration_status === 'approved' && !isClosed);
+
   res.render('public/event', {
     event: eventWithMeta,
     title: event.name,
     registration,
     timeline,
     activities,
+    interestActivities,
+    interestIds,
+    canMarkInterests,
+    hasInterestActivities: interestActivities.length > 0,
+    isLoggedIn: !!(req.session && req.session.userId),
+    success: req.query.success || null,
+    error: req.query.error || null,
     hasSchedule,
     scheduleAssignments,
     scheduleRooms,
@@ -1400,7 +1438,8 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
     FROM event_activities ea
     WHERE ea.event_id=?
       AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0
-    ORDER BY ea.date_start,ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id);
+      AND EXISTS (SELECT 1 FROM participant_activity_enrollments pae2 WHERE pae2.activity_id=ea.id AND pae2.registration_id=?)
+    ORDER BY ea.date_start,ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id, registration.id);
   const attendedSessionsByActivity = {};
   db.prepare(`SELECT s.activity_id AS activity_id, s.name AS session_name
     FROM activity_attendance_records aar
@@ -1421,8 +1460,17 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
     activity.attended_sessions = attendedSessionsByActivity[activity.id] || [];
     activity.evaluation = evaluationsByActivity[activity.id] || '';
   });
+  const interestIdSet = new Set(getInterestActivityIds(req.session.userId, event.id));
+  const interestActivities = getInterestActivities(event.id).filter((activity) => interestIdSet.has(Number(activity.id)));
+  const sessionRoomsQuery = db.prepare(`SELECT DISTINCT r.name FROM activity_sessions s JOIN room_assignments ra ON ra.session_id=s.id JOIN event_rooms r ON r.id=ra.room_id WHERE s.activity_id=?`);
+  interestActivities.forEach((activity) => {
+    activity.room_allocation = roomsService.targetAssignment({ activityId: activity.id });
+    activity.session_room_names = activity.room_allocation ? [] : sessionRoomsQuery.all(activity.id).map((row) => row.name);
+  });
   return res.render('public/event-activities', {
     title: `Minhas atividades - ${event.name}`, event: withAreaMeta(event), registration, activities,
+    hasEligibleActivities: getPublicEventActivities(event.id).length > 0,
+    interestActivities,
     isClosed: event.status === 'encerrado', isPending: registration.registration_status === 'pending', isRejected: registration.registration_status === 'rejected', activitiesLockedByReview: event.registration_approval_mode === 'review',
     success: req.query.success || null, error: req.query.error || null
   });
@@ -1508,6 +1556,42 @@ router.post('/evento/:id/atividades', registrationLimiter, requireNonAdminAuthor
     });
   })();
   return res.redirect(backTo(`success=${encodeURIComponent('Inscrição nas atividades atualizada.')}`));
+});
+
+router.post('/evento/:id/interesses', interestsLimiter, requireNonAdminAuthorAccess, (req, res) => {
+  const wantsJson = String(req.accepts(['html', 'json']) || '') === 'json';
+  const finish = (target, params, jsonError) => {
+    if (wantsJson) return res.status(jsonError ? 400 : 200).json(jsonError ? { ok: false, error: jsonError } : { ok: true });
+    return res.redirect(target.includes('?') ? `${target}&${params}` : `${target}?${params}`);
+  };
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const backToEvent = (params, jsonError) => finish(`/evento/${event.id}`, params, jsonError);
+  if (event.status === 'encerrado') {
+    return backToEvent(`error=${encodeURIComponent('O evento está encerrado e não permite alterar os interesses.')}`, 'O evento está encerrado e não permite alterar os interesses.');
+  }
+  const registration = getOwnedEventRegistration(event.id, req);
+  if (!registration) {
+    if (wantsJson) return res.status(403).json({ ok: false, error: 'Faça a sua inscrição no evento para marcar atividades de interesse.', redirectTo: `/evento/${event.id}/inscricao` });
+    return res.redirect(`/evento/${event.id}/inscricao?error=${encodeURIComponent('Faça a sua inscrição no evento para marcar atividades de interesse.')}`);
+  }
+  if (registration.registration_status !== 'approved') {
+    const pendingError = registration.registration_status === 'pending' ? 'Sua inscrição ainda está aguardando análise.' : 'Sua inscrição não foi aprovada.';
+    return backToEvent(`error=${encodeURIComponent(pendingError)}`, pendingError);
+  }
+  const submitted = Array.isArray(req.body.interest_ids) ? req.body.interest_ids : [req.body.interest_ids];
+  const interestIds = [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
+  const allowed = new Set(getInterestActivities(event.id).map((activity) => Number(activity.id)));
+  if (interestIds.some((id) => !allowed.has(id))) {
+    const invalidError = 'Uma das atividades selecionadas não está disponível como interesse (minicursos exigem inscrição).';
+    return backToEvent(`error=${encodeURIComponent(invalidError)}`, invalidError);
+  }
+  saveActivityInterests(event.id, req.session.userId, registration.id, interestIds);
+  recordParticipantAudit({
+    eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+    action: 'participant_interests_updated', details: { activity_ids: interestIds }
+  });
+  return backToEvent(`success=${encodeURIComponent('Atividades de interesse salvas com sucesso.')}`, null);
 });
 
 // Presença por QR Code do participante (um código por usuário e por evento) — helpers em services/cracha.js
