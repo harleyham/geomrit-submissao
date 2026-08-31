@@ -175,9 +175,9 @@
           var gridCell = {};
           actOcc.forEach(function(o){ var k = o.day + '|' + o.hour; (gridCell[k] = gridCell[k] || []).push(o); });
           var hasActivityGrid = gridDays.length > 0 && gridHours.length > 0;
-          var actTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', other:'Outra' };
-          var actTypeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','other'];
-          var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], other:['#1e293b','#94a3b8'] };
+          var actTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', breakfast:'Café da manhã', coffee_break:'Coffee Break', brunch:'Brunch', lunch:'Almoço', dinner:'Jantar', other:'Outra' };
+          var actTypeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','breakfast','coffee_break','brunch','lunch','dinner','other'];
+          var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], breakfast:['#92400e','#fcd34d'], coffee_break:['#44403c','#e7e5e4'], brunch:['#134e4a','#5eead4'], lunch:['#7c2d12','#fdba74'], dinner:['#4c1d95','#c4b5fd'], other:['#1e293b','#94a3b8'] };
           var actByType = {};
           activities.forEach(function(a){ var t = a.activity_type || 'other'; (actByType[t] = actByType[t] || []).push(a); });
           var interestEligibleIds = new Set((interestActivities || []).map(function(a){ return a.id; }));

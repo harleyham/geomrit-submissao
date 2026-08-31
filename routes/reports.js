@@ -204,8 +204,8 @@ router.get('/', requireAuth, (req, res) => {
     activity.evaluations = evaluationsByActivity[activity.id] || [];
   });
 
-  const activityTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', other:'Outra' };
-  const typeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','other'];
+  const activityTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', breakfast:'Café da manhã', coffee_break:'Coffee Break', brunch:'Brunch', lunch:'Almoço', dinner:'Jantar', other:'Outra' };
+  const typeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','breakfast','coffee_break','brunch','lunch','dinner','other'];
   const sortedActivities = [...activities].sort((a,b) => String(a.name||'').localeCompare(String(b.name||''), 'pt-BR'));
   const activitiesByType = {};
   sortedActivities.forEach(a => {

@@ -734,7 +734,7 @@ function getRegistrationActivityIds(registrationId) {
 
 function getInterestActivities(eventId) {
   return db.prepare(`SELECT id,name,activity_type,date_start,date_end,time_start,time_end,workload_hours
-    FROM event_activities WHERE event_id=? AND activity_type != 'course'
+    FROM event_activities WHERE event_id=? AND activity_type NOT IN ('course','breakfast','coffee_break','brunch','lunch','dinner')
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
     ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE`).all(eventId);
 }
@@ -1583,7 +1583,7 @@ router.post('/evento/:id/interesses', interestsLimiter, requireNonAdminAuthorAcc
   const interestIds = [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
   const allowed = new Set(getInterestActivities(event.id).map((activity) => Number(activity.id)));
   if (interestIds.some((id) => !allowed.has(id))) {
-    const invalidError = 'Uma das atividades selecionadas não está disponível como interesse (minicursos exigem inscrição).';
+    const invalidError = 'Uma das atividades selecionadas não está disponível como interesse (minicursos exigem inscrição; atividades extras não podem ser marcadas como interesse).';
     return backToEvent(`error=${encodeURIComponent(invalidError)}`, invalidError);
   }
   saveActivityInterests(event.id, req.session.userId, registration.id, interestIds);

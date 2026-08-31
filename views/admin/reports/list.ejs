@@ -256,8 +256,8 @@
         <% if (activities.length === 0) { %>
           <div class="empty-state"><p>Nenhuma atividade cadastrada para este evento.</p></div>
         <% } else { %>
-          <% const activityTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', other:'Outra' }; %>
-          <% const typeBgColors = {lecture:'#3b82f6',seminar:'#8b5cf6',roundtable:'#f59e0b',course:'#10b981',oral_presentation:'#06b6d4',poster_presentation:'#a78bfa',other:'#64748b'}; %>
+          <% const activityTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', breakfast:'Café da manhã', coffee_break:'Coffee Break', brunch:'Brunch', lunch:'Almoço', dinner:'Jantar', other:'Outra' }; %>
+          <% const typeBgColors = {lecture:'#3b82f6',seminar:'#8b5cf6',roundtable:'#f59e0b',course:'#10b981',oral_presentation:'#06b6d4',poster_presentation:'#a78bfa',breakfast:'#f59e0b',coffee_break:'#78716c',brunch:'#14b8a6',lunch:'#f97316',dinner:'#8b5cf6',other:'#64748b'}; %>
           <% groupedTypes.forEach(function(type) { %>
             <% var items = activitiesByType[type]; %>
             <div style="margin-bottom:1.25rem">

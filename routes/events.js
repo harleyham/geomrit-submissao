@@ -1821,7 +1821,7 @@ function loadActivitiesData(eventId) {
   return activities;
 }
 
-const ACTIVITY_VALID_TYPES = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
+const ACTIVITY_VALID_TYPES = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner', 'other'];
 function buildActivityDraft(req, existing) {
   const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : (req.body.eligible_roles ? [req.body.eligible_roles] : []);
   const roomId = Number(req.body.room_id) || null;
@@ -1895,7 +1895,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   if (!name || eligibleRoles.length === 0) {
     return failActivities('Informe o nome e ao menos um papel elegível para a atividade.');
   }
-  const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
+  const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner', 'other'];
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
   const description = ['lecture', 'course'].includes(activityType) ? String(req.body.description || '').trim() : '';
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
@@ -1961,7 +1961,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   if (enrolledCount > 0 && !eligibleRoles.includes('participant')) {
     return failActivities('Não é possível retirar o papel Participante enquanto houver pessoas inscritas nesta atividade.');
   }
-  const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'other'];
+  const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner', 'other'];
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
   const description = ['lecture', 'course'].includes(activityType) ? String(req.body.description || '').trim() : '';
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
