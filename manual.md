@@ -112,7 +112,7 @@ Cada linha é conferida para evitar duplicatas: primeiramente pelo e-mail e, qua
 
 ### Inativação e exclusão
 
-Desative **Conta ativa** para impedir novo acesso preservando inscrições, presenças e histórico. A exclusão é mais ampla e pode remover vínculos, presenças, crachá e revisões; use-a somente quando necessário.
+Desative **Conta ativa** para impedir novo acesso preservando inscrições, presenças e histórico. A exclusão permanente é bloqueada quando a conta possui histórico (inscrições em eventos, artigos submetidos ou certificados emitidos) — nesses casos use a desativação; a exclusão direta só é aceita para contas sem histórico.
 
 ## 5. Criação de eventos
 
@@ -146,6 +146,8 @@ Durante a inclusão ou edição:
 5. salve.
 
 Os papéis disponíveis no evento incluem participante, administrador, revisor, palestrante, professor, apresentador oral e apresentador pôster. O formulário de edição do participante edita os papéis operacionais; administrador, revisor e participante são atribuídos na edição do usuário (`/admin/users/:id/edit`), na seção **Perfis por evento**, escolhendo o evento. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento.
+
+**Toda inscrição possui conta vinculada** (garantia imposta pelo banco de dados). Registros históricos sem vínculo são corrigidos automaticamente na inicialização do sistema: a inscrição é ligada à conta com o mesmo e-mail ou, se não existir conta, uma nova é criada (aprovada, com senha desconhecida — use **Resetar Senha** na listagem de usuários para enviar o link de definição por e-mail). Por isso a coluna "Conta" nunca mais exibe "Sem vínculo de conta".
 
 No credenciamento, use **Imprimir crachá** na linha do participante. O crachá contém o QR pessoal usado pelo operador para localizar a pessoa na chamada.
 

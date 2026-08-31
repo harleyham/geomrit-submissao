@@ -572,6 +572,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - O conceito de `Revisor` é independente do conceito de `Conta ativa`.
 - Deve existir pelo menos uma conta ativa com perfil de administrador.
 - A conta administrativa padrão não deve ser excluída.
+- A exclusão administrativa de usuário é bloqueada quando a conta possui histórico (inscrições, artigos submetidos ou certificados emitidos): a mensagem orienta a inativar a conta (`is_public = 0`) em vez de excluir. Assim nenhuma inscrição fica órfã de conta.
 
 ### Dashboard administrativo
 
@@ -638,7 +639,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - Em `/evento/:id/atividades`, cada atividade inscrita exibe um campo de avaliação (máximo 2000 caracteres); texto vazio (apenas espaços) remove a avaliação existente, e o envio acima do limite é rejeitado sem gravar nada.
 - Campos de avaliação de atividades não inscritas pelo participante são ignorados no backend (anti-tampering), tanto em evento publicado quanto encerrado.
 - Com o evento encerrado, a página de atividades permanece acessível com inscrições travadas (sem checkboxes de envio) e apenas as avaliações das atividades já inscritas podem ser salvas; as inscrições existentes são preservadas.
-- Há unicidade por evento para e-mail normalizado e, quando informado, para a conta de usuário vinculada.
+- Há unicidade por evento para e-mail normalizado e, quando informado, para a conta de usuário vinculada. **Toda inscrição possui conta vinculada**: `event_registrations.user_id` é `NOT NULL` (FK `ON DELETE CASCADE`), e o sync de autor nunca cria inscrição sem autor identificável. A migração idempotente (`services/db-reset.js`) vincula inscrições históricas sem conta por e-mail (contas existentes) ou cria uma conta aprovada com `is_participant = 1`, `password_changed = 0` e senha aleatória desconhecida (o admin usa "Resetar Senha" para enviar o link de definição) antes de reconstruir a tabela com a restrição, recriando índices e triggers de sincronização. O estado "Sem vínculo de conta" deixa de existir.
 - Ao excluir administrativamente o último artigo submetido de uma pessoa no evento, a inscrição é preservada e reclassificada de `author` para `listener`; se ainda houver outro artigo submetido, ela permanece como `author`.
 - Criações, edições, remoções manuais e a reconciliação decorrente da exclusão de artigo são gravadas em `participant_audit_logs`.
 - A edição da participação (`/admin/events/:id/participants/:registrationId/edit`) administra os dados da inscrição e os papéis operacionais da conta vinculada no evento (palestrante, professor, apresentador oral e apresentador pôster, com o artigo aprovado correspondente); papéis de administrador, revisor e participante continuam sendo atribuídos exclusivamente na edição do usuário, após a seleção do evento.

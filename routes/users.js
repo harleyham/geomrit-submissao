@@ -721,6 +721,16 @@ router.delete('/:id', requireAuth, (req, res) => {
     return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
   }
 
+  const history = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM event_registrations WHERE user_id = ?) AS registrations,
+      (SELECT COUNT(*) FROM articles WHERE submitter_user_id = ?) AS articles,
+      (SELECT COUNT(*) FROM certificate_emissions WHERE user_id = ?) AS certificates
+  `).get(id, id, id);
+  if (history.registrations > 0 || history.articles > 0 || history.certificates > 0) {
+    return res.redirect('/admin/users?error=' + encodeURIComponent(`A conta não pode ser excluída: possui ${history.registrations} inscrição(ões), ${history.articles} artigo(s) e ${history.certificates} certificado(s). Inative a conta em vez de excluir.`));
+  }
+
   db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
   res.redirect('/admin/users?success=Usuário excluído');
 });

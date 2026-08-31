@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
 const DB_PATH = path.join(__dirname, '..', 'artigos.db');
@@ -333,7 +334,7 @@ function initializeDbSchema(db) {
     CREATE TABLE IF NOT EXISTS event_registrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id INTEGER NOT NULL,
-      user_id INTEGER,
+      user_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       email TEXT NOT NULL,
       institution TEXT DEFAULT '',
@@ -362,7 +363,7 @@ function initializeDbSchema(db) {
       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS participant_audit_logs (
@@ -1050,15 +1051,103 @@ function initializeDbSchema(db) {
       VALUES (?, ?, ?, ?, ?, 'author', datetime('now', '-3 hours'), datetime('now', '-3 hours'))
     `);
 
+    const findUserByEmailForArticle = db.prepare('SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1');
+
     authorRegistrations.forEach((registration) => {
-      const existing = findEventRegistration.get(registration.event_id, registration.submitter_user_id || null, registration.email_submission);
+      const userByEmail = findUserByEmailForArticle.get(registration.email_submission);
+      const userId = registration.submitter_user_id || (userByEmail ? userByEmail.id : null);
+      if (!userId) return; // artigo legado sem autor identificável: não criar inscrição sem conta
+      const existing = findEventRegistration.get(registration.event_id, userId, registration.email_submission);
       if (existing) {
-        updateEventRegistration.run(registration.submitter_user_id || null, registration.contributor || registration.email_submission, registration.email_submission, registration.affiliation || '', existing.id);
+        updateEventRegistration.run(userId, registration.contributor || registration.email_submission, registration.email_submission, registration.affiliation || '', existing.id);
       } else {
-        insertEventRegistration.run(registration.event_id, registration.submitter_user_id || null, registration.contributor || registration.email_submission, registration.email_submission, registration.affiliation || '');
+        insertEventRegistration.run(registration.event_id, userId, registration.contributor || registration.email_submission, registration.email_submission, registration.affiliation || '');
       }
     });
   } catch(e) {}
+
+  try {
+    const regColumns = db.prepare('PRAGMA table_info(event_registrations)').all();
+    const userIdColumn = regColumns.find((column) => column.name === 'user_id');
+    if (userIdColumn && !userIdColumn.notnull) {
+      const findUserByEmail = db.prepare('SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1');
+      const linkRegistrationUser = db.prepare("UPDATE event_registrations SET user_id = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?");
+      const insertOrphanUser = db.prepare(`
+        INSERT INTO users (name, email, password, institution, phone, is_public, approval_status, approved_at, password_changed, profile_completed, is_participant, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, 0, 1, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+      `);
+      const orphans = db.prepare('SELECT * FROM event_registrations WHERE user_id IS NULL').all();
+      const autoCreated = [];
+      for (const orphan of orphans) {
+        const match = orphan.email ? findUserByEmail.get(orphan.email) : null;
+        let userId = match ? match.id : null;
+        if (!userId) {
+          userId = insertOrphanUser.run(
+            orphan.name || 'Participante sem conta',
+            orphan.email || `sem-email-${orphan.event_id}-${orphan.id}@sem-email.invalid`,
+            bcrypt.hashSync(crypto.randomBytes(24).toString('base64url'), 10),
+            orphan.institution || null,
+            orphan.phone || null
+          ).lastInsertRowid;
+          autoCreated.push({ registrationId: orphan.id, userId });
+        }
+        linkRegistrationUser.run(userId, orphan.id);
+      }
+      if (orphans.length) {
+        console.log(`[migração] ${orphans.length} inscrição(ões) sem conta vinculada foram vinculadas (${orphans.length - autoCreated.length} por e-mail, ${autoCreated.length} com conta criada) antes de impor user_id NOT NULL em event_registrations.`);
+      }
+      if (autoCreated.length) {
+        console.log('[migração] Contas criadas sem senha conhecida (use "Resetar Senha" em /admin/users para enviar link de definição):', autoCreated.map((item) => `inscrição ${item.registrationId} -> conta ${item.userId}`).join(', '));
+      }
+      db.pragma('foreign_keys = OFF');
+      db.exec('DROP TRIGGER IF EXISTS trg_sync_event_registration_activity_user; DROP TRIGGER IF EXISTS trg_sync_user_to_event_registration;');
+      db.transaction(() => {
+        const currentSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_registrations'").get().sql;
+        const rebuiltSql = currentSql
+          .replace(/\buser_id\s+INTEGER\b/, 'user_id INTEGER NOT NULL')
+          .replace(/FOREIGN KEY\s*\(\s*user_id\s*\)\s*REFERENCES\s+users\s*\(\s*id\s*\)\s*ON DELETE SET NULL/i, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
+          .replace('CREATE TABLE event_registrations', 'CREATE TABLE event_registrations_new');
+        db.exec(rebuiltSql);
+        const columnNames = regColumns.map((column) => column.name).join(',');
+        db.exec(`INSERT INTO event_registrations_new (${columnNames}) SELECT ${columnNames} FROM event_registrations`);
+        db.exec('DROP TABLE event_registrations');
+        db.exec('ALTER TABLE event_registrations_new RENAME TO event_registrations');
+      })();
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id ON event_registrations(event_id);
+        CREATE INDEX IF NOT EXISTS idx_event_registrations_user_id ON event_registrations(user_id);
+        CREATE INDEX IF NOT EXISTS idx_event_registrations_email ON event_registrations(email);
+        CREATE INDEX IF NOT EXISTS idx_event_registrations_type ON event_registrations(registration_type);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_email ON event_registrations(event_id, LOWER(TRIM(email))) WHERE TRIM(email) != '';
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_user ON event_registrations(event_id, user_id) WHERE user_id IS NOT NULL;
+      `);
+      db.exec(`
+        DROP TRIGGER IF EXISTS trg_sync_event_registration_activity_user;
+        CREATE TRIGGER IF NOT EXISTS trg_sync_event_registration_activity_user
+        AFTER UPDATE OF user_id ON event_registrations
+        WHEN NEW.user_id IS NOT NULL
+        BEGIN
+          UPDATE participant_activity_enrollments SET user_id=NEW.user_id,updated_at=datetime('now','-3 hours')
+          WHERE registration_id=NEW.id;
+        END;
+        DROP TRIGGER IF EXISTS trg_sync_user_to_event_registration;
+        CREATE TRIGGER IF NOT EXISTS trg_sync_user_to_event_registration
+        AFTER UPDATE OF name, phone, institution ON users
+        WHEN OLD.name != NEW.name OR OLD.phone != NEW.phone OR OLD.institution != NEW.institution
+        BEGIN
+          UPDATE event_registrations
+          SET name=NEW.name, phone=NEW.phone, institution=NEW.institution,
+              updated_at=datetime('now','-3 hours')
+          WHERE user_id=NEW.id;
+        END;
+      `);
+      db.pragma('foreign_keys = ON');
+      console.log('[migração] event_registrations.user_id passou a NOT NULL (FK ON DELETE CASCADE).');
+    }
+  } catch (e) {
+    try { db.pragma('foreign_keys = ON'); } catch (_) {}
+    console.error('[migração] Falha ao impor user_id NOT NULL em event_registrations:', e.message);
+  }
 
   // Seed admin
   const seedUser = db.prepare('SELECT id FROM users WHERE email = ?').bind('admin@admin.com').get();
