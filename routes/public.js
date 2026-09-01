@@ -2603,12 +2603,23 @@ function getCheckinMarkableRoles(eventId, userId) {
 
 function canMarkCheckinRole(activity, userId, markableRoles, roles, registration, role) {
   if (!markableRoles.includes(role)) return false;
+  if (!eligibleCheckinRoles(activity).includes(role)) return false;
   if (role === 'participant') {
     if (!registration) return false;
     const enrolled = db.prepare('SELECT 1 FROM participant_activity_enrollments WHERE activity_id = ? AND user_id = ?').get(activity.id, userId);
     return !!enrolled;
   }
   return roles.includes(role);
+}
+
+function eligibleCheckinRoles(activity) {
+  return String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+// Apenas os papéis que a pessoa exerce no evento E que são elegíveis na atividade.
+function getCheckinSelectableRoles(activity, markableRoles) {
+  const eligible = eligibleCheckinRoles(activity);
+  return markableRoles.filter((role) => eligible.includes(role));
 }
 
 function defaultCheckinRole(activity, markableRoles) {
@@ -2658,12 +2669,13 @@ function renderCheckin(req, res, message) {
 
   const userId = req.session.userId;
   const { registration, roles, markableRoles } = getCheckinMarkableRoles(eventId, userId);
+  const selectableRoles = getCheckinSelectableRoles(activity, markableRoles);
   const checkinWindow = getCheckinWindow(activity, session);
   const inWindow = isWithinCheckinWindow(checkinWindow);
   const existing = getCheckinRecord(activityId, userId, session);
   const initialRole = String(req.query.role || '');
-  const defaultRole = defaultCheckinRole(activity, markableRoles);
-  const selectedRole = markableRoles.includes(initialRole) ? initialRole : defaultRole;
+  const defaultRole = defaultCheckinRole(activity, selectableRoles);
+  const selectedRole = selectableRoles.includes(initialRole) ? initialRole : defaultRole;
 
   return res.render('public/checkin', {
     title: 'Registrar Presença',
@@ -2674,7 +2686,7 @@ function renderCheckin(req, res, message) {
     windowStart: checkinWindow.start,
     windowEnd: checkinWindow.end,
     registration,
-    markableRoles,
+    markableRoles: selectableRoles,
     roleLabels: CHECKIN_ROLE_LABELS,
     selectedRole,
     existing,
@@ -2703,6 +2715,7 @@ function handleCheckinSubmit(req, res) {
   const userId = req.session.userId;
   const role = String(req.body.role || '');
   const { registration, roles, markableRoles } = getCheckinMarkableRoles(eventId, userId);
+  const selectableRoles = getCheckinSelectableRoles(activity, markableRoles);
 
   const withMessage = (text, isError) => {
     const checkinWindow = getCheckinWindow(activity, session);
@@ -2715,9 +2728,9 @@ function handleCheckinSubmit(req, res) {
       windowStart: checkinWindow.start,
       windowEnd: checkinWindow.end,
       registration,
-      markableRoles,
+      markableRoles: selectableRoles,
       roleLabels: CHECKIN_ROLE_LABELS,
-      selectedRole: markableRoles.includes(role) ? role : defaultCheckinRole(activity, markableRoles),
+      selectedRole: selectableRoles.includes(role) ? role : defaultCheckinRole(activity, selectableRoles),
       existing: getCheckinRecord(activityId, userId, session),
       message: text,
       messageIsError: !!isError

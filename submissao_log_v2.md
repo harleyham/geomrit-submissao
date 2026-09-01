@@ -58,6 +58,14 @@ Versão atual registrada: **V0.32**.
 - Docs: `README.md` e `submissao.md`.
 - `Status: implementado e validado localmente; efetivo após reinício do servidor.`
 
+### Achado 12 corrigido: check-in público cruza o papel com os elegíveis da atividade
+
+- Antes: no auto-check-in por QR, papéis especiais eram conferidos apenas como "a pessoa exerce o papel no evento" (`canMarkCheckinRole` não cruzava com `event_activities.eligible_roles`) — um professor conseguia registrar presença como `teacher` em atividade configurada só para participantes, gerando presença e certificado por papel indevido.
+- Correção (`routes/public.js`): `canMarkCheckinRole` agora exige o papel na lista de elegíveis da atividade (semântica idêntica à marcação administrativa: lista vazia = ninguém elegível); nova `eligibleCheckinRoles` e `getCheckinSelectableRoles` filtram a lista exibida na página de check-in (GET e pós-POST) para papéis que a pessoa exerce **e** que a atividade aceita; `defaultCheckinRole` passa a considerar só a lista filtrada.
+- Validação: E2E em sandbox (banco temporário, porta 3133) com evento no dia corrente — atividade elegível só a `participant`: tela não oferece teacher e POST como teacher é recusado ("Você não pode registrar presença com este papel"); atividade elegível a `teacher`: POST como teacher marca a presença (302 `marked=1`, registro gravado com o papel correto); professor sem o papel `speaker` em atividade de palestrante segue recusado. Sem mudança de banco.
+- Status do achado atualizado em `ANALISE_MELHORIAS_CODIGO.md` (12 → corrigido); docs (`README.md`) ajustadas.
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ## 2026-08-31
 
 ### Correções pontuais (manhã)

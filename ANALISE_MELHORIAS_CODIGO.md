@@ -160,6 +160,7 @@ A marcação individual exige matrícula na atividade para o papel `participant`
 ### 12. Check-in público não confere os papéis elegíveis da atividade
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. O check-in público cruza o papel solicitado com `activity.eligible_roles` (`canMarkCheckinRole` recusa papel fora da lista, inclusive para participantes matriculados) e a página exibe apenas os papéis que a pessoa exerce no evento **e** que são elegíveis na atividade, alinhado à regra centralizada da marcação administrativa.
 **Evidências:** `routes/public.js:2594-2619`, `routes/public.js:2702-2742`.
 
 Para papéis especiais, `canMarkCheckinRole` verifica somente se a pessoa possui o papel no evento. Não verifica `activity.eligible_roles`. Um professor pode registrar presença como `teacher` em atividade configurada apenas para participantes.
