@@ -108,6 +108,9 @@
         <p class="help-text" style="margin-bottom:1.5rem;">Toda inscrição administrativa possui uma conta vinculada. Crie uma conta com senha temporária ou selecione uma conta existente.</p>
       <% } %>
 
+      <% const isSuper = typeof isSuperAdmin !== 'undefined' && isSuperAdmin; %>
+      <% const globalLocked = !!(registration && registration.user_id) && !isSuper; %>
+
       <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
@@ -132,33 +135,33 @@
 
         <div class="form-group">
           <label for="name">Nome do participante</label>
-          <input type="text" id="name" name="name" required value="<%= formData.name %>">
+          <input type="text" id="name" name="name" required <%= globalLocked ? 'readonly' : '' %> value="<%= formData.name %>">
         </div>
 
         <div class="form-group">
           <label for="email">E-mail de contato</label>
-          <input type="email" id="email" name="email" required value="<%= formData.email %>">
-          <div class="help-text">Se houver conta vinculada, este campo altera o registro da participação no evento, não o e-mail da conta global do usuário.</div>
+          <input type="email" id="email" name="email" required <%= globalLocked ? 'readonly' : '' %> value="<%= formData.email %>">
+          <div class="help-text"><%= globalLocked ? 'Dados da conta vinculada — somente o superadministrador pode alterar.' : 'Se houver conta vinculada, este campo altera o registro da participação no evento, não o e-mail da conta global do usuário.' %></div>
         </div>
 
         <div class="form-group">
           <label for="institution">Instituição</label>
-          <input type="text" id="institution" name="institution" value="<%= formData.institution %>">
+          <input type="text" id="institution" name="institution" <%= globalLocked ? 'readonly' : '' %> value="<%= formData.institution %>">
         </div>
 
         <div class="form-group">
           <label for="phone">Telefone (opcional)</label>
-          <input type="tel" id="phone" name="phone" value="<%= formData.phone || '' %>" placeholder="+55 11 912345678">
-          <div class="help-text">Formato internacional: +XX XXX XXXXXXXXX</div>
+          <input type="tel" id="phone" name="phone" value="<%= formData.phone || '' %>" placeholder="+55 11 912345678" <%= globalLocked ? 'readonly' : '' %>>
+          <div class="help-text"><%= globalLocked ? 'Telefone da conta vinculada — somente o superadministrador pode alterar.' : 'Formato internacional: +XX XXX XXXXXXXXX' %></div>
         </div>
 
         <% if (registration && registration.user_id) { %>
         <div style="border-top:1px solid rgba(148,163,184,0.1);padding-top:1rem;margin-top:1rem;">
-          <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Formação acadêmica (da conta vinculada)</p>
+          <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Formação acadêmica (da conta vinculada)<%= globalLocked ? ' — somente o superadministrador pode alterar' : '' %></p>
 
           <div class="form-group">
             <label for="formacao_area">Área de Formação</label>
-            <select id="formacao_area" name="formacao_area">
+            <select id="formacao_area" name="formacao_area" <%= globalLocked ? 'disabled' : '' %>>
               <option value="">Selecione uma área</option>
               <% (areas || formacaoAreas || []).forEach((area) => { %>
                 <option value="<%= area.codigo %>" <%= formData.formacao_area === area.codigo ? 'selected' : '' %>><%= area.area %></option>
@@ -167,7 +170,7 @@
           </div>
           <div class="form-group">
             <label for="formacao_curso">Curso</label>
-            <select id="formacao_curso" name="formacao_curso">
+            <select id="formacao_curso" name="formacao_curso" <%= globalLocked ? 'disabled' : '' %>>
               <% const selArea = formData.formacao_area || ''; %>
               <% const selCurso = formData.formacao_curso || ''; %>
               <option value="<%= selArea ? 'Selecione um curso' : 'Selecione primeiro uma área' %>"><%= selArea ? 'Selecione um curso' : 'Selecione primeiro uma área' %></option>
@@ -179,7 +182,7 @@
           <div id="formacao-titulacao-status" style="display:<%= formData.formacao_curso === noDegreeCourse ? 'none' : 'grid' %>;grid-template-columns:1fr 1fr;gap:1rem;">
             <div class="form-group">
               <label for="formacao_titulacao">Titulação</label>
-              <select id="formacao_titulacao" name="formacao_titulacao">
+              <select id="formacao_titulacao" name="formacao_titulacao" <%= globalLocked ? 'disabled' : '' %>>
                 <option value="">Selecione</option>
                 <option value="Graduado" <%= formData.formacao_titulacao === 'Graduado' ? 'selected' : '' %>>Graduado</option>
                 <option value="Mestre" <%= formData.formacao_titulacao === 'Mestre' ? 'selected' : '' %>>Mestre</option>
@@ -188,7 +191,7 @@
             </div>
             <div class="form-group">
               <label for="formacao_status">Status</label>
-              <select id="formacao_status" name="formacao_status">
+              <select id="formacao_status" name="formacao_status" <%= globalLocked ? 'disabled' : '' %>>
                 <option value="">Selecione</option>
                 <option value="Formado" <%= formData.formacao_status === 'Formado' ? 'selected' : '' %>>Formado</option>
                 <option value="Cursando" <%= formData.formacao_status === 'Cursando' ? 'selected' : '' %>>Cursando</option>

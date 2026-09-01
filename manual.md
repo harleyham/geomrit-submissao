@@ -77,36 +77,37 @@ Troque a senha imediatamente. A conta `admin@admin.com` é o superadministrador 
 
 ## 3. Navegação e perfis
 
-Após o login, o usuário é encaminhado conforme seus perfis. Contas com mais de um perfil podem alternar entre `/admin/dashboard`, `/reviewer` e `/author`.
+Após o login, o usuário é encaminhado conforme seus papéis, consultados no banco a cada acesso: `admin@admin.com` vai para `/admin/dashboard`; quem é administrador ou staff de algum evento vai para `/admin/events`; quem tem papel **Revisor** em pelo menos um evento pode alternar com `/reviewer`; as demais contas aprovadas vão para `/author` (Área do Participante). Não existem mais papéis globais: participante, revisor, palestrante, professor, apresentador e staff são exercidos **por evento**.
 
-O administrador de evento só deve administrar eventos nos quais possui o papel `admin`. O papel atribuído no evento não altera automaticamente os papéis de outros eventos.
+O administrador de evento administra apenas os eventos nos quais possui o papel `admin` (e, nos artigos e relatórios, enxerga só os seus eventos). O papel atribuído em um evento não altera os demais eventos nem o cadastro global da pessoa.
 
 Contas novas podem exigir troca de senha e conclusão do perfil antes de acessar os painéis. Complete nome, país, instituição, telefone e formação acadêmica.
 
 ## 4. Criação e administração de usuários
 
+A área de usuários (`/admin/users` — cadastro, edição, reset de senha, aprovação, importação global e a prévia "Área do Participante") é **exclusiva do superadministrador** (`admin@admin.com`). Os demais usuários gerenciam pessoas apenas dentro dos seus eventos (participantes, importação por evento e página de Papéis). Quem precisa trocar a própria senha sem ser o superadmin usa **Alterar Senha** na Área do Participante (`/author/profile`).
+
 ### Cadastro individual
 
 1. Acesse **Administração → Usuários → Novo usuário** (`/admin/users/new`).
 2. Informe nome, e-mail, instituição, documentos, telefone e formação acadêmica.
-3. Selecione os perfis necessários, como revisor, participante, palestrante, professor ou apresentador.
-4. Para revisores, informe as áreas de atuação utilizadas na sugestão de revisores.
-5. Salve o cadastro e comunique a senha temporária ao usuário por canal seguro.
+3. Para quem fará revisão, informe as áreas de atuação (usadas na sugestão de revisores). O papel de revisor em si é atribuído **por evento**, na página de Papéis.
+4. Salve o cadastro e comunique a senha temporária ao usuário por canal seguro.
 
-> A antiga chave **Administrador** foi removida da criação/edição e da listagem de usuários: ser administrador é um papel **por evento**, atribuído em `/admin/events/:id/roles` (que também promove a sessão ao painel administrativo). A flag global `is_admin` permanece apenas no seed do superadministrador (`admin@admin.com`).
+> As antigas chaves globais (**Administrador**, **Revisor**, **Staff**, **Participante**, **Palestrante**, **Professor**, **Apresentador**) foram removidas da criação/edição e da listagem de usuários: todos os papéis são **por evento**, atribuídos em `/admin/events/:id/roles`. As colunas `is_*` permanecem no banco por compatibilidade, mas não autorizam mais nada. A flag `is_admin` sobrevive apenas no seed do superadministrador (`admin@admin.com`). A listagem de usuários agora mostra quantos papéis a pessoa exerce, por resumo.
 
 Quando o usuário não possui curso de graduação, selecione essa opção. Os campos de titulação e status ficam ocultos e são armazenados como nulos.
 
 ### Reset de senha
 
-Na listagem de usuários, o botão **Resetar Senha** gera uma senha temporária (a antiga deixa de valer e a troca passa a ser obrigatória no primeiro acesso) e envia ao usuário um **e-mail com link de uso único** (válido por 72 horas) para ele definir a nova senha — a senha não transita no e-mail. Se o envio de e-mails estiver **desativado** (master switch global) ou a conta **não tiver e-mail**, o sistema abre uma página mostrando a senha temporária para você comunicá-la por canal seguro.
+Na listagem de usuários, o botão **Resetar Senha** (disponível também na linha do usuário logado, com aviso de que a senha atual deixará de valer) gera uma senha temporária (a antiga deixa de valer e a troca passa a ser obrigatória no primeiro acesso) e envia ao usuário um **e-mail com link de uso único** (válido por 72 horas) para ele definir a nova senha — a senha não transita no e-mail. Se o envio de e-mails estiver **desativado** (master switch global) ou a conta **não tiver e-mail**, o sistema abre uma página mostrando a senha temporária para você comunicá-la por canal seguro.
 
 ### Importação
 
 Há dois fluxos:
 
-- **Por evento** (`/admin/events/:id/import-users`): cria ou atualiza contas e inscreve as pessoas no evento.
-- **Por usuários** (`/admin/users/import`): cria ou atualiza contas sem inscrição em evento.
+- **Por evento** (`/admin/events/:id/import-users`): disponível para o administrador do evento (e para o superadmin); cria ou atualiza contas e já inscreve as pessoas no evento.
+- **Por usuários** (`/admin/users/import`): exclusiva do superadmin; cria ou atualiza contas sem inscrição em evento.
 
 São aceitos CSV e XLSX. A importação identifica delimitador de vírgula ou ponto e vírgula, aceita CRLF/LF e apresenta relatório pessoa a pessoa. Baixe o modelo CSV quando necessário.
 
@@ -118,7 +119,7 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 
 ## 5. Criação de eventos
 
-**Qualquer usuário autenticado pode criar eventos**: acesse **Meus Eventos** (`/admin/events`, botão na Área do Participante) e clique **+ Novo Evento**, ou abra `/admin/events/new` diretamente. O superadministrador (`admin@admin.com`) vê e administra **todos** os eventos do sistema em `/admin/events`, mesmo sem papel atribuído neles.
+**Qualquer usuário autenticado pode criar eventos**: acesse **Meus Eventos** (`/admin/events`, botão na Área do Participante) e clique **+ Novo Evento**, ou abra `/admin/events/new` diretamente. Na tela **Meus Eventos**, o menu superior dos usuários **não superadministradores** traz o link **Área do Participante** para voltar à área (`/author`). O superadministrador (`admin@admin.com`) vê e administra **todos** os eventos do sistema em `/admin/events`, mesmo sem papel atribuído neles.
 
 1. Acesse **Administração → Eventos → Novo evento** (`/admin/events/new`).
 2. Informe nome, sigla, áreas/trilhas, datas e local.
@@ -139,7 +140,7 @@ Quando há um PDF, eventos publicados ou encerrados ganham a URL pública `/even
 
 ## 6. Participantes e papéis no evento
 
-Abra `/admin/events/:id/participants` para incluir, editar ou remover participantes.
+Abra `/admin/events/:id/participants` para incluir, editar ou remover participantes. Na edição de uma inscrição com conta vinculada, o **administrador do evento** altera apenas os dados relativos ao evento (tipo de participante, atividades e papéis); **nome, e-mail, instituição, telefone e formação acadêmica são dados da conta e aparecem somente-leitura** — quem os altera é o superadministrador (`admin@admin.com`), que pode editar tudo também por essa tela (alterações no cadastro se refletem automaticamente nas inscrições).
 
 Durante a inclusão ou edição:
 
@@ -149,7 +150,7 @@ Durante a inclusão ou edição:
 4. informe as atividades nas quais a pessoa participará, quando aplicável;
 5. salve.
 
-Os papéis disponíveis no evento incluem participante, administrador, revisor, palestrante, professor, apresentador oral e apresentador pôster. O formulário de edição do participante edita os papéis operacionais; administrador, revisor e participante são atribuídos na edição do usuário (`/admin/users/:id/edit`), na seção **Perfis por evento**, escolhendo o evento. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento. Qualquer conta ativa e aprovada pode receber um papel pelo administrador do evento (na página de Papéis ou em Perfis por evento); a atribuição **liga automaticamente** a habilitação global correspondente no cadastro da pessoa (palestrante, professor, apresentador, staff).
+Os papéis disponíveis no evento incluem participante, administrador, **revisor**, palestrante, professor, apresentador oral e apresentador pôster — todos **exclusivamente por evento**. A página de Papéis (`/admin/events/:id/roles`) lista como candidatos apenas **inscritos no evento** (ou quem já tem papel nele); o superadmin pode atribuir a qualquer conta aprovada. Atribuir um papel **não altera mais nenhum dado do cadastro global** da pessoa. O participante comum não precisa de papel: a inscrição basta. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento. O painel de revisão (`/reviewer`) fica disponível a quem tem papel `reviewer` em pelo menos um evento; o administrador só pode atribuir revisores entre os inscritos do seu evento.
 
 **Toda inscrição possui conta vinculada** (garantia imposta pelo banco de dados). Registros históricos sem vínculo são corrigidos automaticamente na inicialização do sistema: a inscrição é ligada à conta com o mesmo e-mail ou, se não existir conta, uma nova é criada (aprovada, com senha desconhecida — use **Resetar Senha** na listagem de usuários para enviar o link de definição por e-mail). Por isso a coluna "Conta" nunca mais exibe "Sem vínculo de conta".
 
@@ -157,10 +158,7 @@ No credenciamento, use **Imprimir crachá** na linha do participante. O crachá 
 
 ### Papel Staff
 
-O papel **Staff** combina duas marcações:
-
-1. **Elegibilidade global** — a chave **Staff** na listagem de usuários (`/admin/users`, junto da chave de Revisor) habilita a pessoa a ser designada Staff; designar Staff em um evento **liga essa chave automaticamente**. Desligar essa chave revoga automaticamente todas as designações de Staff por evento.
-2. **Designação por evento** — marque **Staff** em cada evento na seção **Perfis por evento** da edição do usuário (`/admin/users/:id/edit`) ou na página de Papéis do evento (`/admin/events/:id/roles`). O acesso efetivo do Staff limita-se **apenas aos eventos em que foi designado**.
+O papel **Staff** é uma designação **exclusivamente por evento**, atribuída na página de Papéis (`/admin/events/:id/roles`) ou na seção **Perfis por evento** da edição de usuário (restrita ao superadmin). Não existe mais elegibilidade global: desligar contas não revoga papéis, e remover o papel na página de Papéis é o que encerra a designação. O acesso efetivo do Staff limita-se **apenas aos eventos em que foi designado**.
 
 Dentro dos seus eventos, o Staff concentra a operação, sem ser administrador:
 
@@ -290,7 +288,7 @@ O certificado pode ser baixado pelo participante e verificado publicamente pelo 
 
 ## 12. Dashboard administrativo
 
-O dashboard (`/admin/dashboard`) apresenta um resumo operacional:
+O dashboard (`/admin/dashboard`) é exclusivo do superadministrador (`admin@admin.com`) e apresenta um resumo operacional:
 
 - total de usuários;
 - eventos realizados;

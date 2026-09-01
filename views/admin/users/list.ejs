@@ -213,12 +213,11 @@
 
     <div class="section">
       <div class="section-title">Gerenciar Usuários</div>
-      <div class="section-desc">Usuários já aprovados, com gestão de papéis e status de acesso</div>
+      <div class="section-desc">Usuários já aprovados, com status de acesso e visão resumida de papéis por evento</div>
        <div class="section-note">
-        Revisor define o papel do usuário no fluxo de avaliação.
-        Conta ativa define se ele pode entrar no sistema.
-        Desativar a conta <strong>não remove</strong> automaticamente o papel de revisor.
-        Um usuário com Revisor ligado e Conta ativa desligada será contado como <strong>revisor inativo</strong>.
+        Papéis (revisor, staff, palestrante, professor, apresentador) são atribuídos <strong>por evento</strong>, na página <strong>Papéis</strong> de cada evento — somente inscritos no evento podem recebê-los.
+        Conta ativa define se a pessoa pode entrar no sistema.
+        Desativar a conta <strong>não remove</strong> os papéis nos eventos.
         Para bloquear o acesso preservando o histórico (inscrições, presenças, certificados), desligue o controle <strong>Conta ativa</strong>.
         O botão <strong>Excluir</strong> é definitivo: remove também papéis em eventos, inscrições em atividades, presenças, crachá e revisões — reserve para cadastros por engado.
       </div>
@@ -262,7 +261,7 @@
           <tr>
             <th>Nome</th>
             <th>E-mail</th>
-            <th>Papéis no Sistema</th>
+             <th>Papéis em Eventos</th>
             <th>Conta Ativa</th>
             <th>Primeiro acesso</th>
             <th>Ações</th>
@@ -286,26 +285,11 @@
               </div>
             </td>
             <td>
-              <div style="display: flex; gap: 0.25rem; align-items: center;">
-                <label class="toggle-switch">
-                  <input name="is_reviewer_<%= u.id %>" value="1" type="checkbox" form="bulk-flags-form" <%= u.is_reviewer ? 'checked' : '' %>>
-                  <span class="toggle-slider"></span>
-                </label>
-                <% if (u.is_reviewer) { %><span class="badge badge-reviewer">Revisor</span><% } else { %><span class="badge badge-inactive">Revisor</span><% } %>
-                <label class="toggle-switch" style="margin-left: 0.5rem;" title="Habilita elegibilidade a Staff (depois marque Staff em cada evento)">
-                  <input name="is_staff_<%= u.id %>" value="1" type="checkbox" form="bulk-flags-form" <%= u.is_staff ? 'checked' : '' %>>
-                  <span class="toggle-slider"></span>
-                </label>
-                <% if (u.is_staff) { %><span class="badge badge-staff">Staff</span><% } else { %><span class="badge badge-inactive">Staff</span><% } %>
-              </div>
-              <div style="margin-top: 0.45rem; color:#64748b; font-size:0.72rem;">
-                <% if (u.is_participant) { %><span class="badge badge-active">Participante</span><% } %>
-                <% if (u.is_speaker) { %><span class="badge badge-active">Palestrante</span><% } %>
-                <% if (u.is_teacher) { %><span class="badge badge-active">Professor</span><% } %>
-                <% if (u.is_oral_presenter) { %><span class="badge badge-active">Apresentador Oral</span><% } %>
-                <% if (u.is_poster_presenter) { %><span class="badge badge-active">Apresentador Pôster</span><% } %>
-                <% if (!u.is_participant && !u.is_speaker && !u.is_teacher && !u.is_oral_presenter && !u.is_poster_presenter) { %>Revisor é papel de acesso; os demais perfis ainda não foram definidos.<% } %>
-              </div>
+              <% if (u.roles_count) { %>
+                <span class="badge badge-active"><%= u.roles_count %> papel(is) em <%= u.roles_events %> evento(s)</span>
+              <% } else { %>
+                <span style="color:#64748b; font-size:0.78rem;">Nenhum papel; atribua em Papéis na página do evento.</span>
+              <% } %>
             </td>
             <td>
               <label class="toggle-switch">
@@ -315,8 +299,8 @@
               <span style="margin-left: 0.5rem; font-size: 0.75rem;">
                 <%= u.is_public ? 'Conta ativa' : 'Conta inativa' %>
               </span>
-              <% if (u.is_reviewer && !u.is_public) { %>
-                <div style="margin-top: 0.45rem;"><span class="badge badge-warning">Revisor inativo</span></div>
+              <% if (u.roles_reviewer && !u.is_public) { %>
+                <div style="margin-top: 0.45rem;"><span class="badge badge-warning">Revisor com conta inativa</span></div>
               <% } %>
             </td>
             <td>
@@ -332,11 +316,12 @@
             <td class="actions-cell">
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
-              <% if (u.id !== currentUser.id) { %>
-              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Enviar e-mail de redefinição de senha para <%= u.email %>?')">
+              <% const isSelf = u.id === currentUser.id; const safeEmail = String(u.email).replace(/'/g, ''); %>
+              <form method="POST" action="/admin/users/<%= u.id %>/reset-password" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('<%= isSelf ? 'Redefinir a sua própria senha? A senha atual deixará de valer imediatamente e será obrigatório definir uma nova no próximo acesso, via link enviado ao seu e-mail (ou senha temporária exibida ao admin se o envio estiver desativado).' : 'Enviar e-mail de redefinição de senha para ' + safeEmail + '?'; %>')">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-danger btn-sm">Resetar Senha</button>
               </form>
+              <% if (!isSelf) { %>
               <% if (u.email !== 'admin@admin.com') { %>
               <form method="POST" action="/admin/users/<%= u.id %>" class="js-delete-user" data-email="<%= u.email %>" style="display:inline">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">

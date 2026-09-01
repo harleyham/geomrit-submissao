@@ -25,11 +25,12 @@ const restoreUpload = multer({
 });
 
 function authenticatedDestination(req) {
-  if (req.session.isAdmin) return '/admin/dashboard';
-  if (req.session.userId && db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='staff' LIMIT 1").get(req.session.userId)) return '/admin/events';
-  if (req.session.isReviewer) return '/reviewer';
-  if (req.session.isPublic) return '/author';
-  return '/';
+  const userId = req.session && req.session.userId;
+  if (!userId) return '/';
+  if (isSuperAdminUser(userId)) return '/admin/dashboard';
+  if (hasRoleAnyEvent(userId, 'admin') || hasRoleAnyEvent(userId, 'staff')) return '/admin/events';
+  if (hasRoleAnyEvent(userId, 'reviewer')) return '/reviewer';
+  return '/author';
 }
 
 function normalizeCPF(value) {
@@ -183,47 +184,72 @@ function isSuperAdminUser(userId) {
   return Boolean(db.prepare("SELECT 1 FROM users WHERE id = ? AND email = 'admin@admin.com' AND is_admin = 1 AND is_public = 1 LIMIT 1").get(userId));
 }
 
-// Middleware de autenticação admin
-function requireAuth(req, res, next) {
-  const hasEventAdminRole = req.session && req.session.userId && db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(req.session.userId);
-  const canBootstrap = req.session && req.session.userId && db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0 && db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId)?.is_admin;
-  if (!req.session.isAdmin && !hasEventAdminRole && !canBootstrap && !isSuperAdminUser(req.session.userId)) {
+// Papéis são exclusivamente por evento (event_user_roles). Estas funções
+// respondem, a partir do banco, se a pessoa exerce um papel em algum evento.
+function hasRoleAnyEvent(userId, role) {
+  if (!userId) return false;
+  return Boolean(db.prepare('SELECT 1 FROM event_user_roles WHERE user_id = ? AND role = ? LIMIT 1').get(userId, role));
+}
+
+function getEventIdsByRole(userId, role) {
+  if (!userId) return [];
+  return db.prepare('SELECT event_id FROM event_user_roles WHERE user_id = ? AND role = ?').all(userId, role).map((row) => row.event_id);
+}
+
+// Área administrativa global (dashboard, usuários): exclusiva do superadmin.
+function requireSuperAdminUser(req, res, next) {
+  if (!isSuperAdminUser(req.session && req.session.userId)) {
     return res.redirect('/login');
   }
-  req.session.isAdmin = true;
   next();
 }
 
-// Autoriza acesso a áreas administrativas restritas (eventos, artigos e
-// relatórios). Administradores (sessão admin ou papel 'admin' em algum evento)
-// seguem com acesso pleno. Usuários com papel 'staff' recebem acesso apenas
-// aos eventos em que foram marcados como staff: `req.staffEventIds` lista esses
-// eventos e é usado pelos routers para restringir consultas e ações. O staff
-// não é promovido a sessão de admin (req.session.isAdmin continua false).
-// Usuário autenticado sem papel passa sem promoção: os routers restringem por
-// conta própria (em /admin/events, a lista mostra só os eventos do usuário e a
-// criação é liberada; as rotas por evento exigem papel no banco).
+// Autentica para áreas que exigem papel de administração (dashboard de evento
+// ou superior). Não promove mais a sessão: a identidade global é derivada do
+// banco a cada request.
+function requireAuth(req, res, next) {
+  const userId = req.session && req.session.userId;
+  if (!userId) return res.redirect('/login');
+  if (isSuperAdminUser(userId) || hasRoleAnyEvent(userId, 'admin')) return next();
+  return res.redirect('/login');
+}
+
+// Autoriza acesso a áreas administrativas de eventos (eventos, artigos e
+// relatórios). O superadmin tem acesso irrestrito (req.scopedEventIds = null).
+// Administradores de eventos e staff recebem req.scopedEventIds com a união
+// dos eventos em que exercem qualquer um dos dois papéis; os routers usam a
+// lista para restringir consultas e ações, e as rotas por evento de events.js
+// revalidam o papel específico ali. Nenhum desses usuários vira admin de
+// sessão: req.session.isAdmin é exclusivo do superadmin.
 function getStaffEventIds(userId) {
-  return db.prepare("SELECT event_id FROM event_user_roles WHERE user_id=? AND role='staff'").all(userId).map((row) => row.event_id);
+  return getEventIdsByRole(userId, 'staff');
 }
 
 function requireAdminOrStaff(req, res, next) {
-  if (!req.session || !req.session.userId) {
-    return res.redirect('/login');
-  }
-  const hasEventAdminRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(req.session.userId);
-  const canBootstrap = db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0 && db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId)?.is_admin;
-  if (req.session.isAdmin || hasEventAdminRole || canBootstrap || isSuperAdminUser(req.session.userId)) {
-    req.session.isAdmin = true;
-    req.staffEventIds = null; // acesso irrestrito
+  const userId = req.session && req.session.userId;
+  if (!userId) return res.redirect('/login');
+  if (isSuperAdminUser(userId)) {
+    req.isSuperAdmin = true;
+    req.scopedEventIds = null;
+    req.staffEventIds = null;
+    req.session.isEventStaff = false;
     return next();
   }
-  const staffEventIds = getStaffEventIds(req.session.userId);
-  if (staffEventIds.length) {
-    req.session.isEventStaff = true;
-    req.staffEventIds = staffEventIds;
+  req.isSuperAdmin = false;
+  const adminEventIds = getEventIdsByRole(userId, 'admin');
+  const staffEventIds = getEventIdsByRole(userId, 'staff');
+  const scoped = [...new Set([...adminEventIds, ...staffEventIds])];
+  req.session.isEventStaff = staffEventIds.length > 0 && adminEventIds.length === 0;
+  if (scoped.length === 0) {
+    // Segue sem escopo: os routers (requireAuth local) redirecionam quem não
+    // tem papel; em /admin/events a lista mostra só os eventos do usuário e a
+    // criação é liberada.
+    req.scopedEventIds = null;
+    req.staffEventIds = null;
     return next();
   }
+  req.scopedEventIds = scoped;
+  req.staffEventIds = scoped;
   return next();
 }
 
@@ -237,7 +263,7 @@ function safeAfterLoginPath(value) {
 router.get('/', (req, res) => {
   const afterLogin = safeAfterLoginPath(req.query.next);
   if (afterLogin && req.session) req.session.afterLoginPath = afterLogin;
-  if (req.session.isAdmin || req.session.isReviewer || req.session.isPublic) {
+  if (req.session.userId) {
     const user = db.prepare('SELECT password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
     if (user && !user.password_changed) return res.redirect('/login/change-password');
     if (user && !user.profile_completed) return res.redirect('/login/complete-profile');
@@ -250,8 +276,8 @@ router.get('/', (req, res) => {
 });
 
 // Dashboard admin
-router.get('/dashboard', requireAuth, (req, res) => {
-  const isSuperAdmin = req.session.userEmail === 'admin@admin.com';
+router.get('/dashboard', requireSuperAdminUser, (req, res) => {
+  const isSuperAdmin = isSuperAdminUser(req.session.userId);
   const brToday = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
   const totalEvents = db.prepare('SELECT COUNT(*) as count FROM events').get().count;
   const publishedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'published'").get().count;
@@ -303,8 +329,8 @@ router.get('/dashboard', requireAuth, (req, res) => {
   const authorRegistrations = getAuthorRegistrationCountWhere();
   const listenerRegistrations = getListenerRegistrationCountWhere();
   const totalRegisteredParticipants = authorRegistrations + listenerRegistrations;
-  const activeReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 1').get().count;
-  const inactiveReviewers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_reviewer = 1 AND is_public = 0').get().count;
+  const activeReviewers = db.prepare("SELECT COUNT(DISTINCT eur.user_id) as count FROM event_user_roles eur JOIN users u ON u.id = eur.user_id WHERE eur.role = 'reviewer' AND u.is_public = 1").get().count;
+  const inactiveReviewers = db.prepare("SELECT COUNT(DISTINCT eur.user_id) as count FROM event_user_roles eur JOIN users u ON u.id = eur.user_id WHERE eur.role = 'reviewer' AND u.is_public = 0").get().count;
   const pendingUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
   const pendingReviewAssignmentArticles = db.prepare(`
     SELECT
@@ -682,24 +708,11 @@ function doLoginAfterRegen(req, res) {
   req.session.userEmail = user.email;
   req.session.userInstitution = user.institution || '';
   req.session.userRoles = [];
-  req.session.isAdmin = false;
-  req.session.isReviewer = false;
-  req.session.isPublic = false;
-
-  const hasEventAdminRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(user.id);
-  if (hasEventAdminRole || isSuperAdminUser(user.id) || (user.is_admin && db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0)) {
-    req.session.isAdmin = true;
-    req.session.userRoles.push('admin');
-  }
-
-  if (user.is_reviewer) {
-    req.session.isReviewer = true;
-    req.session.userRoles.push('reviewer');
-  }
-
-  if (req.session.userRoles.length === 0) {
-    req.session.isPublic = true;
-  }
+  req.session.isPublic = true;
+  req.session.isAdmin = isSuperAdminUser(user.id);
+  req.session.isReviewer = hasRoleAnyEvent(user.id, 'reviewer');
+  if (req.session.isAdmin) req.session.userRoles.push('admin');
+  if (req.session.isReviewer) req.session.userRoles.push('reviewer');
 
   if (!user.password_changed) {
     return res.redirect('/login/change-password');
@@ -852,4 +865,5 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
   return res.redirect(authenticatedDestination(req));
 });
 
-module.exports = { router, requireAuth, requireAdminOrStaff, getStaffEventIds, requireOnboarding, requireActiveAccount, isSuperAdminUser };
+module.exports = { router, requireAuth, requireAdminOrStaff, requireSuperAdminUser, getStaffEventIds, getEventIdsByRole, hasRoleAnyEvent, requireOnboarding, requireActiveAccount,
+  isSuperAdminUser };

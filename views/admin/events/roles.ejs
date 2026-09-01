@@ -58,9 +58,9 @@
     <div class="topbar-inner">
       <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
       <nav class="topbar-nav">
-        <a href="/admin">Dashboard</a>
+        <% if (isAdmin) { %><a href="/admin">Dashboard</a><% } %>
         <a href="/admin/events">Eventos</a>
-        <a href="/admin/users">Usuários</a>
+        <% if (isAdmin) { %><a href="/admin/users">Usuários</a><% } %>
         <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
         <form method="POST" action="/admin/logout" style="display:inline">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -76,7 +76,7 @@
 
     <section class="section">
       <h2 class="section-title">Atribuir papel</h2>
-      <p class="hint">Administrador controla somente este evento. Participante e Revisor são atribuídos pela inscrição e pelos artigos.</p>
+      <p class="hint">Administrador controla somente este evento. Somente pessoas inscritas neste evento (ou que já tenham papel nele) podem receber papéis; o participante comum não precisa de papel — a inscrição basta.</p>
       <form method="POST" action="/admin/events/<%= event.id %>/roles">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
@@ -91,6 +91,7 @@
           <select name="role" id="role" required>
             <option value="admin">Administrador do evento</option>
             <option value="staff">Staff (operação do evento: presença, participantes, certificados, artigos e relatórios)</option>
+            <option value="reviewer">Revisor (avalia artigos do evento)</option>
             <option value="speaker">Palestrante</option>
             <option value="teacher">Professor</option>
             <option value="oral_presenter">Apresentador Oral</option>

@@ -148,15 +148,16 @@ Flags legadas de permissão no cadastro global:
 - `approved_at`
 - `approved_by`
 
-O usuário possui um único cadastro e login. Os papéis de atuação são contextuais ao evento e ficam em `event_user_roles`: `admin`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter`. O administrador só visualiza e administra os eventos em que recebeu o papel `admin`; ao criar um evento, recebe esse papel automaticamente. As flags históricas `is_admin` e `is_reviewer` são preservadas apenas para compatibilidade e migração da base existente.
+O usuário possui um único cadastro e login. **Todos os papéis de atuação são exclusivamente por evento**, em `event_user_roles`: `admin`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter` — atribuídos apenas a inscritos no evento (o superadmin pode atribuir a qualquer conta ativa) e **sem alterar o cadastro global**. Administradores de evento administram e consultam (eventos, artigos, relatórios) apenas os eventos em que têm papel `admin` (ou `staff`); ao criar um evento, recebe o papel automaticamente. As flags `is_*` (incluídas `is_speaker`, `is_staff`, `is_participant` etc.) são legadas: permanecem no banco por compatibilidade, gravadas como 0 nas novas contas, e **não autorizam mais nada**; `is_admin` sobrevive apenas na linha semente do superadmin (`admin@admin.com`).
 
 ### Regras de acesso
 
-- `is_admin = 1`: acesso ao painel administrativo.
-- `is_reviewer = 1`: acesso ao painel do revisor.
-- `is_public = 1`: conta habilitada para autenticação.
-- `is_admin = 1` e `is_reviewer = 1`: após login, o redirecionamento prioriza `/admin/dashboard`.
-- `is_reviewer = 1` e `is_public = 0`: usuário continua marcado como revisor, mas fica inativo para login.
+- Superadmin (`admin@admin.com` com `is_admin = 1` confirmado no banco): acesso total, incluídos `/admin/users` e `/admin/dashboard`, exclusivos.
+- Papel `admin` ou `staff` em algum evento: acesso às áreas desse(s) evento(s) (staff limitado à allowlist operacional).
+- Papel `reviewer` em algum evento: acesso ao painel `/reviewer` (verificado no banco a cada request).
+- Demais contas aprovadas e ativas: Área do Participante (`/author`), incluindo troca da própria senha.
+- `is_public = 1`: conta habilitada para autenticação (status de conta, não papel).
+- Redirecionamento pós-login: super → `/admin/dashboard`; admin/staff → `/admin/events`; revisor → `/reviewer`; demais → `/author`.
 
 ### Sessão
 
@@ -576,8 +577,8 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 
 ### Dashboard administrativo
 
-- `Revisores Ativos` conta usuários com `is_reviewer = 1` e `is_public = 1`.
-- `Revisores Inativos` conta usuários com `is_reviewer = 1` e `is_public = 0`.
+- `Revisores Ativos` conta pessoas com papel `reviewer` em pelo menos um evento e `is_public = 1`.
+- `Revisores Inativos` conta pessoas com papel `reviewer` em pelo menos um evento e `is_public = 0`.
 - `Usuários Pendentes` conta registros com `approval_status = 'pending'`.
 - `Sem Revisor` conta artigos sem designação em `assignments`.
 - `Em Análise` conta artigos com revisor atribuído e ao menos um parecer ainda pendente.
@@ -729,11 +730,12 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 1. Usuário acessa `/login`.
 2. Sistema valida e-mail e senha na tabela `users`.
 3. Sistema bloqueia login para `is_public = 0`.
-4. Sistema monta a sessão conforme as flags do usuário.
+4. Sistema monta a sessão com identidade derivada do banco (superadmin; papéis por evento; conta aprovada).
 5. Se `password_changed = 0`, redireciona para `/login/change-password`.
-6. Se `is_admin = 1`, redireciona para `/admin/dashboard`.
-7. Caso contrário, se `is_reviewer = 1`, redireciona para `/reviewer`.
-8. Caso não seja admin nem revisor, redireciona para `/author`.
+6. Se for o superadmin (`admin@admin.com`), redireciona para `/admin/dashboard`.
+7. Caso contrário, se tiver papel `admin` ou `staff` em algum evento, redireciona para `/admin/events`.
+8. Caso contrário, se tiver papel `reviewer` em algum evento, redireciona para `/reviewer`.
+9. Caso não tenha papel algum, redireciona para `/author` (Área do Participante).
 
 ## Rotas Principais
 

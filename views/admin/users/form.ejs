@@ -172,39 +172,10 @@
         </div>
       </div>
 
-      <div class="section global-profiles" style="display:none; margin-bottom: 1.5rem;">
-        <div class="section-title">Conta e habilitações globais</div>
-        <p style="color:#fbbf24;font-size:.82rem;line-height:1.5;margin:-.35rem 0 1rem;">Os papéis efetivos são atribuídos por evento na seção abaixo. Estas opções apenas descrevem habilitações e dados gerais da conta.</p>
-        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-          <label class="checkbox-group">
-            <input type="checkbox" name="is_participant" <%= (user && user.is_participant) ? 'checked' : '' %>>
-            <div>Participante<span class="role-desc">Pode receber certificado de participação quando inscrito e elegível no evento</span></div>
-          </label>
-          <label class="checkbox-group">
-            <input type="checkbox" name="is_speaker" <%= (user && user.is_speaker) ? 'checked' : '' %>>
-            <div>Palestrante<span class="role-desc">Habilita a atribuição como palestrante em eventos</span></div>
-          </label>
-          <label class="checkbox-group">
-            <input type="checkbox" name="is_teacher" <%= (user && user.is_teacher) ? 'checked' : '' %>>
-            <div>Professor<span class="role-desc">Habilita a atribuição como professor em eventos</span></div>
-          </label>
-          <label class="checkbox-group">
-            <input type="checkbox" name="is_oral_presenter" <%= (user && user.is_oral_presenter) ? 'checked' : '' %>>
-            <div>Apresentador Oral<span class="role-desc">Habilita a atribuição a artigos orais aprovados</span></div>
-          </label>
-          <label class="checkbox-group">
-            <input type="checkbox" name="is_poster_presenter" <%= (user && user.is_poster_presenter) ? 'checked' : '' %>>
-            <div>Apresentador Pôster<span class="role-desc">Habilita a atribuição a pôsteres aprovados</span></div>
-          </label>
-          <label class="checkbox-group">
-            <input type="checkbox" name="is_reviewer" <%= (user && user.is_reviewer) ? 'checked' : '' %>>
-            <div>
-              Revisor
-              <span class="role-desc">Acesso ao painel de revisão de artigos</span>
-            </div>
-          </label>
-        </div>
-        <div class="form-group" style="margin-top:1.25rem;">
+      <div class="section" style="margin-bottom: 1.5rem;">
+        <div class="section-title">Dados gerais da conta</div>
+        <p style="color:#94a3b8;font-size:.82rem;line-height:1.5;margin:-.35rem 0 1rem;">Os papéis (participante, revisor, staff, palestrante, professor, apresentador) são atribuídos <strong>por evento</strong>, na seção "Perfis por evento" abaixo ou na página Papéis do evento.</p>
+        <div class="form-group" style="margin-top:0;">
           <label for="reviewer_areas">Áreas de atuação do revisor</label>
           <textarea id="reviewer_areas" name="reviewer_areas" placeholder="Ex.: Inteligência Artificial, Educação, Engenharia de Software"><%= user ? (user.reviewer_areas || '') : '' %></textarea>
           <small style="display:block;margin-top:0.4rem;color:#94a3b8;">Use vírgulas, ponto e vírgula ou quebra de linha. Essas áreas serão usadas para sugerir revisores compatíveis com a trilha do artigo.</small>

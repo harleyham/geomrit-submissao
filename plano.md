@@ -278,6 +278,38 @@ IIOC (sessões temáticas simultâneas por bloco horário).
 
 Ordem de execução: 6.1 → 6.2 → 6.3 → 6.4 → 6.5.
 
+> **Atualização (31/08/2026)**: a alocação de revisores do item 6.4 nasce
+> sobre a nova base de **papéis por evento** — candidatos a revisor de um
+> artigo são apenas os detentores do papel `reviewer` no evento (atribuído na
+> página Papéis, restrita a inscritos). `reviewer_areas` segue como sugestão
+> de compatibilidade por trilha, sem autorizar nada sozinho.
+
+---
+
+## Reforma de Permissões — papéis exclusivamente por evento
+Status geral: **IMPLEMENTADA E VALIDADA (31/08/2026, aguardando commit)**.
+
+- Superadmin (`admin@admin.com`): poder total; único com `/admin/users` e
+  `/admin/dashboard` (`requireSuperAdminUser`). `is_admin` é só o marcador da
+  linha semente.
+- Qualquer usuário autenticado cria evento e vira admin dele (papel gravado em
+  `event_user_roles`; sem promoção de sessão).
+- Não-supers: apenas papéis de **inscritos** nos eventos que administram
+  (página Papéis); sem Editar/Resetar Senha/Excluir usuários; sem editar
+  dados globais (auto-ligação de flags removida). Artigos e relatórios
+  escopados aos próprios eventos (`req.scopedEventIds`).
+- Import de lista de usuários: para não-supers, o import **por evento**
+  (`/admin/events/:id/import-users`, cria conta + inscrição); o import global
+  é exclusivo do super.
+- Flags globais `is_*` extintas como autoridade (colunas legadas no banco):
+  sessão derivada do banco a cada request; `/reviewer` exige papel
+  `reviewer` em algum evento; login redireciona por papel derivado.
+- Troca de senha própria: Área do Participante (`/author/profile`, seção
+  "Trocar senha"; botão **Alterar Senha** na Área).
+- **Pós-deploy (operacional)**: reatribuir pelos admins/super, na página
+  Papéis de cada evento, os papéis de quem tinha `is_reviewer=1`/`is_staff=1`
+  (sem migração heurística automática).
+
 ---
 
 ## Ciclo 7 — Fase 2: Auditoria

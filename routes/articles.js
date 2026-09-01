@@ -33,33 +33,34 @@ function mapArticleStatusLabel(status) {
   return labels[status] || status;
 }
 
-// Autoriza administradores e staff. O staff só enxerga/age nos eventos em que
-// foi marcado (req.staffEventIds, definido por requireAdminOrStaff no mount).
+// Autoriza administradores de eventos e staff. O escopo (req.scopedEventIds,
+// definido por requireAdminOrStaff no mount) é a união dos eventos em que a
+// pessoa é administradora ou staff; o superadmin fica sem escopo (tudo).
 function requireAuth(req, res, next) {
-  if (req.session.isAdmin || Array.isArray(req.staffEventIds)) {
+  if (req.isSuperAdmin || Array.isArray(req.scopedEventIds)) {
     return next();
   }
   return res.redirect('/login');
 }
 
 function isStaffScoped(req) {
-  return Array.isArray(req.staffEventIds) && !req.session.isAdmin;
+  return !req.isSuperAdmin && Array.isArray(req.scopedEventIds);
 }
 
 function staffDeny(res) {
-  return res.status(403).render('error', { title: 'Acesso negado', message: 'Você só pode acessar dados dos eventos em que é staff.' });
+  return res.status(403).render('error', { title: 'Acesso negado', message: 'Você só pode acessar dados dos eventos que administra ou nos quais é staff.' });
 }
 
 function staffEventAllowed(req, eventId) {
-  return !isStaffScoped(req) || req.staffEventIds.includes(Number(eventId));
+  return !isStaffScoped(req) || req.scopedEventIds.includes(Number(eventId));
 }
 
-// Rotas por artigo (:id) exigem que o artigo pertença a um evento do staff.
+// Rotas por artigo (:id) exigem que o artigo pertença a um evento do escopo.
 router.param('id', (req, res, next, id) => {
   if (!isStaffScoped(req)) return next();
   const article = db.prepare('SELECT event_id FROM articles WHERE id = ?').get(id);
   if (!article) return res.status(404).render('error', { title: 'Artigo não encontrado' });
-  if (!req.staffEventIds.includes(Number(article.event_id))) return staffDeny(res);
+  if (!req.scopedEventIds.includes(Number(article.event_id))) return staffDeny(res);
   next();
 });
 
@@ -218,13 +219,15 @@ router.get('/:id', requireAuth, (req, res) => {
 
   const assignedReviewerIds = new Set(assignedReviewers.map((reviewer) => reviewer.id));
   const articleArea = normalizeArea(article.area);
+  // Revisores são os detentores do papel 'reviewer' no evento do artigo
+  // (papéis exclusivamente por evento).
   const availableReviewers = db.prepare(`
-    SELECT id, name, email, institution, reviewer_areas
-    FROM users
-    WHERE is_reviewer = 1
-      AND is_public = 1
-    ORDER BY name COLLATE NOCASE
-  `).all().map((reviewer) => {
+    SELECT u.id, u.name, u.email, u.institution, u.reviewer_areas
+    FROM users u
+    JOIN event_user_roles eur ON eur.user_id = u.id AND eur.event_id = ? AND eur.role = 'reviewer'
+    WHERE u.is_public = 1
+    ORDER BY u.name COLLATE NOCASE
+  `).all(article.event_id).map((reviewer) => {
     const reviewerAreaList = parseAreaList(reviewer.reviewer_areas);
     const normalizedReviewerAreas = reviewerAreaList.map(normalizeArea);
     const matchesArticleArea = !!articleArea && normalizedReviewerAreas.includes(articleArea);
@@ -380,11 +383,15 @@ router.post('/:id/assign', requireAuth, strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.assignReviewer);
 }, (req, res) => {
   const { reviewer_id, action, eventId } = req.body;
-  const article = db.prepare('SELECT status FROM articles WHERE id = ?').bind(req.params.id).get();
+  const article = db.prepare('SELECT status, event_id FROM articles WHERE id = ?').bind(req.params.id).get();
   if (!article) {
     return res.status(404).render('error', { title: 'Artigo não encontrado' });
   }
   if (action === 'assign') {
+    const isEventReviewer = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id = ? AND user_id = ? AND role = 'reviewer' LIMIT 1").get(article.event_id, reviewer_id);
+    if (!isEventReviewer) {
+      return res.redirect('/admin/articles/' + req.params.id + '?error=' + encodeURIComponent('O revisor precisa ter o papel de Revisor atribuído na página Papéis do evento.'));
+    }
     const existing = db.prepare('SELECT id FROM assignments WHERE article_id = ? AND reviewer_id = ?').bind(req.params.id, reviewer_id).get();
     if (existing) return res.redirect('/admin/articles/' + req.params.id);
     db.prepare("INSERT OR IGNORE INTO assignments (article_id, reviewer_id, status) VALUES (?, ?, 'pending')").bind(req.params.id, reviewer_id).run();

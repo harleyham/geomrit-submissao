@@ -144,13 +144,27 @@ function jsonForScript(value) {
     .replace(/\u2029/g, '\\u2029');
 }
 
-// Dados globais para templates
+// Papéis vêm exclusivamente de event_user_roles; a coluna users.is_admin é
+// marcador interno da linha semente do superadmin (admin@admin.com).
+function isSuperAdminId(userId) {
+  if (!userId) return false;
+  return Boolean(db.prepare("SELECT 1 FROM users WHERE id = ? AND email = 'admin@admin.com' AND is_admin = 1 AND is_public = 1 LIMIT 1").get(userId));
+}
+function hasRoleAnyEventId(userId, role) {
+  if (!userId) return false;
+  return Boolean(db.prepare('SELECT 1 FROM event_user_roles WHERE user_id = ? AND role = ? LIMIT 1').get(userId, role));
+}
+
+// Dados globais para templates (identidade derivada do banco a cada request)
 app.use((req, res, next) => {
-  res.locals.isAdmin = req.session && req.session.isAdmin;
-  res.locals.isEventStaff = Boolean(req.session && req.session.isEventStaff) && Boolean(!(req.session && req.session.isAdmin));
-  res.locals.isReviewer = req.session && req.session.isReviewer;
-  res.locals.isPublic = req.session && req.session.isPublic;
-  res.locals.userId = req.session && req.session.userId;
+  const userId = req.session && req.session.userId;
+  const superAdmin = isSuperAdminId(userId);
+  res.locals.isAdmin = superAdmin;
+  res.locals.isSuperAdmin = superAdmin;
+  res.locals.isEventStaff = Boolean(req.session && req.session.isEventStaff) && !superAdmin;
+  res.locals.isReviewer = Boolean(userId && hasRoleAnyEventId(userId, 'reviewer'));
+  res.locals.isPublic = Boolean(userId);
+  res.locals.userId = userId;
   res.locals.userName = req.session && req.session.userName;
   res.locals.userEmail = req.session && req.session.userEmail;
   res.locals.userRoles = req.session && req.session.userRoles;
@@ -165,7 +179,7 @@ app.use((req, res, next) => {
 });
 
 // Importar rotas
-const { router: authRouter, requireAuth, requireAdminOrStaff, requireOnboarding, requireActiveAccount } = require('./routes/auth');
+const { router: authRouter, requireAdminOrStaff, requireSuperAdminUser, requireOnboarding, requireActiveAccount } = require('./routes/auth');
 const eventsRouter = require('./routes/events');
 const articlesRouter = require('./routes/articles');
 const usersRouter = require('./routes/users');
@@ -193,7 +207,7 @@ app.use((req, res, next) => {
     delete session.realIdentity;
     return next();
   }
-  const target = db.prepare('SELECT id, name, email, institution, is_public, is_admin, is_reviewer FROM users WHERE id = ?').get(session.previewUserId);
+  const target = db.prepare('SELECT id, name, email, institution, is_public FROM users WHERE id = ?').get(session.previewUserId);
   if (!target || !target.is_public) {
     Object.assign(session, real);
     delete session.previewUserId;
@@ -201,20 +215,23 @@ app.use((req, res, next) => {
     return next();
   }
   if (session.userId !== target.id) {
+    const targetIsSuper = isSuperAdminId(target.id);
+    const targetIsReviewer = hasRoleAnyEventId(target.id, 'reviewer');
     session.userId = target.id;
     session.userName = target.name;
     session.userEmail = target.email;
     session.userInstitution = target.institution || '';
     session.isPublic = true;
-    session.isAdmin = !!target.is_admin;
-    session.isReviewer = !!target.is_reviewer;
+    session.isAdmin = targetIsSuper;
+    session.isReviewer = targetIsReviewer;
     if (res.locals) {
       res.locals.userId = target.id;
       res.locals.userName = target.name;
       res.locals.userEmail = target.email;
       res.locals.isPublic = true;
-      res.locals.isAdmin = !!target.is_admin;
-      res.locals.isReviewer = !!target.is_reviewer;
+      res.locals.isAdmin = targetIsSuper;
+      res.locals.isSuperAdmin = targetIsSuper;
+      res.locals.isReviewer = targetIsReviewer;
     }
   }
   next();
@@ -237,7 +254,7 @@ app.use('/admin', authRouter);
 app.use('/admin', adminLimiter);
 app.use('/admin/events', requireAdminOrStaff, eventsRouter);
 app.use('/admin/articles', requireAdminOrStaff, articlesRouter);
-app.use('/admin/users', requireAuth, usersRouter);
+app.use('/admin/users', requireSuperAdminUser, usersRouter);
 app.use('/admin/reports', requireAdminOrStaff, reportsRouter);
 
 // Rotas do revisor

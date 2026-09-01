@@ -143,7 +143,7 @@ function generateCertificateBuffer(certificate) {
         document.rect(0, 0, width, height).fill('#ffffff');
       }
       const textColor = certificate.text_color || '#0f172a';
-      const certificateTitle = certificate.certificate_title || 'CERTIFICADO DE PARTICIPAÇÃO';
+      const certificateTitle = certificate.certificate_title || 'CERTIFICADO DE PARTICIPAÃ‡ÃƒO';
       let certificateBody = certificate.certificate_body || `participou do evento ${certificate.event_name}.`;
       const workloadHours = Number(certificate.total_workload_hours);
       if (Number.isFinite(workloadHours) && workloadHours > 0) {
@@ -166,26 +166,26 @@ function generateCertificateBuffer(certificate) {
           `Atividades: ${certificate.activities_summary}.`, 80, 382, { width: width - 160, align: 'center', ellipsis: true }
         );
       }
-      document.fontSize(10).fillColor(textColor).text(`Código de verificação: ${certificate.certificate_code} · Emissão: ${certificate.issued_at}`, 80, height - 75, { width: width - 160, align: 'center' });
+      document.fontSize(10).fillColor(textColor).text(`CÃ³digo de verificaÃ§Ã£o: ${certificate.certificate_code} Â· EmissÃ£o: ${certificate.issued_at}`, 80, height - 75, { width: width - 160, align: 'center' });
       document.end();
     } catch (error) { reject(error); }
   });
 }
 
 const CERTIFICATE_ROLES = {
-  participant: { label: 'Participante', title: 'CERTIFICADO DE PARTICIPAÇÃO', body: 'participou do evento {event}.', attendance: true },
-  reviewer: { label: 'Revisor', title: 'CERTIFICADO DE REVISÃO', body: 'atuou como revisor(a) de trabalhos científicos no evento {event}.', attendance: false },
+  participant: { label: 'Participante', title: 'CERTIFICADO DE PARTICIPAÃ‡ÃƒO', body: 'participou do evento {event}.', attendance: true },
+  reviewer: { label: 'Revisor', title: 'CERTIFICADO DE REVISÃƒO', body: 'atuou como revisor(a) de trabalhos cientÃ­ficos no evento {event}.', attendance: false },
   speaker: { label: 'Palestrante', title: 'CERTIFICADO DE PALESTRANTE', body: 'participou como palestrante do evento {event}.', attendance: true },
   teacher: { label: 'Professor', title: 'CERTIFICADO DE PROFESSOR(A)', body: 'ministrou {atividade} no {event}.', attendance: true },
-  oral_presenter: { label: 'Apresentador Oral', title: 'CERTIFICADO DE APRESENTAÇÃO ORAL', body: 'realizou apresentação oral no evento {event}.', attendance: true },
-  poster_presenter: { label: 'Apresentador Pôster', title: 'CERTIFICADO DE APRESENTAÇÃO DE PÔSTER', body: 'realizou apresentação de pôster no evento {event}.', attendance: true }
+  oral_presenter: { label: 'Apresentador Oral', title: 'CERTIFICADO DE APRESENTAÃ‡ÃƒO ORAL', body: 'realizou apresentaÃ§Ã£o oral no evento {event}.', attendance: true },
+  poster_presenter: { label: 'Apresentador PÃ´ster', title: 'CERTIFICADO DE APRESENTAÃ‡ÃƒO DE PÃ”STER', body: 'realizou apresentaÃ§Ã£o de pÃ´ster no evento {event}.', attendance: true }
 };
 
 function certificateRoleMeta(role) { return CERTIFICATE_ROLES[role] || CERTIFICATE_ROLES.participant; }
 
-// Papéis atribuíveis na página "Papéis do evento". 'staff' opera presença,
+// PapÃ©is atribuÃ­veis na pÃ¡gina "PapÃ©is do evento". 'staff' opera presenÃ§a,
 // listas e QR Codes do dia, sem acesso administrativo ao restante do evento.
-const EVENT_ASSIGNABLE_ROLES = ['admin', 'staff', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'];
+const EVENT_ASSIGNABLE_ROLES = ['admin', 'staff', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'];
 const EVENT_ROLE_LABELS = { admin: 'Administrador do evento', staff: 'Staff' };
 function certificateText(value, eventName, activityName) {
   let text = String(value || '');
@@ -195,11 +195,11 @@ function certificateText(value, eventName, activityName) {
 }
 
 // Rotas que o papel 'staff' pode usar EM UM EVENTO onde foi marcado. O staff
-// concentra a operação do evento (participantes, presença/listas/QR, edição de
-// atividades e etapas já existentes e certificados), mas NÃO pode: criar ou
-// apagar evento, apagar usuários, criar/apagar atividades ou etapas, gerir
-// papéis, salas ou publicar/encerrar o evento. Nada fora desta allowlist é
-// liberado (as demais ações permanecem administrativas).
+// concentra a operaÃ§Ã£o do evento (participantes, presenÃ§a/listas/QR, ediÃ§Ã£o de
+// atividades e etapas jÃ¡ existentes e certificados), mas NÃƒO pode: criar ou
+// apagar evento, apagar usuÃ¡rios, criar/apagar atividades ou etapas, gerir
+// papÃ©is, salas ou publicar/encerrar o evento. Nada fora desta allowlist Ã©
+// liberado (as demais aÃ§Ãµes permanecem administrativas).
 const STAFF_ROUTES = [
   ['GET', /^\/\d+$/],
   ['GET', /^\/\d+\/subsidies$/],
@@ -241,8 +241,8 @@ function staffRouteAllowed(method, path) {
   return STAFF_ROUTES.some(([allowedMethod, pattern]) => allowedMethod === method && pattern.test(path));
 }
 
-// Todas as rotas identificadas por evento exigem administração daquele evento.
-// O papel 'staff' é aceito apenas para a allowlist operacional acima.
+// Todas as rotas identificadas por evento exigem administraÃ§Ã£o daquele evento.
+// O papel 'staff' Ã© aceito apenas para a allowlist operacional acima.
 router.use((req, res, next) => {
   const match = req.path.match(/^\/(\d+)(?:\/|$)/);
   if (!match) return next();
@@ -254,17 +254,17 @@ router.use((req, res, next) => {
   const isStaff = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='staff' LIMIT 1")
     .get(eventId, req.session.userId);
   if (isStaff && staffRouteAllowed(req.method, req.path)) { req.eventRole = 'staff'; return next(); }
-  if (isStaff) return res.status(403).render('error', { title: 'Acesso negado', message: 'Como staff, você não tem permissão para esta ação neste evento.' });
-  return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não é administrador deste evento.' });
+  if (isStaff) return res.status(403).render('error', { title: 'Acesso negado', message: 'Como staff, vocÃª nÃ£o tem permissÃ£o para esta aÃ§Ã£o neste evento.' });
+  return res.status(403).render('error', { title: 'Acesso negado', message: 'VocÃª nÃ£o Ã© administrador deste evento.' });
 });
 
 function requireEventAdminOnly(req, res, next) {
   if (req.eventRole === 'admin' || req.session.isAdmin) return next();
-  return res.status(403).render('error', { title: 'Acesso negado', message: 'Esta ação é restrita ao administrador do evento.' });
+  return res.status(403).render('error', { title: 'Acesso negado', message: 'Esta aÃ§Ã£o Ã© restrita ao administrador do evento.' });
 }
 
-// Criação de evento é aberta a qualquer usuário autenticado: o criador recebe
-// automaticamente o papel de admin do evento recém-criado.
+// CriaÃ§Ã£o de evento Ã© aberta a qualquer usuÃ¡rio autenticado: o criador recebe
+// automaticamente o papel de admin do evento recÃ©m-criado.
 function requireSignedUser(req, res, next) {
   if (!req.session || !req.session.userId) return res.redirect('/login');
   next();
@@ -314,7 +314,7 @@ function removeEventContentFile(relativePath) {
   }
 }
 
-// Executa os uploads do evento e converte erros em mensagem amigável,
+// Executa os uploads do evento e converte erros em mensagem amigÃ¡vel,
 // removendo o arquivo em caso de falha, para o form poder ser re-renderizado sem 500.
 function runEventAssetUpload(req, res, next) {
   eventAssetUpload.fields([{ name: 'logo', maxCount: 1 }, { name: 'event_pdf', maxCount: 1 }])(req, res, (error) => {
@@ -323,8 +323,8 @@ function runEventAssetUpload(req, res, next) {
       req.eventAssetUploadError = error.code === 'LIMIT_FILE_SIZE'
         ? 'Um arquivo excede o limite permitido (logo: 5 MB; PDF: 50 MB).'
         : error.message === 'PDF_INVALID_TYPE'
-          ? 'O conteúdo do evento deve ser um arquivo PDF válido (máximo 50 MB).'
-          : 'O logo do evento deve ser uma imagem PNG ou JPEG (máximo 5 MB).';
+          ? 'O conteÃºdo do evento deve ser um arquivo PDF vÃ¡lido (mÃ¡ximo 50 MB).'
+          : 'O logo do evento deve ser uma imagem PNG ou JPEG (mÃ¡ximo 5 MB).';
       return next();
     }
     const logo = uploadedEventAsset(req, 'logo');
@@ -349,7 +349,7 @@ function runEventAssetUpload(req, res, next) {
       }
       if (signature !== '%PDF-') {
         Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
-        req.eventAssetUploadError = 'O conteúdo do evento deve ser um arquivo PDF válido (máximo 50 MB).';
+        req.eventAssetUploadError = 'O conteÃºdo do evento deve ser um arquivo PDF vÃ¡lido (mÃ¡ximo 50 MB).';
         return next();
       }
     }
@@ -399,7 +399,7 @@ function normalizeEventEmailSettings(body) {
     email_contact: String(body.email_contact || '').trim().toLowerCase().slice(0, 254)
   };
   if (settings.email_contact && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.email_contact)) {
-    settings.error = 'Informe um e-mail de contato válido para as mensagens do evento.';
+    settings.error = 'Informe um e-mail de contato vÃ¡lido para as mensagens do evento.';
   }
   return settings;
 }
@@ -415,7 +415,7 @@ function withAreaMeta(event) {
   return {
     ...event,
     area_list: areaList,
-    area_display: areaList.join(' · ') || 'Sem área definida'
+    area_display: areaList.join(' Â· ') || 'Sem Ã¡rea definida'
   };
 }
 
@@ -433,29 +433,29 @@ function validateEventDates({
   certificates_end
 }) {
   if (date_start && date_end && date_end < date_start) {
-    return 'A data final do evento não pode ser anterior à data inicial.';
+    return 'A data final do evento nÃ£o pode ser anterior Ã  data inicial.';
   }
 
   if (registration_start && registration_end && registration_end < registration_start) {
-    return 'A data final do período de inscrições não pode ser anterior à data inicial.';
+    return 'A data final do perÃ­odo de inscriÃ§Ãµes nÃ£o pode ser anterior Ã  data inicial.';
   }
 
   if (has_article_submission) {
     if (submission_start && submission_end && submission_end < submission_start) {
-      return 'A data final do período de submissão não pode ser anterior à data inicial.';
+      return 'A data final do perÃ­odo de submissÃ£o nÃ£o pode ser anterior Ã  data inicial.';
     }
 
     if (submission_end && review_start && review_start <= submission_end) {
-      return 'O período de análise das submissões só pode começar após o fim do período de submissões.';
+      return 'O perÃ­odo de anÃ¡lise das submissÃµes sÃ³ pode comeÃ§ar apÃ³s o fim do perÃ­odo de submissÃµes.';
     }
 
     if (review_start && review_end && review_end < review_start) {
-      return 'A data final do período de análise das submissões não pode ser anterior à data inicial.';
+      return 'A data final do perÃ­odo de anÃ¡lise das submissÃµes nÃ£o pode ser anterior Ã  data inicial.';
     }
   }
 
   if (certificates_start && certificates_end && certificates_end < certificates_start) {
-    return 'A data final do período de certificados não pode ser anterior à data inicial.';
+    return 'A data final do perÃ­odo de certificados nÃ£o pode ser anterior Ã  data inicial.';
   }
 
   return null;
@@ -526,7 +526,7 @@ function getEventParticipantSummary(eventId, filters = {}, pagination = null) {
     params.push('teacher', 'speaker');
   }
 
-  if (filters.titulation === 'Não especificado') {
+  if (filters.titulation === 'NÃ£o especificado') {
     conditions.push('(u.formacao_titulacao IS NULL OR u.formacao_titulacao = \'\' OR u.formacao_titulacao IS NULL)');
   } else if (filters.titulation && filters.titulation !== 'all') {
     conditions.push('u.formacao_titulacao = ?');
@@ -579,12 +579,12 @@ function getEventParticipantSummary(eventId, filters = {}, pagination = null) {
       er.*,
       u.name as linked_user_name,
       u.email as linked_user_email,
-      u.is_reviewer as linked_user_is_reviewer,
+      EXISTS (SELECT 1 FROM event_user_roles rr WHERE rr.event_id = er.event_id AND rr.user_id = er.user_id AND rr.role = 'reviewer') AS linked_user_is_reviewer,
       COALESCE(u.is_public, 0) AS account_active,
       COALESCE(sa.submitted_count, 0) as submitted_articles,
       COALESCE(aa.approved_count, 0) as approved_articles,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.registration_id=er.id) AS enrolled_activities,
-      (SELECT GROUP_CONCAT(ea.name, ' · ') FROM participant_activity_enrollments pae
+      (SELECT GROUP_CONCAT(ea.name, ' Â· ') FROM participant_activity_enrollments pae
         JOIN event_activities ea ON ea.id=pae.activity_id WHERE pae.registration_id=er.id) AS activity_names,
       COALESCE((SELECT GROUP_CONCAT(eur.role, ',') FROM event_user_roles eur WHERE eur.user_id=er.user_id AND eur.event_id=er.event_id), '') AS roles,
       CASE
@@ -638,7 +638,7 @@ function countEventParticipants(eventId, filters = {}) {
     params.push(...instrutorParams);
   }
 
-  if (filters.titulation === 'Não especificado') {
+  if (filters.titulation === 'NÃ£o especificado') {
     conditions.push('NOT EXISTS (SELECT 1 FROM users u WHERE u.id = er.user_id AND (u.formacao_titulacao IS NOT NULL AND u.formacao_titulacao != \'\'))');
   } else if (filters.titulation && filters.titulation !== 'all') {
     conditions.push('EXISTS (SELECT 1 FROM users u WHERE u.id = er.user_id AND u.formacao_titulacao = ?)');
@@ -675,7 +675,7 @@ function countEventParticipantsDetailed(eventId, filters = {}) {
     params.push(eventId, 'teacher', 'speaker');
   }
 
-  if (filters.titulation === 'Não especificado') {
+  if (filters.titulation === 'NÃ£o especificado') {
     conditions.push('NOT EXISTS (SELECT 1 FROM users u WHERE u.id = er.user_id AND (u.formacao_titulacao IS NOT NULL AND u.formacao_titulacao != \'\'))');
   } else if (filters.titulation && filters.titulation !== 'all') {
     conditions.push('EXISTS (SELECT 1 FROM users u WHERE u.id = er.user_id AND u.formacao_titulacao = ?)');
@@ -825,12 +825,12 @@ router.get('/', (req, res) => {
 
 router.post('/:id/email-enabled', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id,name FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const enabled = req.body.enabled === '1';
   const cancelled = setEventEmailEnabled(event.id, enabled, req.session.userId);
   recordParticipantAudit({ eventId: event.id, actorUserId: req.session.userId,
     action: enabled ? 'event_email_enabled' : 'event_email_disabled', details: { cancelled_count: cancelled } });
-  const message = enabled ? `E-mails de ${event.name} ativados.` : `E-mails de ${event.name} desativados; ${cancelled} pendência(s) cancelada(s).`;
+  const message = enabled ? `E-mails de ${event.name} ativados.` : `E-mails de ${event.name} desativados; ${cancelled} pendÃªncia(s) cancelada(s).`;
   res.redirect(`/admin/events?message=${encodeURIComponent(message)}`);
 });
 
@@ -957,15 +957,15 @@ router.post('/', requireSignedUser, strictLimiter, runEventAssetUpload, (req, re
     db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(info.lastInsertRowid, req.session.userId, req.session.userId);
     return info;
   })();
-  req.session.isAdmin = true;
-  if (Array.isArray(req.session.userRoles) && !req.session.userRoles.includes('admin')) req.session.userRoles.push('admin');
+  // O criador jÃ¡ Ã© admin do evento via event_user_roles (acima); a sessÃ£o nÃ£o
+  // Ã© promovida: administraÃ§Ã£o global Ã© exclusiva do superadmin.
   res.redirect('/admin/events');
 });
 
 // Editar evento
 router.get('/:id/edit', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado', message: 'O evento solicitado nÃ£o foi encontrado.' });
   renderEventForm(res, { event, title: 'Editar Evento' });
 });
 
@@ -1136,7 +1136,7 @@ router.delete('/:id', (req, res) => {
 
 router.get('/:id/subsidies', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get();
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   const subsidyRequests = db.prepare(`
     SELECT
@@ -1165,7 +1165,7 @@ router.get('/:id/subsidies', (req, res) => {
   }, { total: 0, pending: 0, approved: 0, rejected: 0 });
 
   res.render('admin/events/subsidies', {
-    title: `Pedidos de Subsídio - ${event.name}`,
+    title: `Pedidos de SubsÃ­dio - ${event.name}`,
     event,
     subsidyRequests,
     summary
@@ -1174,12 +1174,12 @@ router.get('/:id/subsidies', (req, res) => {
 
 router.get('/:id/participants', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   const filters = {
     query: String(req.query.q || '').trim(),
     category: ['all', 'author', 'instrutor'].includes(String(req.query.category || 'all')) ? String(req.query.category || 'all') : 'all',
-    titulation: ['all', 'Graduado', 'Mestre', 'Doutor', 'Não especificado'].includes(String(req.query.titulation || 'all')) ? String(req.query.titulation || 'all') : 'all',
+    titulation: ['all', 'Graduado', 'Mestre', 'Doutor', 'NÃ£o especificado'].includes(String(req.query.titulation || 'all')) ? String(req.query.titulation || 'all') : 'all',
     subsidy_requested: ['all', '1'].includes(String(req.query.subsidy_requested || 'all')) ? String(req.query.subsidy_requested || 'all') : 'all'
   };
 
@@ -1227,7 +1227,7 @@ router.get('/:id/participants', (req, res) => {
   });
 });
 
-// Credenciamento: imprime o crachá do participante direto (PDF), sem encaminhamento para a área do participante
+// Credenciamento: imprime o crachÃ¡ do participante direto (PDF), sem encaminhamento para a Ã¡rea do participante
 router.get('/:id/participants/:registrationId/qr-presenca/print', async (req, res) => {
   let aborted = false;
   res.on('close', () => { aborted = true; });
@@ -1235,18 +1235,18 @@ router.get('/:id/participants/:registrationId/qr-presenca/print', async (req, re
     const eventId = parseInt(req.params.id, 10);
     const registrationId = parseInt(req.params.registrationId, 10);
     if (!Number.isInteger(eventId) || eventId <= 0 || !Number.isInteger(registrationId) || registrationId <= 0) {
-      return res.status(400).render('error', { title: 'Parâmetros inválidos', message: 'Os parâmetros da solicitação não são válidos.' });
+      return res.status(400).render('error', { title: 'ParÃ¢metros invÃ¡lidos', message: 'Os parÃ¢metros da solicitaÃ§Ã£o nÃ£o sÃ£o vÃ¡lidos.' });
     }
     const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
-    if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+    if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
     const registration = db.prepare('SELECT * FROM event_registrations WHERE id = ? AND event_id = ?').get(registrationId, eventId);
-    if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado', message: 'A inscrição solicitada não existe neste evento.' });
+    if (!registration) return res.status(404).render('error', { title: 'Participante nÃ£o encontrado', message: 'A inscriÃ§Ã£o solicitada nÃ£o existe neste evento.' });
     if (!registration.user_id) {
-      return res.status(400).render('error', { title: 'Sem vínculo de conta', message: 'Este participante não possui conta vinculada. O crachá com QR Code de presença exige conta para emitir o código pessoal.' });
+      return res.status(400).render('error', { title: 'Sem vÃ­nculo de conta', message: 'Este participante nÃ£o possui conta vinculada. O crachÃ¡ com QR Code de presenÃ§a exige conta para emitir o cÃ³digo pessoal.' });
     }
     const account = db.prepare('SELECT is_public FROM users WHERE id=?').get(registration.user_id);
     if (!account || !account.is_public) {
-      return res.status(400).render('error', { title: 'Conta inativa', message: 'A conta deste participante está inativa e o crachá com QR Code de presença não pode ser emitido. Se for o caso, reative a conta em /admin/users.' });
+      return res.status(400).render('error', { title: 'Conta inativa', message: 'A conta deste participante estÃ¡ inativa e o crachÃ¡ com QR Code de presenÃ§a nÃ£o pode ser emitido. Se for o caso, reative a conta em /admin/users.' });
     }
     const token = ensureEventQrToken(event.id, registration.user_id);
     const roles = getEventQrRoles(event.id, registration.user_id);
@@ -1255,15 +1255,15 @@ router.get('/:id/participants/:registrationId/qr-presenca/print', async (req, re
   } catch (err) {
     console.error('participant cracha print error:', err);
     const detail = err && err.message ? err.message : String(err);
-    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar o crachá', message: `Não foi possível gerar o crachá para impressão. Detalhes: ${detail}` });
+    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar o crachÃ¡', message: `NÃ£o foi possÃ­vel gerar o crachÃ¡ para impressÃ£o. Detalhes: ${detail}` });
     else res.end();
   }
 });
 
 router.get('/:id/import-template', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const template = 'Nome completo;E-mail;Instituição;Telefone;CPF;Passaporte';
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
+  const template = 'Nome completo;E-mail;InstituiÃ§Ã£o;Telefone;CPF;Passaporte';
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="modelo-importacao.csv"');
   res.end('\uFEFF' + template);
@@ -1271,9 +1271,9 @@ router.get('/:id/import-template', (req, res) => {
 
 router.get('/:id/import-users', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   res.render('admin/events/import-users', {
-    title: `Importar Usuários - ${event.name}`,
+    title: `Importar UsuÃ¡rios - ${event.name}`,
     event,
     success: req.query.success || null,
     error: req.query.error || null
@@ -1282,7 +1282,7 @@ router.get('/:id/import-users', (req, res) => {
 
 router.post('/:id/import-users', strictLimiter, importUpload.single('import_file'), validateCsrfToken, async (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   if (!req.file || !req.file.path) {
     return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Selecione um arquivo XLSX ou CSV com a lista de participantes.')}`);
@@ -1297,7 +1297,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
       const parsed = parseCsvContent(fileContent);
       if (parsed.headers.length < 1 || parsed.rows.length < 1) {
         try { fs.unlinkSync(req.file.path); } catch (_) {}
-        return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('O arquivo está vazio ou não possui dados.')}`);
+        return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('O arquivo estÃ¡ vazio ou nÃ£o possui dados.')}`);
       }
       rows = parsed.rows;
     } else {
@@ -1306,12 +1306,12 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
   } catch (error) {
     console.error('[import-users] Read error:', error.message);
     try { fs.unlinkSync(req.file.path); } catch (_) {}
-    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que é uma planilha XLSX ou CSV válida.')}`);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Erro ao ler o arquivo. Certifique-se de que Ã© uma planilha XLSX ou CSV vÃ¡lida.')}`);
   }
 
   if (!rows || !rows.length) {
     try { fs.unlinkSync(req.file.path); } catch (_) {}
-    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('O arquivo está vazio ou não possui dados.')}`);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('O arquivo estÃ¡ vazio ou nÃ£o possui dados.')}`);
   }
 
   const rawHeaders = Object.keys(rows[0]).map((h) => h.replace(/^\uFEFF/, ''));
@@ -1355,12 +1355,12 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
 
   if (!colEmail && !colCpf && !colPassport) {
     try { fs.unlinkSync(req.file.path); } catch (_) {}
-    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Coluna de e-mail, CPF ou passaporte não encontrada. O arquivo precisa conter pelo menos uma dessas colunas. Colunas detectadas: ' + rawHeaders.join(', '))}`);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Coluna de e-mail, CPF ou passaporte nÃ£o encontrada. O arquivo precisa conter pelo menos uma dessas colunas. Colunas detectadas: ' + rawHeaders.join(', '))}`);
   }
 
   if (!colEmail) {
     try { fs.unlinkSync(req.file.path); } catch (_) {}
-    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Coluna de e-mail não encontrada. O arquivo precisa conter uma coluna com "email" ou "e-mail".')}`);
+    return res.redirect(`/admin/events/${event.id}/import-users?error=${encodeURIComponent('Coluna de e-mail nÃ£o encontrada. O arquivo precisa conter uma coluna com "email" ou "e-mail".')}`);
   }
 
    const insertUser = db.prepare(`
@@ -1395,7 +1395,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
       const phone = rawPhone ? String(row[rawPhone] || '').trim() : '';
 
       const personKey = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Sem nome');
-      const personEmail = email && email !== '[object Object]' ? email : '(não informado)';
+      const personEmail = email && email !== '[object Object]' ? email : '(nÃ£o informado)';
 
       const hasValidEmail = email && email !== '[object Object]' && email !== '' && email.includes('@');
       if (!hasValidEmail && !cpf && !passport) {
@@ -1421,7 +1421,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
             updated += 1;
           } catch (dbErr) {
             console.error('[import-users] DB update error for', email || cpf || passport, ':', dbErr.message);
-            report.push({ name: existing.name, email: personEmail, status: 'error', detail: 'Erro ao atualizar usuário: ' + dbErr.message });
+            report.push({ name: existing.name, email: personEmail, status: 'error', detail: 'Erro ao atualizar usuÃ¡rio: ' + dbErr.message });
             skipped += 1;
             continue;
           }
@@ -1431,14 +1431,14 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
           try {
             insertRegistration.run(event.id, existing.id, nameToUse, email || null, institution || null, phone || null);
             registered += 1;
-            report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'Usuário existente — inscrito no evento' });
+            report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'UsuÃ¡rio existente â€” inscrito no evento' });
           } catch (dbErr) {
             console.error('[import-users] registration error for', email || cpf || passport, ':', dbErr.message);
             report.push({ name: existing.name, email: personEmail, status: 'error', detail: 'Erro ao inscrever: ' + dbErr.message });
           }
         } else {
           alreadyRegistered += 1;
-          report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'Usuário existente — já inscrito no evento' });
+          report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'UsuÃ¡rio existente â€” jÃ¡ inscrito no evento' });
         }
         skipped += 1;
       } else {
@@ -1450,7 +1450,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
           insertRegistration.run(event.id, userId, nameToUse, email || null, institution || null, phone || null);
           imported += 1;
           registered += 1;
-          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado e inscrito no evento' });
+          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'UsuÃ¡rio criado e inscrito no evento' });
         } catch (dbErr) {
           console.error('[import-users] DB insert error for', email || cpf || passport, ':', dbErr.message);
           skipped += 1;
@@ -1485,7 +1485,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
 router.get('/:id/import-download-csv', (req, res) => {
   const data = req.session.importResult;
   if (!data || !data.report || !data.report.length) {
-    return res.status(400).send('Nenhum relatório disponível.');
+    return res.status(400).send('Nenhum relatÃ³rio disponÃ­vel.');
   }
   var lines = ['Nome;E-mail;Status;Detalhe'];
   data.report.forEach(function(r) {
@@ -1501,12 +1501,12 @@ router.get('/:id/import-download-csv', (req, res) => {
 router.get('/:id/import-result', (req, res) => {
   const data = req.session.importResult;
   if (!data || String(data.eventId) !== String(req.params.id)) {
-    return res.redirect(`/admin/events/${req.params.id}/import-users?error=${encodeURIComponent('Nenhum resultado disponível.')}`);
+    return res.redirect(`/admin/events/${req.params.id}/import-users?error=${encodeURIComponent('Nenhum resultado disponÃ­vel.')}`);
   }
   const ev = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!ev) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!ev) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   res.render('admin/events/import-users-result', {
-    title: `Resultado da Importação - ${data.eventName}`,
+    title: `Resultado da ImportaÃ§Ã£o - ${data.eventName}`,
     event: ev,
     imported: data.imported, skipped: data.skipped, updated: data.updated,
     registered: data.registered, alreadyRegistered: data.alreadyRegistered,
@@ -1522,7 +1522,7 @@ router.get('/:id/import-result', (req, res) => {
 router.post('/:id/import-authorize-emails', strictLimiter, (req, res) => {
   const data = req.session.importResult;
   if (!data || String(data.eventId) !== String(req.params.id) || !data.batchId) {
-    return res.redirect(`/admin/events/${req.params.id}/import-users?error=${encodeURIComponent('Nenhum lote disponível para autorização.')}`);
+    return res.redirect(`/admin/events/${req.params.id}/import-users?error=${encodeURIComponent('Nenhum lote disponÃ­vel para autorizaÃ§Ã£o.')}`);
   }
   try {
     const queued = authorizeImportBatch(data.batchId, req.session.userId);
@@ -1594,7 +1594,7 @@ function listEventBackgrounds(eventId) {
   return db.prepare("SELECT * FROM certificate_backgrounds WHERE file_path LIKE 'assets/Fundos/%' OR event_id = ? ORDER BY name COLLATE NOCASE").all(eventId);
 }
 
-// Tipos de atividade em que qualquer presença já qualifica a pessoa.
+// Tipos de atividade em que qualquer presenÃ§a jÃ¡ qualifica a pessoa.
 const ANY_ATTENDANCE_CERTIFICATE_TYPES = ['oral_presentation', 'poster_presentation', 'roundtable'];
 
 function certificateActivityQualifies(activity, minPercent) {
@@ -1670,7 +1670,7 @@ function getCertificateCandidates(eventId, role, rule) {
 
 router.get('/:id/certificates', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const rules = Object.keys(CERTIFICATE_ROLES).map((role) => getCertificateRule(event.id, role));
   const rolesIssued = db.prepare(`
     SELECT certificate_role, COUNT(*) as issued_count
@@ -1711,18 +1711,18 @@ router.get('/:id/certificates', (req, res) => {
 
 router.get('/:id/certificates/backgrounds/:backgroundId/view', (req, res) => {
   const bg = getEventBackground(req.params.id, req.params.backgroundId);
-  if (!bg) return res.status(404).render('error', { title: 'Fundo não encontrado' });
+  if (!bg) return res.status(404).render('error', { title: 'Fundo nÃ£o encontrado' });
   const filePath = bg.file_path.startsWith('certificate-backgrounds/')
     ? path.join(__dirname, '..', 'uploads', bg.file_path)
     : path.join(__dirname, '..', bg.file_path);
-  if (!fs.existsSync(filePath)) return res.status(404).render('error', { title: 'Arquivo do fundo não encontrado' });
+  if (!fs.existsSync(filePath)) return res.status(404).render('error', { title: 'Arquivo do fundo nÃ£o encontrado' });
   res.type(bg.mime_type);
   res.sendFile(filePath);
 });
 
 router.get('/:id/certificates/rule/current', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).json({ error: 'Evento não encontrado' });
+  if (!event) return res.status(404).json({ error: 'Evento nÃ£o encontrado' });
   const roles = ['participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter', 'other'];
   const result = {};
   roles.forEach((role) => {
@@ -1740,7 +1740,7 @@ router.get('/:id/certificates/rule/current', (req, res) => {
 
 router.get('/:id/certificates/preview', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado', message: 'O evento solicitado nÃ£o foi encontrado.' });
   const role = CERTIFICATE_ROLES[req.query.role] ? req.query.role : 'participant';
   const rule = getCertificateRule(event.id, role);
 
@@ -1748,20 +1748,20 @@ router.get('/:id/certificates/preview', (req, res) => {
   const selectedTextColor = req.query.text_color;
 
   const backgroundId = selectedBackgroundId || rule.background_id;
-  // A cor persistida na regra é a fonte de verdade. O parâmetro é aceito
-  // apenas quando chega como hexadecimal válido (o caractere # em URLs não
-  // codificadas é tratado pelo navegador como fragmento).
+  // A cor persistida na regra Ã© a fonte de verdade. O parÃ¢metro Ã© aceito
+  // apenas quando chega como hexadecimal vÃ¡lido (o caractere # em URLs nÃ£o
+  // codificadas Ã© tratado pelo navegador como fragmento).
   const textColor = /^#[0-9a-fA-F]{6}$/.test(String(selectedTextColor || ''))
     ? selectedTextColor
     : (rule.text_color || '#0f172a');
 
   if (!backgroundId) {
-    return res.status(400).render('error', { title: 'Prévia indisponível', message: 'Selecione e salve um fundo para este tipo de certificado antes de abrir a prévia.' });
+    return res.status(400).render('error', { title: 'PrÃ©via indisponÃ­vel', message: 'Selecione e salve um fundo para este tipo de certificado antes de abrir a prÃ©via.' });
   }
 
   const background = getEventBackground(event.id, backgroundId);
   if (!background) {
-    return res.status(400).render('error', { title: 'Prévia indisponível', message: 'O fundo de certificado selecionado não foi encontrado.' });
+    return res.status(400).render('error', { title: 'PrÃ©via indisponÃ­vel', message: 'O fundo de certificado selecionado nÃ£o foi encontrado.' });
   }
 
   const preview = {
@@ -1793,39 +1793,39 @@ function resolveSession(activityId, sessionId) {
 }
 function sessionDateError(activity, sessionDate) {
   if (!sessionDate) return null;
-  if (activity.date_start && String(sessionDate) < String(activity.date_start)) return 'A data da etapa não pode ser anterior ao início da atividade.';
-  if (activity.date_end && String(sessionDate) > String(activity.date_end)) return 'A data da etapa não pode ser posterior ao fim da atividade.';
+  if (activity.date_start && String(sessionDate) < String(activity.date_start)) return 'A data da etapa nÃ£o pode ser anterior ao inÃ­cio da atividade.';
+  if (activity.date_end && String(sessionDate) > String(activity.date_end)) return 'A data da etapa nÃ£o pode ser posterior ao fim da atividade.';
   return null;
 }
 function activityDateRangeError(dateStart, dateEnd) {
-  if (dateStart && dateEnd && String(dateEnd) < String(dateStart)) return 'A data de fim não pode ser anterior à data de início.';
+  if (dateStart && dateEnd && String(dateEnd) < String(dateStart)) return 'A data de fim nÃ£o pode ser anterior Ã  data de inÃ­cio.';
   return null;
 }
 function parseTimeInput(req, field) {
   const raw = String(req.body[field] || '').trim();
   if (!raw) return { value: null, error: null };
   const value = rooms.normalizeTime(raw);
-  return value ? { value, error: null } : { value: null, error: 'Horários devem estar no formato HH:MM.' };
+  return value ? { value, error: null } : { value: null, error: 'HorÃ¡rios devem estar no formato HH:MM.' };
 }
 function timeRangeError(timeStart, timeEnd) {
-  if (timeStart && timeEnd && timeEnd <= timeStart) return 'O horário de término deve ser posterior ao de início.';
+  if (timeStart && timeEnd && timeEnd <= timeStart) return 'O horÃ¡rio de tÃ©rmino deve ser posterior ao de inÃ­cio.';
   return null;
 }
 function resolveRoomAllocation(req, { eventId, allocationDate, timeStart, timeEnd, hasSessions = false }) {
   const roomId = Number(req.body.room_id) || null;
   if (!roomId) return { roomId: null, error: null };
-  if (hasSessions) return { roomId, error: 'Atividades com etapas têm a sala alocada por etapa; remova as etapas para alocar sala à atividade.' };
+  if (hasSessions) return { roomId, error: 'Atividades com etapas tÃªm a sala alocada por etapa; remova as etapas para alocar sala Ã  atividade.' };
   const room = rooms.getRoom(eventId, roomId);
-  if (!room) return { roomId, error: 'Selecione uma sala válida deste evento.' };
+  if (!room) return { roomId, error: 'Selecione uma sala vÃ¡lida deste evento.' };
   if (!allocationDate) return { roomId, error: 'Defina a data da atividade/etapa para alocar a sala.' };
-  if (!timeStart || !timeEnd) return { roomId, error: 'Informe os horários de início e término para alocar a sala.' };
+  if (!timeStart || !timeEnd) return { roomId, error: 'Informe os horÃ¡rios de inÃ­cio e tÃ©rmino para alocar a sala.' };
   return { roomId, error: null };
 }
 function sessionTimeWithinActivityError(activity, sessionDate, timeStart, timeEnd) {
   if (!timeStart || !timeEnd || !activity.time_start || !activity.time_end) return null;
   const singleDay = activity.date_start && activity.date_start === activity.date_end;
   if (singleDay && sessionDate && sessionDate === activity.date_start && (timeStart < activity.time_start || timeEnd > activity.time_end)) {
-    return `Os horários da etapa devem ficar dentro do horário da atividade (${activity.time_start}–${activity.time_end}).`;
+    return `Os horÃ¡rios da etapa devem ficar dentro do horÃ¡rio da atividade (${activity.time_start}â€“${activity.time_end}).`;
   }
   return null;
 }
@@ -1855,7 +1855,7 @@ function parseActivitySeatSettings(req) {
   if (raw === '') return { maxParticipants: null, error: null };
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    return { maxParticipants: null, error: 'O número máximo de participantes deve ser um inteiro maior que zero (ou deixe vazio para não limitar).' };
+    return { maxParticipants: null, error: 'O nÃºmero mÃ¡ximo de participantes deve ser um inteiro maior que zero (ou deixe vazio para nÃ£o limitar).' };
   }
   return { maxParticipants: parsed, error: null };
 }
@@ -1887,7 +1887,7 @@ function buildActivityDraft(req, existing) {
 
 function renderActivitiesForm(req, res, { eventId, formDraft = null, editingActivity = null, error = null }) {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   return res.render('admin/events/activities', {
     title: `Atividades - ${event.name}`,
     event,
@@ -1905,7 +1905,7 @@ function renderActivitiesForm(req, res, { eventId, formDraft = null, editingActi
 
 router.get('/:id/activities', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const activities = loadActivitiesData(event.id);
   const editingActivity = req.query.edit_activity_id
     ? activities.find((activity) => Number(activity.id) === Number(req.query.edit_activity_id)) || null
@@ -1925,7 +1925,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.activityForm);
 }, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const draft = buildActivityDraft(req, null);
   const failActivities = (message) => renderActivitiesForm(req, res, { eventId: event.id, formDraft: draft, error: message });
   const name = String(req.body.name || '').trim();
@@ -1933,7 +1933,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : [req.body.eligible_roles];
   const eligibleRoles = [...new Set(submittedRoles.filter((role) => validRoles.includes(role)))];
   if (!name || eligibleRoles.length === 0) {
-    return failActivities('Informe o nome e ao menos um papel elegível para a atividade.');
+    return failActivities('Informe o nome e ao menos um papel elegÃ­vel para a atividade.');
   }
   const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner', 'other'];
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
@@ -1950,10 +1950,10 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
-    return failActivities('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).');
+    return failActivities('Link da transmissÃ£o de vÃ­deo muito longo (mÃ¡ximo de 500 caracteres).');
   }
   if (!isValidHttpUrl(videoUrlRaw)) {
-    return failActivities('Informe um link de transmissão HTTP ou HTTPS válido.');
+    return failActivities('Informe um link de transmissÃ£o HTTP ou HTTPS vÃ¡lido.');
   }
   const videoUrl = videoUrlRaw || null;
   const hasVideo = videoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
@@ -1984,7 +1984,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
       }
     })();
   } catch (error) {
-    return failActivities((error && error.message) || 'Não foi possível salvar a atividade.');
+    return failActivities((error && error.message) || 'NÃ£o foi possÃ­vel salvar a atividade.');
   }
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
 });
@@ -1992,7 +1992,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.activityForm);
 }, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const draft = buildActivityDraft(req, activity);
   const failActivities = (message) => renderActivitiesForm(req, res, { eventId: activity.event_id, formDraft: draft, editingActivity: draft, error: message });
   const name = String(req.body.name || '').trim();
@@ -2000,11 +2000,11 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : [req.body.eligible_roles];
   const eligibleRoles = [...new Set(submittedRoles.filter((role) => validRoles.includes(role)))];
   if (!name || eligibleRoles.length === 0) {
-    return failActivities('Informe o nome e ao menos um papel elegível.');
+    return failActivities('Informe o nome e ao menos um papel elegÃ­vel.');
   }
   const enrolledCount = db.prepare('SELECT COUNT(*) AS count FROM participant_activity_enrollments WHERE activity_id=?').get(activity.id).count;
   if (enrolledCount > 0 && !eligibleRoles.includes('participant')) {
-    return failActivities('Não é possível retirar o papel Participante enquanto houver pessoas inscritas nesta atividade.');
+    return failActivities('NÃ£o Ã© possÃ­vel retirar o papel Participante enquanto houver pessoas inscritas nesta atividade.');
   }
   const validTypes = ['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner', 'other'];
   const activityType = validTypes.includes(req.body.activity_type) ? req.body.activity_type : 'other';
@@ -2021,10 +2021,10 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
-    return failActivities('Link da transmissão de vídeo muito longo (máximo de 500 caracteres).');
+    return failActivities('Link da transmissÃ£o de vÃ­deo muito longo (mÃ¡ximo de 500 caracteres).');
   }
   if (!isValidHttpUrl(videoUrlRaw)) {
-    return failActivities('Informe um link de transmissão HTTP ou HTTPS válido.');
+    return failActivities('Informe um link de transmissÃ£o HTTP ou HTTPS vÃ¡lido.');
   }
   const videoUrl = videoUrlRaw || null;
   const hasVideo = videoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
@@ -2054,7 +2054,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
     })();
   } catch (error) {
-    return failActivities((error && error.message) || 'Não foi possível salvar a atividade.');
+    return failActivities((error && error.message) || 'NÃ£o foi possÃ­vel salvar a atividade.');
   }
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity: { ...activity, name }, oldUrl: activity.video_url, newUrl: videoUrl });
@@ -2062,17 +2062,17 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
 });
 router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
   const activity = db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const enabled = req.body.enabled === '1' ? 1 : 0;
   db.prepare('UPDATE event_activities SET certificate_enabled=? WHERE id=?').run(enabled, activity.id);
-  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(enabled ? 'Atividade incluída no cálculo dos certificados.' : 'Atividade retirada do cálculo dos certificados.')}`);
+  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(enabled ? 'Atividade incluÃ­da no cÃ¡lculo dos certificados.' : 'Atividade retirada do cÃ¡lculo dos certificados.')}`);
 });
 router.post('/:id/activities/:activityId/delete', strictLimiter, (req, res) => {
   const activity = db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const attendanceCount = db.prepare('SELECT COUNT(*) AS count FROM activity_attendance_records WHERE activity_id=?').get(activity.id).count;
   if (attendanceCount > 0) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities?error=${encodeURIComponent('Não é possível excluir uma atividade que já possui presença registrada.')}`);
+    return res.redirect(`/admin/events/${activity.event_id}/activities?error=${encodeURIComponent('NÃ£o Ã© possÃ­vel excluir uma atividade que jÃ¡ possui presenÃ§a registrada.')}`);
   }
   db.prepare('DELETE FROM event_activities WHERE id=?').run(activity.id);
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade removida.')}`);
@@ -2104,9 +2104,9 @@ function buildSessionDraft(req, existing) {
 
 function renderSessionsForm(req, res, { eventId, activityId, sessionDraft = null, editingSession = null, error = null }) {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(activityId, eventId);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   return res.render('admin/events/activity-sessions', {
     title: `Etapas - ${activity.name}`, event, activity,
     sessions: loadSessionsData(activity.id),
@@ -2121,9 +2121,9 @@ function renderSessionsForm(req, res, { eventId, activityId, sessionDraft = null
 
 router.get('/:id/activities/:activityId/sessions', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const sessions = loadSessionsData(activity.id);
   const editingSession = req.query.edit_session_id
     ? sessions.find((session) => Number(session.id) === Number(req.query.edit_session_id)) || null
@@ -2140,7 +2140,7 @@ router.get('/:id/activities/:activityId/sessions', (req, res) => {
 
 router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const draft = buildSessionDraft(req, null);
   const failSessions = (message) => renderSessionsForm(req, res, { eventId: activity.event_id, activityId: activity.id, sessionDraft: draft, error: message });
   const name = String(req.body.name || '').trim();
@@ -2163,14 +2163,14 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const description = String(req.body.description || '').trim();
   if (description.length > 2000) {
-    return failSessions('A descrição da etapa deve ter no máximo 2000 caracteres.');
+    return failSessions('A descriÃ§Ã£o da etapa deve ter no mÃ¡ximo 2000 caracteres.');
   }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
-    return failSessions('Link da transmissão da etapa muito longo (máximo de 500 caracteres).');
+    return failSessions('Link da transmissÃ£o da etapa muito longo (mÃ¡ximo de 500 caracteres).');
   }
   if (!isValidHttpUrl(videoUrlRaw)) {
-    return failSessions('Informe um link de transmissão HTTP ou HTTPS válido.');
+    return failSessions('Informe um link de transmissÃ£o HTTP ou HTTPS vÃ¡lido.');
   }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
@@ -2190,7 +2190,7 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
       }
     })();
   } catch (error) {
-    return failSessions((error && error.message) || 'Não foi possível salvar a etapa.');
+    return failSessions((error && error.message) || 'NÃ£o foi possÃ­vel salvar a etapa.');
   }
   if (sessionVideoUrl) {
     const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
@@ -2201,9 +2201,9 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
 
 router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const session = db.prepare('SELECT * FROM activity_sessions WHERE id = ? AND activity_id = ?').get(req.params.sessionId, activity.id);
-  if (!session) return res.status(404).render('error', { title: 'Etapa não encontrada' });
+  if (!session) return res.status(404).render('error', { title: 'Etapa nÃ£o encontrada' });
   const draft = buildSessionDraft(req, session);
   const failSessions = (message) => renderSessionsForm(req, res, { eventId: activity.event_id, activityId: activity.id, sessionDraft: draft, editingSession: draft, error: message });
   const name = String(req.body.name || '').trim();
@@ -2226,14 +2226,14 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const description = String(req.body.description || '').trim();
   if (description.length > 2000) {
-    return failSessions('A descrição da etapa deve ter no máximo 2000 caracteres.');
+    return failSessions('A descriÃ§Ã£o da etapa deve ter no mÃ¡ximo 2000 caracteres.');
   }
   const videoUrlRaw = String(req.body.video_url || '').trim();
   if (videoUrlRaw.length > 500) {
-    return failSessions('Link da transmissão da etapa muito longo (máximo de 500 caracteres).');
+    return failSessions('Link da transmissÃ£o da etapa muito longo (mÃ¡ximo de 500 caracteres).');
   }
   if (!isValidHttpUrl(videoUrlRaw)) {
-    return failSessions('Informe um link de transmissão HTTP ou HTTPS válido.');
+    return failSessions('Informe um link de transmissÃ£o HTTP ou HTTPS vÃ¡lido.');
   }
   const sessionVideoUrl = videoUrlRaw || null;
   const hasVideo = sessionVideoUrl ? 1 : (req.body.has_video === '1' ? 1 : 0);
@@ -2248,7 +2248,7 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
       rooms.syncTargetAssignments({ eventId: activity.event_id, sessionId: session.id, roomId: sessionAllocation.roomId, date: sessionDate, timeStart: sessionTimeStartParsed.value, timeEnd: sessionTimeEndParsed.value, assignedBy: req.session.userId });
     })();
   } catch (error) {
-    return failSessions((error && error.message) || 'Não foi possível salvar a etapa.');
+    return failSessions((error && error.message) || 'NÃ£o foi possÃ­vel salvar a etapa.');
   }
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity, session: { ...session, name, session_date: sessionDate }, oldUrl: session.video_url, newUrl: sessionVideoUrl });
@@ -2257,9 +2257,9 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
 
 router.post('/:id/activities/:activityId/sessions/:sessionId/delete', strictLimiter, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const session = db.prepare('SELECT * FROM activity_sessions WHERE id = ? AND activity_id = ?').get(req.params.sessionId, activity.id);
-  if (!session) return res.status(404).render('error', { title: 'Etapa não encontrada' });
+  if (!session) return res.status(404).render('error', { title: 'Etapa nÃ£o encontrada' });
   if (session.video_url) {
     const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
     queueVideoLinkNotifications({ event, activity, session, oldUrl: session.video_url, newUrl: null });
@@ -2272,14 +2272,14 @@ router.post('/:id/activities/:activityId/sessions/:sessionId/delete', strictLimi
 function parseRoomForm(req) {
   const name = String(req.body.name || '').trim();
   if (!name) return { error: 'Informe o nome da sala.' };
-  if (name.length > 80) return { error: 'O nome da sala deve ter no máximo 80 caracteres.' };
+  if (name.length > 80) return { error: 'O nome da sala deve ter no mÃ¡ximo 80 caracteres.' };
   const size = rooms.ROOM_SIZES[req.body.size] ? req.body.size : null;
-  if (!size) return { error: 'Selecione um tipo de sala válido.' };
+  if (!size) return { error: 'Selecione um tipo de sala vÃ¡lido.' };
   let capacity = null;
   const capacityRaw = String(req.body.capacity || '').trim();
   if (capacityRaw !== '') {
     capacity = Number.parseInt(capacityRaw, 10);
-    if (!Number.isFinite(capacity) || capacity <= 0) return { error: 'A capacidade deve ser um número inteiro maior que zero.' };
+    if (!Number.isFinite(capacity) || capacity <= 0) return { error: 'A capacidade deve ser um nÃºmero inteiro maior que zero.' };
   }
   capacity = rooms.resolveRoomCapacity(size, capacity);
   return { name, size, capacity };
@@ -2287,7 +2287,7 @@ function parseRoomForm(req) {
 
 router.get('/:id/rooms', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const roomsList = rooms.getEventRooms(event.id).map((room) => ({ ...room, assignment_count: rooms.roomAssignmentCount(room.id) }));
   const reservations = rooms.eventAssignments(event.id).filter((row) => row.is_event_reservation);
   const activitiesCount = db.prepare('SELECT COUNT(*) AS count FROM event_activities WHERE event_id=?').get(event.id).count;
@@ -2304,14 +2304,14 @@ router.get('/:id/rooms', (req, res) => {
 
 router.post('/:id/rooms', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id,name FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const parsed = parseRoomForm(req);
   if (parsed.error) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent(parsed.error)}`);
   try {
     db.prepare('INSERT INTO event_rooms (event_id,name,size,capacity) VALUES (?,?,?,?)').run(event.id, parsed.name, parsed.size, parsed.capacity);
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) {
-      return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Já existe uma sala com este nome neste evento.')}`);
+      return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('JÃ¡ existe uma sala com este nome neste evento.')}`);
     }
     throw error;
   }
@@ -2320,10 +2320,10 @@ router.post('/:id/rooms', strictLimiter, (req, res) => {
 
 router.post('/:id/rooms/reservations', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const activitiesCount = db.prepare('SELECT COUNT(*) AS count FROM event_activities WHERE event_id=?').get(event.id).count;
   if (activitiesCount > 0) {
-    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('A sala do evento só pode ser designada quando o evento não possui atividades; aloque a sala por atividade ou por etapa.')}`);
+    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('A sala do evento sÃ³ pode ser designada quando o evento nÃ£o possui atividades; aloque a sala por atividade ou por etapa.')}`);
   }
   const roomId = Number(req.body.room_id) || null;
   if (!roomId) {
@@ -2331,33 +2331,33 @@ router.post('/:id/rooms/reservations', strictLimiter, (req, res) => {
     return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Reserva de sala do evento removida.')}`);
   }
   const room = rooms.getRoom(event.id, roomId);
-  if (!room) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Selecione uma sala válida deste evento.')}`);
+  if (!room) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Selecione uma sala vÃ¡lida deste evento.')}`);
   const rangeStart = req.body.range_start || event.date_start || null;
   const rangeEnd = req.body.range_end || event.date_end || event.date_start || null;
   const timeStart = rooms.normalizeTime(req.body.time_start);
   const timeEnd = rooms.normalizeTime(req.body.time_end);
   if (!rangeStart || !rangeEnd) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Informe o intervalo de datas da reserva (ou preencha as datas do evento).')}`);
-  if (!timeStart || !timeEnd) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Informe os horários de início e término da reserva.')}`);
+  if (!timeStart || !timeEnd) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Informe os horÃ¡rios de inÃ­cio e tÃ©rmino da reserva.')}`);
   try {
     rooms.createEventReservation({ eventId: event.id, roomId, rangeStart, rangeEnd, timeStart, timeEnd, assignedBy: req.session.userId });
   } catch (error) {
-    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent((error && error.message) || 'Não foi possível salvar a reserva.')}`);
+    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent((error && error.message) || 'NÃ£o foi possÃ­vel salvar a reserva.')}`);
   }
   return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Reserva de sala do evento salva para todos os dias do intervalo.')}`);
 });
 
 router.post('/:id/rooms/:roomId', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const room = rooms.getRoom(event.id, req.params.roomId);
-  if (!room) return res.status(404).render('error', { title: 'Sala não encontrada' });
+  if (!room) return res.status(404).render('error', { title: 'Sala nÃ£o encontrada' });
   const parsed = parseRoomForm(req);
   if (parsed.error) return res.redirect(`/admin/events/${event.id}/rooms?edit_room_id=${room.id}&error=${encodeURIComponent(parsed.error)}`);
   try {
     db.prepare('UPDATE event_rooms SET name=?,size=?,capacity=?,updated_at=datetime(\'now\',\'-3 hours\') WHERE id=?').run(parsed.name, parsed.size, parsed.capacity, room.id);
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) {
-      return res.redirect(`/admin/events/${event.id}/rooms?edit_room_id=${room.id}&error=${encodeURIComponent('Já existe uma sala com este nome neste evento.')}`);
+      return res.redirect(`/admin/events/${event.id}/rooms?edit_room_id=${room.id}&error=${encodeURIComponent('JÃ¡ existe uma sala com este nome neste evento.')}`);
     }
     throw error;
   }
@@ -2366,12 +2366,12 @@ router.post('/:id/rooms/:roomId', strictLimiter, (req, res) => {
 
 router.post('/:id/rooms/:roomId/delete', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const room = rooms.getRoom(event.id, req.params.roomId);
-  if (!room) return res.status(404).render('error', { title: 'Sala não encontrada' });
+  if (!room) return res.status(404).render('error', { title: 'Sala nÃ£o encontrada' });
   const assignmentCount = rooms.roomAssignmentCount(room.id);
   if (assignmentCount > 0) {
-    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent(`Não é possível excluir "${room.name}": possui ${assignmentCount} alocação(ões) de agenda. Remova as alocações primeiro (desmarque a sala nas atividades/etapas ou cancele a reserva do evento).`)}`);
+    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent(`NÃ£o Ã© possÃ­vel excluir "${room.name}": possui ${assignmentCount} alocaÃ§Ã£o(Ãµes) de agenda. Remova as alocaÃ§Ãµes primeiro (desmarque a sala nas atividades/etapas ou cancele a reserva do evento).`)}`);
   }
   db.prepare('DELETE FROM event_rooms WHERE id=?').run(room.id);
   return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Sala removida.')}`);
@@ -2379,7 +2379,7 @@ router.post('/:id/rooms/:roomId/delete', strictLimiter, (req, res) => {
 
 router.get('/:id/rooms/availability', (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).json({ error: 'Evento não encontrado' });
+  if (!event) return res.status(404).json({ error: 'Evento nÃ£o encontrado' });
   const list = rooms.availableRooms({
     eventId: event.id,
     date: req.query.date,
@@ -2393,9 +2393,9 @@ router.get('/:id/rooms/availability', (req, res) => {
 
 router.get('/:id/rooms/occupancy', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   res.render('admin/events/rooms-occupancy', {
-    title: `Ocupação de Salas - ${event.name}`,
+    title: `OcupaÃ§Ã£o de Salas - ${event.name}`,
     event,
     days: rooms.occupancyByDay(event.id),
     roomLabel: rooms.roomLabel
@@ -2404,7 +2404,7 @@ router.get('/:id/rooms/occupancy', (req, res) => {
 
 router.get('/:id/rooms/agenda', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   res.render('admin/events/rooms-agenda', {
     title: `Agenda por Sala - ${event.name}`,
     event,
@@ -2415,9 +2415,9 @@ router.get('/:id/rooms/agenda', (req, res) => {
 });
 router.get('/:id/activities/:activityId/attendance', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const activity = db.prepare('SELECT a.*, e.name AS event_name FROM event_activities a JOIN events e ON e.id = a.event_id WHERE a.id = ? AND a.event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const sessions = getActivitySessions(activity.id);
   const selectedSession = resolveSession(activity.id, req.query.session_id) || sessions[0] || null;
   const allowedRoles = String(activity.eligible_roles || 'participant').split(',').map((role) => role.trim());
@@ -2449,7 +2449,7 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
     FROM activity_evaluations a JOIN users u ON u.id=a.user_id
     WHERE a.activity_id=? ORDER BY u.name COLLATE NOCASE`).all(activity.id);
   res.render('admin/events/activity-attendance', {
-    title: `Presença - ${activity.name}`, event, activity, participants: people, evaluations,
+    title: `PresenÃ§a - ${activity.name}`, event, activity, participants: people, evaluations,
     sessions, selectedSession, roleLabels,
     success: req.query.success || null,
     error: req.query.error || null,
@@ -2470,9 +2470,9 @@ function resolvePrintRoomName(eventId, sessionId, activityId) {
 
 router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const activity = db.prepare('SELECT a.*, e.name AS event_name FROM event_activities a JOIN events e ON e.id = a.event_id WHERE a.id = ? AND a.event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const sessions = getActivitySessions(activity.id);
   const selectedSession = resolveSession(activity.id, req.query.session_id) || sessions[0] || null;
 
@@ -2503,7 +2503,7 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   const PDFDocument = require('pdfkit');
   const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 60 });
 
-  const printTitle = selectedSession ? `${activity.name} — ${selectedSession.name}` : activity.name;
+  const printTitle = selectedSession ? `${activity.name} â€” ${selectedSession.name}` : activity.name;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="lista-presenca-${encodeURIComponent(printTitle)}.pdf"`);
   doc.pipe(res);
@@ -2588,13 +2588,13 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
   res.on('close', () => { aborted = true; });
   try {
     const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-    if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+    if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
     const activity = db.prepare('SELECT a.*, e.name AS event_name FROM event_activities a JOIN events e ON e.id = a.event_id WHERE a.id = ? AND a.event_id = ?').get(req.params.activityId, req.params.id);
-    if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+    if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
     const sessions = getActivitySessions(activity.id);
     const selectedSession = resolveSession(activity.id, req.query.session_id) || null;
     if (sessions.length > 0 && !selectedSession) {
-      return res.status(400).render('error', { title: 'Etapa não informada', message: 'Esta atividade possui etapas. Selecione a etapa para imprimir a folha de presença com QR Code.' });
+      return res.status(400).render('error', { title: 'Etapa nÃ£o informada', message: 'Esta atividade possui etapas. Selecione a etapa para imprimir a folha de presenÃ§a com QR Code.' });
     }
 
     let origin = '';
@@ -2611,7 +2611,7 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
     if (aborted) return;
 
     const doc = new PDFDocument({ size: 'LETTER', margin: 60 });
-    const printTitle = selectedSession ? `${activity.name} — ${selectedSession.name}` : activity.name;
+    const printTitle = selectedSession ? `${activity.name} â€” ${selectedSession.name}` : activity.name;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="presenca-qr-${encodeURIComponent(printTitle)}.pdf"`);
     doc.pipe(res);
@@ -2641,7 +2641,7 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
       doc.y = logoStartY + 52 + 12;
       doc.x = 60;
     }
-    doc.fontSize(10).font('Helvetica').text('FOLHA DE PRESENÇA — QR CODE', 60, doc.y, { align: 'center', characterSpacing: 2 });
+    doc.fontSize(10).font('Helvetica').text('FOLHA DE PRESENÃ‡A â€” QR CODE', 60, doc.y, { align: 'center', characterSpacing: 2 });
     doc.moveDown(1.2);
     doc.fontSize(20).font('Helvetica-Bold').text(event.name, { align: 'center' });
     doc.moveDown(0.6);
@@ -2658,27 +2658,27 @@ router.get('/:id/activities/:activityId/checkin-print', async (req, res) => {
     doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize });
     doc.y = qrY + qrSize + 24;
     doc.x = 60;
-    doc.fontSize(12).font('Helvetica-Bold').text('Para registrar sua presença:', { align: 'center' });
+    doc.fontSize(12).font('Helvetica-Bold').text('Para registrar sua presenÃ§a:', { align: 'center' });
     doc.moveDown(0.3);
     doc.fontSize(11).font('Helvetica')
-      .text('Aponte a câmera do celular para o código QR acima, entre no site com sua conta', { align: 'center' })
-      .text('e toque em "Marcar presença".', { align: 'center' });
+      .text('Aponte a cÃ¢mera do celular para o cÃ³digo QR acima, entre no site com sua conta', { align: 'center' })
+      .text('e toque em "Marcar presenÃ§a".', { align: 'center' });
 
     doc.end();
   } catch (err) {
     console.error('checkin-print error:', err);
     const detail = err && err.message ? err.message : String(err);
-    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar a folha', message: `Não foi possível gerar a folha de presença com QR Code. Detalhes: ${detail}` });
+    if (!res.headersSent) res.status(500).render('error', { title: 'Erro ao gerar a folha', message: `NÃ£o foi possÃ­vel gerar a folha de presenÃ§a com QR Code. Detalhes: ${detail}` });
     else res.end();
   }
 });
 
-// Marca presença de uma pessoa em uma atividade/etapa.
-// Compartilhado pelo botão "Marcar presença" da chamada e pela leitura do QR Code do crachá.
+// Marca presenÃ§a de uma pessoa em uma atividade/etapa.
+// Compartilhado pelo botÃ£o "Marcar presenÃ§a" da chamada e pela leitura do QR Code do crachÃ¡.
 function applyAttendanceMark(activity, userId, role, sessionId, actorUserId, extraDetails) {
   const account = db.prepare('SELECT is_public FROM users WHERE id=?').get(userId);
   if (!account || !account.is_public) {
-    return { ok: false, error: 'Conta inativa: não é possível marcar presença para esta pessoa. Se for o caso, reative a conta em /admin/users (o histórico existente é preservado).' };
+    return { ok: false, error: 'Conta inativa: nÃ£o Ã© possÃ­vel marcar presenÃ§a para esta pessoa. Se for o caso, reative a conta em /admin/users (o histÃ³rico existente Ã© preservado).' };
   }
   const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
   const participantEnrollment = registration && role === 'participant' && db.prepare(`SELECT 1 FROM participant_activity_enrollments
@@ -2689,7 +2689,7 @@ function applyAttendanceMark(activity, userId, role, sessionId, actorUserId, ext
   const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
   const hasRoleInEvent = role === 'participant' ? Boolean(participantEnrollment) : Boolean(eventRole || reviewerAssignment);
   if (!CERTIFICATE_ROLES[role] || !allowedRoles.includes(role) || !hasRoleInEvent) {
-    return { ok: false, error: 'A pessoa não possui este papel no evento ou o papel não é elegível para a atividade.' };
+    return { ok: false, error: 'A pessoa nÃ£o possui este papel no evento ou o papel nÃ£o Ã© elegÃ­vel para a atividade.' };
   }
   const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, userId, sessionId);
   if (existing) {
@@ -2708,7 +2708,7 @@ function applyAttendanceMark(activity, userId, role, sessionId, actorUserId, ext
 }
 
 // Resolve o papel a registrar, com a mesma regra da linha da chamada:
-// mantém o papel já marcado; senão "participant" (se inscrito na atividade); senão o primeiro papel elegível da pessoa.
+// mantÃ©m o papel jÃ¡ marcado; senÃ£o "participant" (se inscrito na atividade); senÃ£o o primeiro papel elegÃ­vel da pessoa.
 function resolveScanRole(activity, userId, sessionId) {
   const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
   const existing = db.prepare('SELECT role FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, userId, sessionId);
@@ -2722,10 +2722,10 @@ function resolveScanRole(activity, userId, sessionId) {
   return allowedRoles.find((role) => CERTIFICATE_ROLES[role] && roles.has(role)) || null;
 }
 
-// Presença por QR Code do crachá: o admin lê o código na chamada e marca a presença da pessoa.
+// PresenÃ§a por QR Code do crachÃ¡: o admin lÃª o cÃ³digo na chamada e marca a presenÃ§a da pessoa.
 router.post('/:id/activities/:activityId/attendance/qr', strictLimiter, (req, res) => {
   const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const sessions = getActivitySessions(activity.id);
   const session = sessions.length ? (resolveSession(activity.id, req.body.session_id) || sessions[0]) : null;
   const sessionId = session ? session.id : null;
@@ -2735,28 +2735,28 @@ router.post('/:id/activities/:activityId/attendance/qr', strictLimiter, (req, re
 
   const code = String(req.body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!/^[A-Z0-9]{8,16}$/.test(code)) {
-    return res.redirect(backWith(`error=${encodeURIComponent('Código inválido. Confira o código exibido no crachá ou na tela do participante.')}`));
+    return res.redirect(backWith(`error=${encodeURIComponent('CÃ³digo invÃ¡lido. Confira o cÃ³digo exibido no crachÃ¡ ou na tela do participante.')}`));
   }
   const person = db.prepare(`SELECT q.user_id, u.name AS name FROM event_qr_codes q JOIN users u ON u.id=q.user_id WHERE q.event_id=? AND q.token=?`).get(activity.event_id, code);
   if (!person) {
-    return res.redirect(backWith(`error=${encodeURIComponent('Código não reconhecido: ele não pertence a este evento.')}`));
+    return res.redirect(backWith(`error=${encodeURIComponent('CÃ³digo nÃ£o reconhecido: ele nÃ£o pertence a este evento.')}`));
   }
   const role = resolveScanRole(activity, person.user_id, sessionId);
   if (!role) {
-    return res.redirect(backWith(`error=${encodeURIComponent(`${person.name} não possui papel elegível para esta atividade.`)}`));
+    return res.redirect(backWith(`error=${encodeURIComponent(`${person.name} nÃ£o possui papel elegÃ­vel para esta atividade.`)}`));
   }
   const result = applyAttendanceMark(activity, person.user_id, role, sessionId, req.session.userId, { via_qr: true });
   if (!result.ok) {
     return res.redirect(backWith(`error=${encodeURIComponent(result.error)}`));
   }
-  return res.redirect(backWith(`success=${encodeURIComponent(`Presença registrada: ${person.name}`)}&marked_user_id=${person.user_id}`));
+  return res.redirect(backWith(`success=${encodeURIComponent(`PresenÃ§a registrada: ${person.name}`)}&marked_user_id=${person.user_id}`));
 });
 
 router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.attendanceAction);
 }, (req, res) => {
   const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
   const userId = Number(req.params.userId);
   const role = String(req.body.role || '').trim();
   const sessions = getActivitySessions(activity.id);
@@ -2787,11 +2787,11 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
   validateAndHandle(req, res, next, v.attendanceAction);
 }, (req, res) => {
   const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
-  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });
 
   const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
   if (!allowedRoles.length) {
-    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?error=${encodeURIComponent('A atividade não possui perfis elegíveis configurados.')}`);
+    return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance?error=${encodeURIComponent('A atividade nÃ£o possui perfis elegÃ­veis configurados.')}`);
   }
   const sessions = getActivitySessions(activity.id);
   const session = sessions.length ? (resolveSession(activity.id, req.body.session_id) || sessions[0]) : null;
@@ -2863,20 +2863,20 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
   }
 
   const msg = bulkAction === 'unmark_all_present'
-    ? `Presença removida de ${marked} pessoa(s)${skipped > 0 ? ` (${skipped} ignorada(s))` : ''}`
-    : `Presença marcada para ${marked} pessoa(s)${skipped > 0 ? ` (${skipped} ignorada(s))` : ''}`;
+    ? `PresenÃ§a removida de ${marked} pessoa(s)${skipped > 0 ? ` (${skipped} ignorada(s))` : ''}`
+    : `PresenÃ§a marcada para ${marked} pessoa(s)${skipped > 0 ? ` (${skipped} ignorada(s))` : ''}`;
   res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/attendance${sessionQuery}${sessionQuery ? '&' : '?'}success=${encodeURIComponent(msg)}`);
 });
 
 router.post('/:id/activities/:activityId/certificate-rule', (req, res) => {
-  return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent('As regras de certificado agora são configuradas por papel no evento.')}`);
+  return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent('As regras de certificado agora sÃ£o configuradas por papel no evento.')}`);
 });
 
 router.post('/:id/certificates/rule', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.certificateRule);
 }, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   if (req.body.apply_to_all === '1') {
     return res.redirect(`/admin/events/${event.id}/certificates/rule/apply-to-all?background_id=${encodeURIComponent(req.body.background_id)}&text_color=${encodeURIComponent(req.body.text_color)}`);
   }
@@ -2886,7 +2886,7 @@ router.post('/:id/certificates/rule', strictLimiter, (req, res, next) => {
   const textColor = String(req.body.text_color || '#0f172a').trim();
   const normalizedTextColor = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#0f172a';
   if (!backgroundId || !getEventBackground(event.id, backgroundId)) {
-    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado válido para este evento.')}`);
+    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado vÃ¡lido para este evento.')}`);
   }
   const meta = certificateRoleMeta(role);
   const title = String(req.body.title || meta.title).trim().slice(0, 160);
@@ -2900,13 +2900,13 @@ router.post('/:id/certificates/rule', strictLimiter, (req, res, next) => {
 
 router.post('/:id/certificates/rule/apply-to-all', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   const backgroundId = req.body.background_id ? parseInt(req.body.background_id, 10) : null;
   const textColor = String(req.body.text_color || '#0f172a').trim();
   const normalizedTextColor = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#0f172a';
   if (!backgroundId || !getEventBackground(event.id, backgroundId)) {
-    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado válido para este evento.')}`);
+    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Selecione um fundo de certificado vÃ¡lido para este evento.')}`);
   }
 
   const upsert = db.prepare(`
@@ -2935,11 +2935,11 @@ router.post('/:id/certificates/backgrounds', strictLimiter, (req, res) => {
       const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
       if (!event) {
         try { fs.unlinkSync(req.file.path); } catch (_) {}
-        return res.status(404).render('error', { title: 'Evento não encontrado' });
+        return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
       }
       db.prepare(`INSERT INTO certificate_backgrounds (name,file_path,original_name,mime_type,created_by,event_id,created_at) VALUES (?,?,?,?,?,?,datetime('now','-3 hours'))`)
         .run(String(req.body.name).trim(), `uploads/certificate-backgrounds/${req.file.filename}`, req.file.originalname, req.file.mimetype, req.session.userId, event.id);
-      return res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Fundo enviado e disponível apenas para este evento.')}`);
+      return res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Fundo enviado e disponÃ­vel apenas para este evento.')}`);
     });
   });
 });
@@ -2952,9 +2952,9 @@ function findOwnedBackground(eventId, backgroundId) {
 
 router.post('/:id/certificates/backgrounds/:backgroundId/rename', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const background = findOwnedBackground(event.id, req.params.backgroundId);
-  if (!background) return res.status(404).render('error', { title: 'Fundo não encontrado' });
+  if (!background) return res.status(404).render('error', { title: 'Fundo nÃ£o encontrado' });
   const name = String(req.body.name || '').trim().slice(0, 120);
   if (!name) {
     return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Informe um nome para o fundo.')}`);
@@ -2965,12 +2965,12 @@ router.post('/:id/certificates/backgrounds/:backgroundId/rename', strictLimiter,
 
 router.post('/:id/certificates/backgrounds/:backgroundId/delete', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const background = findOwnedBackground(event.id, req.params.backgroundId);
-  if (!background) return res.status(404).render('error', { title: 'Fundo não encontrado' });
+  if (!background) return res.status(404).render('error', { title: 'Fundo nÃ£o encontrado' });
   const inUse = db.prepare('SELECT COUNT(*) AS count FROM certificate_emissions WHERE background_id = ?').get(background.id).count;
   if (inUse) {
-    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent(`O fundo está em uso em ${inUse} certificado(s) emitido(s) e não pode ser excluído.`)}`);
+    return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent(`O fundo estÃ¡ em uso em ${inUse} certificado(s) emitido(s) e nÃ£o pode ser excluÃ­do.`)}`);
   }
   const usedByRules = db.prepare('SELECT COUNT(*) AS count FROM event_certificate_rules WHERE background_id = ?').get(background.id).count;
   db.prepare('DELETE FROM certificate_backgrounds WHERE id = ?').run(background.id);
@@ -2979,8 +2979,8 @@ router.post('/:id/certificates/backgrounds/:backgroundId/delete', strictLimiter,
     try { fs.unlinkSync(path.join(__dirname, '..', background.file_path)); } catch (e) {}
   }
   const message = usedByRules
-    ? 'Fundo excluído. As regras que o utilizavam ficaram sem fundo; selecione outro.'
-    : 'Fundo excluído.';
+    ? 'Fundo excluÃ­do. As regras que o utilizavam ficaram sem fundo; selecione outro.'
+    : 'Fundo excluÃ­do.';
   return res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent(message)}`);
 });
 
@@ -3001,9 +3001,9 @@ function generateCertificateCode() {
 
 function issueCertificate(event, role, userId, actorUserId, reissuedFromId = null) {
   const rule = getCertificateRule(event.id, role);
-  if (!rule || !rule.background_id) throw new Error('Configure a regra e o fundo do certificado antes da emissão.');
+  if (!rule || !rule.background_id) throw new Error('Configure a regra e o fundo do certificado antes da emissÃ£o.');
   const participant = getCertificateCandidates(event.id, role, rule).find((item) => Number(item.user_id) === Number(userId));
-  if (!participant || !participant.eligible) throw new Error('Participante não elegível pela regra de presença.');
+  if (!participant || !participant.eligible) throw new Error('Participante nÃ£o elegÃ­vel pela regra de presenÃ§a.');
 
   const attendedActivities = participant.attended_activities || getRoleActivityAttendance(event.id, userId, role).attended_activities;
 
@@ -3030,7 +3030,7 @@ function issueCertificate(event, role, userId, actorUserId, reissuedFromId = nul
 router.post('/:id/certificates/:role/:userId/issue', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   const role = CERTIFICATE_ROLES[req.params.role] ? req.params.role : null;
-  if (!event || !role) return res.status(404).render('error', { title: 'Certificado não encontrado' });
+  if (!event || !role) return res.status(404).render('error', { title: 'Certificado nÃ£o encontrado' });
   try { const emissionId = issueCertificate(event, role, req.params.userId, req.session.userId); recordParticipantAudit({ eventId: event.id, actorUserId: req.session.userId, action: 'certificate_issued', details: { emission_id: emissionId, role, user_id: req.params.userId } }); queueCertificateIssued(event, emissionId); }
   catch (error) { return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent(error.message)}`); }
   res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Certificado emitido com sucesso.')}`);
@@ -3038,7 +3038,7 @@ router.post('/:id/certificates/:role/:userId/issue', strictLimiter, (req, res) =
 
 router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado', message: 'O evento solicitado nÃ£o foi encontrado.' });
 
   let issued = 0;
   let skipped = 0;
@@ -3066,15 +3066,15 @@ router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
       });
     });
   })();
-  // Os e-mails são enfileirados fora da transação para que uma falha de SMTP
-  // não reverta a emissão dos certificados já gravados.
+  // Os e-mails sÃ£o enfileirados fora da transaÃ§Ã£o para que uma falha de SMTP
+  // nÃ£o reverta a emissÃ£o dos certificados jÃ¡ gravados.
   pendingEmails.forEach((emissionId) => {
     try { queueCertificateIssued(event, emissionId); } catch (emailErr) { console.error('Falha ao enfileirar e-mail de certificado:', emailErr.message); }
   });
 
   const message = issued
-    ? `${issued} certificado(s) emitido(s) em lote${skipped ? `; ${skipped} não puderam ser emitidos porque falta configuração.` : '.'}`
-    : (skipped ? 'Nenhum certificado foi emitido. Configure fundo e regra para os perfis pendentes.' : 'Não há certificados elegíveis pendentes de emissão.');
+    ? `${issued} certificado(s) emitido(s) em lote${skipped ? `; ${skipped} nÃ£o puderam ser emitidos porque falta configuraÃ§Ã£o.` : '.'}`
+    : (skipped ? 'Nenhum certificado foi emitido. Configure fundo e regra para os perfis pendentes.' : 'NÃ£o hÃ¡ certificados elegÃ­veis pendentes de emissÃ£o.');
   const key = issued ? 'success' : 'error';
   res.redirect(`/admin/events/${event.id}/certificates?${key}=${encodeURIComponent(message)}`);
 });
@@ -3082,23 +3082,23 @@ router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
 router.post('/:id/certificates/:role/:userId/reissue', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   const role = CERTIFICATE_ROLES[req.params.role] ? req.params.role : null;
-  if (!event || !role) return res.status(404).render('error', { title: 'Certificado não encontrado' });
+  if (!event || !role) return res.status(404).render('error', { title: 'Certificado nÃ£o encontrado' });
   const previous = db.prepare(`SELECT id FROM certificate_emissions WHERE event_id=? AND user_id=? AND certificate_role=? AND status='issued' ORDER BY version DESC LIMIT 1`).get(event.id, req.params.userId, role);
-  if (!previous) return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Não há certificado ativo para reemitir.')}`);
+  if (!previous) return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('NÃ£o hÃ¡ certificado ativo para reemitir.')}`);
   try { const emissionId = issueCertificate(event, role, req.params.userId, req.session.userId, previous.id); db.prepare("UPDATE certificate_emissions SET status='reissued' WHERE id=?").run(previous.id); recordParticipantAudit({ eventId:event.id, actorUserId:req.session.userId, action:'certificate_reissued', details:{ previous_emission_id:previous.id, emission_id:emissionId, role, user_id:req.params.userId } }); queueCertificateIssued(event, emissionId); }
   catch (error) { return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent(error.message)}`); }
-  res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Certificado reemitido com nova versão.')}`);
+  res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent('Certificado reemitido com nova versÃ£o.')}`);
 });
 
 router.get('/:id/certificates/emissions/:emissionId/download', (req, res) => {
   const certificate = db.prepare(`SELECT ce.*, cb.file_path AS background_path FROM certificate_emissions ce LEFT JOIN certificate_backgrounds cb ON cb.id=ce.background_id WHERE ce.id=? AND ce.event_id=?`).get(req.params.emissionId, req.params.id);
-  if (!certificate) return res.status(404).render('error', { title: 'Certificado não encontrado' });
+  if (!certificate) return res.status(404).render('error', { title: 'Certificado nÃ£o encontrado' });
   res.type('application/pdf'); res.attachment(`certificado-${certificate.certificate_code}.pdf`); renderCertificatePdf(res, certificate);
 });
 
 router.get('/:id/certificates/export-all', (req, res) => {
   const event = db.prepare('SELECT id, name, short_name FROM events WHERE id = ?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   const emissions = db.prepare(`
     SELECT ce.*, cb.file_path AS background_path, u.name AS participant_name
@@ -3110,7 +3110,7 @@ router.get('/:id/certificates/export-all', (req, res) => {
   `).all(req.params.id);
 
   if (!emissions.length) {
-    return res.status(404).render('error', { title: 'Nenhum certificado disponível', message: 'Este evento não possui certificados emitidos para exportação.' });
+    return res.status(404).render('error', { title: 'Nenhum certificado disponÃ­vel', message: 'Este evento nÃ£o possui certificados emitidos para exportaÃ§Ã£o.' });
   }
 
   const archiveName = `${safeArchiveFileName(event.short_name || event.name, 'evento')}-certificados.zip`;
@@ -3155,13 +3155,24 @@ router.get('/:id/certificates/export-all', (req, res) => {
 
 router.get('/:id/roles', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const assignments = db.prepare(`SELECT eur.*, u.name AS user_name, u.email AS user_email, a.title AS article_title
     FROM event_user_roles eur JOIN users u ON u.id=eur.user_id LEFT JOIN articles a ON a.id=eur.article_id
     WHERE eur.event_id=? ORDER BY eur.role, u.name COLLATE NOCASE`).all(event.id);
-  const users = db.prepare(`SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter FROM users WHERE is_public=1 AND approval_status='approved' ORDER BY name COLLATE NOCASE`).all();
+  // Somente inscritos no evento (ou quem jÃ¡ tem papel nele) podem receber
+  // papÃ©is; o superadmin mantÃ©m a lista completa de contas ativas.
+  const users = isSuperAdminUser(req.session.userId)
+    ? db.prepare(`SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter FROM users WHERE is_public=1 AND approval_status='approved' ORDER BY name COLLATE NOCASE`).all()
+    : db.prepare(`
+        SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter
+        FROM users u
+        WHERE u.is_public=1 AND u.approval_status='approved'
+          AND (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
+            OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id))
+        ORDER BY u.name COLLATE NOCASE
+      `).all(event.id, event.id);
   const articles = db.prepare(`SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title COLLATE NOCASE`).all(event.id);
-  res.render('admin/events/roles', { title: `Papéis do evento - ${event.name}`, event, assignments, users, articles, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' }, staff: { label: 'Staff' } }, success: req.query.success || null, error: req.query.error || null });
+  res.render('admin/events/roles', { title: `PapÃ©is do evento - ${event.name}`, event, assignments, users, articles, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' }, staff: { label: 'Staff' } }, success: req.query.success || null, error: req.query.error || null });
 });
 
 router.post('/:id/roles', strictLimiter, (req, res, next) => {
@@ -3170,14 +3181,17 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   const role = EVENT_ASSIGNABLE_ROLES.includes(req.body.role) ? req.body.role : null;
   const userId = parseInt(req.body.user_id, 10);
-  if (!event || !role || !Number.isInteger(userId)) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel válidos.')}`);
+  if (!event || !role || !Number.isInteger(userId)) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel vÃ¡lidos.')}`);
   let articleId = null;
-  const profileColumn = { staff: 'is_staff', speaker: 'is_speaker', teacher: 'is_teacher', oral_presenter: 'is_oral_presenter', poster_presenter: 'is_poster_presenter' }[role];
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(userId);
-  if (!user) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel válidos.')}`);
-  // Atribuir um papel pelo admin do evento liga automaticamente a
-  // habilitação global correspondente no cadastro da pessoa.
-  if (profileColumn) db.prepare(`UPDATE users SET ${profileColumn} = 1, updated_at = datetime('now', '-3 hours') WHERE id = ?`).run(userId);
+  if (!user) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel vÃ¡lidos.')}`);
+  // Fora do superadmin, papÃ©is sÃ³ podem ser atribuÃ­dos a inscritos no evento
+  // (ou a quem jÃ¡ tenha papel nele, para permitir ajustes).
+  if (!isSuperAdminUser(req.session.userId)) {
+    const inscrita = db.prepare("SELECT 1 FROM event_registrations WHERE event_id=? AND user_id=? AND registration_status='approved'").get(event.id, userId)
+      || db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=?').get(event.id, userId);
+    if (!inscrita) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Somente pessoas inscritas neste evento podem receber papÃ©is.')}`);
+  }
   if (role === 'oral_presenter' || role === 'poster_presenter') {
     articleId = parseInt(req.body.article_id, 10);
     const article = db.prepare(`SELECT id FROM articles WHERE id=? AND event_id=? AND status='approved' AND type=?`).get(articleId, event.id, role === 'oral_presenter' ? 'oral' : 'poster');
@@ -3186,20 +3200,28 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
   try {
     db.prepare(`INSERT INTO event_user_roles (event_id,user_id,role,article_id,assigned_by) VALUES (?,?,?,?,?)`).run(event.id, userId, role, articleId, req.session.userId);
   } catch (error) {
-    return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Esta pessoa já possui esse papel no evento.')}`);
+    return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Esta pessoa jÃ¡ possui esse papel no evento.')}`);
   }
-  res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent('Papel atribuído com sucesso.')}`);
+  res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent('Papel atribuÃ­do com sucesso.')}`);
 });
 
 router.post('/:id/roles/:role/:userId/delete', strictLimiter, (req, res) => {
   const role = EVENT_ASSIGNABLE_ROLES.includes(req.params.role) ? req.params.role : null;
-  if (role) db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').run(req.params.id, req.params.userId, role);
+  const userId = parseInt(req.params.userId, 10);
+  if (role) {
+    // Um evento nÃ£o pode ficar sem administrador: bloqueia remover o prÃ³prio
+    // papel de admin quando for o Ãºltimo (o superadmin pode reorganizar).
+    const removingOwnLastAdmin = role === 'admin' && userId === req.session.userId && !isSuperAdminUser(req.session.userId)
+      && db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(req.params.id).count <= 1;
+    if (removingOwnLastAdmin) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('O evento precisa manter ao menos um administrador.')}`);
+    db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').run(req.params.id, userId, role);
+  }
   res.redirect(`/admin/events/${req.params.id}/roles?success=${encodeURIComponent('Papel removido.')}`);
 });
 
 router.get('/:id/participants/new', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   res.render('admin/events/participant-form', {
     title: `Adicionar Participante - ${event.name}`,
@@ -3277,7 +3299,7 @@ function validateParticipantActivities(eventId, activityIds) {
   const available = getActivitiesForParticipantForm(eventId);
   if (available.length > 0 && activityIds.length === 0) return 'Selecione ao menos uma atividade para o participante.';
   const availableIds = new Set(available.map((activity) => Number(activity.id)));
-  if (activityIds.some((id) => !availableIds.has(id))) return 'Uma das atividades selecionadas não pertence a este evento.';
+  if (activityIds.some((id) => !availableIds.has(id))) return 'Uma das atividades selecionadas nÃ£o pertence a este evento.';
   return null;
 }
 
@@ -3309,18 +3331,18 @@ function requestedEventRoles(body = {}) {
 }
 
 function validateAndSaveParticipantEventRoles(eventId, userId, body, actorUserId) {
-  if (!userId) return 'A inscrição precisa estar vinculada a uma conta para receber papéis no evento.';
+  if (!userId) return 'A inscriÃ§Ã£o precisa estar vinculada a uma conta para receber papÃ©is no evento.';
   const roles = requestedEventRoles(body);
   for (const item of roles) {
     if (item.role === 'oral_presenter' || item.role === 'poster_presenter') {
       const type = item.role === 'oral_presenter' ? 'oral' : 'poster';
       const article = item.articleId ? db.prepare("SELECT id FROM articles WHERE id=? AND event_id=? AND status='approved' AND type=?").get(item.articleId, eventId, type) : null;
-      if (!article) return `Selecione um artigo aprovado na modalidade ${type === 'oral' ? 'oral' : 'pôster'} para o papel de apresentador.`;
+      if (!article) return `Selecione um artigo aprovado na modalidade ${type === 'oral' ? 'oral' : 'pÃ´ster'} para o papel de apresentador.`;
     }
   }
   db.transaction(() => {
-    // A edição de participação gerencia apenas os papéis operacionais abaixo.
-    // Papéis administrativos e de revisão são preservados e gerenciados no fluxo próprio.
+    // A ediÃ§Ã£o de participaÃ§Ã£o gerencia apenas os papÃ©is operacionais abaixo.
+    // PapÃ©is administrativos e de revisÃ£o sÃ£o preservados e gerenciados no fluxo prÃ³prio.
     db.prepare("DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role IN ('speaker','teacher','oral_presenter','poster_presenter')").run(eventId, userId);
     const insert = db.prepare('INSERT INTO event_user_roles (event_id,user_id,role,article_id,assigned_by) VALUES (?,?,?,?,?)');
     roles.forEach((item) => insert.run(eventId, userId, item.role, item.articleId || null, actorUserId));
@@ -3367,8 +3389,8 @@ function normalizeParticipantForm(body = {}) {
 }
 
 function validateParticipantForm(formData) {
-  if (!formData.name || !formData.email) return 'Nome e e-mail são obrigatórios.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return 'Informe um e-mail válido.';
+  if (!formData.name || !formData.email) return 'Nome e e-mail sÃ£o obrigatÃ³rios.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return 'Informe um e-mail vÃ¡lido.';
   return null;
 }
 
@@ -3376,13 +3398,13 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.participantForm);
 }, (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   const formData = normalizeParticipantForm(req.body);
   let linkedUser = null;
   if (formData.account_mode === 'existing') {
     if (!formData.existing_user_id) {
-      return renderParticipantFormError(res, event, null, formData, 'Selecione uma conta já cadastrada para inscrevê-la no evento.');
+      return renderParticipantFormError(res, event, null, formData, 'Selecione uma conta jÃ¡ cadastrada para inscrevÃª-la no evento.');
     }
     linkedUser = db.prepare(`
       SELECT id, name, email, institution, phone
@@ -3391,9 +3413,9 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
       LIMIT 1
     `).get(formData.existing_user_id);
     if (!linkedUser) {
-      return renderParticipantFormError(res, event, null, formData, 'A conta selecionada não está disponível para inscrição. Escolha uma conta ativa e aprovada.');
+      return renderParticipantFormError(res, event, null, formData, 'A conta selecionada nÃ£o estÃ¡ disponÃ­vel para inscriÃ§Ã£o. Escolha uma conta ativa e aprovada.');
     }
-    // O vínculo explícito sempre usa os dados atuais da conta selecionada.
+    // O vÃ­nculo explÃ­cito sempre usa os dados atuais da conta selecionada.
     formData.name = linkedUser.name;
     formData.email = String(linkedUser.email || '').trim().toLowerCase();
     formData.institution = linkedUser.institution || '';
@@ -3409,16 +3431,16 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
   const confirmTemporaryPassword = String(req.body.confirm_temporary_password || '');
   if (formData.account_mode === 'new') {
     if (temporaryPassword.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(temporaryPassword)) {
-      return renderParticipantFormError(res, event, null, formData, 'A senha temporária deve ter ao menos 8 caracteres, com maiúscula, minúscula e número.');
+      return renderParticipantFormError(res, event, null, formData, 'A senha temporÃ¡ria deve ter ao menos 8 caracteres, com maiÃºscula, minÃºscula e nÃºmero.');
     }
     if (temporaryPassword !== confirmTemporaryPassword) {
-      return renderParticipantFormError(res, event, null, formData, 'A confirmação da senha temporária não confere.');
+      return renderParticipantFormError(res, event, null, formData, 'A confirmaÃ§Ã£o da senha temporÃ¡ria nÃ£o confere.');
     }
     const existingEmail = db.prepare(`
       SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1
     `).get(formData.email);
     if (existingEmail) {
-      return renderParticipantFormError(res, event, null, formData, 'Já existe uma conta com este e-mail. Selecione a opção de conta existente para inscrevê-la.');
+      return renderParticipantFormError(res, event, null, formData, 'JÃ¡ existe uma conta com este e-mail. Selecione a opÃ§Ã£o de conta existente para inscrevÃª-la.');
     }
   }
 
@@ -3445,7 +3467,6 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
       `).run(event.id, linkedUser.id, formData.name, formData.email, formData.institution, formData.phone, formData.registration_type);
       registrationId = result.lastInsertRowid;
-      db.prepare("UPDATE users SET is_participant=1, updated_at=datetime('now','-3 hours') WHERE id=?").run(linkedUser.id);
       saveParticipantActivities(result.lastInsertRowid, linkedUser.id, formData.activity_ids, req.session.userId);
 
       recordParticipantAudit({
@@ -3459,7 +3480,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
     createParticipantAndRegistration();
   } catch (error) {
     if (error && String(error.message).includes('UNIQUE constraint failed')) {
-      return renderParticipantFormError(res, event, null, formData, 'Já existe uma inscrição para este e-mail ou conta neste evento.');
+      return renderParticipantFormError(res, event, null, formData, 'JÃ¡ existe uma inscriÃ§Ã£o para este e-mail ou conta neste evento.');
     }
     throw error;
   }
@@ -3472,7 +3493,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
       queueImportedRegistration({ user: linkedUser, event, dedupeKey });
     }
   } catch (error) {
-    console.error('[email] Falha ao enfileirar inclusão manual de participante:', error.message);
+    console.error('[email] Falha ao enfileirar inclusÃ£o manual de participante:', error.message);
   }
 
   res.redirect(`/admin/events/${event.id}/participants?success=${encodeURIComponent('Participante adicionado com sucesso.')}`);
@@ -3481,26 +3502,26 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
 router.get('/:id/participants/:registrationId/review', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id));
   const registration = event && getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
-  if (!event || !registration) return res.status(404).render('error', { title: 'Solicitação não encontrada' });
-  if (registration.registration_status !== 'pending') return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Esta inscrição não está aguardando análise.')}`);
+  if (!event || !registration) return res.status(404).render('error', { title: 'SolicitaÃ§Ã£o nÃ£o encontrada' });
+  if (registration.registration_status !== 'pending') return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Esta inscriÃ§Ã£o nÃ£o estÃ¡ aguardando anÃ¡lise.')}`);
   const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
   const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)));
-  return res.render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities, error: null });
+  return res.render('admin/events/participant-review', { title: `Analisar inscriÃ§Ã£o - ${event.name}`, event, registration, activities, error: null });
 });
 
 router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id));
   const registration = event && getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
-  if (!event || !registration) return res.status(404).render('error', { title: 'Solicitação não encontrada' });
-  if (registration.registration_status !== 'pending') return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Esta inscrição não está aguardando análise.')}`);
+  if (!event || !registration) return res.status(404).render('error', { title: 'SolicitaÃ§Ã£o nÃ£o encontrada' });
+  if (registration.registration_status !== 'pending') return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Esta inscriÃ§Ã£o nÃ£o estÃ¡ aguardando anÃ¡lise.')}`);
   const decision = req.body.decision === 'rejected' ? 'rejected' : 'approved';
   const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
   const approvedIds = normalizeActivityIds(req.body.activity_ids);
   const invalid = approvedIds.some((id) => !requestedIds.includes(id));
   if (invalid || (decision === 'approved' && !approvedIds.length && requestedIds.length)) {
     const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)));
-    return res.status(400).render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities,
-      error: invalid ? 'Selecione apenas atividades solicitadas pela pessoa.' : 'Selecione ao menos uma atividade para aprovar, ou rejeite a solicitação.' });
+    return res.status(400).render('admin/events/participant-review', { title: `Analisar inscriÃ§Ã£o - ${event.name}`, event, registration, activities,
+      error: invalid ? 'Selecione apenas atividades solicitadas pela pessoa.' : 'Selecione ao menos uma atividade para aprovar, ou rejeite a solicitaÃ§Ã£o.' });
   }
   const notes = String(req.body.registration_review_notes || '').trim().slice(0, 2000);
   db.transaction(() => {
@@ -3516,9 +3537,9 @@ router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res
       approvedActivities: activities.filter((activity) => approvedIds.includes(Number(activity.id))),
       approvedAll: decision === 'approved' && approvedIds.length === requestedIds.length });
   } catch (error) {
-    console.error('[email] Falha ao enfileirar decisão de inscrição:', error.message);
+    console.error('[email] Falha ao enfileirar decisÃ£o de inscriÃ§Ã£o:', error.message);
   }
-  return res.redirect(`/admin/events/${event.id}/participants?success=${encodeURIComponent(decision === 'approved' ? 'Inscrição aprovada.' : 'Solicitação de inscrição rejeitada.')}`);
+  return res.redirect(`/admin/events/${event.id}/participants?success=${encodeURIComponent(decision === 'approved' ? 'InscriÃ§Ã£o aprovada.' : 'SolicitaÃ§Ã£o de inscriÃ§Ã£o rejeitada.')}`);
 });
 
 // Decisao (SIM/N AO) de pedido de inscricao em atividade para participante ja
@@ -3528,15 +3549,15 @@ router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res
 router.post('/:id/participants/:registrationId/activities/decide', strictLimiter, (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id));
   const registration = event && getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
-  if (!event || !registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
+  if (!event || !registration) return res.status(404).render('error', { title: 'Participante nÃ£o encontrado' });
   const back = (params) => res.redirect(`/admin/events/${event.id}/participants/${registration.id}/edit?${params}`);
   const activityId = Number(req.body.activity_id);
   const decision = req.body.decision === 'approve' ? 'approve' : req.body.decision === 'reject' ? 'reject' : null;
-  if (!Number.isInteger(activityId) || activityId <= 0 || !decision) return back(`error=${encodeURIComponent('Decisão inválida.')}`);
+  if (!Number.isInteger(activityId) || activityId <= 0 || !decision) return back(`error=${encodeURIComponent('DecisÃ£o invÃ¡lida.')}`);
   const activity = db.prepare('SELECT id,name FROM event_activities WHERE id=? AND event_id=?').get(activityId, event.id);
-  if (!activity) return back(`error=${encodeURIComponent('Atividade não encontrada neste evento.')}`);
+  if (!activity) return back(`error=${encodeURIComponent('Atividade nÃ£o encontrada neste evento.')}`);
   const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
-  if (!requestedIds.includes(activityId)) return back(`error=${encodeURIComponent('Este pedido não está aguardando análise.')}`);
+  if (!requestedIds.includes(activityId)) return back(`error=${encodeURIComponent('Este pedido nÃ£o estÃ¡ aguardando anÃ¡lise.')}`);
   const rejectedIds = parseRequestedActivityIds(registration.rejected_activity_ids);
   const newRequested = JSON.stringify(requestedIds.filter((id) => id !== activityId));
 
@@ -3557,7 +3578,7 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
         action: 'participant_activity_request_approved', details: { activity_id: activityId }
       });
     })();
-    return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" aprovado.`)}`);
+    return back(`success=${encodeURIComponent(`Pedido de inscriÃ§Ã£o em "${activity.name}" aprovado.`)}`);
   }
 
   db.transaction(() => {
@@ -3568,15 +3589,15 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
       action: 'participant_activity_request_rejected', details: { activity_id: activityId }
     });
   })();
-  return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" negado. A pessoa ficará impossibilitada de solicitá-la novamente.`)}`);
+  return back(`success=${encodeURIComponent(`Pedido de inscriÃ§Ã£o em "${activity.name}" negado. A pessoa ficarÃ¡ impossibilitada de solicitÃ¡-la novamente.`)}`);
 });
 
 router.get('/:id/participants/:registrationId/edit', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   const registration = getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
-  if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
+  if (!registration) return res.status(404).render('error', { title: 'Participante nÃ£o encontrado' });
 
   const areas = getAreas();
   const cursosMap = getCursosMap();
@@ -3613,12 +3634,20 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
 
 function updateParticipant(req, res) {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
 
   const registration = getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
-  if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
+  if (!registration) return res.status(404).render('error', { title: 'Participante nÃ£o encontrado' });
 
   const formData = normalizeParticipantForm(req.body);
+
+  const canEditGlobalData = isSuperAdminUser(req.session.userId);
+  if (registration.user_id && !canEditGlobalData) {
+    formData.name = registration.name || formData.name;
+    formData.email = String(registration.email || '').trim().toLowerCase() || formData.email;
+    formData.institution = registration.institution || '';
+    formData.phone = registration.phone || '';
+  }
 
   const validationError = validateParticipantForm(formData);
   if (validationError) return renderParticipantFormError(res, event, registration, formData, validationError);
@@ -3626,7 +3655,7 @@ function updateParticipant(req, res) {
   if (activityValidationError) return renderParticipantFormError(res, event, registration, formData, activityValidationError);
 
   if (registration.submitted_articles > 0 && formData.registration_type !== 'author') {
-    return renderParticipantFormError(res, event, registration, formData, 'Participantes com artigo submetido não podem ser rebaixados para participante sem artigo.');
+    return renderParticipantFormError(res, event, registration, formData, 'Participantes com artigo submetido nÃ£o podem ser rebaixados para participante sem artigo.');
   }
 
   const previousEventRoles = registration.user_id ? getParticipantEventRoles(event.id, registration.user_id) : [];
@@ -3645,7 +3674,7 @@ function updateParticipant(req, res) {
         WHERE id=? AND event_id=?`).run(formData.name, formData.email, formData.institution,
         formData.phone, formData.registration_type, req.params.registrationId, req.params.id);
       saveParticipantActivities(registration.id, registration.user_id, formData.activity_ids, req.session.userId);
-      if (registration.user_id) {
+      if (registration.user_id && canEditGlobalData) {
         const noDegree = formData.formacao_curso === NO_DEGREE_COURSE;
         db.prepare(`UPDATE users
           SET phone=?,formacao_area=?,formacao_curso=?,formacao_titulacao=?,formacao_status=?,updated_at=datetime('now','-3 hours')
@@ -3669,12 +3698,12 @@ function updateParticipant(req, res) {
       try {
         queueParticipantActivitiesUpdated({ event, registration: { ...registration, name: formData.name, email: formData.email }, activities });
       } catch (error) {
-        console.error('[email] Falha ao enfileirar alteração de atividades:', error.message);
+        console.error('[email] Falha ao enfileirar alteraÃ§Ã£o de atividades:', error.message);
       }
     }
   } catch (error) {
     if (error && String(error.message).includes('UNIQUE constraint failed')) {
-      return renderParticipantFormError(res, event, registration, formData, 'Já existe uma inscrição para este e-mail ou conta neste evento.');
+      return renderParticipantFormError(res, event, registration, formData, 'JÃ¡ existe uma inscriÃ§Ã£o para este e-mail ou conta neste evento.');
     }
     throw error;
   }
@@ -3682,7 +3711,7 @@ function updateParticipant(req, res) {
   res.redirect(`/admin/events/${req.params.id}/participants?success=${encodeURIComponent('Participante atualizado com sucesso.')}`);
 }
 
-// O formulário HTML usa POST diretamente; PUT permanece para integrações legadas.
+// O formulÃ¡rio HTML usa POST diretamente; PUT permanece para integraÃ§Ãµes legadas.
 router.post('/:id/participants/:registrationId', (req, res, next) => {
   validateAndHandle(req, res, next, v.participantForm);
 }, updateParticipant);
@@ -3690,12 +3719,12 @@ router.put('/:id/participants/:registrationId', updateParticipant);
 
 router.delete('/:id/participants/:registrationId', (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').bind(req.params.id).get();
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (!event) return res.status(404).render('error', { title: 'Evento nÃ£o encontrado' });
   const registration = getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
-  if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
+  if (!registration) return res.status(404).render('error', { title: 'Participante nÃ£o encontrado' });
 
   if (registration.submitted_articles > 0) {
-    return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Não é possível remover participante com artigo submetido. Exclua os artigos primeiro; a inscrição será convertida para participante sem artigo quando não houver mais submissões.')}`);
+    return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('NÃ£o Ã© possÃ­vel remover participante com artigo submetido. Exclua os artigos primeiro; a inscriÃ§Ã£o serÃ¡ convertida para participante sem artigo quando nÃ£o houver mais submissÃµes.')}`);
   }
 
   db.prepare('DELETE FROM event_registrations WHERE id = ? AND event_id = ?').run(registration.id, event.id);
@@ -3727,7 +3756,7 @@ router.get('/:id/subsidies/:registrationId/document/:documentType', (req, res) =
 
   const documentConfig = documentMap[req.params.documentType];
   if (!documentConfig) {
-    return res.status(404).render('error', { title: 'Documento não encontrado' });
+    return res.status(404).render('error', { title: 'Documento nÃ£o encontrado' });
   }
 
   const registration = db.prepare(`
@@ -3739,13 +3768,13 @@ router.get('/:id/subsidies/:registrationId/document/:documentType', (req, res) =
   `).bind(req.params.registrationId, req.params.id).get();
 
   if (!registration) {
-    return res.status(404).render('error', { title: 'Pedido de subsídio não encontrado' });
+    return res.status(404).render('error', { title: 'Pedido de subsÃ­dio nÃ£o encontrado' });
   }
 
   const fileName = registration[documentConfig.pathField];
   const originalName = registration[documentConfig.nameField] || 'documento.pdf';
   if (!fileName) {
-    return res.status(404).render('error', { title: 'Documento não encontrado' });
+    return res.status(404).render('error', { title: 'Documento nÃ£o encontrado' });
   }
 
   res.type('application/pdf');
@@ -3772,7 +3801,7 @@ router.post('/:id/subsidies/:registrationId/decision', strictLimiter, (req, res,
   `).bind(req.params.registrationId, req.params.id).get();
 
   if (!registration) {
-    return res.status(404).render('error', { title: 'Pedido de subsídio não encontrado' });
+    return res.status(404).render('error', { title: 'Pedido de subsÃ­dio nÃ£o encontrado' });
   }
 
   db.prepare(`
@@ -3802,7 +3831,7 @@ router.post('/:id/publish', strictLimiter, (req, res, next) => {
 router.post('/:id/close', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id, status FROM events WHERE id = ?').get(req.params.id);
   if (!event) {
-    return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
+    return res.status(404).render('error', { title: 'Evento nÃ£o encontrado', message: 'O evento solicitado nÃ£o foi encontrado.' });
   }
   if (event.status !== 'published') {
     return res.redirect('/admin/events');
@@ -3815,7 +3844,7 @@ router.post('/:id/close', strictLimiter, (req, res) => {
 router.post('/:id/reopen', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id, status FROM events WHERE id = ?').get(req.params.id);
   if (!event) {
-    return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
+    return res.status(404).render('error', { title: 'Evento nÃ£o encontrado', message: 'O evento solicitado nÃ£o foi encontrado.' });
   }
   if (event.status !== 'encerrado') {
     return res.redirect('/admin/events');

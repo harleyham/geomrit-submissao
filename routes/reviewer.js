@@ -64,9 +64,11 @@ function getReviewerDashboardData(reviewerId, reviewerName) {
   };
 }
 
-// Middleware de autenticação revisor
+// Middleware de autenticação revisor: o papel vem do banco (event_user_roles),
+// não mais de flag global ou de sessão.
 function requireReviewer(req, res, next) {
-  if (!req.session.isReviewer) {
+  const userId = req.session && req.session.userId;
+  if (!userId || !db.prepare("SELECT 1 FROM event_user_roles WHERE user_id = ? AND role = 'reviewer' LIMIT 1").get(userId)) {
     return res.redirect('/login');
   }
   next();

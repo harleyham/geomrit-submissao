@@ -1174,7 +1174,7 @@ router.get('/evento/:id/certificates', requireNonAdminAuthorAccess, (req, res) =
 });
 
 router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
-  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
+  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published','encerrado')").bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const currentUser = db.prepare(`
     SELECT institution
@@ -1197,6 +1197,10 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
   `).get(req.params.id, req.session.userId, req.session.userEmail || '');
 
   const registrationWindow = getRegistrationWindow(event);
+  if (event.status === 'encerrado') {
+    registrationWindow.isOpen = false;
+    if (!existingRegistration) registrationWindow.message = 'O evento está encerrado e não aceita novas inscrições.';
+  }
 
   return renderListenerRegistrationForm(res, event, {
     error: !registrationWindow.isOpen ? registrationWindow.message : null,
@@ -1419,7 +1423,6 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
     eventId: event.id, registrationId: registrationResult.lastInsertRowid, actorUserId: req.session.userId,
     action: 'participant_activities_selected_on_registration', details: { activity_ids: formData.activity_ids, registration_status: event.registration_approval_mode === 'review' ? 'pending' : 'approved' }
   });
-  db.prepare("UPDATE users SET is_participant=1, updated_at=datetime('now','-3 hours') WHERE id=?").run(req.session.userId);
   try {
     queuePublicRegistrationSubmission({
       event,
@@ -2417,14 +2420,16 @@ router.post('/consultar-certificado', (req, res, next) => {
   res.render('public/certificado-consulta', { certificate, error: null, codePrefill: certificate_code, title: 'Certificado Verificado' });
 });
 
-// Página de revisores
+// Página de revisores (papéis são por evento: quem tem papel 'reviewer' em
+// pelo menos um evento, independentemente de flags globais legadas)
 router.get('/revisores', (req, res) => {
   const reviewers = db.prepare(`
     SELECT u.id, u.name, u.email, COUNT(DISTINCT a.id) as article_count
     FROM users u
+    JOIN event_user_roles eur ON eur.user_id = u.id AND eur.role = 'reviewer'
     LEFT JOIN assignments ass ON ass.reviewer_id = u.id
     LEFT JOIN articles a ON a.id = ass.article_id AND a.status != 'draft'
-    WHERE u.is_reviewer = 1 AND u.is_public = 1
+    WHERE u.is_public = 1
     GROUP BY u.id
     ORDER BY u.name
   `).all();

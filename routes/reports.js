@@ -4,33 +4,34 @@ const { db, getAssignmentsByEvent, getPendingReviews, getReviewedArticles } = re
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
 
-// Autoriza administradores e staff. O staff só vê/age nos eventos em que foi
-// marcado (req.staffEventIds, definido por requireAdminOrStaff no mount).
+// Autoriza administradores de eventos e staff. O escopo (req.scopedEventIds,
+// definido por requireAdminOrStaff no mount) é a união dos eventos em que a
+// pessoa é administradora ou staff; o superadmin fica sem escopo (tudo).
 function requireAuth(req, res, next) {
-  if (req.session.isAdmin || Array.isArray(req.staffEventIds)) {
+  if (req.isSuperAdmin || Array.isArray(req.scopedEventIds)) {
     return next();
   }
   return res.redirect('/login');
 }
 
 function isStaffScoped(req) {
-  return Array.isArray(req.staffEventIds) && !req.session.isAdmin;
+  return !req.isSuperAdmin && Array.isArray(req.scopedEventIds);
 }
 
 function staffDeny(res) {
-  return res.status(403).render('error', { title: 'Acesso negado', message: 'Você só pode acessar dados dos eventos em que é staff.' });
+  return res.status(403).render('error', { title: 'Acesso negado', message: 'Você só pode acessar dados dos eventos que administra ou nos quais é staff.' });
 }
 
 function staffEventAllowed(req, eventId) {
-  return !isStaffScoped(req) || req.staffEventIds.includes(Number(eventId));
+  return !isStaffScoped(req) || req.scopedEventIds.includes(Number(eventId));
 }
 
-// Ações por artigo (:id) exigem artigo de um evento do staff.
+// Ações por artigo (:id) exigem artigo de um evento do escopo.
 router.param('id', (req, res, next, id) => {
   if (!isStaffScoped(req)) return next();
   const article = db.prepare('SELECT event_id FROM articles WHERE id = ?').get(id);
   if (!article) return res.status(404).render('error', { title: 'Artigo não encontrado' });
-  if (!req.staffEventIds.includes(Number(article.event_id))) return staffDeny(res);
+  if (!req.scopedEventIds.includes(Number(article.event_id))) return staffDeny(res);
   next();
 });
 
