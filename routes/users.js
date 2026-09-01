@@ -15,6 +15,7 @@ const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academ
 const { queueAccountApproved, queuePasswordReset, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   canQueueEmail, getSystemEmailSettings } = require('../services/email');
 const { brDate, brToday } = require('../services/datetime');
+const { isSuperAdminUser } = require('./auth');
 
 const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
 if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: true });
@@ -364,7 +365,7 @@ router.get('/new', requireAuth, (req, res) => {
 router.post('/', requireAuth, strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.userForm);
 }, (req, res) => {
-  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer, formacao_area, formacao_curso, formacao_titulacao, formacao_status } = req.body;
+  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_reviewer, formacao_area, formacao_curso, formacao_titulacao, formacao_status } = req.body;
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
   const areas = getAreas();
@@ -372,7 +373,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
 
   if (!email || !password) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       areas: areas,
@@ -386,7 +387,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(email).get();
   if (existing) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       areas: areas,
@@ -399,7 +400,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
 
   if (!isValidCPF(cpf)) {
     return res.render('admin/users/form', {
-      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Novo Usuário',
       year: new Date().getFullYear(),
       areas: areas,
@@ -413,9 +414,9 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
   const hash = bcrypt.hashSync(password, 10);
   const createdUser = db.prepare(`
     INSERT INTO users (name, email, password, cpf, passport, country, institution, phone, reviewer_areas,
-      is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_staff, is_public, approval_status, approved_at, password_changed, created_at, updated_at,
+      is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_staff, is_public, approval_status, approved_at, password_changed, created_at, updated_at,
       formacao_area, formacao_curso, formacao_titulacao, formacao_status, profile_completed)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'),
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 'approved', datetime('now', '-3 hours'), 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'),
       ?, ?, ?, ?, 0)
   `).bind(
     name || email,
@@ -427,7 +428,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
     institution || null,
     phone || null,
     normalizedReviewerAreas || null,
-    is_admin ? 1 : 0, is_reviewer ? 1 : 0,
+    is_reviewer ? 1 : 0,
     certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher,
     certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
     formacao_area || null,
@@ -448,7 +449,9 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
 router.get('/:id/edit', requireAuth, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').bind(req.params.id).get();
   if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
-  const managedEvents = db.prepare(`SELECT e.id,e.name,e.date_start FROM events e JOIN event_user_roles eur ON eur.event_id=e.id WHERE eur.user_id=? AND eur.role='admin' ORDER BY e.date_start DESC,e.name`).all(req.session.userId);
+  const managedEvents = isSuperAdminUser(req.session.userId)
+    ? db.prepare('SELECT e.id,e.name,e.date_start FROM events e ORDER BY e.date_start DESC,e.name').all()
+    : db.prepare(`SELECT e.id,e.name,e.date_start FROM events e JOIN event_user_roles eur ON eur.event_id=e.id WHERE eur.user_id=? AND eur.role='admin' ORDER BY e.date_start DESC,e.name`).all(req.session.userId);
   const selectedEventId = managedEvents.some((event) => event.id === Number(req.query.event_id)) ? Number(req.query.event_id) : (managedEvents[0] && managedEvents[0].id);
   const eventRoles = selectedEventId ? db.prepare('SELECT role,article_id FROM event_user_roles WHERE event_id=? AND user_id=?').all(selectedEventId, user.id) : [];
   const approvedArticles = selectedEventId ? db.prepare("SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title").all(selectedEventId) : [];
@@ -470,14 +473,11 @@ router.get('/:id/edit', requireAuth, (req, res) => {
 
 router.post('/:id/event-roles', requireAuth, (req, res) => {
   const userId = Number(req.params.id), eventId = Number(req.body.event_id);
-  const allowed = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId, req.session.userId);
+  const allowed = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId, req.session.userId) || isSuperAdminUser(req.session.userId);
   if (!allowed) return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não administra este evento.' });
   const roles = Array.isArray(req.body.roles) ? req.body.roles : [req.body.roles];
   const valid = ['admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter'];
-  const targetIsStaff = db.prepare('SELECT is_staff FROM users WHERE id=?').get(userId)?.is_staff;
-  if (roles.includes('staff') && !targetIsStaff) {
-    return res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&error=${encodeURIComponent('Ative a chave Staff na lista de usuários antes de marcar Staff em um evento.')}`);
-  }
+  if (roles.includes('staff')) db.prepare("UPDATE users SET is_staff = 1, updated_at = datetime('now', '-3 hours') WHERE id = ?").run(userId);
   const selected = valid.filter((role) => roles.includes(role));
   const currentAdmins = db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(eventId).count;
   const removingSelfAdmin = !selected.includes('admin') && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId,userId);
@@ -634,7 +634,7 @@ router.get('/:id/participant', requireAuth, (req, res) => {
 
 function updateUser(req, res) {
   const id = parseInt(req.params.id, 10);
-  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_admin, is_reviewer, formacao_area, formacao_curso, formacao_titulacao, formacao_status } = req.body;
+  const { name, email, password, cpf, passport, country, institution, phone, reviewer_areas, is_reviewer, formacao_area, formacao_curso, formacao_titulacao, formacao_status } = req.body;
   const certificateProfiles = getCertificateProfileFlags(req.body);
   const normalizedReviewerAreas = normalizeReviewerAreas(reviewer_areas);
   const user = db.prepare('SELECT id, name, email, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
@@ -645,16 +645,12 @@ function updateUser(req, res) {
 
   const displayName = name || user.name;
   const displayEmail = email || user.email;
-  const nextIsAdmin = is_admin ? 1 : 0;
-  if (isRemovingLastActiveAdmin(user, nextIsAdmin, user.is_public)) {
-    return res.redirect('/admin/users?error=O sistema deve manter pelo menos um administrador ativo');
-  }
 
   if (!isValidCPF(cpf)) {
     const areas = getAreas();
     const cursosMap = getCursosMap();
     return res.render('admin/users/form', {
-      user: { id, name: displayName, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_admin, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
+      user: { id, name: displayName, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, is_reviewer, ...certificateProfiles, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Editar Usuário',
       year: new Date().getFullYear(),
       areas: areas,
@@ -669,26 +665,26 @@ function updateUser(req, res) {
     const hash = bcrypt.hashSync(password, 10);
     db.prepare(`
       UPDATE users SET name=?, email=?, password=?, cpf=?, passport=?, country=?, institution=?, phone=?, reviewer_areas=?,
-        is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, password_changed=0, updated_at=datetime('now', '-3 hours'),
+        is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, password_changed=0, updated_at=datetime('now', '-3 hours'),
         formacao_area=?, formacao_curso=?, formacao_titulacao=?, formacao_status=?
       WHERE id=?
      `).bind(
        displayName, displayEmail, hash,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
-      nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
+      is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
       formacao_area || null, formacao_curso || null, formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null), formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null),
       id
     ).run();
   } else {
     db.prepare(`
       UPDATE users SET name=?, email=?, cpf=?, passport=?, country=?, institution=?, phone=?, reviewer_areas=?,
-        is_admin=?, is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, updated_at=datetime('now', '-3 hours'),
+        is_reviewer=?, is_participant=?, is_speaker=?, is_teacher=?, is_oral_presenter=?, is_poster_presenter=?, updated_at=datetime('now', '-3 hours'),
         formacao_area=?, formacao_curso=?, formacao_titulacao=?, formacao_status=?
       WHERE id=?
      `).bind(
        displayName, displayEmail,
       normalizeCPF(cpf) || null, passport || null, country || null, institution || null, phone || null, normalizedReviewerAreas || null,
-      nextIsAdmin, is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
+      is_reviewer ? 1 : 0, certificateProfiles.is_participant, certificateProfiles.is_speaker, certificateProfiles.is_teacher, certificateProfiles.is_oral_presenter, certificateProfiles.is_poster_presenter,
       formacao_area || null, formacao_curso || null, formacao_curso === NO_DEGREE_COURSE ? null : (formacao_titulacao || null), formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null),
       id
     ).run();
@@ -840,7 +836,7 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
 
     return {
       id: user.id,
-      is_admin: parseToggleValue(req.body[`is_admin_${user.id}`]),
+      is_admin: pendingUser.is_admin,
       is_public: parseToggleValue(req.body[`is_public_${user.id}`])
     };
   }).filter((user) => user.is_admin === 1 && user.is_public === 1);
@@ -851,7 +847,7 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
 
   const updateStmt = db.prepare(`
     UPDATE users
-    SET is_admin = ?, is_reviewer = ?, is_staff = ?, is_public = ?, approval_status = ?,
+    SET is_reviewer = ?, is_staff = ?, is_public = ?, approval_status = ?,
         approved_at = CASE
           WHEN ? = 'approved' AND approved_at IS NULL THEN datetime('now', '-3 hours')
           ELSE approved_at
@@ -875,7 +871,6 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
       const approvalStatus = getNextApprovalStatus(currentUser && currentUser.approval_status, nextIsPublic);
       const nextIsStaff = parseToggleValue(req.body[`is_staff_${id}`]);
       updateStmt.run(
-        parseToggleValue(req.body[`is_admin_${id}`]),
         parseToggleValue(req.body[`is_reviewer_${id}`]),
         nextIsStaff,
         nextIsPublic,

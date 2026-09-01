@@ -125,7 +125,7 @@
         <% } %>
         <div>
           <h1>Relatórios - <%= event.name %></h1>
-          <p class="event-meta"><%= event.area_display || event.area %> · <%= new Date(event.date_start).toLocaleDateString('pt-BR') %> – <%= event.date_end ? new Date(event.date_end).toLocaleDateString('pt-BR') : '' %></p>
+          <p class="event-meta"><%= event.area_display || event.area %> · <%= formatBRDate(event.date_start) %> – <%= event.date_end ? formatBRDate(event.date_end) : '' %></p>
         </div>
       </div>
       <div class="page-header-actions no-print">
@@ -154,11 +154,11 @@
           </div>
           <div>
             <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Período do Evento</h3>
-            <p style="font-size: 1.0625rem; color: #f1f5f9;"><%= new Date(event.date_start).toLocaleDateString('pt-BR') %> – <%= event.date_end ? new Date(event.date_end).toLocaleDateString('pt-BR') : 'Não definido' %></p>
+            <p style="font-size: 1.0625rem; color: #f1f5f9;"><%= formatBRDate(event.date_start) %> – <%= event.date_end ? formatBRDate(event.date_end) : 'Não definido' %></p>
           </div>
           <div>
             <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Período de Submissão</h3>
-            <p style="font-size: 1.0625rem; color: #f1f5f9;"><%= event.submission_start ? new Date(event.submission_start).toLocaleDateString('pt-BR') : 'ND' %> – <%= event.submission_end ? new Date(event.submission_end).toLocaleDateString('pt-BR') : 'ND' %></p>
+            <p style="font-size: 1.0625rem; color: #f1f5f9;"><%= event.submission_start ? formatBRDate(event.submission_start) : 'ND' %> – <%= event.submission_end ? formatBRDate(event.submission_end) : 'ND' %></p>
           </div>
           <div>
             <h3 style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Área</h3>

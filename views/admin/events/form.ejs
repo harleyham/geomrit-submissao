@@ -89,6 +89,11 @@
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="_method" value="DELETE">
       </form>
+      <% if (event.status === 'encerrado') { %>
+        <form id="reopen-event-form" method="POST" action="/admin/events/<%= event.id %>/reopen" nonce="<%= cspNonce %>" onsubmit="return confirm('Reabrir o evento <%= event.name %>? Ele voltará a aparecer na página inicial e a aceitar novas inscrições e submissões.');">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        </form>
+      <% } %>
     <% } %>
 
     <form method="POST" enctype="multipart/form-data" action="<%= event ? '/admin/events/' + event.id : '/admin/events' %>">
@@ -288,6 +293,9 @@
       <div class="form-actions">
         <div>
           <% if (event) { %>
+            <% if (event.status === 'encerrado') { %>
+              <button type="submit" form="reopen-event-form" class="btn btn-secondary">Reabrir Evento</button>
+            <% } %>
             <button type="submit" form="delete-event-form" class="btn btn-danger">Apagar Evento</button>
           <% } %>
         </div>

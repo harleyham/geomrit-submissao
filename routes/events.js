@@ -17,6 +17,7 @@ const { getSystemEmailSettings, getPendingEmailCount, setEventEmailEnabled, queu
   queueVideoLinkNotifications, isValidHttpUrl, createImportBatch, getImportBatchEmailSummary,
   authorizeImportBatch, queueImportedAccount, queueImportedRegistration, queueRegistrationReviewDecision, queueParticipantActivitiesUpdated } = require('../services/email');
 const { strictLimiter } = require('../security/rate-limits');
+const { isSuperAdminUser } = require('./auth');
 const { validateAndHandle, validators: v } = require('../security/validation');
 const rooms = require('../services/rooms');
 
@@ -246,6 +247,7 @@ router.use((req, res, next) => {
   const match = req.path.match(/^\/(\d+)(?:\/|$)/);
   if (!match) return next();
   const eventId = Number(match[1]);
+  if (isSuperAdminUser(req.session.userId)) { req.eventRole = 'admin'; return next(); }
   const isAdmin = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin' LIMIT 1")
     .get(eventId, req.session.userId);
   if (isAdmin) { req.eventRole = 'admin'; return next(); }
@@ -259,6 +261,13 @@ router.use((req, res, next) => {
 function requireEventAdminOnly(req, res, next) {
   if (req.eventRole === 'admin' || req.session.isAdmin) return next();
   return res.status(403).render('error', { title: 'Acesso negado', message: 'Esta ação é restrita ao administrador do evento.' });
+}
+
+// Criação de evento é aberta a qualquer usuário autenticado: o criador recebe
+// automaticamente o papel de admin do evento recém-criado.
+function requireSignedUser(req, res, next) {
+  if (!req.session || !req.session.userId) return res.redirect('/login');
+  next();
 }
 
 const certificateBackgroundDir = path.join(__dirname, '..', 'uploads', 'certificate-backgrounds');
@@ -780,8 +789,10 @@ router.get('/', (req, res) => {
   const listenerRegistrationByEventId = new Map(getListenerRegistrationCountByEvent().map((row) => [row.event_id, row.count]));
   const pendingRegistrationByEventId = new Map(getPendingRegistrationCountByEvent().map((row) => [row.event_id, row.count]));
   const subsidyRequestByEventId = new Map(getSubsidyRequestCountByEvent().map((row) => [row.event_id, row.count]));
-  const roleRows = db.prepare(`SELECT e.*, eur.role FROM events e JOIN event_user_roles eur ON eur.event_id=e.id
-    WHERE eur.user_id=? AND eur.role IN ('admin','staff') ORDER BY e.date_start DESC`).all(req.session.userId);
+  const roleRows = isSuperAdminUser(req.session.userId)
+    ? db.prepare("SELECT e.*, 'admin' AS role FROM events e ORDER BY e.date_start DESC").all()
+    : db.prepare(`SELECT e.*, eur.role FROM events e JOIN event_user_roles eur ON eur.event_id=e.id
+      WHERE eur.user_id=? AND eur.role IN ('admin','staff') ORDER BY e.date_start DESC`).all(req.session.userId);
   const eventsById = new Map();
   roleRows.forEach((row) => {
     if (!eventsById.has(row.id)) {
@@ -824,12 +835,12 @@ router.post('/:id/email-enabled', strictLimiter, (req, res) => {
 });
 
 // Novo evento
-router.get('/new', requireEventAdminOnly, (req, res) => {
+router.get('/new', requireSignedUser, (req, res) => {
   renderEventForm(res, { event: null, title: 'Novo Evento' });
 });
 
 // Criar evento
-router.post('/', requireEventAdminOnly, strictLimiter, runEventAssetUpload, (req, res, next) => {
+router.post('/', requireSignedUser, strictLimiter, runEventAssetUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventFormFull);
 }, (req, res) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
@@ -946,6 +957,8 @@ router.post('/', requireEventAdminOnly, strictLimiter, runEventAssetUpload, (req
     db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(info.lastInsertRowid, req.session.userId, req.session.userId);
     return info;
   })();
+  req.session.isAdmin = true;
+  if (Array.isArray(req.session.userRoles) && !req.session.userRoles.includes('admin')) req.session.userRoles.push('admin');
   res.redirect('/admin/events');
 });
 
@@ -3152,11 +3165,7 @@ router.get('/:id/roles', (req, res) => {
 });
 
 router.post('/:id/roles', strictLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, [
-    body('role').isIn(['admin', 'staff', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.'),
-    body('user_id').isInt({ min: 1 }).withMessage('Usuário inválido.'),
-    body('article_id').optional().isInt({ min: 1 }).withMessage('Artigo inválido.')
-  ]);
+  validateAndHandle(req, res, next, v.roleAssignment);
 }, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   const role = EVENT_ASSIGNABLE_ROLES.includes(req.body.role) ? req.body.role : null;
@@ -3164,8 +3173,11 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
   if (!event || !role || !Number.isInteger(userId)) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel válidos.')}`);
   let articleId = null;
   const profileColumn = { staff: 'is_staff', speaker: 'is_speaker', teacher: 'is_teacher', oral_presenter: 'is_oral_presenter', poster_presenter: 'is_poster_presenter' }[role];
-  const user = profileColumn ? db.prepare(`SELECT id, ${profileColumn} AS profile_enabled FROM users WHERE id=?`).get(userId) : db.prepare('SELECT id, 1 AS profile_enabled FROM users WHERE id=?').get(userId);
-  if (!user || !user.profile_enabled) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Ative primeiro este perfil no cadastro do usuário.')}`);
+  const user = db.prepare('SELECT id FROM users WHERE id=?').get(userId);
+  if (!user) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel válidos.')}`);
+  // Atribuir um papel pelo admin do evento liga automaticamente a
+  // habilitação global correspondente no cadastro da pessoa.
+  if (profileColumn) db.prepare(`UPDATE users SET ${profileColumn} = 1, updated_at = datetime('now', '-3 hours') WHERE id = ?`).run(userId);
   if (role === 'oral_presenter' || role === 'poster_presenter') {
     articleId = parseInt(req.body.article_id, 10);
     const article = db.prepare(`SELECT id FROM articles WHERE id=? AND event_id=? AND status='approved' AND type=?`).get(articleId, event.id, role === 'oral_presenter' ? 'oral' : 'poster');
@@ -3796,6 +3808,19 @@ router.post('/:id/close', strictLimiter, (req, res) => {
     return res.redirect('/admin/events');
   }
   db.prepare("UPDATE events SET status = 'encerrado', updated_at = datetime('now', '-3 hours') WHERE id = ?").run(req.params.id);
+  res.redirect('/admin/events');
+});
+
+// Reabrir evento encerrado (retorna ao status publicado)
+router.post('/:id/reopen', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id, status FROM events WHERE id = ?').get(req.params.id);
+  if (!event) {
+    return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
+  }
+  if (event.status !== 'encerrado') {
+    return res.redirect('/admin/events');
+  }
+  db.prepare("UPDATE events SET status = 'published', updated_at = datetime('now', '-3 hours') WHERE id = ?").run(req.params.id);
   res.redirect('/admin/events');
 });
 

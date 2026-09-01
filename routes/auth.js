@@ -176,11 +176,18 @@ function getListenerRegistrationCountWhere(whereClause = '', bindParams = []) {
   `).bind(...bindParams).get().count;
 }
 
+// Superadministrador: conta fixa admin@admin.com com is_admin — vê e administra
+// todos os eventos do sistema, independentemente de papéis atribuídos.
+function isSuperAdminUser(userId) {
+  if (!userId) return false;
+  return Boolean(db.prepare("SELECT 1 FROM users WHERE id = ? AND email = 'admin@admin.com' AND is_admin = 1 AND is_public = 1 LIMIT 1").get(userId));
+}
+
 // Middleware de autenticação admin
 function requireAuth(req, res, next) {
   const hasEventAdminRole = req.session && req.session.userId && db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(req.session.userId);
   const canBootstrap = req.session && req.session.userId && db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0 && db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId)?.is_admin;
-  if (!req.session.isAdmin && !hasEventAdminRole && !canBootstrap) {
+  if (!req.session.isAdmin && !hasEventAdminRole && !canBootstrap && !isSuperAdminUser(req.session.userId)) {
     return res.redirect('/login');
   }
   req.session.isAdmin = true;
@@ -193,27 +200,31 @@ function requireAuth(req, res, next) {
 // aos eventos em que foram marcados como staff: `req.staffEventIds` lista esses
 // eventos e é usado pelos routers para restringir consultas e ações. O staff
 // não é promovido a sessão de admin (req.session.isAdmin continua false).
+// Usuário autenticado sem papel passa sem promoção: os routers restringem por
+// conta própria (em /admin/events, a lista mostra só os eventos do usuário e a
+// criação é liberada; as rotas por evento exigem papel no banco).
 function getStaffEventIds(userId) {
   return db.prepare("SELECT event_id FROM event_user_roles WHERE user_id=? AND role='staff'").all(userId).map((row) => row.event_id);
 }
 
 function requireAdminOrStaff(req, res, next) {
-  if (req.session && req.session.userId) {
-    const hasEventAdminRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(req.session.userId);
-    const canBootstrap = db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0 && db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId)?.is_admin;
-    if (req.session.isAdmin || hasEventAdminRole || canBootstrap) {
-      req.session.isAdmin = true;
-      req.staffEventIds = null; // acesso irrestrito
-      return next();
-    }
-    const staffEventIds = getStaffEventIds(req.session.userId);
-    if (staffEventIds.length) {
-      req.session.isEventStaff = true;
-      req.staffEventIds = staffEventIds;
-      return next();
-    }
+  if (!req.session || !req.session.userId) {
+    return res.redirect('/login');
   }
-  return res.redirect('/login');
+  const hasEventAdminRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(req.session.userId);
+  const canBootstrap = db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0 && db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId)?.is_admin;
+  if (req.session.isAdmin || hasEventAdminRole || canBootstrap || isSuperAdminUser(req.session.userId)) {
+    req.session.isAdmin = true;
+    req.staffEventIds = null; // acesso irrestrito
+    return next();
+  }
+  const staffEventIds = getStaffEventIds(req.session.userId);
+  if (staffEventIds.length) {
+    req.session.isEventStaff = true;
+    req.staffEventIds = staffEventIds;
+    return next();
+  }
+  return next();
 }
 
 function safeAfterLoginPath(value) {
@@ -676,7 +687,7 @@ function doLoginAfterRegen(req, res) {
   req.session.isPublic = false;
 
   const hasEventAdminRole = db.prepare("SELECT 1 FROM event_user_roles WHERE user_id=? AND role='admin' LIMIT 1").get(user.id);
-  if (hasEventAdminRole || (user.is_admin && db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0)) {
+  if (hasEventAdminRole || isSuperAdminUser(user.id) || (user.is_admin && db.prepare('SELECT COUNT(*) AS count FROM events').get().count === 0)) {
     req.session.isAdmin = true;
     req.session.userRoles.push('admin');
   }
@@ -841,4 +852,4 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
   return res.redirect(authenticatedDestination(req));
 });
 
-module.exports = { router, requireAuth, requireAdminOrStaff, getStaffEventIds, requireOnboarding, requireActiveAccount };
+module.exports = { router, requireAuth, requireAdminOrStaff, getStaffEventIds, requireOnboarding, requireActiveAccount, isSuperAdminUser };

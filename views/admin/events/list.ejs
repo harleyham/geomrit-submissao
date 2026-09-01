@@ -73,7 +73,7 @@
   <main class="main-content">
     <div class="page-header">
       <h1>Eventos</h1>
-      <% if (canManageEvents) { %><a href="/admin/events/new" class="btn btn-primary">+ Novo Evento</a><% } %>
+      <a href="/admin/events/new" class="btn btn-primary">+ Novo Evento</a>
     </div>
 
     <% if (message) { %><div style="padding:1rem 1.25rem;margin-bottom:1rem;border-radius:10px;background:rgba(59,130,246,.1);border:1px solid rgba(96,165,250,.25);color:#bfdbfe;"><%= message %></div><% } %>
@@ -95,12 +95,12 @@
             <tr>
               <td><strong><%= e.name %></strong><br><small style="color:#64748b"><%= e.short_name || '' %></small></td>
               <td><span class="badge badge-oral"><%= e.area_display %></span></td>
-              <td><%= new Date(e.date_start).toLocaleDateString('pt-BR') %><% if (e.date_end) { %> – <%= new Date(e.date_end).toLocaleDateString('pt-BR') %><% } %></td>
+              <td><%= formatBRDate(e.date_start) %><% if (e.date_end) { %> – <%= formatBRDate(e.date_end) %><% } %></td>
               <td>
                 <% if (e.has_article_submission && (e.submission_start || e.submission_end)) { %>
-                  <%= e.submission_start ? new Date(e.submission_start).toLocaleDateString('pt-BR') : 'Sem início' %>
+                  <%= e.submission_start ? formatBRDate(e.submission_start) : 'Sem início' %>
                   –
-                  <%= e.submission_end ? new Date(e.submission_end).toLocaleDateString('pt-BR') : 'Sem fim' %>
+                  <%= e.submission_end ? formatBRDate(e.submission_end) : 'Sem fim' %>
                 <% } else { %>
                   <span style="color:#64748b;">Sem submissão de artigos</span>
                 <% } %>
@@ -154,6 +154,11 @@
                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                       <button type="submit" class="btn btn-danger btn-sm">Encerrar</button>
                     </form>
+                  <% } else if (e.status === 'encerrado') { %>
+                    <form method="POST" action="/admin/events/<%= e.id %>/reopen" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Reabrir o evento <%= e.name %>? Ele voltará a aparecer na página inicial e a aceitar novas inscrições e submissões.')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="btn btn-secondary btn-sm">Reabrir</button>
+                    </form>
                   <% } %>
                  <% } else { %>
                   <% if (e.status !== 'draft') { %>
@@ -172,6 +177,9 @@
               </td>
             </tr>
             <% }) %>
+            <% if (!events.length) { %>
+            <tr><td colspan="10" style="color:#94a3b8;text-align:center;padding:2rem 1rem;">Você ainda não administra nenhum evento. Use o botão <strong>+ Novo Evento</strong> para criar o seu — você será o administrador dele.</td></tr>
+            <% } %>
           </tbody>
         </table>
       </div>

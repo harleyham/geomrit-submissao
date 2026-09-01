@@ -86,13 +86,17 @@ function getSubmissionWindow(event) {
       isConfigured: false,
       message: 'Este evento não recebe submissão de artigos.',
       start: null,
-      end: null
+      end: null,
+      formattedStart: null,
+      formattedEnd: null
     };
   }
 
   const now = brToday();
   const start = brDate(event.submission_start);
   const end = brDate(event.submission_end, '23:59:59');
+  const formattedStart = brFormatDate(start);
+  const formattedEnd = brFormatDate(end);
 
   let isOpen = false;
   let isConfigured = !!(start && end);
@@ -110,7 +114,7 @@ function getSubmissionWindow(event) {
     isOpen = true;
   }
 
-  return { isOpen, isConfigured, message, start, end };
+  return { isOpen, isConfigured, message, start, end, formattedStart, formattedEnd };
 }
 
 function withSubmissionMeta(event) {

@@ -1153,6 +1153,26 @@ function initializeDbSchema(db) {
     console.error('[migração] Falha ao impor user_id NOT NULL em event_registrations:', e.message);
   }
 
+  // Limpeza de integridade: remove filhos órfãos (inscrições/interesses em
+  // atividades sem pai válido), que inflariam contadores de inscritos.
+  try {
+    const orphanEnrollments = db.prepare(`
+      DELETE FROM participant_activity_enrollments
+      WHERE activity_id NOT IN (SELECT id FROM event_activities)
+         OR registration_id NOT IN (SELECT id FROM event_registrations)
+         OR user_id NOT IN (SELECT id FROM users)
+    `).run();
+    const orphanInterests = db.prepare(`
+      DELETE FROM participant_activity_interests
+      WHERE activity_id NOT IN (SELECT id FROM event_activities)
+         OR user_id NOT IN (SELECT id FROM users)
+         OR (registration_id IS NOT NULL AND registration_id NOT IN (SELECT id FROM event_registrations))
+    `).run();
+    if (orphanEnrollments.changes || orphanInterests.changes) {
+      console.log(`[migração] Removidos ${orphanEnrollments.changes} inscrição(ões) e ${orphanInterests.changes} interesse(s) em atividade sem pai válido.`);
+    }
+  } catch (e) { console.warn('[migração] Limpeza de integridade falhou:', e.message); }
+
   // Seed admin
   const seedUser = db.prepare('SELECT id FROM users WHERE email = ?').bind('admin@admin.com').get();
   if (!seedUser) {

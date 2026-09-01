@@ -89,9 +89,11 @@ Contas novas podem exigir troca de senha e conclusão do perfil antes de acessar
 
 1. Acesse **Administração → Usuários → Novo usuário** (`/admin/users/new`).
 2. Informe nome, e-mail, instituição, documentos, telefone e formação acadêmica.
-3. Selecione os perfis necessários, como administrador ou revisor.
+3. Selecione os perfis necessários, como revisor, participante, palestrante, professor ou apresentador.
 4. Para revisores, informe as áreas de atuação utilizadas na sugestão de revisores.
 5. Salve o cadastro e comunique a senha temporária ao usuário por canal seguro.
+
+> A antiga chave **Administrador** foi removida da criação/edição e da listagem de usuários: ser administrador é um papel **por evento**, atribuído em `/admin/events/:id/roles` (que também promove a sessão ao painel administrativo). A flag global `is_admin` permanece apenas no seed do superadministrador (`admin@admin.com`).
 
 Quando o usuário não possui curso de graduação, selecione essa opção. Os campos de titulação e status ficam ocultos e são armazenados como nulos.
 
@@ -116,9 +118,11 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 
 ## 5. Criação de eventos
 
+**Qualquer usuário autenticado pode criar eventos**: acesse **Meus Eventos** (`/admin/events`, botão na Área do Participante) e clique **+ Novo Evento**, ou abra `/admin/events/new` diretamente. O superadministrador (`admin@admin.com`) vê e administra **todos** os eventos do sistema em `/admin/events`, mesmo sem papel atribuído neles.
+
 1. Acesse **Administração → Eventos → Novo evento** (`/admin/events/new`).
 2. Informe nome, sigla, áreas/trilhas, datas e local.
-3. Defina o status: **Rascunho**, **Publicado** ou **Encerrado**.
+3. Defina o status: **Rascunho**, **Publicado** ou **Encerrado**. Na listagem de **Meus Eventos**, botões rápidos alternam o status: **Publicar** (rascunho), **Encerrar** (publicado) e **Reabrir** (encerrado, que devolve o evento à condição de publicado); na edição, o botão **Reabrir Evento** aparece para eventos encerrados.
 4. Configure as janelas de inscrição, submissão, análise e certificados.
 5. Indique se o evento aceita artigos e se oferece subsídio.
 6. Defina **Inscrições abertas ao público?**: mantenha ativo para permitir a inscrição do público no site; desative para que apenas a administração cadastre os participantes (a linha "Inscrições" sai do cronograma público e a página de inscrição exibe a mensagem correspondente).
@@ -127,7 +131,7 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 9. Se o evento não possui site próprio, envie em **Conteúdo do evento em PDF** um documento de até 50 MB com sua programação e demais informações.
 10. Salve o evento.
 
-Ao criar o evento, o usuário criador recebe automaticamente o papel de administrador daquele evento. Um evento publicado aparece na página inicial. Ao encerrá-lo, o evento deixa de figurar na lista principal e passa ao bloco **Eventos Encerrados** da página inicial; a página pública e os certificados permanecem acessíveis, mas novas inscrições e submissões são bloqueadas.
+Ao criar o evento, o usuário criador recebe automaticamente o papel de administrador daquele evento, podendo gerenciá-lo por completo e delegar papéis (inclusive o de administrador do evento) na página de Papéis (`/admin/events/:id/roles`). A página **Meus Eventos** lista apenas os eventos que o usuário administra ou onde é staff. Um evento publicado aparece na página inicial. Ao encerrá-lo, o evento deixa de figurar na lista principal e passa ao bloco **Eventos Encerrados** da página inicial; a página pública e os certificados permanecem acessíveis, mas novas inscrições e submissões são bloqueadas.
 
 Na edição, é possível substituir o logo ou marcar **Remover logo atual**. O logo é usado no card da home, página pública, crachás, listas de assinatura e folhas de presença com QR Code.
 
@@ -145,7 +149,7 @@ Durante a inclusão ou edição:
 4. informe as atividades nas quais a pessoa participará, quando aplicável;
 5. salve.
 
-Os papéis disponíveis no evento incluem participante, administrador, revisor, palestrante, professor, apresentador oral e apresentador pôster. O formulário de edição do participante edita os papéis operacionais; administrador, revisor e participante são atribuídos na edição do usuário (`/admin/users/:id/edit`), na seção **Perfis por evento**, escolhendo o evento. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento.
+Os papéis disponíveis no evento incluem participante, administrador, revisor, palestrante, professor, apresentador oral e apresentador pôster. O formulário de edição do participante edita os papéis operacionais; administrador, revisor e participante são atribuídos na edição do usuário (`/admin/users/:id/edit`), na seção **Perfis por evento**, escolhendo o evento. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento. Qualquer conta ativa e aprovada pode receber um papel pelo administrador do evento (na página de Papéis ou em Perfis por evento); a atribuição **liga automaticamente** a habilitação global correspondente no cadastro da pessoa (palestrante, professor, apresentador, staff).
 
 **Toda inscrição possui conta vinculada** (garantia imposta pelo banco de dados). Registros históricos sem vínculo são corrigidos automaticamente na inicialização do sistema: a inscrição é ligada à conta com o mesmo e-mail ou, se não existir conta, uma nova é criada (aprovada, com senha desconhecida — use **Resetar Senha** na listagem de usuários para enviar o link de definição por e-mail). Por isso a coluna "Conta" nunca mais exibe "Sem vínculo de conta".
 
@@ -155,7 +159,7 @@ No credenciamento, use **Imprimir crachá** na linha do participante. O crachá 
 
 O papel **Staff** combina duas marcações:
 
-1. **Elegibilidade global** — a chave **Staff** na listagem de usuários (`/admin/users`, junto das chaves de Administrador e Revisor) habilita a pessoa a ser designada Staff. Desligar essa chave revoga automaticamente todas as designações de Staff por evento.
+1. **Elegibilidade global** — a chave **Staff** na listagem de usuários (`/admin/users`, junto da chave de Revisor) habilita a pessoa a ser designada Staff; designar Staff em um evento **liga essa chave automaticamente**. Desligar essa chave revoga automaticamente todas as designações de Staff por evento.
 2. **Designação por evento** — marque **Staff** em cada evento na seção **Perfis por evento** da edição do usuário (`/admin/users/:id/edit`) ou na página de Papéis do evento (`/admin/events/:id/roles`). O acesso efetivo do Staff limita-se **apenas aos eventos em que foi designado**.
 
 Dentro dos seus eventos, o Staff concentra a operação, sem ser administrador:
@@ -311,6 +315,15 @@ A seção "Backup e Restaração" no dashboard concentra as operações de manut
 
 Backup e restauração não exigem reinício do servidor — a conexão é trocada em tempo de execução.
 
+**Perda da senha do superadministrador**: o botão "Resetar Senha" exige sessão de admin, então quem perde a senha do `admin@admin.com` recupera pelo script de manutenção (acesso direto ao servidor de arquivos):
+
+```bash
+node scripts/reset-admin-password.js "NovaSenha123"            # redefine admin@admin.com
+node scripts/reset-admin-password.js "NovaSenha123" "outro@e.mail"  # ou outro usuário
+```
+
+A nova senha deve seguir a política padrão (8+ caracteres, maiúscula, minúscula e número) e passa a exigir troca no primeiro acesso. Defina `DB_FILE` para apontar a outro banco.
+
 ### Envio de e-mail individual
 
 No card **Envio global de e-mails** do dashboard, visível apenas ao `admin@admin.com`, há um formulário para enviar uma mensagem a um destinatário único. Os campos são:
@@ -359,6 +372,8 @@ As salas também possuem relatórios próprios, acessíveis em `/admin/events/:i
 - Para câmera de QR Code em produção, use HTTPS; em outros ambientes, digite o código manualmente.
 - Se uma ação administrativa retornar acesso negado, confirme se o usuário possui o papel `admin` naquele evento.
 - Se uma conta não conseguir acessar o painel, verifique aprovação, conta ativa, troca de senha e conclusão do perfil.
+- Se o contador de inscritos de uma atividade mostrar valor maior que a lista, havia matrícula órfã (inscrição excluída sem cascata); a limpeza de integridade do boot a remove automaticamente — reinicie o servidor.
+- Se a senha do `admin@admin.com` for perdida, use `node scripts/reset-admin-password.js "NovaSenha123"` (veja a Seção 12).
 
 ## 16. E-mails transacionais
 

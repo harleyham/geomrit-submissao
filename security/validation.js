@@ -159,6 +159,11 @@ const validators = {
   publication: [
     body('status').isIn(['published', 'draft', 'archived']).withMessage('Status inválido.')
   ],
+  roleAssignment: [
+    body('role').isIn(['admin', 'staff', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.'),
+    body('user_id').isInt({ min: 1 }).withMessage('Usuário inválido.'),
+    body('article_id').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Artigo inválido.')
+  ],
   attendanceAction: [
     body('action').isIn(['mark', 'update', 'remove']).withMessage('Ação inválida.'),
     body('role').optional().isIn(['participant', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.')

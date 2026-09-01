@@ -177,13 +177,6 @@
         <p style="color:#fbbf24;font-size:.82rem;line-height:1.5;margin:-.35rem 0 1rem;">Os papéis efetivos são atribuídos por evento na seção abaixo. Estas opções apenas descrevem habilitações e dados gerais da conta.</p>
         <div style="display: flex; flex-direction: column; gap: 0.75rem;">
           <label class="checkbox-group">
-            <input type="checkbox" name="is_admin" <%= (user && user.is_admin) ? 'checked' : '' %>>
-            <div>
-              Administrador
-              <span class="role-desc">Acesso completo ao painel administrativo</span>
-            </div>
-          </label>
-          <label class="checkbox-group">
             <input type="checkbox" name="is_participant" <%= (user && user.is_participant) ? 'checked' : '' %>>
             <div>Participante<span class="role-desc">Pode receber certificado de participação quando inscrito e elegível no evento</span></div>
           </label>
