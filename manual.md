@@ -298,7 +298,7 @@ O dashboard (`/admin/dashboard`) é exclusivo do superadministrador (`admin@admi
 - artigos prontos para deliberação;
 - revisores ativos e inativos;
 - pedidos de subsídio;
-- **pedidos de inclusão em atividades** (solicitados pelo checkbox de minicurso na página do evento e ainda não aprovados: cada linha leva à edição do participante, onde marcar a atividade e salvar conclui a aprovação);
+- **pedidos de inclusão em atividades** (solicitados pelo checkbox de minicurso na página do evento e ainda não analisados: cada linha leva à edição do participante, onde os botões **"Sim (aprovar)" / "Não (negar)"** registram a decisão);
 - solicitações de cadastro.
 
 Use os cards como atalhos para localizar pendências.

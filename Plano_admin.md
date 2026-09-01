@@ -1,5 +1,7 @@
 # Plano: admin por evento (autorização escopada) + STAFF + revisor por evento
 
+> **Documento histórico, superado em 31/08/2026.** Este arquivo preserva a proposta original e não descreve integralmente o modelo vigente. A implementação final está documentada em `plano.md`, na seção **Reforma de Permissões — papéis exclusivamente por evento**, em `submissao_log_v2.md` (entrada de 31/08/2026) e em `manual.md`. Entre as decisões finais, `/admin/users` e `/admin/dashboard` são exclusivos do superadministrador, e o acesso de revisor exige o papel `reviewer` no evento.
+
 > Contexto: no estado atual, um usuário com papel de admin de evento acaba com poder
 > sobre **todo** o sistema (via escalada em `requireAuth`), porque `event_user_roles
 > role='admin'` é confundido com `session.isAdmin`/`is_admin` (admin global). Além disso,

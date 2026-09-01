@@ -287,7 +287,7 @@ Ordem de execução: 6.1 → 6.2 → 6.3 → 6.4 → 6.5.
 ---
 
 ## Reforma de Permissões — papéis exclusivamente por evento
-Status geral: **IMPLEMENTADA E VALIDADA (31/08/2026, aguardando commit)**.
+Status geral: **IMPLEMENTADA, VALIDADA E COMMITADA (31/08/2026; consolidada no commit `9661aba`)**.
 
 - Superadmin (`admin@admin.com`): poder total; único com `/admin/users` e
   `/admin/dashboard` (`requireSuperAdminUser`). `is_admin` é só o marcador da
