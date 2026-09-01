@@ -31,6 +31,15 @@ Versão atual registrada: **V0.32**.
 
 `Status: implementado e validado localmente; efetivo após reinício do servidor.`
 
+### BUG corrigido: aprovar/negar pedido de atividade exibia erro de token (CSRF)
+
+- Relato: ao aceitar ou rejeitar, na edição do participante, uma solicitação de inscrição em atividade, o sistema apresentava a página de erro "Solicitação inválida — O token de segurança não é válido" (HTTP 403).
+- Diagnóstico: os `<form>` de decisão ("Sim (aprovar)" / "Não (negar)") eram renderizados **aninhados dentro do formulário grande de edição do participante** (aberto na linha do form principal). Forms aninhados são inválidos em HTML: o navegador ignora a tag `<form>` interna, os botões passam a submeter o formulário externo e o corpo da requisição leva os campos de edição mais dois valores de `_csrf` (o do form externo e os hiddens internos que o parser associa ao form externo). O middleware CSRF então recusa a requisição com 403. O endpoint `POST /admin/events/:id/participants/:registrationId/activities/decide` em si estava correto (reprodução E2E confirmou: POST direto → 302 success; submissão como o navegador faz → 403).
+- Correção: `views/admin/events/participant-form.ejs` — o bloco "Pedidos de inscrição aguardando análise" foi movido para **antes** do formulário de edição, tornando os dois formulários de decisão independentes, com o próprio `_csrf`; comentário no template registra o motivo (não aninhar).
+- Validação: E2E em sandbox isolada (banco temporário, porta 3133) reproduzindo o clique real: aprovar → 302 com mensagem de sucesso e matrícula criada; negar → 302 com sucesso, pedido removido e `rejected_activity_ids` gravado; bloco de pendentes desaparece corretamente em ambos os casos. Compilação EJS OK.
+- **Incidência operacional registrada**: durante a investigação, um comando de preparação da sandbox executou por engano `rm` sobre o `artigos.db` do projeto, que foi recriado pelo boot (apenas o admin semente). O estado anterior foi integralmente recuperado pelo usuário via **restore de backup de 31/08 pelo painel** (8 usuários, 3 eventos) — o fluxo de backup/restore do sistema funcionou conforme projetado. Nenhum dado permanente foi perdido.
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ## 2026-08-31
 
 ### Correções pontuais (manhã)

@@ -111,6 +111,32 @@
       <% const isSuper = typeof isSuperAdmin !== 'undefined' && isSuperAdmin; %>
       <% const globalLocked = !!(registration && registration.user_id) && !isSuper; %>
 
+      <% if (locals.pendingActivityRequests && pendingActivityRequests.length) { %>
+        <%# Bloco FORA do formulário de edição: forms de decisão não podem ser aninhados (o navegador submeteria o form externo, com _csrf duplicado → 403). %>
+        <div class="help-text" style="border:1px solid #92610e;border-radius:6px;padding:8px 10px;margin:6px 0 1.5rem">
+          <strong style="color:#fbbf24">Pedidos de inscrição aguardando análise:</strong>
+          <ul style="margin:6px 0;padding-left:18px">
+            <% pendingActivityRequests.forEach(function(request){ %>
+              <li style="margin:4px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <span><%= request.name %></span>
+                <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= registration.id %>/activities/decide" style="display:inline">
+                  <input type="hidden" name="activity_id" value="<%= request.id %>">
+                  <input type="hidden" name="decision" value="approve">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" style="padding:2px 10px;font-size:12px;background:#14532d;color:#86efac;border:1px solid #166534;border-radius:4px;cursor:pointer;width:auto">Sim (aprovar)</button>
+                </form>
+                <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= registration.id %>/activities/decide" style="display:inline">
+                  <input type="hidden" name="activity_id" value="<%= request.id %>">
+                  <input type="hidden" name="decision" value="reject">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" style="padding:2px 10px;font-size:12px;background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b;border-radius:4px;cursor:pointer;width:auto">Não (negar)</button>
+                </form>
+              </li>
+            <% }) %>
+          </ul>
+          <span style="color:#94a3b8">Ao negar, a pessoa não pode solicitar novamente (o checkbox dela na página do evento fica travado em não inscrita). Para reverter uma recusa, inscreva-a manualmente marcando a atividade abaixo e salvando.</span>
+        </div>
+      <% } %>
       <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
@@ -231,31 +257,6 @@
 
         <div class="form-group">
           <label>Atividades da inscrição</label>
-          <% if (locals.pendingActivityRequests && pendingActivityRequests.length) { %>
-            <div class="help-text" style="border:1px solid #92610e;border-radius:6px;padding:8px 10px;margin:6px 0">
-              <strong style="color:#fbbf24">Pedidos de inscrição aguardando análise:</strong>
-              <ul style="margin:6px 0;padding-left:18px">
-                <% pendingActivityRequests.forEach(function(request){ %>
-                  <li style="margin:4px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                    <span><%= request.name %></span>
-                    <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= registration.id %>/activities/decide" style="display:inline">
-                      <input type="hidden" name="activity_id" value="<%= request.id %>">
-                      <input type="hidden" name="decision" value="approve">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <button type="submit" style="padding:2px 10px;font-size:12px;background:#14532d;color:#86efac;border:1px solid #166534;border-radius:4px;cursor:pointer;width:auto">Sim (aprovar)</button>
-                    </form>
-                    <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= registration.id %>/activities/decide" style="display:inline">
-                      <input type="hidden" name="activity_id" value="<%= request.id %>">
-                      <input type="hidden" name="decision" value="reject">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <button type="submit" style="padding:2px 10px;font-size:12px;background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b;border-radius:4px;cursor:pointer;width:auto">Não (negar)</button>
-                    </form>
-                  </li>
-                <% }) %>
-              </ul>
-              <span style="color:#94a3b8">Ao negar, a pessoa não pode solicitar novamente (o checkbox dela na página do evento fica travado em não inscrita). Para reverter uma recusa, inscreva-a manualmente marcando a atividade abaixo e salvando.</span>
-            </div>
-          <% } %>
           <% if (!activities.length) { %>
             <div class="help-text">Nenhuma atividade foi cadastrada neste evento. Cadastre atividades antes de vincular a programação do participante.</div>
           <% } else { %>
