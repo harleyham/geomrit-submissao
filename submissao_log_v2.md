@@ -40,6 +40,14 @@ Versão atual registrada: **V0.32**.
 - **Incidência operacional registrada**: durante a investigação, um comando de preparação da sandbox executou por engano `rm` sobre o `artigos.db` do projeto, que foi recriado pelo boot (apenas o admin semente). O estado anterior foi integralmente recuperado pelo usuário via **restore de backup de 31/08 pelo painel** (8 usuários, 3 eventos) — o fluxo de backup/restore do sistema funcionou conforme projetado. Nenhum dado permanente foi perdido.
 - `Status: implementado e validado localmente; efetivo após reinício do servidor.`
 
+### E-mail de resultado da análise de pedidos de inscrição em atividade
+
+- Novo gatilho: ao aprovar ou negar um pedido de inscrição em atividade ("Sim (aprovar)"/"Não (negar)" na edição do participante), o sistema enfileira a mensagem `activity_request_reviewed` para a pessoa, com assunto e template próprios (`activity-request-decision.ejs`: aprovado → "Sua inscrição em \"<atividade>\" foi aprovada"; negado → "Sua solicitação para \"<atividade>\" não foi aprovada").
+- Implementação: `queueActivityRequestDecision({ event, registration, decision, activity })` em `services/email.js` (respeita master switch global e do evento — mensagem fica `suppressed` com envio desativado, no padrão; `dedupeKey` único por decisão), chamada em `POST /admin/events/:id/participants/:registrationId/activities/decide` dentro de `try/catch` fora da transação (o erro de e-mail não reverte a decisão). Antes, aprovar/negar um pedido não gerava nenhuma notificação.
+- Validação: E2E em sandbox (banco temporário, porta 3133) com switches global e do evento ligados — aprovar → 302 success + linha `activity_request_reviewed | queued` com assunto correto e destinatário do participante; negar → 302 success + segunda linha `queued`. Templates aprovado/negado compilam; `node --check` em `routes/events.js` e `services/email.js`.
+- Docs: `README.md` (bullet de e-mails transacionais) e `submissao.md`.
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ## 2026-08-31
 
 ### Correções pontuais (manhã)

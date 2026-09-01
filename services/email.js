@@ -319,6 +319,25 @@ function queueParticipantActivitiesUpdated({ event, registration, activities }) 
   });
 }
 
+function queueActivityRequestDecision({ event, registration, decision, activity }) {
+  if (!registration || !registration.email || !activity) return null;
+  const identity = getEventIdentity(event);
+  const approved = decision === 'approve';
+  const subject = approved
+    ? `Sua inscrição em "${activity.name}" foi aprovada — ${event.name}`
+    : `Sua solicitação para "${activity.name}" não foi aprovada — ${event.name}`;
+  return enqueueEmail({
+    eventId: event.id, userId: registration.user_id || null,
+    recipientEmail: registration.email, recipientName: registration.name,
+    messageType: 'activity_request_reviewed', templateName: 'activity-request-decision',
+    subject, identity,
+    dedupeKey: `activity-request:${registration.id}:${activity.id}:${decision}:${Date.now()}`,
+    payload: { name: registration.name, eventName: event.name, activityName: activity.name,
+      decision: approved ? 'approved' : 'rejected',
+      authorUrl: 'https://teste.ham.eng.br/author', platformName: identity.platformName }
+  });
+}
+
 function createImportBatch({ batchType, eventId = null, importedBy = null, report }) {
   const batch = db.prepare(`INSERT INTO import_batches (batch_type,event_id,imported_by,created_at)
     VALUES (?,?,?,datetime('now','-3 hours'))`).run(batchType, eventId, importedBy);
@@ -599,7 +618,7 @@ module.exports = {
   getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, getGlobalIdentity, getEventIdentity,
   setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail, clearEmailQueue,
   queueAccountRequested, queueAccountApproved, queuePasswordReset, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
-  queueRegistrationReviewDecision, queueParticipantActivitiesUpdated,
+  queueRegistrationReviewDecision, queueParticipantActivitiesUpdated, queueActivityRequestDecision,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   queueCertificateIssued, queueVideoLinkNotifications, queueDueEventReminders,
   createSetupToken, startEmailWorkers, stopEmailWorkers, isValidHttpUrl, appBaseUrl

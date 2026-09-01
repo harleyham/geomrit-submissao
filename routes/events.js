@@ -15,7 +15,7 @@ const { removeEventLogoFile, drawEventLogo } = require('../services/event-logo')
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { getSystemEmailSettings, getPendingEmailCount, setEventEmailEnabled, queueCertificateIssued,
   queueVideoLinkNotifications, isValidHttpUrl, createImportBatch, getImportBatchEmailSummary,
-  authorizeImportBatch, queueImportedAccount, queueImportedRegistration, queueRegistrationReviewDecision, queueParticipantActivitiesUpdated } = require('../services/email');
+  authorizeImportBatch, queueImportedAccount, queueImportedRegistration, queueRegistrationReviewDecision, queueParticipantActivitiesUpdated, queueActivityRequestDecision } = require('../services/email');
 const { strictLimiter } = require('../security/rate-limits');
 const { isSuperAdminUser } = require('./auth');
 const { validateAndHandle, validators: v } = require('../security/validation');
@@ -3594,6 +3594,11 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
         action: 'participant_activity_request_approved', details: { activity_id: activityId }
       });
     })();
+    try {
+      queueActivityRequestDecision({ event, registration, decision: 'approve', activity });
+    } catch (error) {
+      console.error('[email] Falha ao enfileirar decisÃ£o de pedido de atividade:', error.message);
+    }
     return back(`success=${encodeURIComponent(`Pedido de inscriÃ§Ã£o em "${activity.name}" aprovado.`)}`);
   }
 
@@ -3605,6 +3610,11 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
       action: 'participant_activity_request_rejected', details: { activity_id: activityId }
     });
   })();
+  try {
+    queueActivityRequestDecision({ event, registration, decision: 'reject', activity });
+  } catch (error) {
+    console.error('[email] Falha ao enfileirar decisÃ£o de pedido de atividade:', error.message);
+  }
   return back(`success=${encodeURIComponent(`Pedido de inscriÃ§Ã£o em "${activity.name}" negado. A pessoa ficarÃ¡ impossibilitada de solicitÃ¡-la novamente.`)}`);
 });
 

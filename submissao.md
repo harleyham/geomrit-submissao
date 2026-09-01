@@ -52,7 +52,7 @@ O sistema deve permitir:
 - Cadastro de descrição breve ou ementa para atividades dos tipos palestra e minicurso, exibida em coluna própria na página pública do evento.
 - Configuração explícita de evento com inscrições abertas ao público ou realizadas somente pela administração (toggle "Inscrições abertas ao público?", coluna `events.public_registration`, padrão público).
 - Configuração de confirmação automática ou de análise administrativa da inscrição pública, com aprovação total, parcial ou recusa das atividades solicitadas.
-- E-mails transacionais com fila persistente, master switch global e por evento, identidade editável por evento, logo opcional, retentativas e histórico de envio.
+- E-mails transacionais com fila persistente, master switch global e por evento, identidade editável por evento, logo opcional, retentativas e histórico de envio. Gatilho de resultado da análise de pedidos de inscrição em atividade: aprovar ou negar um pedido ("Sim (aprovar)"/"Não (negar)" na edição do participante) enfileira a mensagem `activity_request_reviewed` para a pessoa com a atividade decidida; com o envio desativado (global ou do evento) a mensagem fica suspensa, no padrão dos demais gatilhos.
 - Dashboard com lista "Ver mensagens pendentes" e contador de pendentes em atualização automática (consulta periódica à fila, sem recarregar a página; o bloco desaparece quando a fila esvazia).
 - Configuração de subsídio a participantes por evento.
 - Acompanhamento de inscrições, participação e elegibilidade para certificados de participação por evento.
