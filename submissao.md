@@ -6,7 +6,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 
 Versão atual do projeto: **V0.32**.
 
-Data de referência desta especificação: **30/08/2026**.
+Data de referência desta especificação: **01/09/2026**.
 
 ## Objetivo do Produto
 
@@ -97,7 +97,7 @@ O sistema deve permitir:
 - Removidos campos duplicados de `_method=DELETE` nos formulários de exclusão de usuários.
 - **Segurança reforçada (auditoria 24/08/2026)**: token CSRF aceito apenas por header/body (não cookie); `req.session.regenerate()` no login para prevenir session fixation; `RequireSuperAdmin` valida no banco (conta ativa, aprovada, senha trocada, `is_admin`) em vez de confiar só no e-mail na sessão; seed do admin não loga a mais; migração de senhas legadas passa por hash do bcrypt (não em texto puro); upload de importação usa `path.basename` no nome do arquivo (contra path traversal); reset de senha gera valor temporário forte e aleatório (sem hardcoded); JSON de contas injetado em `<script>` passa por codificação específica para script (`jsonForScript`), impedindo XSS stored. Detalhes em `submissao_log.md` e `plano.md` (Ciclo 6).
 - **Correções de hardening e robustez (25/08/2026)**: política de senha unificada (8+ caracteres + maiúscula + minúscula + número) em todas as vias; `SESSION_SECRET` obrigatória (o servidor recusa o início sem ela); janelas de data e status do cronograma calculados no fuso America/Sao_Paulo (independentes do fuso do host); restore de backup com rollback de `uploads/`; importação XLSX normaliza células (CPF/CEP mantidos, sem zeras à esquerda perdidas); operações multi-tabela atômicas (criação/exclusão de evento, emissão de certificados) e enfileiramento de e-mail protegido (`try/catch`, fora da transação na emissão em lote); escape de dados em `confirm()`/`<script>` via `jsonForScript` e `VACUUM INTO` sem bind. Detalhes em `submissao_log_v2.md`.
-- **Correção crítica de autenticação (26/08/2026)**: a remoção do `trust proxy` (25/08) fazia o express-session suprimir o cookie `connect.sid; Secure` atrás do nginx — sem sessão, todo POST `/login` retornava 403 de CSRF. Restaurado `app.set('trust proxy', 1)` e todos os limitadores de taxa passaram a usar `keyGenerator` por IP do socket (`security/rate-limits.js`), preservando a imunidade ao spoof de `X-Forwarded-For`; token CSRF regenerado na sessão nova após tentativa de login malsucedida. Detalhes em `submissao_log_v2.md`.
+- **Correção crítica de autenticação e proxy (revisada em 01/09/2026)**: o processo Node escuta em `127.0.0.1` por padrão, `TRUST_PROXY` restringe os proxies confiáveis e os limitadores usam `req.ip`. Isso preserva cookies `Secure` atrás do nginx sem compartilhar o contador entre todos os clientes nem confiar em `X-Forwarded-For` de acesso direto.
 
 ### Revisão
 
@@ -148,13 +148,14 @@ Flags legadas de permissão no cadastro global:
 - `approved_at`
 - `approved_by`
 
-O usuário possui um único cadastro e login. **Todos os papéis de atuação são exclusivamente por evento**, em `event_user_roles`: `admin`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter` — atribuídos apenas a inscritos no evento (o superadmin pode atribuir a qualquer conta ativa) e **sem alterar o cadastro global**. Administradores de evento administram e consultam (eventos, artigos, relatórios) apenas os eventos em que têm papel `admin` (ou `staff`); ao criar um evento, recebe o papel automaticamente. As flags `is_*` (incluídas `is_speaker`, `is_staff`, `is_participant` etc.) são legadas: permanecem no banco por compatibilidade, gravadas como 0 nas novas contas, e **não autorizam mais nada**; `is_admin` sobrevive apenas na linha semente do superadmin (`admin@admin.com`).
+O usuário possui um único cadastro e login. **Todos os papéis de atuação são exclusivamente por evento**, em `event_user_roles`: `admin`, `staff`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter` — atribuídos apenas a inscritos no evento (o superadmin pode atribuir a qualquer conta ativa) e **sem alterar o cadastro global**. Administradores consultam e administram artigos, pareceres e relatórios somente nos eventos em que possuem papel `admin`; `staff` permanece restrito à operação de participantes, presença, listas, QR e certificados. As flags `is_*` são legadas, não autorizam ações, e `is_admin` sobrevive apenas na linha do superadmin (`admin@admin.com`).
 
 ### Regras de acesso
 
 - Superadmin (`admin@admin.com` com `is_admin = 1` confirmado no banco): acesso total, incluídos `/admin/users` e `/admin/dashboard`, exclusivos.
-- Papel `admin` ou `staff` em algum evento: acesso às áreas desse(s) evento(s) (staff limitado à allowlist operacional).
-- Papel `reviewer` em algum evento: acesso ao painel `/reviewer` (verificado no banco a cada request).
+- Papel `admin` em algum evento: gestão do evento, incluídos artigos, pareceres, atribuições, decisões e relatórios daquele evento.
+- Papel `staff` em algum evento: operação de participantes, presença, listas, QR e certificados; sem acesso administrativo a artigos ou relatórios.
+- Papel `reviewer` em algum evento: acesso ao painel `/reviewer`; cada artigo exige também atribuição ativa no mesmo evento.
 - Demais contas aprovadas e ativas: Área do Participante (`/author`), incluindo troca da própria senha.
 - `is_public = 1`: conta habilitada para autenticação (status de conta, não papel).
 - Redirecionamento pós-login: super → `/admin/dashboard`; admin/staff → `/admin/events`; revisor → `/reviewer`; demais → `/author`.
@@ -796,7 +797,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 | `/admin/users/import-template` | Download do modelo CSV vazio para importação de usuários |
 | `/admin/users/import/download-csv` | Download do relatório da importação em CSV (pessoa por pessoa) |
 | `/admin/users/import/result` | Resultado da importação com relatório detalhado |
-| `/admin/backup/download` | Download do backup completo em ZIP (banco + uploads), restrito ao `admin@admin.com` |
+| `/admin/backup/download` | Download do backup completo em ZIP (banco + uploads + assets substituíveis), restrito ao `admin@admin.com` |
 | `/admin/backup/restore` | Página de confirmação e upload para restauração de backup, restrita ao `admin@admin.com` |
 | `/admin/events/:id/attendance` | Painel de chamadas por atividade do evento |
 | `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
@@ -848,7 +849,7 @@ Observações estruturais:
 
 - Senhas armazenadas com hash `bcrypt`.
 - Sessão com cookie `httpOnly` e `sameSite=lax`.
-- `helmet` com CSP configurada; `script-src-attr 'unsafe-inline'` habilitado para permitir handlers `onclick` inline nos templates (default do helmet 8 os bloqueava, inclusive os `confirm()` das ações perigosas do admin).
+- `helmet` com CSP e nonce por requisição; scripts e handlers inline autorizados somente pelo nonce emitido no mesmo request.
 - `compression` habilitado.
 - `method-override` habilitado para formulários com `_method`.
 - `archiver` utilizado para geração de ZIP em streaming no download em lote de artigos.
@@ -858,14 +859,17 @@ Variáveis de ambiente em uso:
 | Variável | Finalidade | Padrão atual |
 |----------|------------|--------------|
 | `PORT` | Porta HTTP | `3000` |
-| `SESSION_SECRET` | Chave de sessão | `edigemia-ligem-secret-2027` |
+| `HOST` | Interface HTTP do processo Node | `127.0.0.1` |
+| `TRUST_PROXY` | Proxy ou CIDR confiável para resolução de `req.ip` | `loopback` |
+| `SESSION_SECRET` | Chave de sessão forte e obrigatória | sem padrão |
+| `SUPER_ADMIN_INITIAL_PASSWORD` | Senha forte para criação/reset do superadministrador | sem padrão |
 
 Observações operacionais:
 
 - O sistema não possui hot reload nativo.
 - Mudanças em rotas e templates exigem reinício do servidor.
 - Os novos timestamps do sistema passaram a ser gravados em horário local do Brasil (`UTC-3`) nas rotas ativas.
-- A seed padrão de administrador continua documentada no código atual com e-mail `admin@admin.com` e senha inicial `123456`.
+- Bancos novos e resets criam `admin@admin.com` somente quando `SUPER_ADMIN_INITIAL_PASSWORD` atende à política mínima de 12 caracteres, maiúscula, minúscula e número. A senha pública legada `123456` faz o boot falhar até ser redefinida.
 
 ## Status Atual
 
@@ -903,7 +907,7 @@ Observações operacionais:
 - Controle visual de mostrar ou ocultar senha nos formulários principais.
 - Navegação cruzada entre área do participante, painel do revisor e dashboard administrativo para usuários com múltiplos perfis.
 - Gestão manual de participantes por evento, com criação de conta ou seleção de conta ativa existente, edição, remoção condicionada e auditoria.
-- Importação administrativa de participantes via CSV ou XLSX, com auto-detecção de delimitador, detecção flexível de colunas, reconciliação de contas e relatório pessoa por pessoa com status e download em CSV.
+- Importação administrativa de participantes via CSV ou XLSX, com auto-detecção de delimitador, detecção flexível de colunas, criação de contas inexistentes e atualização somente da inscrição local quando a conta já existe, além de relatório pessoa por pessoa e download em CSV.
 - Painel administrativo de presença organizado por atividade, com acesso direto à chamada de cada parte do evento.
 - Cadastro de atividades internas e lançamento manual por atividade, com botões para marcar, atualizar e remover presença; para participante, inscrição e presença compõem conjuntamente a elegibilidade e a carga horária do certificado.
 - Certificados de participação com regra de elegibilidade por presença, fundo PNG/JPEG selecionável em miniatura (thumbnails ordenadas alfabeticamente), cor da fonte configurável por evento, prévia inline do certificado antes de salvar a regra, emissão e reemissão versionadas, geração de PDF com toda a fonte na cor selecionada e download autenticado pelo participante dentro da janela do evento.
@@ -976,7 +980,7 @@ Observações operacionais:
 - Fase 0: ao selecionar a opção `Não possui curso de graduação`, os campos Titulação e Status ficam ocultos nos formulários (`views/admin/users/form.ejs`, `views/complete-profile.ejs`, `views/public/participant-profile.ejs`, `views/admin/events/participant-form.ejs`) e são gravados como nulos nas rotas de criação/edição.
 - Fase 0: status `encerrado` para eventos (`routes/events.js`, `routes/public.js`): normalização em criação/edição, rota `POST /:id/close`, badge e botão na listagem administrativa, select com três estados no formulário; a página pública e a área de certificados permanecem acessíveis com aviso de encerramento, enquanto inscrição e submissão retornam 404.
 - Correção: `views/error.ejs` usava `<%= message || '' %>` e levantava `ReferenceError` quando a mensagem não era passada via `locals`; alterado para `<%= locals.message || '' %>`.
-- Esquema de backup e restauração (super-admin): `services/backup.js` gera backup em ZIP contendo snapshot consistente do banco (`VACUUM INTO`), a pasta `uploads/` completa e `BACKUP_META.json`; a restauração substitui banco e arquivos a partir do ZIP com validações (`integrity_check`, tabelas principais, proteção contra path traversal) e cópia de segurança do banco atual com rollback automático em caso de falha. Botões "Baixar Backup" e "Restaurar Backup" no dashboard, visíveis apenas para `admin@admin.com`, ao lado do botão de reset.
+- Esquema de backup e restauração (super-admin): uma barreira de manutenção bloqueia novas requisições, drena requisições em andamento e o worker de e-mail, e captura banco (`VACUUM INTO`), uploads e assets em staging. O restore valida ZIP, CRC32, `integrity_check`, `foreign_key_check` e schema; mantém rollback para banco, uploads, fundos e logo e publica a nova conexão somente depois da troca completa.
 - Dependência `adm-zip` adicionada para extração do ZIP na restauração.
 - Impressão da lista de presença por etapa na página de atividades: para atividades com etapas, a listagem (`/admin/events/:id/activities`) exibe um botão "Imp. Lista · <etapa>" por etapa (link `attendance-print?session_id=`), substituindo o botão único que sempre imprimia a lista da primeira etapa; atividades sem etapas mantêm o botão único original.
 - Cor do texto do certificado selecionada por paleta embutida de 64 cores (grade 8x8) no lugar do picker nativo do navegador: o botão exibe a amostra da cor atual e abre a grade por papel de certificado; a escolha atualiza o campo oculto `text_color`, a amostra e a prévia do certificado.
@@ -984,7 +988,7 @@ Observações operacionais:
 - Presença por QR Code: botão "QR Presença" na listagem de atividades (por etapa, ou único para atividade sem etapas) imprime folha letter com evento, atividade, data, etapa e QR Code centralizado apontando para a página pública de presença; origem do link extraída do campo "URL do Evento" (ou host de quem imprime). Na página, o usuário autenticado (login com retorno automático via `?next=`) escolhe o papel exercido e marca presença — só no dia da etapa ou no período da atividade, UTC-3 — gravando em `activity_attendance_records` (idempotente, `marked_by` = o próprio usuário), integrando-se à chamada e aos certificados.
 - Página pública de atividades com contador e etapas de presença: em `/evento/:id/atividades`, o card de cada atividade com etapas passa a exibir quantas presenças o usuário possui e quais etapas frequentou (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3"), em `routes/public.js` e `views/public/event-activities.ejs`.
 - Presença por QR Code do crachá: código pessoal por usuário e por evento (`event_qr_codes`) exibido em `/evento/:id/qr-presenca` e imprimível em PDF via `/evento/:id/qr-presenca/print`; na chamada da atividade, o operador lê o QR pela câmera (jsQR local, sem CDN) ou digita o código (`POST .../attendance/qr`) e a presença é registrada no papel resolvido, com auditoria `via_qr`; botão "QR de presença" na área do participante.
-- Correção da CSP `script-src-attr 'none'` (default do helmet 8) que bloqueava todos os `onclick` inline da aplicação (13 views), incluindo os `confirm()` das ações perigosas de backup/restore/reset do admin: `scriptSrcAttr: ["'unsafe-inline'"]` adicionado às direções do helmet em `server.js`.
+- CSP com nonce por request: `scriptSrc` e `scriptSrcAttr` aceitam somente o nonce gerado pelo servidor; tags `<script>` e handlers inline recebem esse nonce, sem liberar globalmente `unsafe-inline` para scripts.
 - Credenciamento: botão "Imprimir crachá" na coluna "Conta" da listagem de participantes (`/admin/events/:id/participants`) gera o PDF direto via `GET /admin/events/:id/participants/:registrationId/qr-presenca/print`, sem encaminhamento para a área do participante (evita o bug conhecido de conta admin interpretada como participante). O layout do crachá foi extraído para o serviço compartilhado `services/cracha.js` (`renderCrachaPdf`, `ensureEventQrToken`, `getEventQrRoles`, `QR_ROLE_LABELS`), agora usado tanto pela rota pública de autoimpressão quanto pela rota admin; participantes sem conta vinculada não têm crachá (400 com mensagem explicativa). O card exibe logo (quando o evento possui), nome do evento, nome do participante, instituição, papéis, QR Code e o código em destaque, sem os rótulos "QR DE PRESENÇA" e "CÓDIGO DO CRACHÁ".
 - Exclusão de usuários e participantes corrigida e com aviso de impacto: o `method-override` (getter por função, depois dos parsers de body) faz o `_method=DELETE` dos formulários chegar à rota DELETE correta (antes caía em `updateUser` com `NOT NULL constraint failed: users.name`); o `confirm()` do "Excluir" usuário detalha que a ação remove papéis em eventos, inscrições em atividades, presenças, crachá e revisões, e sugere desligar "Conta ativa" (inativação, que preserva o histórico) quando o objetivo for apenas bloquear acesso; nota da listagem orienta o mesmo; `updateUser` preserva `name`/`email` existentes quando o body não os envia.
 - Inativação de conta (`is_public = 0`) com efeitos práticos: middleware global `requireActiveAccount` derruba a sessão ativa de um usuário inabilitado no próximo request (login com aviso); chamada da atividade exibe "Conta inativa" e bloqueia o botão de marcar; marcação manual, scan do crachá e "Marcar presença (todos)" são rejeitados no backend para conta inativa (desmarcar/corrigir permanece permitido); listagem de participantes exibe o badge. Histórico (inscrições, presenças existentes, elegibilidade) é preservado.

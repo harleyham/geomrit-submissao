@@ -1,29 +1,48 @@
 const { body, param, query, validationResult, field, oneOf } = require('express-validator');
+const fs = require('fs');
 
-function handleValidationErrors(req, res, next) {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    if (req.xhr || (req.get('accept') || '').includes('application/json')) {
-      return res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+function removeRejectedUploads(req) {
+  const files = [];
+  if (req.file) files.push(req.file);
+  if (Array.isArray(req.files)) files.push(...req.files);
+  else if (req.files && typeof req.files === 'object') Object.values(req.files).forEach((items) => files.push(...items));
+  files.forEach((file) => {
+    if (!file || !file.path) return;
+    try { fs.unlinkSync(file.path); } catch (error) {
+      if (error.code !== 'ENOENT') console.error('Falha ao remover upload rejeitado:', error.message);
     }
-    res.locals.validationErrors = errors.array().map((e) => e.msg);
-    return next();
-  }
-  next();
+  });
 }
 
-function validateAndHandle(req, res, next, validators) {
+function sendValidationErrors(req, res, errors, onHtmlError) {
+  const messages = errors.array().map((error) => error.msg);
+  removeRejectedUploads(req);
+  if (req.xhr || req.is('application/json') || (req.get('accept') || '').includes('application/json')) {
+    return res.status(400).json({ errors: messages });
+  }
+  if (typeof onHtmlError === 'function') return onHtmlError(req, res, messages);
+  return res.status(400).render('error', {
+    title: 'Dados inválidos',
+    message: messages.join(' ')
+  });
+}
+
+function handleValidationErrors(req, res, next, onHtmlError) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return sendValidationErrors(req, res, errors, onHtmlError);
+  }
+  return next();
+}
+
+function validateAndHandle(req, res, next, validators, onHtmlError) {
   return Promise.all((Array.isArray(validators) ? validators : [validators]).map((v) => v.run(req)))
     .then(() => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        if (req.xhr || (req.get('accept') || '').includes('application/json')) {
-          return res.status(400).json({ errors: errors.array().map((e) => e.msg) });
-        }
-        res.locals.validationErrors = errors.array().map((e) => e.msg);
-        return next();
+        return sendValidationErrors(req, res, errors, onHtmlError);
       }
-      next();
+      return next();
     })
     .catch((err) => {
       console.error('validateAndHandle error:', err);
@@ -70,7 +89,7 @@ const validators = {
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
     body('email').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
     body('institution').optional().trim().isLength({ max: 200 }),
-    body('student_lattes_id').optional().matches(/^\d{16}$/).withMessage('O ID Lattes deve ter 16 dígitos numéricos.')
+    body('student_lattes_id').optional({ values: 'falsy' }).matches(/^\d{16}$/).withMessage('O ID Lattes deve ter 16 dígitos numéricos.')
   ],
   submit: [
     body('title').trim().notEmpty().withMessage('O título é obrigatório.').isLength({ max: 200 }),
@@ -78,12 +97,12 @@ const validators = {
     body('abstract').trim().notEmpty().withMessage('O resumo é obrigatório.').isLength({ max: 2500 }),
     body('keywords').trim().notEmpty().withMessage('As palavras-chave são obrigatórias.'),
     body('email_submission').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail de submissão válido.'),
-    body('ethics_confirmed').equals('on').withMessage('É necessário aceitar a declaração de ética.'),
-    body('publication_authorized').equals('on').withMessage('É necessário autorizar a publicação.')
+    body('ethics_confirmed').isIn(['on', '1']).withMessage('É necessário aceitar a declaração de ética.'),
+    body('publication_authorized').isIn(['on', '1']).withMessage('É necessário autorizar a publicação.')
   ],
   userForm: [
     body('email').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
-    body('password').optional().isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
+    body('password').optional({ values: 'falsy' }).isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
     body('name').optional().trim().isLength({ max: 200 }),
     body('cpf').optional().trim(),
     body('formacao_area').optional().trim().isLength({ max: 10 }),
@@ -94,7 +113,7 @@ const validators = {
   eventForm: [
     body('name').trim().notEmpty().withMessage('O nome do evento é obrigatório.').isLength({ max: 200 }),
     body('area').optional().trim(),
-    body('date_start').optional().isISO8601({ strict: true }).withMessage('Informe uma data de início válida.')
+    body('date_start').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Informe uma data de início válida.')
   ],
   participantForm: [
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
@@ -108,24 +127,27 @@ const validators = {
     body('final_status').isIn(['pending', 'in_review', 'approved', 'rejected']).withMessage('Status inválido.'),
     body('presentation_type').isIn(['oral', 'poster']).withMessage('Tipo de apresentação inválido.')
   ],
+  reportDecision: [
+    body('final_status').isIn(['pending', 'in_review', 'approved', 'rejected']).withMessage('Status inválido.')
+  ],
   eventFormFull: [
     body('name').trim().notEmpty().withMessage('O nome do evento é obrigatório.').isLength({ max: 200 }),
     body('area').optional().trim(),
-    body('date_start').optional().isISO8601({ strict: true }).withMessage('Informe uma data de início válida.'),
+    body('date_start').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Informe uma data de início válida.'),
     body('institution').optional().trim().isLength({ max: 200 }),
     body('language').optional().trim().isLength({ max: 50 }),
     body('location').optional().trim().isLength({ max: 200 }),
-    body('url').optional().isURL().withMessage('URL inválida.'),
+    body('url').optional({ values: 'falsy' }).isURL().withMessage('URL inválida.'),
     body('description').optional().trim().isLength({ max: 5000 }),
     body('short_name').optional().trim().isLength({ max: 100 }),
-    body('registration_start').optional().isISO8601({ strict: true }).withMessage('Data inválida.'),
-    body('registration_end').optional().isISO8601({ strict: true }).withMessage('Data inválida.'),
-    body('submission_start').optional().isISO8601({ strict: true }).withMessage('Data inválida.'),
-    body('submission_end').optional().isISO8601({ strict: true }).withMessage('Data inválida.'),
-    body('review_start').optional().isISO8601({ strict: true }).withMessage('Data inválida.'),
-    body('review_end').optional().isISO8601({ strict: true }).withMessage('Data inválida.'),
-    body('certificates_start').optional().isISO8601({ strict: true }).withMessage('Data inválida.'),
-    body('certificates_end').optional().isISO8601({ strict: true }).withMessage('Data inválida.')
+    body('registration_start').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Data inválida.'),
+    body('registration_end').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Data inválida.'),
+    body('submission_start').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Data inválida.'),
+    body('submission_end').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Data inválida.'),
+    body('review_start').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Data inválida.'),
+    body('review_end').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Data inválida.'),
+    body('certificates_start').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Data inválida.'),
+    body('certificates_end').optional({ values: 'falsy' }).isISO8601({ strict: true }).withMessage('Data inválida.')
   ],
   activityForm: [
     body('name').trim().notEmpty().withMessage('O nome da atividade é obrigatório.'),
@@ -134,20 +156,20 @@ const validators = {
     body('workload_hours').optional().isFloat({ min: 0 }).withMessage('Carga horária inválida.'),
     body('max_participants').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('O número máximo de participantes deve ser um inteiro maior que zero.'),
     body('video_url').optional({ values: 'falsy' }).isLength({ max: 500 }).withMessage('Link da transmissão de vídeo inválido.'),
-    body('eligible_roles').isArray({ min: 1 }).withMessage('Selecione ao menos um papel elegível.'),
-    body('eligible_roles.*').isIn(['participant', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.')
+    body('eligible_roles').custom((value) => (Array.isArray(value) ? value : [value]).filter(Boolean).length > 0).withMessage('Selecione ao menos um papel elegível.'),
+    body('eligible_roles').custom((value) => (Array.isArray(value) ? value : [value]).every((role) => ['participant', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(role))).withMessage('Papel inválido.')
   ],
   certificateRule: [
     body('certificate_role').isIn(['participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel de certificado inválido.'),
-    body('min_attendance').optional().isInt({ min: 0, max: 100 }).withMessage('Presença mínima deve ser um inteiro entre 0 e 100.'),
-    body('background_id').optional().isInt({ min: 1 }).withMessage('Fundo inválido.'),
+    body('min_attendance').optional({ values: 'falsy' }).isInt({ min: 0, max: 100 }).withMessage('Presença mínima deve ser um inteiro entre 0 e 100.'),
+    body('background_id').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Fundo inválido.'),
     body('text_color').optional().matches(/^#[0-9a-fA-F]{6}$/).withMessage('Cor inválida.'),
     body('title').optional().trim().isLength({ max: 160 }),
     body('body_text').optional().trim().isLength({ max: 500 })
   ],
   assignReviewer: [
     body('reviewer_id').optional().isInt({ min: 1 }).withMessage('Revisor inválido.'),
-    body('action').optional().isIn(['assign', 'remove']).withMessage('Ação inválida.')
+    body('action').optional().isIn(['assign', 'unassign']).withMessage('Ação inválida.')
   ],
   subsidyDecision: [
     body('subsidy_status').isIn(['approved', 'rejected']).withMessage('Status inválido.'),
@@ -156,17 +178,19 @@ const validators = {
   articleUpdate: [
     body('status').isIn(['pending', 'in_review', 'approved', 'rejected', 'revision_requested', 'withdrawn']).withMessage('Status inválido.')
   ],
-  publication: [
-    body('status').isIn(['published', 'draft', 'archived']).withMessage('Status inválido.')
-  ],
+  publication: [],
   roleAssignment: [
-    body('role').isIn(['admin', 'staff', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.'),
+    body('role').isIn(['admin', 'staff', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.'),
     body('user_id').isInt({ min: 1 }).withMessage('Usuário inválido.'),
     body('article_id').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Artigo inválido.')
   ],
   attendanceAction: [
-    body('action').isIn(['mark', 'update', 'remove']).withMessage('Ação inválida.'),
-    body('role').optional().isIn(['participant', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.')
+    body('action').isIn(['mark', 'update', 'remove', 'present', 'absent']).withMessage('Ação inválida.'),
+    body('role').optional({ values: 'falsy' }).isIn(['participant', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.')
+  ],
+  attendanceBulk: [
+    body('bulk_action').isIn(['mark_all_present', 'unmark_all_present']).withMessage('Ação em lote inválida.'),
+    body('action').optional().isIn(['mark', 'remove']).withMessage('Ação em lote inválida.')
   ],
   eventRegistration: [
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
@@ -177,7 +201,7 @@ const validators = {
   ],
   participantProfile: [
     body('name').optional().trim().isLength({ max: 200 }),
-    body('email').optional().customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
+    body('email').optional({ values: 'falsy' }).customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
     body('institution').optional().trim().isLength({ max: 200 }),
     body('cpf').optional().trim(),
     body('passport').optional().trim().isLength({ max: 50 }),

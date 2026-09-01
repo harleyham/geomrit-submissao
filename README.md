@@ -120,6 +120,8 @@ npm install
 ### 3. Executar
 
 ```bash
+# Obrigatória na primeira criação do banco e em resets
+export SUPER_ADMIN_INITIAL_PASSWORD='UmaSenhaInicialForte123'
 npm start
 # ou
 node server.js
@@ -134,16 +136,21 @@ O sistema cria automaticamente um administrador padrão:
 | Campo | Valor |
 |-------|-------|
 | E-mail | `admin@admin.com` |
-| Senha | `123456` |
+| Senha inicial | Valor forte de `SUPER_ADMIN_INITIAL_PASSWORD` (mínimo de 12 caracteres, com maiúscula, minúscula e número) |
 
 Ao fazer login pela primeira vez, será solicitada a troca de senha.
+
+Em produção com nginx no mesmo host, mantenha `HOST=127.0.0.1` e `TRUST_PROXY=loopback`. Se o proxy estiver em outra máquina ou rede privada, configure `TRUST_PROXY` com o endereço ou CIDR confiável e bloqueie acesso público direto à porta do Node.
 
 ## Variáveis de Ambiente
 
 | Variável | Descrição | Padrão |
 |----------|-----------|--------|
 | `PORT` | Porta HTTP | `3000` |
-| `SESSION_SECRET` | Chave de sessão | `edigemia-ligem-secret-2027` |
+| `HOST` | Interface HTTP; mantenha loopback quando o nginx estiver no mesmo host | `127.0.0.1` |
+| `TRUST_PROXY` | Proxy/CIDR confiável usado para resolver `req.ip` | `loopback` |
+| `SESSION_SECRET` | Chave de sessão forte e obrigatória | sem padrão |
+| `SUPER_ADMIN_INITIAL_PASSWORD` | Senha forte obrigatória para criar ou resetar o superadministrador | sem padrão |
 | `SMTP_HOST` | Servidor SMTP | `smtp.zoho.com` |
 | `SMTP_PORT` | Porta SMTP | `465` |
 | `SMTP_SECURE` | TLS direto (`true` na porta 465) | `true` |

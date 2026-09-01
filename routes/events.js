@@ -1367,15 +1367,19 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
     INSERT INTO users (name, email, password, institution, cpf, passport, phone, is_public, approval_status, approved_at, password_changed, profile_completed, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'approved', datetime('now','-3 hours'), 0, 0, datetime('now','-3 hours'), datetime('now','-3 hours'))
   `);
-  const updateUser = db.prepare('UPDATE users SET name=COALESCE(?, name), institution=COALESCE(?, institution), phone=COALESCE(?, phone), email=COALESCE(?, email), cpf=COALESCE(?, cpf), passport=COALESCE(?, passport) WHERE id=?');
   const insertRegistration = db.prepare(`
     INSERT OR IGNORE INTO event_registrations (event_id, user_id, name, email, institution, phone, registration_type, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, 'listener', datetime('now','-3 hours'), datetime('now','-3 hours'))
   `);
-  const findRegistration = db.prepare("SELECT id FROM event_registrations WHERE event_id=? AND user_id=?");
-  const findUserByCpf = db.prepare("SELECT id, name, email, cpf FROM users WHERE cpf IS NOT NULL AND cpf != ''");
-  const findUserByPassport = db.prepare("SELECT id, name, email, passport FROM users WHERE passport IS NOT NULL AND passport != ''");
-  const findUserByEmail = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?");
+  const updateRegistration = db.prepare(`
+    UPDATE event_registrations
+    SET name=?, institution=?, phone=?, updated_at=datetime('now','-3 hours')
+    WHERE event_id=? AND user_id=?
+  `);
+  const findRegistration = db.prepare("SELECT id, name, institution, phone FROM event_registrations WHERE event_id=? AND user_id=?");
+  const findUserByCpf = db.prepare("SELECT id, name, email, institution, phone, cpf FROM users WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = ? LIMIT 1");
+  const findUserByPassport = db.prepare("SELECT id, name, email, institution, phone, passport FROM users WHERE UPPER(REPLACE(passport,' ','')) = UPPER(?) LIMIT 1");
+  const findUserByEmail = db.prepare("SELECT id, name, email, institution, phone FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1");
 
    const defaultPassword = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   let imported = 0;
@@ -1414,31 +1418,43 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
       const nameToUse = nameRaw || (cpf ? cpf.replace(/[\.\-]/g, '') : email ? email.split('@')[0] : 'Importado');
 
       if (existing) {
-        const hasChanges = (nameRaw && nameRaw !== existing.name) || (institution && institution !== existing.institution) || (phone && phone !== existing.phone) || (email && email !== existing.email);
-        if (hasChanges) {
-          try {
-            updateUser.run(nameRaw || null, institution || null, phone || null, email || null, cpf || null, passport || null, existing.id);
-            updated += 1;
-          } catch (dbErr) {
-            console.error('[import-users] DB update error for', email || cpf || passport, ':', dbErr.message);
-            report.push({ name: existing.name, email: personEmail, status: 'error', detail: 'Erro ao atualizar usuÃ¡rio: ' + dbErr.message });
-            skipped += 1;
-            continue;
-          }
-        }
+        const canonicalEmail = existing.email || personEmail;
         const existingReg = findRegistration.get(event.id, existing.id);
         if (!existingReg) {
           try {
-            insertRegistration.run(event.id, existing.id, nameToUse, email || null, institution || null, phone || null);
+            const registrationResult = insertRegistration.run(
+              event.id,
+              existing.id,
+              nameRaw || existing.name,
+              existing.email,
+              institution || existing.institution || null,
+              phone || existing.phone || null
+            );
+            if (!registrationResult.changes) throw new Error('A inscrição já existe para outro identificador deste evento.');
             registered += 1;
-            report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'UsuÃ¡rio existente â€” inscrito no evento' });
+            report.push({ name: existing.name, email: canonicalEmail, status: 'success', detail: 'UsuÃ¡rio existente â€” inscrito no evento' });
           } catch (dbErr) {
             console.error('[import-users] registration error for', email || cpf || passport, ':', dbErr.message);
-            report.push({ name: existing.name, email: personEmail, status: 'error', detail: 'Erro ao inscrever: ' + dbErr.message });
+            report.push({ name: existing.name, email: canonicalEmail, status: 'error', detail: 'Erro ao inscrever: ' + dbErr.message });
           }
         } else {
+          const localChanged = Boolean(
+            (nameRaw && nameRaw !== existingReg.name)
+            || (institution && institution !== existingReg.institution)
+            || (phone && phone !== existingReg.phone)
+          );
+          if (localChanged) {
+            updateRegistration.run(
+              nameRaw || existingReg.name,
+              institution || existingReg.institution || '',
+              phone || existingReg.phone || '',
+              event.id,
+              existing.id
+            );
+            updated += 1;
+          }
           alreadyRegistered += 1;
-          report.push({ name: existing.name, email: personEmail, status: 'success', detail: 'UsuÃ¡rio existente â€” jÃ¡ inscrito no evento' });
+          report.push({ name: existing.name, email: canonicalEmail, status: 'success', detail: 'UsuÃ¡rio existente â€” jÃ¡ inscrito no evento' });
         }
         skipped += 1;
       } else {
@@ -2784,7 +2800,7 @@ router.post('/:id/activities/:activityId/attendance/:userId', strictLimiter, (re
 });
 
 router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, v.attendanceAction);
+  validateAndHandle(req, res, next, v.attendanceBulk);
 }, (req, res) => {
   const activity = db.prepare('SELECT id, event_id, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade nÃ£o encontrada' });

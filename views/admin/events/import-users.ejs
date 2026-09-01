@@ -23,7 +23,7 @@
   </header>
   <main class="main-content">
     <h1 style="font-size:1.75rem;font-weight:700;color:#f8fafc;margin-bottom:0.25rem">Importar Usuários</h1>
-    <p style="color:#94a3b8;margin-bottom:1.5rem">Importe usuários a partir de uma lista em formato CSV ou XLSX. O CPF é usado como chave principal; se não houver CPF, o passaporte é usado; caso nenhum dos dois exista, o e-mail é utilizado como chave. Informações complementares serão atualizadas se diferirem dos dados atuais.</p>
+    <p style="color:#94a3b8;margin-bottom:1.5rem">Importe usuários a partir de uma lista em formato CSV ou XLSX. O CPF é usado como chave principal; se não houver CPF, o passaporte é usado; caso nenhum dos dois exista, o e-mail é utilizado como chave. Contas existentes não têm seus dados globais alterados.</p>
 
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
@@ -60,7 +60,7 @@
       <h2>O que acontece na importação</h2>
       <ul class="info-list">
         <li><strong>Cria novo usuário</strong> — quando CPF, passaporte e e-mail não existem no sistema, um usuário é criado com a informação disponível e uma senha temporária.</li>
-        <li><strong>Atualiza dados complementares</strong> — quando CPF (ou passaporte, ou e-mail) já existe, nome, instituição, telefone e e-mail são atualizados se diferirem dos dados atuais.</li>
+        <li><strong>Preserva a conta existente</strong> — quando CPF, passaporte ou e-mail já existe, somente os dados locais da inscrição neste evento são atualizados; identidade, e-mail e documentos globais permanecem inalterados.</li>
         <li><strong>Ignora duplicatas</strong> — linhas sem CPF, passaporte e e-mail são ignoradas.</li>
       </ul>
     </div>

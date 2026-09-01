@@ -14,6 +14,7 @@ function getReviewerDashboardData(reviewerId, reviewerName) {
       COALESCE(SUM(CASE WHEN rp.recommendation = 'rejected' THEN 1 ELSE 0 END), 0) as rejected
     FROM assignments ass
     JOIN articles a ON a.id = ass.article_id
+    JOIN event_user_roles eur ON eur.event_id = a.event_id AND eur.user_id = ass.reviewer_id AND eur.role = 'reviewer'
     LEFT JOIN reports rp ON rp.assignment_id = ass.id
     WHERE ass.reviewer_id = ?
   `).bind(reviewerId).get();
@@ -26,6 +27,7 @@ function getReviewerDashboardData(reviewerId, reviewerName) {
       ass.status as assignment_status
     FROM assignments ass
     JOIN articles a ON a.id = ass.article_id
+    JOIN event_user_roles eur ON eur.event_id = a.event_id AND eur.user_id = ass.reviewer_id AND eur.role = 'reviewer'
     JOIN events e ON e.id = a.event_id
     LEFT JOIN reports rp ON rp.assignment_id = ass.id
     WHERE ass.reviewer_id = ?
@@ -43,6 +45,7 @@ function getReviewerDashboardData(reviewerId, reviewerName) {
       rp.updated_at as reviewed_at
     FROM assignments ass
     JOIN articles a ON a.id = ass.article_id
+    JOIN event_user_roles eur ON eur.event_id = a.event_id AND eur.user_id = ass.reviewer_id AND eur.role = 'reviewer'
     JOIN events e ON e.id = a.event_id
     JOIN reports rp ON rp.assignment_id = ass.id
     WHERE ass.reviewer_id = ?
@@ -103,8 +106,10 @@ router.get('/articles/:id', requireReviewer, (req, res) => {
   const reviewerId = req.session.userId;
   
   const assignment = db.prepare(`
-    SELECT * FROM assignments 
-    WHERE article_id = ? AND reviewer_id = ?
+    SELECT ass.* FROM assignments ass
+    JOIN articles a ON a.id = ass.article_id
+    JOIN event_user_roles eur ON eur.event_id = a.event_id AND eur.user_id = ass.reviewer_id AND eur.role = 'reviewer'
+    WHERE ass.article_id = ? AND ass.reviewer_id = ?
   `).bind(articleId, reviewerId).get();
   
   if (!assignment) {
@@ -144,19 +149,17 @@ router.post('/articles/:id/review', requireReviewer, strictLimiter, (req, res, n
   const reviewerId = req.session.userId;
   
   const assignment = db.prepare(`
-    SELECT * FROM assignments 
-    WHERE article_id = ? AND reviewer_id = ?
+    SELECT ass.* FROM assignments ass
+    JOIN articles a ON a.id = ass.article_id
+    JOIN event_user_roles eur ON eur.event_id = a.event_id AND eur.user_id = ass.reviewer_id AND eur.role = 'reviewer'
+    WHERE ass.article_id = ? AND ass.reviewer_id = ?
   `).bind(articleId, reviewerId).get();
   
   if (!assignment) {
     return res.redirect('/reviewer');
   }
   
-  const normalizedRecommendation = recommendation === 'rejected'
-    ? 'rejected'
-    : recommendation === 'revision_requested'
-      ? 'revision_requested'
-      : 'approved';
+  const normalizedRecommendation = recommendation;
   const reportBody = normalizedRecommendation === 'rejected' && rejection_reason
     ? `${review_notes}\n\nMotivo da rejeicao: ${rejection_reason}`
     : review_notes;

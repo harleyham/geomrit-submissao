@@ -6,6 +6,31 @@ const bcrypt = require('bcryptjs');
 const DB_PATH = path.join(__dirname, '..', 'artigos.db');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 const ASSETS_FUNDOS_DIR = path.join(__dirname, '..', 'assets', 'Fundos');
+const SCHEMA_VERSION = 1;
+
+function assertStrongBootstrapPassword(password) {
+  if (!password || password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    throw new Error('SUPER_ADMIN_INITIAL_PASSWORD deve ter ao menos 12 caracteres, com maiúscula, minúscula e número.');
+  }
+  return password;
+}
+
+function assertDatabaseReady(db) {
+  if (Number(db.pragma('foreign_keys', { simple: true })) !== 1) {
+    throw new Error('PRAGMA foreign_keys não está habilitado após as migrações.');
+  }
+  const integrity = db.pragma('integrity_check', { simple: true });
+  if (integrity !== 'ok') throw new Error(`Falha no integrity_check: ${integrity}`);
+  const violations = db.pragma('foreign_key_check');
+  if (violations.length) {
+    const sample = violations.slice(0, 5).map((row) => `${row.table}#${row.rowid} -> ${row.parent}`).join(', ');
+    throw new Error(`Falha no foreign_key_check (${violations.length} violação(ões)): ${sample}`);
+  }
+  const required = ['users', 'events', 'articles', 'assignments', 'reports', 'event_registrations', 'event_user_roles'];
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name));
+  const missing = required.filter((name) => !tables.has(name));
+  if (missing.length) throw new Error(`Schema incompleto; tabelas ausentes: ${missing.join(', ')}`);
+}
 
 function clearUploads() {
   if (!fs.existsSync(UPLOADS_DIR)) return;
@@ -112,7 +137,7 @@ const ROOM_DDL = `
     CREATE INDEX IF NOT EXISTS idx_room_assignments_event ON room_assignments(event_id,date);
 `;
 
-function initializeDbSchema(db) {
+function migrateSchema(db) {
   const hadParticipantActivityEnrollments = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='participant_activity_enrollments'").get());
 
   db.exec(`
@@ -540,32 +565,32 @@ function initializeDbSchema(db) {
         AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0`);
   }
 
-  try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){}
+  try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){ throw e; }
   try {
     const emissionCols = db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c => c.name);
     if (!emissionCols.includes('activities_attended')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activities_attended INTEGER DEFAULT 0');
     if (!emissionCols.includes('total_workload_hours')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN total_workload_hours REAL DEFAULT 0');
     if (!emissionCols.includes('activities_summary')) db.exec("ALTER TABLE certificate_emissions ADD COLUMN activities_summary TEXT DEFAULT ''");
     if (!emissionCols.includes('text_color')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
-  } catch(e) {}
+  } catch(e) { throw e; }
   try {
     const ruleCols = db.prepare('PRAGMA table_info(certificate_rules)').all().map(c => c.name);
     if (!ruleCols.includes('text_color')) db.exec('ALTER TABLE certificate_rules ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
-  } catch(e) {}
+  } catch(e) { throw e; }
   try {
     db.exec(`
       UPDATE event_rooms SET size='type1', capacity=COALESCE(capacity,10)  WHERE size='small';
       UPDATE event_rooms SET size='type2', capacity=COALESCE(capacity,50)  WHERE size='medium';
       UPDATE event_rooms SET size='type3', capacity=COALESCE(capacity,100) WHERE size='large';
     `);
-  } catch(e) {}
+  } catch(e) { throw e; }
   try {
     const userColumns = db.prepare('PRAGMA table_info(users)').all().map((column) => column.name);
     for (const column of ['is_participant', 'is_speaker', 'is_teacher', 'is_oral_presenter', 'is_poster_presenter', 'is_staff']) {
       if (!userColumns.includes(column)) db.exec(`ALTER TABLE users ADD COLUMN ${column} INTEGER DEFAULT 0`);
     }
     db.exec(`UPDATE users SET is_participant = 1 WHERE id IN (SELECT user_id FROM event_registrations WHERE user_id IS NOT NULL)`);
-  } catch (e) {}
+  } catch (e) { throw e; }
   try {
     const attendanceInfo = db.prepare('PRAGMA table_info(attendance_records)').all();
     const attendanceColumns = attendanceInfo.map((column) => column.name);
@@ -592,7 +617,7 @@ function initializeDbSchema(db) {
       })();
       db.pragma('foreign_keys = ON');
     }
-  } catch (e) {}
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } finally { throw e; } }
   try {
     const rolesSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_user_roles'").get()?.sql || '';
     if (!rolesSql.includes("'admin'")) {
@@ -612,7 +637,7 @@ function initializeDbSchema(db) {
     }
     db.exec(`INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by)
       SELECT e.id,u.id,'admin',u.id FROM events e JOIN users u ON u.is_admin=1`);
-  } catch (e) { try { db.pragma('foreign_keys = ON'); } catch (_) {} }
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } finally { throw e; } }
   try {
     const rolesSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_user_roles'").get()?.sql || '';
     if (rolesSql.includes('event_user_roles') && !rolesSql.includes("'staff'")) {
@@ -630,7 +655,7 @@ function initializeDbSchema(db) {
       })();
       db.pragma('foreign_keys = ON');
     }
-  } catch (e) { try { db.pragma('foreign_keys = ON'); } catch (_) {} }
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } finally { throw e; } }
   try {
     const activityColumns = db.prepare('PRAGMA table_info(event_activities)').all().map((column) => column.name);
     if (!activityColumns.includes('description')) db.exec("ALTER TABLE event_activities ADD COLUMN description TEXT DEFAULT ''");
@@ -640,14 +665,14 @@ function initializeDbSchema(db) {
     if (!activityAttendanceColumns.includes('user_id')) db.exec('ALTER TABLE activity_attendance_records ADD COLUMN user_id INTEGER');
     db.exec('UPDATE activity_attendance_records SET user_id=(SELECT user_id FROM event_registrations er WHERE er.id=activity_attendance_records.registration_id) WHERE user_id IS NULL');
     if (!activityAttendanceColumns.includes('session_id')) db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_user ON activity_attendance_records(activity_id,user_id) WHERE user_id IS NOT NULL');
-  } catch (e) {}
+  } catch (e) { throw e; }
   try {
     const aaColumns = db.prepare('PRAGMA table_info(activity_attendance_records)').all().map((c) => c.name);
     if (!aaColumns.includes('role')) {
       db.exec("ALTER TABLE activity_attendance_records ADD COLUMN role TEXT DEFAULT 'participant'");
       db.prepare("UPDATE activity_attendance_records SET role = 'participant' WHERE role IS NULL").run();
     }
-  } catch (e) {}
+  } catch (e) { throw e; }
   try {
     const activityDateColumns = db.prepare('PRAGMA table_info(event_activities)').all().map((column) => column.name);
     if (!activityDateColumns.includes('date_start')) db.exec('ALTER TABLE event_activities ADD COLUMN date_start DATE');
@@ -661,7 +686,7 @@ function initializeDbSchema(db) {
     if (!sessionVideoColumns.includes('has_video')) db.exec('ALTER TABLE activity_sessions ADD COLUMN has_video INTEGER DEFAULT 0');
     if (!sessionVideoColumns.includes('description')) db.exec("ALTER TABLE activity_sessions ADD COLUMN description TEXT DEFAULT ''");
     db.exec('UPDATE event_activities SET date_start=activity_date WHERE date_start IS NULL AND activity_date IS NOT NULL');
-  } catch (e) {}
+  } catch (e) { throw e; }
   try {
     const activityTimeColumns = db.prepare('PRAGMA table_info(event_activities)').all().map((column) => column.name);
     if (!activityTimeColumns.includes('time_start')) db.exec('ALTER TABLE event_activities ADD COLUMN time_start TIME');
@@ -670,7 +695,7 @@ function initializeDbSchema(db) {
     if (!sessionTimeColumns.includes('time_start')) db.exec('ALTER TABLE activity_sessions ADD COLUMN time_start TIME');
     if (!sessionTimeColumns.includes('time_end')) db.exec('ALTER TABLE activity_sessions ADD COLUMN time_end TIME');
     db.exec(ROOM_DDL);
-  } catch (e) {}
+  } catch (e) { throw e; }
   try {
     const sessionColumns = db.prepare('PRAGMA table_info(activity_attendance_records)').all().map((c) => c.name);
     if (!sessionColumns.includes('session_id')) {
@@ -699,7 +724,7 @@ function initializeDbSchema(db) {
     }
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_no_session ON activity_attendance_records(activity_id,user_id) WHERE user_id IS NOT NULL AND session_id IS NULL');
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_attendance_session_user ON activity_attendance_records(activity_id,session_id,user_id) WHERE user_id IS NOT NULL AND session_id IS NOT NULL');
-  } catch (e) { try { db.pragma('foreign_keys = ON'); } catch (_) {} }
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } finally { throw e; } }
   try {
     const aaCols = db.prepare('PRAGMA table_info(activity_attendance_records)').all();
     const regCol = aaCols.find((c) => c.name === 'registration_id');
@@ -726,7 +751,7 @@ function initializeDbSchema(db) {
       })();
       db.pragma('foreign_keys = ON');
     }
-  } catch (e) {}
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } finally { throw e; } }
   try {
     const emissionColumns = db.prepare('PRAGMA table_info(certificate_emissions)').all().map((column) => column.name);
     if (!emissionColumns.includes('certificate_role') || !emissionColumns.includes('user_id')) {
@@ -757,12 +782,12 @@ function initializeDbSchema(db) {
       })();
       db.pragma('foreign_keys = ON');
     }
-  } catch (e) { try { db.pragma('foreign_keys = ON'); } catch (_) {} }
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } finally { throw e; } }
   try {
     db.prepare(`INSERT OR IGNORE INTO event_certificate_rules
       (event_id,certificate_role,min_attendance,background_id,text_color,updated_by,created_at,updated_at)
       SELECT event_id,'participant',min_attendance,background_id,COALESCE(text_color,'#0f172a'),updated_by,created_at,updated_at FROM certificate_rules`).run();
-  } catch (e) {}
+  } catch (e) { throw e; }
 
   try {
     const backgroundCols = db.prepare('PRAGMA table_info(certificate_backgrounds)').all().map((column) => column.name);
@@ -792,11 +817,11 @@ function initializeDbSchema(db) {
           try {
             db.prepare(`UPDATE ${rule.table} SET background_id = ? WHERE ${rule.key} = ? AND background_id = ?`)
               .run(copy.lastInsertRowid, owner.event_id, background.id);
-          } catch (e) {}
+          } catch (e) { throw e; }
         }
       });
     }
-  } catch (e) {}
+  } catch (e) { throw e; }
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id ON event_registrations(event_id);
@@ -877,24 +902,27 @@ function initializeDbSchema(db) {
       });
   }
 
-  // Migrate legacy reviewers/admins
+  // Migrate legacy reviewers/admins atomically and always restore FK enforcement.
+  let legacyForeignKeysChanged = false;
   try {
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
     const tableNames = tables.map(t => t.name);
-    if (tableNames.includes('admins')) {
+    if (tableNames.includes('admins') || tableNames.includes('reviewers')) {
       db.pragma('foreign_keys = OFF');
+      legacyForeignKeysChanged = true;
+      const migrateLegacyUsers = db.transaction(() => {
       const reviewerMap = {};
-      const reviewerRows = db.prepare('SELECT id, name, email, password, is_active FROM reviewers').all();
+      const reviewerRows = tableNames.includes('reviewers') ? db.prepare('SELECT id, name, email, password, is_active FROM reviewers').all() : [];
       reviewerRows.forEach(r => {
         const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(r.email).get();
         const userId = existing ? existing.id : null;
         reviewerMap[r.id] = userId;
         if (!existing) {
-          const newId = db.prepare('INSERT INTO users (name, email, password, is_reviewer, is_public, password_changed) VALUES (?, ?, ?, 1, 1, 0)').bind(r.name, r.email, bcrypt.hashSync(r.password, 10)).get().insertId;
+          const newId = db.prepare('INSERT INTO users (name, email, password, is_reviewer, is_public, password_changed) VALUES (?, ?, ?, 1, 1, 0)').run(r.name, r.email, bcrypt.hashSync(r.password, 10)).lastInsertRowid;
           reviewerMap[r.id] = newId;
         }
       });
-      const adminRows = db.prepare('SELECT id, username, password FROM admins').all();
+      const adminRows = tableNames.includes('admins') ? db.prepare('SELECT id, username, password FROM admins').all() : [];
       adminRows.forEach(a => {
         const existing = db.prepare('SELECT id FROM users WHERE email = ?').bind(a.username).get();
         if (!existing) {
@@ -912,9 +940,14 @@ function initializeDbSchema(db) {
       }
       db.prepare('DROP TABLE IF EXISTS reviewers').run();
       db.prepare('DROP TABLE IF EXISTS admins').run();
-      db.pragma('foreign_keys = ON');
+      });
+      migrateLegacyUsers.immediate();
     }
-  } catch(e) { console.warn('Migration warning:', e.message); }
+  } catch(e) {
+    throw new Error(`Falha na migração legada de administradores/revisores: ${e.message}`);
+  } finally {
+    if (legacyForeignKeysChanged) db.pragma('foreign_keys = ON');
+  }
 
   // Migrate users columns
   try {
@@ -928,7 +961,7 @@ function initializeDbSchema(db) {
     if (!columns.includes('approved_at')) db.exec('ALTER TABLE users ADD COLUMN approved_at DATETIME');
     if (!columns.includes('approved_by')) db.exec('ALTER TABLE users ADD COLUMN approved_by INTEGER');
     db.prepare("UPDATE users SET approval_status = 'approved' WHERE approval_status IS NULL OR approval_status = ''").run();
-  } catch(e) {}
+  } catch(e) { throw e; }
 
   try {
     const articleColumns = db.prepare("PRAGMA table_info(articles)").all().map(c => c.name);
@@ -940,7 +973,7 @@ function initializeDbSchema(db) {
     if (!articleColumns.includes('ethics_confirmed')) db.exec('ALTER TABLE articles ADD COLUMN ethics_confirmed INTEGER DEFAULT 0');
     if (!articleColumns.includes('publication_authorized')) db.exec('ALTER TABLE articles ADD COLUMN publication_authorized INTEGER DEFAULT 0');
     if (!articleColumns.includes('presentation_needs')) db.exec("ALTER TABLE articles ADD COLUMN presentation_needs TEXT DEFAULT ''");
-  } catch(e) {}
+  } catch(e) { throw e; }
 
   try {
     const deprecatedArticleColumns = ['reviewer_id', 'reviewer_name', 'reviewer_area', 'review_notes', 'rejection_reason'];
@@ -948,7 +981,7 @@ function initializeDbSchema(db) {
     deprecatedArticleColumns
       .filter((column) => articleColumns.includes(column))
       .forEach((column) => db.exec(`ALTER TABLE articles DROP COLUMN ${column}`));
-  } catch(e) {}
+  } catch(e) { throw e; }
 
   try {
     const eventColumns = db.prepare("PRAGMA table_info(events)").all().map(c => c.name);
@@ -982,7 +1015,7 @@ function initializeDbSchema(db) {
       WHERE has_article_submission IS NULL
          OR (has_article_submission = 0 AND COALESCE(submission_start, submission_end, review_start, review_end) IS NOT NULL)
     `).run();
-  } catch(e) {}
+  } catch(e) { throw e; }
 
   try {
     const userColumns = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
@@ -991,7 +1024,7 @@ function initializeDbSchema(db) {
     if (!userColumns.includes('formacao_titulacao')) db.exec("ALTER TABLE users ADD COLUMN formacao_titulacao TEXT");
     if (!userColumns.includes('formacao_status')) db.exec("ALTER TABLE users ADD COLUMN formacao_status TEXT");
     if (!userColumns.includes('profile_completed')) db.exec("ALTER TABLE users ADD COLUMN profile_completed INTEGER DEFAULT 1");
-  } catch(e) {}
+  } catch(e) { throw e; }
 
   try {
     const userColumns = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
@@ -1029,7 +1062,7 @@ function initializeDbSchema(db) {
       END
       WHERE subsidy_status IS NULL OR TRIM(subsidy_status) = ''
     `).run();
-  } catch(e) {}
+  } catch(e) { throw e; }
 
   try {
     const authorRegistrations = db.prepare(`
@@ -1068,7 +1101,7 @@ function initializeDbSchema(db) {
         insertEventRegistration.run(registration.event_id, userId, registration.contributor || registration.email_submission, registration.email_submission, registration.affiliation || '');
       }
     });
-  } catch(e) {}
+  } catch(e) { throw e; }
 
   try {
     const regColumns = db.prepare('PRAGMA table_info(event_registrations)').all();
@@ -1151,6 +1184,7 @@ function initializeDbSchema(db) {
   } catch (e) {
     try { db.pragma('foreign_keys = ON'); } catch (_) {}
     console.error('[migração] Falha ao impor user_id NOT NULL em event_registrations:', e.message);
+    throw e;
   }
 
   // Limpeza de integridade: remove filhos órfãos (inscrições/interesses em
@@ -1171,21 +1205,62 @@ function initializeDbSchema(db) {
     if (orphanEnrollments.changes || orphanInterests.changes) {
       console.log(`[migração] Removidos ${orphanEnrollments.changes} inscrição(ões) e ${orphanInterests.changes} interesse(s) em atividade sem pai válido.`);
     }
-  } catch (e) { console.warn('[migração] Limpeza de integridade falhou:', e.message); }
+  } catch (e) { throw new Error(`Limpeza de integridade falhou: ${e.message}`); }
 
   // Seed admin
-  const seedUser = db.prepare('SELECT id FROM users WHERE email = ?').bind('admin@admin.com').get();
+  const seedUser = db.prepare('SELECT id, password FROM users WHERE email = ?').bind('admin@admin.com').get();
   if (!seedUser) {
-    const hash = bcrypt.hashSync('123456', 10);
+    const initialPassword = assertStrongBootstrapPassword(process.env.SUPER_ADMIN_INITIAL_PASSWORD);
+    const hash = bcrypt.hashSync(initialPassword, 12);
     db.prepare(`
       INSERT INTO users (name, email, password, is_admin, is_reviewer, is_public, approval_status, approved_at, password_changed)
       VALUES (?, ?, ?, 1, 0, 1, 'approved', datetime('now', '-3 hours'), 0)
     `).bind('Administrador', 'admin@admin.com', hash).run();
     console.log('Seed admin criado; troque a senha no primeiro acesso (/login/change-password).');
+  } else if (bcrypt.compareSync('123456', seedUser.password)) {
+    throw new Error('A senha previsível do superadministrador ainda está ativa. Redefina-a com scripts/reset-admin-password.js antes de iniciar.');
   }
+
+  db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)').run(SCHEMA_VERSION, 'adopt-v0.32-schema');
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+}
+
+function initializeDbSchema(db) {
+  const startedAt = Date.now();
+  const currentVersion = Number(db.pragma('user_version', { simple: true })) || 0;
+  if (currentVersion > SCHEMA_VERSION) {
+    throw new Error(`Schema versão ${currentVersion} é mais novo que a versão suportada ${SCHEMA_VERSION}.`);
+  }
+  console.log(`[migração] Verificando schema ${currentVersion} -> ${SCHEMA_VERSION}.`);
+
+  if (currentVersion < SCHEMA_VERSION) {
+    try {
+      db.pragma('foreign_keys = OFF');
+      db.transaction(() => migrateSchema(db)).immediate();
+    } catch (error) {
+      console.error(`[migração] Falha na versão ${SCHEMA_VERSION}; alterações revertidas:`, error.message);
+      throw error;
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+  } else {
+    const recorded = db.prepare('SELECT name FROM schema_migrations WHERE version = ?').get(SCHEMA_VERSION);
+    if (!recorded || recorded.name !== 'adopt-v0.32-schema') {
+      throw new Error(`Registro da migração ${SCHEMA_VERSION} ausente ou incompatível.`);
+    }
+  }
+
+  assertDatabaseReady(db);
+  console.log(`[migração] Schema ${SCHEMA_VERSION} validado em ${Date.now() - startedAt} ms.`);
 }
 
 function resetDatabase() {
+  assertStrongBootstrapPassword(process.env.SUPER_ADMIN_INITIAL_PASSWORD);
   // 1. Clear all uploaded files first
   clearUploads();
   clearCertificateEmissions();

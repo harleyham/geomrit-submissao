@@ -5,6 +5,7 @@ const zlib = require('zlib');
 const archiver = require('archiver');
 const AdmZip = require('adm-zip');
 const { getDb, initializeDbSchema } = require('./db-reset');
+const { runMaintenance } = require('./maintenance');
 
 const DB_PATH = path.join(__dirname, '..', 'artigos.db');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
@@ -147,12 +148,20 @@ function assertZipIntegrityForRestore(zip) {
 async function createBackupZip(destPath) {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'artigos-backup-'));
   const snapshotPath = path.join(workDir, 'artigos.db');
+  const snapshotUploads = path.join(workDir, 'uploads');
+  const snapshotAssets = path.join(workDir, USER_ASSETS_ZIP_PREFIX);
   try {
-    const db = getDb();
-    if (!db) throw new Error('Conexão com o banco de datos indisponível.');
-    // SQLite não aceita bind params em `VACUUM INTO`; o caminho vem de mkdtempSync
-    // (tmpdir do sistema, não controlável) e tem aspas simples escapadas.
-    db.prepare(`VACUUM INTO '${snapshotPath.replace(/'/g, "''")}'`).run();
+    await runMaintenance(async () => {
+      const db = getDb();
+      if (!db) throw new Error('Conexão com o banco de dados indisponível.');
+      db.prepare(`VACUUM INTO '${snapshotPath.replace(/'/g, "''")}'`).run();
+      if (fs.existsSync(UPLOADS_DIR)) fs.cpSync(UPLOADS_DIR, snapshotUploads, { recursive: true });
+      if (fs.existsSync(ASSETS_FUNDOS_DIR)) fs.cpSync(ASSETS_FUNDOS_DIR, path.join(snapshotAssets, 'Fundos'), { recursive: true });
+      if (fs.existsSync(ASSETS_LOGO_PATH)) {
+        fs.mkdirSync(snapshotAssets, { recursive: true });
+        fs.copyFileSync(ASSETS_LOGO_PATH, path.join(snapshotAssets, 'Ligem.png'));
+      }
+    });
 
     const meta = {
       app: 'gerencia-de-eventos',
@@ -161,15 +170,18 @@ async function createBackupZip(destPath) {
       node: process.version,
       platform: process.platform,
       db_size_bytes: fs.statSync(snapshotPath).size,
-      uploads_file_count: countFilesRecursive(UPLOADS_DIR),
-      user_assets_file_count: (fs.existsSync(ASSETS_FUNDOS_DIR) ? countFilesRecursive(ASSETS_FUNDOS_DIR) : 0) + (fs.existsSync(ASSETS_LOGO_PATH) ? 1 : 0)
+      uploads_file_count: countFilesRecursive(snapshotUploads),
+      user_assets_file_count: countFilesRecursive(snapshotAssets)
     };
 
     await new Promise((resolve, reject) => {
       const output = fs.createWriteStream(destPath);
       const archive = archiver('zip', { zlib: { level: 9 } });
       output.on('close', () => resolve());
-      archive.on('warning', (err) => console.warn('Backup zip warning:', err.message));
+      archive.on('warning', (err) => {
+        try { fs.unlinkSync(destPath); } catch (_) {}
+        reject(err);
+      });
       archive.on('error', (err) => {
         try { fs.unlinkSync(destPath); } catch (e) {}
         reject(err);
@@ -177,17 +189,17 @@ async function createBackupZip(destPath) {
       archive.pipe(output);
       archive.append(fs.createReadStream(snapshotPath), { name: 'artigos.db' });
       archive.append(JSON.stringify(meta, null, 2), { name: 'BACKUP_META.json' });
-      if (fs.existsSync(UPLOADS_DIR)) {
-        archive.directory(UPLOADS_DIR, 'uploads');
+      if (fs.existsSync(snapshotUploads)) {
+        archive.directory(snapshotUploads, 'uploads');
       }
       // Imagens substituíveis pelo usuário dentro de assets/ (fundos padrão de
       // certificado e logo da plataforma): viajam no ZIP e são re-aplicadas no
       // restore, sem tocar nos demais arquivos de assets/ (CSVs de código).
-      if (fs.existsSync(ASSETS_FUNDOS_DIR)) {
-        archive.directory(ASSETS_FUNDOS_DIR, `${USER_ASSETS_ZIP_PREFIX}/Fundos`);
+      if (fs.existsSync(path.join(snapshotAssets, 'Fundos'))) {
+        archive.directory(path.join(snapshotAssets, 'Fundos'), `${USER_ASSETS_ZIP_PREFIX}/Fundos`);
       }
-      if (fs.existsSync(ASSETS_LOGO_PATH)) {
-        archive.file(ASSETS_LOGO_PATH, { name: `${USER_ASSETS_ZIP_PREFIX}/Ligem.png` });
+      if (fs.existsSync(path.join(snapshotAssets, 'Ligem.png'))) {
+        archive.file(path.join(snapshotAssets, 'Ligem.png'), { name: `${USER_ASSETS_ZIP_PREFIX}/Ligem.png` });
       }
       archive.finalize();
     });
@@ -205,7 +217,11 @@ async function createBackupZip(destPath) {
 
 // Restaura banco + uploads a partir de um ZIP gerado por createBackupZip.
 // Inclui cópia de segurança do banco atual e rollback em caso de falha.
-function restoreFromZip(zipPath) {
+async function restoreFromZip(zipPath) {
+  return runMaintenance(async () => restoreFromZipLocked(zipPath));
+}
+
+function restoreFromZipLocked(zipPath) {
   let zip;
   try {
     zip = new AdmZip(zipPath);
@@ -236,7 +252,16 @@ function restoreFromZip(zipPath) {
   let preRestoreWal = null;
   let newDb = null;
   let swapped = false;
+  let connectionClosed = false;
   let uploadsBackupPath = null;
+  let uploadsExisted = false;
+  let uploadsTouched = false;
+  let fundosBackupPath = null;
+  let logoBackupPath = null;
+  let fundosExisted = false;
+  let logoExisted = false;
+  let fundosTouched = false;
+  let logoTouched = false;
 
   try {
     zip.extractAllTo(workDir, true);
@@ -248,6 +273,8 @@ function restoreFromZip(zipPath) {
     try {
       const integrity = check.pragma('integrity_check', { simple: true });
       if (integrity !== 'ok') throw new Error('Falha no integrity_check do banco do backup.');
+      const foreignKeyViolations = check.pragma('foreign_key_check');
+      if (foreignKeyViolations.length) throw new Error(`O banco do backup contém ${foreignKeyViolations.length} violação(ões) de chave estrangeira.`);
       const tables = check.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name);
       if (!tables.includes('users') || !tables.includes('events')) {
         throw new Error('O banco do backup não contém as tabelas principais (users, events).');
@@ -262,13 +289,6 @@ function restoreFromZip(zipPath) {
       try { liveDb.pragma('wal_checkpoint(TRUNCATE)'); } catch (e) {}
     }
 
-    // Fecha todas as conexões em cache
-    Object.values(require.cache).forEach((mod) => {
-      if (mod.exports && mod.exports.db && typeof mod.exports.db.close === 'function') {
-        try { mod.exports.db.close(); } catch (e) {}
-      }
-    });
-
     // Cópia de segurança do banco atual (rollback)
     if (fs.existsSync(DB_PATH)) {
       preRestoreMain = DB_PATH + '.pre-restore';
@@ -278,6 +298,10 @@ function restoreFromZip(zipPath) {
       preRestoreWal = DB_PATH + '-wal.pre-restore';
       fs.copyFileSync(DB_PATH + '-wal', preRestoreWal);
     }
+
+    // A cópia de rollback existe antes de fechar a conexão ativa.
+    require('../db').closeCurrentDb();
+    connectionClosed = true;
 
     // Troca o DB em uso. O arquivo validado (integridade + tabelas, válidas
     // logo acima) é copiado sobre o atual em local. A cópia sobrescreve em
@@ -300,6 +324,7 @@ function restoreFromZip(zipPath) {
     if (fs.existsSync(extractedUploads) && fs.statSync(extractedUploads).isDirectory()) {
       try {
         if (fs.existsSync(UPLOADS_DIR)) {
+          uploadsExisted = true;
           // Backup dos uploads antes de qualquer alteração, permitindo rollback
           // caso a cópia de volta falhe (disco cheio, permissão, arquivo
           // corrompido ou interrupção) — o banco tem rollback, mas os uploads não.
@@ -307,6 +332,7 @@ function restoreFromZip(zipPath) {
           fs.rmSync(uploadsBackupPath, { recursive: true, force: true });
           fs.cpSync(UPLOADS_DIR, uploadsBackupPath, { recursive: true });
         }
+        uploadsTouched = true;
         fs.rmSync(UPLOADS_DIR, { recursive: true, force: true });
         fs.mkdirSync(UPLOADS_DIR, { recursive: true });
         fs.cpSync(extractedUploads, UPLOADS_DIR, { recursive: true });
@@ -325,9 +351,6 @@ function restoreFromZip(zipPath) {
       }
     }
 
-    require('../db').setDb(newDb);
-    newDb = null;
-
     // Re-aplica as imagens de usuário que viajam no ZIP sob assets-user/:
     // fundos de certificado (assets/Fundos) e logo da plataforma
     // (assets/Ligem.png). Backups antigos (sem esse prefixo) simplesmente
@@ -337,35 +360,42 @@ function restoreFromZip(zipPath) {
     const extractedLogo = path.join(extractedUserAssets, 'Ligem.png');
     let userAssetsRestored = false;
     if (fs.existsSync(extractedFundos) || fs.existsSync(extractedLogo)) {
-      const fundosBackup = path.join(workDir, 'fundos-pre-restore');
-      const logoBackup = path.join(workDir, 'ligem-pre-restore.png');
+      fundosBackupPath = path.join(workDir, 'fundos-pre-restore');
+      logoBackupPath = path.join(workDir, 'ligem-pre-restore.png');
       try {
         if (fs.existsSync(extractedFundos)) {
-          if (fs.existsSync(ASSETS_FUNDOS_DIR)) fs.cpSync(ASSETS_FUNDOS_DIR, fundosBackup, { recursive: true });
+          fundosExisted = fs.existsSync(ASSETS_FUNDOS_DIR);
+          if (fundosExisted) fs.cpSync(ASSETS_FUNDOS_DIR, fundosBackupPath, { recursive: true });
+          fundosTouched = true;
           fs.rmSync(ASSETS_FUNDOS_DIR, { recursive: true, force: true });
           fs.mkdirSync(ASSETS_FUNDOS_DIR, { recursive: true });
           fs.cpSync(extractedFundos, ASSETS_FUNDOS_DIR, { recursive: true });
         }
         if (fs.existsSync(extractedLogo)) {
-          if (fs.existsSync(ASSETS_LOGO_PATH)) fs.copyFileSync(ASSETS_LOGO_PATH, logoBackup);
+          logoExisted = fs.existsSync(ASSETS_LOGO_PATH);
+          if (logoExisted) fs.copyFileSync(ASSETS_LOGO_PATH, logoBackupPath);
+          logoTouched = true;
           fs.copyFileSync(extractedLogo, ASSETS_LOGO_PATH);
         }
         userAssetsRestored = true;
       } catch (err) {
         // Rollback dos assets ao estado anterior (o catch externo devolve o banco).
         try {
-          if (fs.existsSync(fundosBackup)) {
+          if (fs.existsSync(fundosBackupPath)) {
             fs.rmSync(ASSETS_FUNDOS_DIR, { recursive: true, force: true });
             fs.mkdirSync(ASSETS_FUNDOS_DIR, { recursive: true });
-            fs.cpSync(fundosBackup, ASSETS_FUNDOS_DIR, { recursive: true });
+            fs.cpSync(fundosBackupPath, ASSETS_FUNDOS_DIR, { recursive: true });
           }
-          if (fs.existsSync(logoBackup)) fs.copyFileSync(logoBackup, ASSETS_LOGO_PATH);
+          if (fs.existsSync(logoBackupPath)) fs.copyFileSync(logoBackupPath, ASSETS_LOGO_PATH);
         } catch (rollbackErr) {
           console.error('Falha ao reverter assets após erro no restore:', rollbackErr.message);
         }
         throw err;
       }
     }
+
+    require('../db').setDb(newDb);
+    newDb = null;
 
     return {
       uploadsRestored,
@@ -374,18 +404,37 @@ function restoreFromZip(zipPath) {
       uploadsFileCount: countFilesRecursive(UPLOADS_DIR)
     };
   } catch (err) {
+    const rollbackErrors = [];
     if (newDb) { try { newDb.close(); } catch (e) {} }
-    if (swapped) {
-      for (const suffix of ['', '-wal', '-shm']) {
-        try { fs.unlinkSync(DB_PATH + suffix); } catch (e) {}
+    try {
+      if (uploadsTouched && uploadsBackupPath && fs.existsSync(uploadsBackupPath)) {
+        fs.rmSync(UPLOADS_DIR, { recursive: true, force: true });
+        fs.cpSync(uploadsBackupPath, UPLOADS_DIR, { recursive: true });
+      } else if (uploadsTouched && !uploadsExisted) {
+        fs.rmSync(UPLOADS_DIR, { recursive: true, force: true });
       }
-      if (preRestoreMain && fs.existsSync(preRestoreMain)) {
-        fs.copyFileSync(preRestoreMain, DB_PATH);
+    } catch (error) { rollbackErrors.push(new Error(`uploads: ${error.message}`)); }
+    try {
+      if (fundosTouched) {
+        fs.rmSync(ASSETS_FUNDOS_DIR, { recursive: true, force: true });
+        if (fundosExisted && fs.existsSync(fundosBackupPath)) fs.cpSync(fundosBackupPath, ASSETS_FUNDOS_DIR, { recursive: true });
       }
-      if (preRestoreWal && fs.existsSync(preRestoreWal)) {
-        fs.copyFileSync(preRestoreWal, DB_PATH + '-wal');
+    } catch (error) { rollbackErrors.push(new Error(`fundos: ${error.message}`)); }
+    try {
+      if (logoTouched) {
+        if (logoExisted && fs.existsSync(logoBackupPath)) fs.copyFileSync(logoBackupPath, ASSETS_LOGO_PATH);
+        else fs.rmSync(ASSETS_LOGO_PATH, { force: true });
       }
+    } catch (error) { rollbackErrors.push(new Error(`logo: ${error.message}`)); }
+    if (swapped || connectionClosed) {
       try {
+        if (swapped) {
+          for (const suffix of ['', '-wal', '-shm']) {
+            try { fs.unlinkSync(DB_PATH + suffix); } catch (e) {}
+          }
+          if (preRestoreMain && fs.existsSync(preRestoreMain)) fs.copyFileSync(preRestoreMain, DB_PATH);
+          if (preRestoreWal && fs.existsSync(preRestoreWal)) fs.copyFileSync(preRestoreWal, DB_PATH + '-wal');
+        }
         const Database = require('better-sqlite3');
         const restored = new Database(DB_PATH);
         restored.pragma('journal_mode = WAL');
@@ -393,7 +442,11 @@ function restoreFromZip(zipPath) {
         require('../db').setDb(restored);
       } catch (e) {
         console.error('Falha ao reabrir conexão após rollback do restore:', e.message);
+        rollbackErrors.push(new Error(`banco: ${e.message}`));
       }
+    }
+    if (rollbackErrors.length) {
+      throw new AggregateError([err, ...rollbackErrors], `Restore falhou e o rollback encontrou ${rollbackErrors.length} erro(s).`);
     }
     throw err;
   } finally {

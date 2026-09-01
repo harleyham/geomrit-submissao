@@ -1,6 +1,6 @@
 # Plano: admin por evento (autorização escopada) + STAFF + revisor por evento
 
-> **Documento histórico, superado em 31/08/2026.** Este arquivo preserva a proposta original e não descreve integralmente o modelo vigente. A implementação final está documentada em `plano.md`, na seção **Reforma de Permissões — papéis exclusivamente por evento**, em `submissao_log_v2.md` (entrada de 31/08/2026) e em `manual.md`. Entre as decisões finais, `/admin/users` e `/admin/dashboard` são exclusivos do superadministrador, e o acesso de revisor exige o papel `reviewer` no evento.
+> **Documento histórico, superado em 31/08/2026 e corrigido em 01/09/2026.** Este arquivo preserva a proposta original e não descreve integralmente o modelo vigente. A implementação final está documentada em `plano.md`, `submissao_log_v2.md` e `manual.md`. No modelo atual, `/admin/users` e `/admin/dashboard` são exclusivos do superadministrador; `staff` não acessa artigos, pareceres ou relatórios; e o acesso a cada artigo pelo revisor exige simultaneamente atribuição e papel `reviewer` ativo no evento.
 
 > Contexto: no estado atual, um usuário com papel de admin de evento acaba com poder
 > sobre **todo** o sistema (via escalada em `requireAuth`), porque `event_user_roles
@@ -36,7 +36,7 @@ Regras de origem (sessão, populada do banco a cada request):
 - `session.isAdmin` (super-admin): `is_admin=1` **e** (email === `admin@admin.com` **ou** 0 eventos — bootstrap).
 - `session.isEventAdmin` / `session.eventAdminIds`: `event_user_roles role='admin'`, independente de `is_admin`.
 - `session.isStaff` / `session.staffEventIds`: `event_user_roles role='staff'`.
-- `session.isReviewer` / `session.reviewEventIds`: `event_user_roles role='reviewer'` **OU** `assignments.reviewer_id` (artigos atribuídos). **Não** depende mais da flag global `users.is_reviewer`.
+- O acesso de revisor é consultado diretamente no banco: papel `event_user_roles role='reviewer'` ativo no evento **E** atribuição em `assignments` para o artigo. A flag global `users.is_reviewer` não autoriza acesso.
 
 ## 2. O que muda (arquivo a arquivo)
 
@@ -88,7 +88,7 @@ Regras de origem (sessão, populada do banco a cada request):
 
 ## 4. Revisor por evento
 
-- `reviewer.js`: `requireReviewer` passa a exigir "revisor de ≥1 evento" (`event_user_roles role='reviewer'` **ou** `assignments.reviewer_id`), removendo a dependência da flag global `users.is_reviewer` no acesso.
+- `reviewer.js`: o gateway exige papel `reviewer` em ao menos um evento; dashboard, detalhe e envio de parecer repetem a autorização pelo evento do artigo e exigem atribuição correspondente.
 - `doLoginAfterRegen` / `authz`: `session.isReviewer` derivado dos dois canais (papel no evento e atribuição de artigo).
 - Dashboard (`reviewer.js:8-65`): passa a filtrar pelos eventos que revisa (union dos dois canais), mantendo a carga por `assignments.reviewer_id`.
 - UI: badge de revisor passa a refletir o evento (conforme já exibido em `events.js`/`reports.js` via union).

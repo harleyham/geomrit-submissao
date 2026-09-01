@@ -4,34 +4,32 @@ const { db, getAssignmentsByEvent, getPendingReviews, getReviewedArticles } = re
 const { strictLimiter } = require('../security/rate-limits');
 const { validateAndHandle, validators: v } = require('../security/validation');
 
-// Autoriza administradores de eventos e staff. O escopo (req.scopedEventIds,
-// definido por requireAdminOrStaff no mount) é a união dos eventos em que a
-// pessoa é administradora ou staff; o superadmin fica sem escopo (tudo).
+// Relatórios e pareceres exigem administração do evento.
 function requireAuth(req, res, next) {
-  if (req.isSuperAdmin || Array.isArray(req.scopedEventIds)) {
+  if (req.isSuperAdmin || (Array.isArray(req.adminEventIds) && req.adminEventIds.length > 0)) {
     return next();
   }
   return res.redirect('/login');
 }
 
-function isStaffScoped(req) {
-  return !req.isSuperAdmin && Array.isArray(req.scopedEventIds);
+function isAdminScoped(req) {
+  return !req.isSuperAdmin && Array.isArray(req.adminEventIds);
 }
 
 function staffDeny(res) {
-  return res.status(403).render('error', { title: 'Acesso negado', message: 'Você só pode acessar dados dos eventos que administra ou nos quais é staff.' });
+  return res.status(403).render('error', { title: 'Acesso negado', message: 'Esta ação exige o papel de administrador do evento.' });
 }
 
-function staffEventAllowed(req, eventId) {
-  return !isStaffScoped(req) || req.scopedEventIds.includes(Number(eventId));
+function adminEventAllowed(req, eventId) {
+  return !isAdminScoped(req) || req.adminEventIds.includes(Number(eventId));
 }
 
 // Ações por artigo (:id) exigem artigo de um evento do escopo.
 router.param('id', (req, res, next, id) => {
-  if (!isStaffScoped(req)) return next();
+  if (!isAdminScoped(req)) return next();
   const article = db.prepare('SELECT event_id FROM articles WHERE id = ?').get(id);
   if (!article) return res.status(404).render('error', { title: 'Artigo não encontrado' });
-  if (!req.scopedEventIds.includes(Number(article.event_id))) return staffDeny(res);
+  if (!req.adminEventIds.includes(Number(article.event_id))) return staffDeny(res);
   next();
 });
 
@@ -39,8 +37,8 @@ router.param('id', (req, res, next, id) => {
 router.get('/', requireAuth, (req, res) => {
   try {
     const eventId = parseInt(req.query.eventId);
-    if (!eventId) return res.redirect(isStaffScoped(req) ? '/admin/events' : '/admin');
-    if (!staffEventAllowed(req, eventId)) return staffDeny(res);
+    if (!eventId) return res.redirect(isAdminScoped(req) ? '/admin/events' : '/admin');
+    if (!adminEventAllowed(req, eventId)) return staffDeny(res);
     const event = db.prepare('SELECT * FROM events WHERE id = ?').bind(eventId).get();
     if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
     
@@ -290,7 +288,7 @@ router.get('/', requireAuth, (req, res) => {
 
 // Decidir destino do artigo (admin)
 router.post('/:id/decide', requireAuth, strictLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, v.finalDecision);
+  validateAndHandle(req, res, next, v.reportDecision);
 }, (req, res) => {
   const { final_status, eventId } = req.body;
   if (['pending', 'in_review', 'approved', 'rejected'].includes(final_status)) {

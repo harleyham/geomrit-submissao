@@ -15,21 +15,16 @@ const crypto = require('crypto');
 
 const { csrfProtection } = require('./security/csrf');
 const { defaultLimiter, adminLimiter } = require('./security/rate-limits');
-const { handleValidationErrors } = require('./security/validation');
 const { db } = require('./db');
 const { startEmailWorkers, stopEmailWorkers } = require('./services/email');
+const { maintenanceGuard } = require('./services/maintenance');
 
 const app = express();
-// O app roda atrás do nginx com terminação TLS: sem confiar no proxy,
-// `req.secure` seria sempre false e o express-session SUPRIME o cookie de
-// sessão (`connect.sid; Secure`) em respostas HTTP — o GET /login renderiza
-// o formulário sem enviar cookie e todo POST /login falha em 403 (token CSRF
-// comparado contra uma sessão vazia nova). O valor 1 confia apenas no
-// último hop (nginx); os limitadores de taxa continuam imunes a spoof de
-// `X-Forwarded-For` porque usam `keyGenerator` com o IP do socket
-// (security/rate-limits.js), não `req.ip`.
-app.set('trust proxy', 1);
+// Somente proxies locais são confiáveis. O processo escuta em loopback por
+// padrão, impedindo clientes externos de forjar X-Forwarded-For diretamente.
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
 const APP_VERSION = 'V' + require('./package.json').version.split('.').slice(0, 2).join('.');
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -63,13 +58,11 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 app.use(compression());
+app.use(maintenanceGuard);
 
 // View engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-
-// Rate limiting global
-app.use(defaultLimiter);
 
 // Middleware: o method-override roda DEPOIS dos parsers de body. Nesta versão do pacote,
 // getter por string lê apenas a query (?_method=); para o hidden input _method dos
@@ -86,6 +79,9 @@ app.use(methodOverride((req) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/uploads/event-logos', express.static(path.join(__dirname, 'uploads', 'event-logos')));
+
+// Arquivos estáticos não consomem a cota das rotas dinâmicas.
+app.use(defaultLimiter);
 
 // Sessão
 // SESSION_SECRET é obrigatória: sem ela o fallback randomizado invalidaria todas
@@ -274,8 +270,8 @@ app.use((err, req, res, next) => {
   res.status(500).render('error', { title: 'Erro interno do servidor', message: 'Ocorreu um erro inesperado.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Gerência de Eventos rodando em http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Gerência de Eventos rodando em http://${HOST}:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/login`);
   startEmailWorkers();
 });
@@ -284,9 +280,9 @@ function closeDb() {
   try { db.close(); } catch (e) { console.error('Erro ao fechar o banco:', e.message); }
 }
 
-function shutdown(signal) {
+async function shutdown(signal) {
   console.log(`${signal} recebido, encerrando o servidor...`);
-  stopEmailWorkers();
+  await stopEmailWorkers();
   closeDb();
   process.exit(0);
 }

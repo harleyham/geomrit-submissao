@@ -1843,7 +1843,8 @@ router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
 
 // Processar submissão de artigo
 router.post('/submeter/:eventId', registrationLimiter, requireNonAdminAuthorAccess, runUpload, (req, res, next) => {
-  validateAndHandle(req, res, next, v.submit);
+  const validators = req.body && req.body.action === 'save_draft' ? [] : v.submit;
+  validateAndHandle(req, res, next, validators);
 }, (req, res) => {
   try {
     const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.eventId).get());

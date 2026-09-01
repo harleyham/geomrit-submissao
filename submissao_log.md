@@ -4,6 +4,8 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 > **Continuação**: os registros a partir de 2026-08-24 seguem em [`submissao_log_v2.md`](submissao_log_v2.md).
 
+> **Nota de segurança (01/09/2026):** este arquivo é histórico. Menções a senha `123456`, validação HTML que prossegue com `next()`, rate limit pelo IP do socket ou restore sem staging não representam o código atual. Consulte `submissao_log_v2.md` e `ANALISE_MELHORIAS_CODIGO.md`.
+
 ## 2026-08-23
 
 ### Segurança: códigos de acesso de artigos e de verificação de certificados

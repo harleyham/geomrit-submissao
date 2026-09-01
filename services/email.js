@@ -580,9 +580,14 @@ function startEmailWorkers() {
   queueDueEventReminders();
 }
 
-function stopEmailWorkers() {
+async function stopEmailWorkers() {
   if (workerTimer) clearInterval(workerTimer);
   if (reminderTimer) clearInterval(reminderTimer);
+  workerTimer = null;
+  reminderTimer = null;
+  while (processing) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
 }
 
 function isValidHttpUrl(value) {

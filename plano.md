@@ -3,6 +3,8 @@
 Plano aprovado pelo usuário, organizado em ciclos de execução sequencial.
 Documento vivo: atualizar o `Status` de cada item conforme a execução.
 
+> **Atualização de 01/09/2026:** os achados 1 a 10 de `ANALISE_MELHORIAS_CODIGO.md` foram implementados. Referências abaixo à senha `123456`, rate limit pelo IP do socket, acesso de `staff` a artigos/relatórios, migrações silenciosas ou restore sem staging descrevem estados anteriores e foram superadas pela implementação registrada em `submissao_log_v2.md`.
+
 > **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026, todos registrados em `submissao_log_v2.md`. Inclui: datas em `dd/mm/yyyy` via flatpickr em todos os formulários (evento, atividades e etapas) com a correção crítica da conversão dia/mês; descrição breve das etapas; correções críticas (login bloqueado por 403 — `trust proxy` restaurado + rate limit por IP do socket; restore de backup — escopo de `uploadsBackupPath` no `finally`); hardening remanescente do Ciclo 8 (ZIP-bomb, CSRF em uploads multipart, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas) e o plano de administração por evento documentado em `Plano_admin.md`.
 
 > **Sobre a V0.2**: versão de lançamento inicial do projeto. Consolida a funcionalidade entregue (eventos, inscrições, submissão/artigos, presença por QR, certificados, e-mails transacionais, avaliações, triagem de inscrições etc.) e o **hardening de segurança** de 24/08/2026 (Ciclo 8 do plano). As pendentes de hardening seguem listadas e a serem implementadas a partir desta versão.
@@ -12,7 +14,7 @@ Documento vivo: atualizar o `Status` de cada item conforme a execução.
 - Root: `/media/ham1/350_EXT4/Codigo/artigos/geomrit-submissao`.
 - Timestamps UTC-3 (`datetime('now','-3 hours')`), CSRF global (`security/csrf.js`).
 - Sem hot-reload: **restart obrigatório** após mudança em `routes/`, `services/` ou `server.js`.
-- Seed: `admin@admin.com` / `123456` (super-admin).
+- Bootstrap: `admin@admin.com` com senha forte obrigatória em `SUPER_ADMIN_INITIAL_PASSWORD`; `password_changed=0` exige troca no primeiro acesso.
 - Toda mudança documentada em `submissao.md` + `submissao_log.md`.
 - DB dev: `artigos.db` (WAL, `foreign_keys=ON`).
 
@@ -346,7 +348,7 @@ Status: **concluído** (verificação: `node --check`, compilação EJS e `npm r
 
 - **Impersonação/preview** — escopar a prévia (`server.js:144-185`, `routes/users.js:479-513`): exigir re-autenticação; limitação a leitura; não replicar `isAdmin`/`isReviewer`; expirar `previewUserId`.
 - ~~**ZIP-bomb / descompressão no restore**~~ — **RESOLVIDO em 2026-08-24** (ver `submissao_log_v2.md`): os tetos de tamanho descomprimido/comprimido e a razão de compressão estavam lendo `entry.size`/`entry.compressedSize` (inexistentes no `adm-zip` — código morto); corrigidos para `entry.header.size`/`entry.header.compressedSize`. A limitação de nº de arquivos (100.000) e a troca atômica da conexão do DB via proxy `setDb` já existiam.
-- **Spoof de IP no rate limiting** — **RESOLVIDO em 2026-08-25, abordagem substituída em 2026-08-26** (ver `submissao_log_v2.md`): a remoção de `trust proxy` feita em 25/08 suprimia o cookie de sessão Secure atrás do nginx e bloqueava todo login (403). Solução final: `app.set('trust proxy', 1)` restaurado em `server.js` e todos os limitadores com `keyGenerator` por IP do socket (`security/rate-limits.js`), mantendo a limitação imune ao XFF spoofável sem quebrar cookies/autenticação.
+- **Spoof de IP no rate limiting** — **RESOLVIDO e revisado em 01/09/2026**: o processo escuta em `127.0.0.1` por padrão, `TRUST_PROXY` aceita somente proxy/CIDR confiável e os limitadores usam o `req.ip` normalizado pelo Express. Arquivos estáticos não consomem a cota de rotas dinâmicas.
 - **CSP (nonce)** — **CONCLUÍDO em 2026-08-27** (ver `submissao_log_v2.md`): middleware gera `res.locals.cspNonce` por request (base64, antes do helmet); `scriptSrc` e `scriptSrcAttr` passam a usar a função `(req,res) => 'nonce-${res.locals.cspNonce}'`, removendo `'unsafe-inline'`. Todos os `<script>` (inline e `src=/lib/`) e os 27 handlers inline (`onclick`/`onsubmit`/`onchange`) recebem `nonce="<%= cspNonce %>"`. Verificado ao vivo: `script-src`/`script-src-attr` com nonce por-request coincidindo com o `<script>` e o `<select onchange>` de `/revisores`. (`'unsafe-inline'` mantido só em `style-src`, por blocos `<style>` inline e Google Fonts.) Observações da implementação: nesta build do helmet 8.x o objeto `{nonce:true}` gera `[object Object]` no header, e a função escrita como *string* é rejeitada pela vírgula dos parâmetros — usar a função real. **Pendente relacionado**: reforçar sanitização de HTML armazenado (`sanitize-html`/`DOMPurify` — não instaladas) — exige nova dependência, é hardening XSS separado do header CSP.
 - **Upload por mimetype** — definir extensão pelo `file.mimetype` (não pelo `originalname`) e não servir uploads executáveis; cobrir pontos de upload que confiam só no mimetype (`routes/events.js`).
 - **(Opcional)** `requireAuth`/`requireReviewer` revalidando o DB em operações sensíveis; `session.regenerate` em troca de papéis; store de sessão persistente (Redis/sqlite3).

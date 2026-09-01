@@ -1,8 +1,22 @@
 const crypto = require('crypto');
+const fs = require('fs');
 
 const TOKEN_LENGTH = 32;
 const HEADER_NAME = 'X-CSRF-Token';
 const FIELD_NAME = '_csrf';
+
+function removeRejectedUploads(req) {
+  const files = [];
+  if (req.file) files.push(req.file);
+  if (Array.isArray(req.files)) files.push(...req.files);
+  else if (req.files && typeof req.files === 'object') Object.values(req.files).forEach((items) => files.push(...items));
+  files.forEach((file) => {
+    if (!file || !file.path) return;
+    try { fs.unlinkSync(file.path); } catch (error) {
+      if (error.code !== 'ENOENT') console.error('Falha ao remover upload rejeitado por CSRF:', error.message);
+    }
+  });
+}
 
 function generateToken() {
   return crypto.randomBytes(TOKEN_LENGTH).toString('hex');
@@ -39,6 +53,7 @@ function validateCsrfToken(req, res, next) {
     return next();
   }
 
+  removeRejectedUploads(req);
   return res.status(403).render('error', {
     title: 'Solicitação inválida',
     message: actualToken

@@ -29,6 +29,14 @@ function setDb(connection) {
   current = connection;
 }
 
+function getCurrentDb() {
+  return current;
+}
+
+function closeCurrentDb() {
+  if (current && current.open) current.close();
+}
+
 const hadParticipantActivityEnrollments = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='participant_activity_enrollments'").get());
 
 const { initializeDbSchema } = require('./services/db-reset');
@@ -39,6 +47,8 @@ initializeDbSchema(db);
 module.exports = {
   db,
   setDb,
+  getCurrentDb,
+  closeCurrentDb,
   recordParticipantAudit: ({ eventId, registrationId = null, actorUserId = null, action, details = {} }) => {
     db.prepare(`
       INSERT INTO participant_audit_logs (event_id, registration_id, actor_user_id, action, details, created_at)

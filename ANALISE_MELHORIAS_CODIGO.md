@@ -3,6 +3,8 @@
 Data da revisão: 01/09/2026
 Escopo: aplicação Node.js/Express, rotas administrativas e públicas, templates EJS, SQLite, migrações, backup/restore, autenticação, autorização e operação em produção.
 
+> **Atualização de implementação (01/09/2026):** os achados **1 a 10** foram corrigidos no código. O diagnóstico original foi preservado abaixo como histórico e cada item recebeu seu status. Os achados 11 a 32 permanecem como trabalho futuro, salvo correções incidentais explicitamente documentadas.
+
 ## Resumo executivo
 
 A aplicação possui controles importantes já implementados, como CSRF global, CSP com nonce, consultas SQL parametrizadas, escopo por evento, verificação de integridade de backup e transações em parte dos fluxos críticos. A revisão, porém, encontrou riscos que devem ser tratados antes de ampliar o uso em produção.
@@ -23,6 +25,7 @@ Não foram encontrados sinais de SQL injection nas consultas revisadas. A sintax
 ### 1. Credencial inicial previsível do superadministrador
 
 **Severidade:** crítica
+**Status:** corrigido em 01/09/2026. Bancos novos e resets exigem `SUPER_ADMIN_INITIAL_PASSWORD` com ao menos 12 caracteres, maiúscula, minúscula e número; a senha legada `123456` impede o boot até ser redefinida.
 **Evidências:** `services/db-reset.js:1176-1184`.
 
 Todo banco novo ou resetado cria `admin@admin.com` com a senha pública `123456`. Embora a troca seja obrigatória no primeiro acesso, qualquer pessoa que autentique antes do operador pode assumir a conta e definir a nova senha.
@@ -34,6 +37,7 @@ Todo banco novo ou resetado cria `admin@admin.com` com a senha pública `123456`
 ### 2. Validações HTML não interrompem os handlers
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. Erros retornam `400` e não chamam `next()`; JSON e HTML possuem respostas próprias, contratos divergentes foram alinhados e uploads rejeitados são removidos.
 **Evidências:** `security/validation.js:3-31`, `routes/reviewer.js:138-193`.
 
 `validateAndHandle` responde com `400` para JSON, mas, em requisições HTML, apenas grava erros em `res.locals.validationErrors` e chama `next()`. O handler seguinte continua executando. No parecer, por exemplo, uma recomendação fora da whitelist chega ao handler e é normalizada para `approved`.
@@ -45,6 +49,7 @@ Todo banco novo ou resetado cria `admin@admin.com` com a senha pública `123456`
 ### 3. Rate limits compartilhados por todos atrás do nginx
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. Os limitadores usam `req.ip`, o Express confia apenas em proxy configurado por `TRUST_PROXY`, o processo escuta em `127.0.0.1` por padrão e arquivos estáticos não consomem a cota dinâmica.
 **Evidências:** `server.js:23-31`, `server.js:71-72`, `security/rate-limits.js:3-78`.
 
 Os limitadores usam `req.socket.remoteAddress`. Atrás do nginx, a chave tende a ser o endereço do próprio proxy, tornando os limites globais para todos os visitantes. Dez tentativas de login podem bloquear todos os logins por 15 minutos, e 200 requisições podem bloquear toda a aplicação.
@@ -56,6 +61,7 @@ Os limitadores usam `req.socket.remoteAddress`. Atrás do nginx, a chave tende a
 ### 4. `staff` recebe acesso administrativo a artigos e relatórios
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. `adminEventIds` e `staffEventIds` permanecem separados; artigos, PDFs, pareceres, relatórios, atribuições, decisões e exclusões exigem `admin` no evento.
 **Evidências:** `routes/auth.js:217-252`, `server.js:255-258`, `routes/articles.js:36-64`, `routes/reports.js:7-35`.
 
 `requireAdminOrStaff` une eventos administrados e eventos em que a pessoa é `staff` em um único `req.scopedEventIds`. Os routers de artigos e relatórios verificam apenas esse conjunto, sem preservar qual papel concedeu o acesso.
@@ -69,6 +75,7 @@ Um `staff` pode, conforme as rotas atuais, visualizar submissões e pareceres, b
 ### 5. Importação por evento permite alterar contas globais
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. Contas existentes mantêm identidade, e-mail e documentos globais; somente a inscrição local do evento é criada ou atualizada, usando o e-mail canônico da conta.
 **Evidências:** `routes/events.js:1283-1285`, `routes/events.js:1366-1380`, `routes/events.js:1409-1428`.
 
 A importação disponível no contexto do evento localiza contas existentes por e-mail, CPF ou passaporte e executa `UPDATE users`, alterando nome, instituição, telefone, e-mail e documentos globais. Como `staff` pode acessar esse fluxo, uma função operacional do evento consegue modificar a identidade usada em todos os eventos.
@@ -80,6 +87,7 @@ A importação disponível no contexto do evento localiza contas existentes por 
 ### 6. Remover papel de revisor não revoga atribuições antigas
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. Dashboard, detalhe e envio de parecer exigem simultaneamente atribuição e papel `reviewer` ativo no evento do artigo.
 **Evidências:** `routes/reviewer.js:8-51`, `routes/reviewer.js:67-74`, `routes/reviewer.js:100-135`, `routes/reviewer.js:138-193`.
 
 O middleware verifica se a pessoa é revisora em algum evento. Depois disso, o acesso ao artigo exige apenas uma linha em `assignments`. Se o papel for removido no evento A, mas a pessoa continuar revisora no evento B, atribuições antigas do evento A continuam acessíveis.
@@ -91,6 +99,7 @@ O middleware verifica se a pessoa é revisora em algum evento. Depois disso, o a
 ### 7. Ações de artigo por `fetch` não enviam CSRF
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. `PUT` e `DELETE` enviam `X-CSRF-Token`, verificam `response.ok` e somente consolidam a interface após confirmação do servidor.
 **Evidências:** `views/admin/articles/list.ejs:196-227`, `security/csrf.js:72-78`.
 
 As chamadas `PUT` e `DELETE` da listagem não enviam `_csrf` nem `X-CSRF-Token`. A proteção global deve responder `403`. A alteração de status também ignora a resposta, fazendo a falha parecer bem-sucedida.
@@ -102,6 +111,7 @@ As chamadas `PUT` e `DELETE` da listagem não enviam `_csrf` nem `X-CSRF-Token`.
 ### 8. Migração legada pode deixar chaves estrangeiras desligadas
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. A migração legada usa `run().lastInsertRowid`, transação, fail-fast e restauração de `foreign_keys` em `finally`, seguida de `foreign_key_check`.
 **Evidências:** `services/db-reset.js:880-917`.
 
 A migração executa `PRAGMA foreign_keys = OFF`, mas restaura a configuração apenas no caminho de sucesso. O `catch` apenas registra um aviso. Além disso, o insert de reviewer usa `.get().insertId`; para `better-sqlite3`, o correto é `.run().lastInsertRowid`.
@@ -113,6 +123,7 @@ A migração executa `PRAGMA foreign_keys = OFF`, mas restaura a configuração 
 ### 9. Migrações silenciosas podem deixar schema parcial
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. A versão 1 é executada atomicamente, registrada em `schema_migrations` e `PRAGMA user_version`, não é reaplicada após concluída e falhas inesperadas interrompem o boot.
 **Evidências:** `services/db-reset.js:543-799`, `services/db-reset.js:919-1071`.
 
 O boot contém vários blocos independentes com erros suprimidos, inclusive `catch` vazios. Não há tabela de versão de schema nem garantia de que uma migração foi concluída integralmente.
@@ -124,6 +135,7 @@ O boot contém vários blocos independentes com erros suprimidos, inclusive `cat
 ### 10. Backup e restore não garantem consistência completa
 
 **Severidade:** alta
+**Status:** corrigido em 01/09/2026. Backup captura banco, uploads e assets em staging sob barreira de manutenção; restore drena requisições e workers, valida integridade e FKs, publica a conexão somente ao final e mantém rollback independente de banco, uploads, fundos e logo.
 **Evidências:** `services/backup.js:145-193`, `services/backup.js:298-398`.
 
 O banco é fotografado com `VACUUM INTO`, mas uploads e assets são lidos depois diretamente das pastas ativas. Alterações durante a geração podem produzir um ZIP com banco e arquivos de instantes diferentes.

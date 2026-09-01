@@ -14,6 +14,23 @@ Versão atual registrada: **V0.32**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-01
+
+### Implementação dos achados 1 a 10 da análise de código
+
+- Bootstrap do superadministrador: removida a senha pública `123456`; criação e reset exigem `SUPER_ADMIN_INITIAL_PASSWORD` forte, e um hash legado dessa senha impede o boot até a redefinição.
+- Validação: requisições inválidas retornam `400` sem executar o handler; respostas JSON/HTML foram separadas, contratos divergentes foram alinhados e uploads rejeitados por validação ou CSRF são removidos.
+- Proxy e rate limit: bind padrão em `127.0.0.1`, proxy confiável configurável por `TRUST_PROXY`, chave padrão por `req.ip` e arquivos estáticos fora da cota dinâmica.
+- Autorização: `adminEventIds` e `staffEventIds` permanecem separados. Artigos, PDFs, pareceres, relatórios, atribuições, decisões e exclusões exigem `admin`; links correspondentes foram removidos da interface de staff.
+- Importação por evento: contas existentes não têm identidade, e-mail ou documentos globais alterados. Apenas os campos locais enviados para `event_registrations` são atualizados, preservando valores omitidos e usando o e-mail canônico para notificações.
+- Revisão: dashboard, detalhe e POST de parecer exigem atribuição e papel `reviewer` ativo no mesmo evento; remover o papel revoga imediatamente o acesso às atribuições históricas.
+- Artigos por `fetch`: `PUT` e `DELETE` enviam `X-CSRF-Token`, tratam respostas não-2xx e revertem a interface quando a persistência falha.
+- Migrações: criada versão 1 em `schema_migrations` e `PRAGMA user_version`; execução transacional somente quando pendente, fail-fast, `run().lastInsertRowid`, restauração obrigatória de `foreign_keys`, `integrity_check` e `foreign_key_check` antes do servidor atender.
+- Backup/restore: criada barreira de manutenção para requisições e worker de e-mail; backup captura banco, uploads e assets em staging; restore valida o conjunto, publica a conexão ao final e mantém rollback independente para banco, uploads, fundos e logo.
+- Verificações: `node --check`, compilação EJS, `git diff --check`, `npm run verify-env`, schema novo em memória, segunda inicialização idempotente, rejeição de schema futuro e migração sobre cópia isolada do banco atual. A cópia removeu um vínculo órfão e terminou com `foreign_keys=ON`, versão 1 e zero violações; o banco ativo não foi alterado pelos testes.
+
+`Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ## 2026-08-31
 
 ### Correções pontuais (manhã)
@@ -530,5 +547,4 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Filtro por trilha ? Filtro por Sala ?
 - Rever procedimento de inscrição
 - Número de participantes de uma Atividade
-
 

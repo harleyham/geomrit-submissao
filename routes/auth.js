@@ -10,6 +10,7 @@ const { validators: v, validateAndHandle } = require('../security/validation');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { resetDatabase } = require('../services/db-reset');
 const { createBackupZip, restoreFromZip, backupFileName } = require('../services/backup');
+const { runMaintenance } = require('../services/maintenance');
 const { requireSuperAdmin } = require('../security/super-admin');
 const { validateCsrfToken } = require('../security/csrf');
 const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue } = require('../services/email');
@@ -214,13 +215,9 @@ function requireAuth(req, res, next) {
   return res.redirect('/login');
 }
 
-// Autoriza acesso a áreas administrativas de eventos (eventos, artigos e
-// relatórios). O superadmin tem acesso irrestrito (req.scopedEventIds = null).
-// Administradores de eventos e staff recebem req.scopedEventIds com a união
-// dos eventos em que exercem qualquer um dos dois papéis; os routers usam a
-// lista para restringir consultas e ações, e as rotas por evento de events.js
-// revalidam o papel específico ali. Nenhum desses usuários vira admin de
-// sessão: req.session.isAdmin é exclusivo do superadmin.
+// Preserva os escopos de admin e staff separadamente. `scopedEventIds` segue
+// como união apenas para as rotas operacionais de events.js; artigos e
+// relatórios usam exclusivamente `adminEventIds`.
 function getStaffEventIds(userId) {
   return getEventIdsByRole(userId, 'staff');
 }
@@ -231,6 +228,7 @@ function requireAdminOrStaff(req, res, next) {
   if (isSuperAdminUser(userId)) {
     req.isSuperAdmin = true;
     req.scopedEventIds = null;
+    req.adminEventIds = null;
     req.staffEventIds = null;
     req.session.isEventStaff = false;
     return next();
@@ -238,6 +236,8 @@ function requireAdminOrStaff(req, res, next) {
   req.isSuperAdmin = false;
   const adminEventIds = getEventIdsByRole(userId, 'admin');
   const staffEventIds = getEventIdsByRole(userId, 'staff');
+  req.adminEventIds = adminEventIds;
+  req.staffEventIds = staffEventIds;
   const scoped = [...new Set([...adminEventIds, ...staffEventIds])];
   req.session.isEventStaff = staffEventIds.length > 0 && adminEventIds.length === 0;
   if (scoped.length === 0) {
@@ -245,11 +245,9 @@ function requireAdminOrStaff(req, res, next) {
     // tem papel; em /admin/events a lista mostra só os eventos do usuário e a
     // criação é liberada.
     req.scopedEventIds = null;
-    req.staffEventIds = null;
     return next();
   }
   req.scopedEventIds = scoped;
-  req.staffEventIds = scoped;
   return next();
 }
 
@@ -576,9 +574,9 @@ router.get('/db/reset', requireAuth, requireSuperAdmin, (req, res) => {
   });
 });
 
-router.post('/db/reset', requireAuth, requireSuperAdmin, adminLimiter, (req, res) => {
+router.post('/db/reset', requireAuth, requireSuperAdmin, adminLimiter, async (req, res) => {
   try {
-    resetDatabase();
+    await runMaintenance(async () => resetDatabase());
     req.flash ? req.flash('success', 'Banco de dados resetado com sucesso. O servidor será reiniciado.') : null;
     return res.redirect('/admin/dashboard?reset=success');
   } catch (err) {
@@ -620,7 +618,7 @@ router.get('/backup/restore', requireAuth, requireSuperAdmin, (req, res) => {
 });
 
 // Restauração: upload do ZIP gerado pelo backup
-router.post('/backup/restore', requireAuth, requireSuperAdmin, strictLimiter, restoreUpload.single('backup_file'), validateCsrfToken, (req, res) => {
+router.post('/backup/restore', requireAuth, requireSuperAdmin, strictLimiter, restoreUpload.single('backup_file'), validateCsrfToken, async (req, res) => {
   const confirmText = String(req.body.confirm || '').trim();
   const uploadedFile = req.file ? req.file.path : null;
   try {
@@ -634,7 +632,7 @@ router.post('/backup/restore', requireAuth, requireSuperAdmin, strictLimiter, re
     if (!/\.zip$/i.test(originalName)) {
       return res.redirect('/admin/backup/restore?error=Envie%20um%20arquivo%20ZIP%20gerado%20pelo%20backup.');
     }
-    restoreFromZip(uploadedFile);
+    await restoreFromZip(uploadedFile);
     return res.redirect('/admin/dashboard?restore=success');
   } catch (err) {
     console.error('Restore error:', err);
@@ -778,20 +776,17 @@ router.get('/change-password', (req, res) => {
 });
 
 router.post('/change-password', loginLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, v.changePassword);
+  validateAndHandle(req, res, next, v.changePassword, (_request, response, errors) => response.status(400).render('change-password', {
+    title: 'Trocar Senha',
+    action: 'change-password',
+    success: null,
+    error: errors[0],
+    year: new Date().getFullYear()
+  }));
 }, (req, res) => {
   if (!req.session.userId) return res.redirect('/login');
   const { new_password, confirm_password } = req.body;
 
-  if (res.locals.validationErrors && res.locals.validationErrors.length) {
-    return res.status(400).render('change-password', {
-      title: 'Trocar Senha',
-      action: 'change-password',
-      success: null,
-      error: res.locals.validationErrors[0],
-      year: new Date().getFullYear()
-    });
-  }
   if (!new_password || new_password !== confirm_password) {
     return res.status(400).render('change-password', {
       title: 'Trocar Senha',

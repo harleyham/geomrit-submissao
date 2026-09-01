@@ -159,7 +159,7 @@
             <td><span class="badge badge-<%= a.status %>"><%= a.status_label %></span></td>
             <td><%= new Date(a.created_at).toLocaleDateString('pt-BR') %></td>
             <td class="actions">
-              <select class="status-select" onchange="changeStatus(<%= a.id %>, this.value)" nonce="<%= cspNonce %>">
+              <select class="status-select" data-persisted-status="<%= a.status %>" onchange="changeStatus(<%= a.id %>, this.value, this)" nonce="<%= cspNonce %>">
                 <option value="pending" <%= a.status === 'pending' ? 'selected' : '' %>>Pendente</option>
                 <option value="in_review" <%= a.status === 'in_review' ? 'selected' : '' %>>Em análise</option>
                 <option value="approved" <%= a.status === 'approved' ? 'selected' : '' %>>Aprovado</option>
@@ -199,8 +199,31 @@
     const deleteCancelBtn = document.getElementById('delete-cancel-btn');
     const deleteConfirmBtn = document.getElementById('delete-confirm-btn');
 
-    function changeStatus(id, status) {
-      fetch('/admin/articles/' + id, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status}) });
+    const csrfToken = <%- jsonForScript(csrfToken) %>;
+
+    async function changeStatus(id, status, select) {
+      const previousStatus = select && select.dataset.persistedStatus;
+      if (select) select.disabled = true;
+      try {
+        const response = await fetch('/admin/articles/' + id, {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({ status })
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result || !result.success) throw new Error('Falha ao alterar o status do artigo.');
+        if (select) select.dataset.persistedStatus = status;
+      } catch (error) {
+        if (select && previousStatus) select.value = previousStatus;
+        alert(error.message || 'Nao foi possivel alterar o status do artigo.');
+      } finally {
+        if (select) select.disabled = false;
+      }
     }
 
     function openDeleteModal(id, eventId) {
@@ -222,7 +245,8 @@
         const response = await fetch('/admin/articles/' + id + '?eventId=' + eventId, {
           method: 'DELETE',
           headers: {
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrfToken
           }
         });
 
