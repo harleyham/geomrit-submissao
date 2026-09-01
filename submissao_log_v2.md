@@ -48,6 +48,16 @@ Versão atual registrada: **V0.32**.
 - Docs: `README.md` (bullet de e-mails transacionais) e `submissao.md`.
 - `Status: implementado e validado localmente; efetivo após reinício do servidor.`
 
+### Esqueci a senha: autoatendimento público de redefinição
+
+- **Página de login**: novo link "Esqueci a senha" abaixo de "Solicitar novo cadastro".
+- **Novo fluxo** (`routes/auth.js`, `views/forgot-password.ejs`): `GET/POST /login/esqueci-senha` (formulário de e-mail com CSRF e `strictLimiter`). Com e-mail cadastrado **e** master switch global de e-mails ligado, cria token de uso único (hash SHA-256 em `user_setup_tokens`, expiração de 72h, revoke dos tokens anteriores não usados — reaproveitando a infraestrutura do reset administrativo) e enfileira `password_reset` ("Redefinição de senha solicitada") com o link `/definir-senha?token=...`.
+- **Sem alteração de credencial até o clique**: o pedido de reset não toca em `users.password` nem em `password_changed`; nada é bloqueado. A senha só é substituída quando o usuário usa o link no formulário de definição `/definir-senha` (implementado pelo reset administrativo, que marca `password_changed=1`).
+- **Privacidade**: resposta de sucesso e mensagem de erro são genéricas (não revelam a existência do e-mail na base); quando o envio de e-mails está desativado, exibe aviso para procurar a organização e não gera token (a mensagem ficaria suspensa sem utilidade).
+- Validação: E2E em sandbox (banco temporário, porta 3133) — link visível na `/login`; POST com e-mail cadastrado → mensagem genérica + linha `password_reset | queued` na fila + hash da senha intacto + 1 token pendente (72h); POST com e-mail inexistente → erro genérico; login com a senha antiga continua funcionando após o pedido (fluxo não bloqueia). `node --check` em `routes/auth.js`.
+- Docs: `README.md` e `submissao.md`.
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ## 2026-08-31
 
 ### Correções pontuais (manhã)

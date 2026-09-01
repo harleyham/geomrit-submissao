@@ -13,7 +13,7 @@ const { createBackupZip, restoreFromZip, backupFileName } = require('../services
 const { runMaintenance } = require('../services/maintenance');
 const { requireSuperAdmin } = require('../security/super-admin');
 const { validateCsrfToken } = require('../security/csrf');
-const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue } = require('../services/email');
+const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue, queuePasswordReset, canQueueEmail } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
 fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
@@ -256,6 +256,51 @@ function safeAfterLoginPath(value) {
   if (!path.startsWith('/presenca/') || path.includes('//') || path.includes('\u0000') || path.length > 200) return null;
   return path;
 }
+
+// Esqueci a senha (autoatendimento): envia link de uso único para definir
+// nova senha. Nenhuma credencial é alterada ou bloqueada até o usuário
+// usar o link em /definir-senha (que grava a nova senha e marca a troca).
+const GENERIC_RESET_NOTICE = 'Se este e-mail estiver cadastrado, você receberá em instantes um link para definir uma nova senha. Verifique também a caixa de spam.';
+
+router.get('/esqueci-senha', (req, res) => {
+  res.render('forgot-password', {
+    title: 'Esqueci a senha',
+    error: null,
+    success: null,
+    formData: { email: '' }
+  });
+});
+
+router.post('/esqueci-senha', strictLimiter, (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  let user = null;
+  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    user = db.prepare('SELECT id, name, email FROM users WHERE LOWER(email) = ?').get(email);
+  }
+  let sent = false;
+  if (user && user.email && canQueueEmail(null).allowed) {
+    try {
+      const result = queuePasswordReset({ user });
+      sent = result.status === 'queued';
+    } catch (error) {
+      console.error('[email] Falha ao enfileirar link de esqueci a senha:', error.message);
+    }
+  }
+  if (sent) {
+    return res.render('forgot-password', {
+      title: 'Esqueci a senha',
+      error: null,
+      success: GENERIC_RESET_NOTICE,
+      formData: { email: '' }
+    });
+  }
+  return res.render('forgot-password', {
+    title: 'Esqueci a senha',
+    error: 'Não foi possível gerar o link. Verifique o e-mail informado e tente novamente; se o problema persistir, o envio de e-mails pode estar desativado e você deve procurar a organização para redefinir a senha.',
+    success: null,
+    formData: { email: '' }
+  });
+});
 
 // Login page
 router.get('/', (req, res) => {
