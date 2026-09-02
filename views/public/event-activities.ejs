@@ -94,11 +94,13 @@
                   <% } else if (activity.present) { %>
                     <input type="hidden" name="activity_ids" value="<%= activity.id %>">
                     <input type="checkbox" checked disabled aria-label="Atividade com presença registrada">
+                  <% } else if (Number(activity.required_for_participants) === 1) { %>
+                    <input type="checkbox" checked disabled aria-label="Atividade obrigatória para participantes">
                   <% } else { %>
                     <input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= activity.enrolled ? 'checked' : '' %>>
                   <% } %>
                   <span>
-                    <strong><%= activity.name %></strong>
+                    <strong><%= activity.name %><% if (Number(activity.required_for_participants) === 1) { %><span class="badge" style="background:#1d4ed8;color:#bfdbfe;margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %></strong>
                     <small><%= activityDateRange(activity) %> · <%= Number(activity.effective_workload_hours != null ? activity.effective_workload_hours : activity.workload_hours) > 0 ? (Number(activity.effective_workload_hours != null ? activity.effective_workload_hours : activity.workload_hours)) : 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small>
                     <% if (activity.sessions_total > 0) { %>
                       <span class="present"><%= activity.attended_sessions.length %> de <%= activity.sessions_total %> presenças<% if (activity.attended_sessions.length) { %> — <%= activity.attended_sessions.join(' · ') %><% } %></span>

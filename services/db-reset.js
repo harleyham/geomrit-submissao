@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const DB_PATH = path.join(__dirname, '..', 'artigos.db');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 const ASSETS_FUNDOS_DIR = path.join(__dirname, '..', 'assets', 'Fundos');
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 function assertStrongBootstrapPassword(password) {
   if (!password || password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
@@ -681,6 +681,8 @@ function migrateSchema(db) {
     if (!activityDateColumns.includes('has_video')) db.exec('ALTER TABLE event_activities ADD COLUMN has_video INTEGER DEFAULT 0');
     if (!activityDateColumns.includes('max_participants')) db.exec('ALTER TABLE event_activities ADD COLUMN max_participants INTEGER');
     if (!activityDateColumns.includes('requires_approval')) db.exec('ALTER TABLE event_activities ADD COLUMN requires_approval INTEGER DEFAULT 0');
+    if (!activityDateColumns.includes('required_for_participants')) db.exec('ALTER TABLE event_activities ADD COLUMN required_for_participants INTEGER DEFAULT 0');
+    db.prepare('UPDATE event_activities SET required_for_participants = 0 WHERE required_for_participants IS NULL').run();
     const sessionVideoColumns = db.prepare('PRAGMA table_info(activity_sessions)').all().map((column) => column.name);
     if (!sessionVideoColumns.includes('video_url')) db.exec('ALTER TABLE activity_sessions ADD COLUMN video_url TEXT');
     if (!sessionVideoColumns.includes('has_video')) db.exec('ALTER TABLE activity_sessions ADD COLUMN has_video INTEGER DEFAULT 0');

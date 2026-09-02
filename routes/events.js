@@ -1889,10 +1889,14 @@ function buildActivityDraft(req, existing) {
   const submittedRoles = Array.isArray(req.body.eligible_roles) ? req.body.eligible_roles : (req.body.eligible_roles ? [req.body.eligible_roles] : []);
   const roomId = Number(req.body.room_id) || null;
   const workloadRaw = req.body.workload_hours;
+  const draftType = ACTIVITY_VALID_TYPES.includes(req.body.activity_type) ? req.body.activity_type : 'other';
+  const roles = [...new Set(submittedRoles.flatMap((role) => String(role || '').split(',')))].filter(Boolean);
+  const canBeRequired = !['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'].includes(draftType) && roles.includes('participant');
   return {
     id: existing ? existing.id : null,
     name: String(req.body.name || ''),
-    activity_type: ACTIVITY_VALID_TYPES.includes(req.body.activity_type) ? req.body.activity_type : 'other',
+    activity_type: draftType,
+    required_for_participants: (req.body.required_for_participants === '1' && canBeRequired) ? 1 : 0,
     description: String(req.body.description || ''),
     date_start: req.body.date_start || null,
     date_end: req.body.date_end || null,
@@ -2011,10 +2015,10 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   try {
     db.transaction(() => {
       const created = db.prepare(`INSERT INTO event_activities
-        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval,required_for_participants)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         event.id, name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours,
-        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval
+        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants
       );
       if (allocation.roomId) {
         rooms.syncTargetAssignments({ eventId: event.id, activityId: created.lastInsertRowid, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
@@ -2084,9 +2088,9 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   try {
     db.transaction(() => {
       db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,time_start=?,time_end=?,workload_hours=?,
-        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=? WHERE id=?`).run(
+        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=?,required_for_participants=? WHERE id=?`).run(
         name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
-        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, activity.id
+        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, activity.id
       );
       syncSessionWorkloadLock(activity.id, workloadHours);
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
@@ -3330,9 +3334,10 @@ router.get('/:id/participants/user-search', strictLimiter, (req, res) => {
 });
 
 function getActivitiesForParticipantForm(eventId) {
+  const nonSelectableTypes = ['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'];
   return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,
       (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
-    FROM event_activities WHERE event_id=? ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId)
+    FROM event_activities WHERE event_id=? AND activity_type NOT IN (${nonSelectableTypes.map(() => '?').join(',')}) ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId, ...nonSelectableTypes)
     .map((activity) => {
       activity.effective_workload_hours = (Number(activity.workload_hours) || 0) > 0 ? Number(activity.workload_hours) : (Number(activity.sessions_workload) || 0);
       return activity;
@@ -3355,6 +3360,26 @@ function getParticipantActivityIds(registrationId) {
   if (!registrationId) return [];
   return db.prepare('SELECT activity_id FROM participant_activity_enrollments WHERE registration_id=? ORDER BY activity_id')
     .all(registrationId).map((row) => Number(row.activity_id));
+}
+
+// Atividades marcadas como obrigatorias para participantes: elegiveis a
+// participante, tipo nao-logistico e flag required_for_participants = 1.
+// No fluxo administrativo nao ha checagem de vagas (o admin pode inscrever
+// alem do limite).
+function getRequiredParticipantActivityIdsAdmin(eventId) {
+  const nonSelectableTypes = ['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'];
+  return db.prepare(`
+    SELECT id FROM event_activities
+    WHERE event_id = ? AND required_for_participants = 1
+      AND activity_type NOT IN (${nonSelectableTypes.map(() => '?').join(',')})
+      AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
+  `).all(eventId, ...nonSelectableTypes).map((row) => Number(row.id));
+}
+
+function enforceRequiredActivitiesAdmin(eventId, activityIds, previouslyEnrolledIds = []) {
+  const selected = new Set((activityIds || []).map(Number).filter(Number.isInteger));
+  getRequiredParticipantActivityIdsAdmin(eventId).forEach((id) => selected.add(id));
+  return [...selected];
 }
 
 // Pedidos de atividade aguardando analise: solicitados, ainda nao inscritos e nao negados.
@@ -3499,6 +3524,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
 
   const validationError = validateParticipantForm(formData);
   if (validationError) return renderParticipantFormError(res, event, null, formData, validationError);
+  formData.activity_ids = enforceRequiredActivitiesAdmin(event.id, formData.activity_ids, []);
   const activityValidationError = validateParticipantActivities(event.id, formData.activity_ids);
   if (activityValidationError) return renderParticipantFormError(res, event, null, formData, activityValidationError);
 
@@ -3580,8 +3606,9 @@ router.get('/:id/participants/:registrationId/review', (req, res) => {
   if (!event || !registration) return res.status(404).render('error', { title: 'Solicitação não encontrada' });
   if (registration.registration_status !== 'pending') return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Esta inscrição não está aguardando análise.')}`);
   const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
-  const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)));
-  return res.render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities, error: null });
+  const requiredIds = getRequiredParticipantActivityIdsAdmin(event.id);
+  const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)) || requiredIds.includes(Number(activity.id)));
+  return res.render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities, requiredIds: new Set(requiredIds), error: null });
 });
 
 router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res) => {
@@ -3591,13 +3618,16 @@ router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res
   if (registration.registration_status !== 'pending') return res.redirect(`/admin/events/${event.id}/participants?error=${encodeURIComponent('Esta inscrição não está aguardando análise.')}`);
   const decision = req.body.decision === 'rejected' ? 'rejected' : 'approved';
   const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
-  const approvedIds = normalizeActivityIds(req.body.activity_ids);
-  const invalid = approvedIds.some((id) => !requestedIds.includes(id));
+  const requiredIds = decision === 'rejected' ? [] : getRequiredParticipantActivityIdsAdmin(event.id);
+  const approvedIds = [...new Set([...normalizeActivityIds(req.body.activity_ids), ...requiredIds])];
+  const invalid = approvedIds.some((id) => !requestedIds.includes(id) && !requiredIds.includes(id));
   if (invalid || (decision === 'approved' && !approvedIds.length && requestedIds.length)) {
-    const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)));
-    return res.status(400).render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities,
+    const reviewedActivities = [...getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id))),
+      ...getActivitiesForParticipantForm(event.id).filter((activity) => requiredIds.includes(Number(activity.id)) && !requestedIds.includes(Number(activity.id)))];
+    return res.status(400).render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities: reviewedActivities,
       error: invalid ? 'Selecione apenas atividades solicitadas pela pessoa.' : 'Selecione ao menos uma atividade para aprovar, ou rejeite a solicitação.' });
   }
+  const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)) || requiredIds.includes(Number(activity.id)));
   const notes = String(req.body.registration_review_notes || '').trim().slice(0, 2000);
   db.transaction(() => {
     if (decision === 'approved') saveParticipantActivities(registration.id, registration.user_id, approvedIds, req.session.userId);
@@ -3610,7 +3640,7 @@ router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res
   try {
     queueRegistrationReviewDecision({ event, registration: { ...registration, registration_review_notes: notes }, decision,
       approvedActivities: activities.filter((activity) => approvedIds.includes(Number(activity.id))),
-      approvedAll: decision === 'approved' && approvedIds.length === requestedIds.length });
+      approvedAll: decision === 'approved' && requestedIds.every((id) => approvedIds.includes(id)) });
   } catch (error) {
     console.error('[email] Falha ao enfileirar decisão de inscrição:', error.message);
   }
@@ -3736,6 +3766,7 @@ function updateParticipant(req, res) {
 
   const validationError = validateParticipantForm(formData);
   if (validationError) return renderParticipantFormError(res, event, registration, formData, validationError);
+  formData.activity_ids = enforceRequiredActivitiesAdmin(event.id, formData.activity_ids, getParticipantActivityIds(registration.id));
   const activityValidationError = validateParticipantActivities(event.id, formData.activity_ids);
   if (activityValidationError) return renderParticipantFormError(res, event, registration, formData, activityValidationError);
 

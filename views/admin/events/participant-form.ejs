@@ -261,10 +261,10 @@
             <div class="help-text">Nenhuma atividade foi cadastrada neste evento. Cadastre atividades antes de vincular a programação do participante.</div>
           <% } else { %>
             <div class="activity-grid">
-              <% activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); %>
-                <label class="activity-option">
-                  <input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %>>
-                  <span><strong><%= activity.name %></strong><small><%= activityDateRange(activity) %> · <%= activity.effective_workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · contabiliza para certificado' : '' %></small></span>
+              <% activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); const isRequired = Number(activity.required_for_participants) === 1; %>
+                <label class="activity-option" style="<%= isRequired ? 'cursor:default' : '' %>">
+                  <input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= (selected || isRequired) ? 'checked' : '' %> <%= isRequired ? 'disabled' : '' %>>
+                  <span><strong><%= activity.name %><% if (isRequired) { %><span class="badge" style="background:#1d4ed8;color:#bfdbfe;margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %></strong><small><%= activityDateRange(activity) %> · <%= activity.effective_workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · contabiliza para certificado' : '' %></small></span>
                 </label>
               <% }) %>
             </div>

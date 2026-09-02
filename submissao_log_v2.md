@@ -23,6 +23,27 @@ Versão atual registrada: **V0.32**.
 
 ## 2026-09-02
 
+### Atividades obrigatórias para participantes (required_for_participants)
+
+- Requisito: atividades podem ser marcadas como **obrigatórias** no formulário de criação/edição (`checkbox "Obrigatória para participantes"`, novo em `activities.ejs` com dica explicativa; badge "Obrigatória" na listagem admin). Em todas as páginas em que o participante escolhe atividades, as obrigatórias aparecem **marcadas e não podem ser desmarcadas**.
+- Schema: `event_activities.required_for_participants INTEGER DEFAULT 0` (migração idempotente em `db-reset.js`) e bump de `SCHEMA_VERSION` para 2 (o bloco de upgrades só roda quando a versão muda).
+- Atividade admin (`routes/events.js`): flag em `buildActivityDraft` (preservada após erro de validação; só pode ser 1 com papel `participant` elegível e tipo não-logístico — extras nunca), INSERT/UPDATE, badge na listagem; helpers `getRequiredParticipantActivityIdsAdmin` + `enforceRequiredActivitiesAdmin` (sem checagem de vagas — admin pode exceder) usados nos POSTs de inserção e edição de participante antes de `validateParticipantActivities`/`saveParticipantActivities`.
+- Inscrição pública (`routes/public.js`): helpers `getRequiredParticipantActivityIds` e `enforceRequiredActivities` (minicurso obrigatório respeita vagas: esgotado e não inscrito fica de fora e cabe ao admin inscrever manualmente; já inscrito é preservado). União forçada no GET/POST da inscrição (novo registro, edição self-service e reenvio em análise — obrigatória entra no `requested_activity_ids`), no POST de re-seleção `/evento/:id/atividades` (antes de `validateRegistrationActivities` e da checagem de vagas) e no render do formulário (obrigatórias sempre marcadas).
+- Templates: `event-register.ejs` e `event-activities.ejs` (checkbox marcado/travado + badge "Obrigatória" + hint "não podem ser desmarcadas"); `participant-form.ejs` (marcada/travada + badge, admin também tem a obrigatória sempre incluída); `participant-review.ejs` (marcada/travada, "aprovada automaticamente", sempre incluída na listagem da análise); `activities.ejs` (checkbox + badge + aviso quando incompatível com papéis/tipo).
+- Análise de inscrição (`POST /admin/events/:id/participants/:registrationId/review`): obrigatórias unidas aos `approvedIds` (fora da checagem "apenas solicitadas"), sempre incluídas na aprovação e no e-mail da decisão; `approvedAll` recalculado como "todas as solicitadas aprovadas" para não mudar a mensagem quando só a obrigatória foi adicionada.
+- Auto-inscrição de minicurso (`POST /evento/:id/atividades/inscricao`): recusa desmarcar obrigatória ("é obrigatória para participantes e não pode ser desmarcada"); marcação redundante retorna "inscrita automaticamente" sem duplicar.
+- Validação: `node --check` nos módulos; migração 1 -> 2 executada no banco real (coluna criada, `PRAGMA user_version = 2`, idempotente); conferência dos pontos de união (aprovação pública/admin/análise/re-seleção com POST adulterado).
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
+### Atividades extras fora das escolhas de participação do participante
+
+- Relato: os tipos logísticos "Café da manhã", "Coffee break", "Brunch", "Almoço" e "Jantar" apareciam como opções que o participante marca para participar (inscrição pública e formulário administrativo).
+- Regra: essas cinco atividades continuam existindo (grade pública, salas, chamada, presença e certificados), mas **não são escolha do participante** — ficam fora da lista de atividades da inscrição pública e do formulário administrativo do participante.
+- Implementação: exclusão SQL do grupo em `getPublicEventActivities` (`routes/public.js`, também usada por `validateRegistrationActivities` e pelo gate `hasEligibleActivities` — atividades extras sozinhas nunca tornam a seleção obrigatória) e em `getActivitiesForParticipantForm`/`validateParticipantActivities` (`routes/events.js`); a seção de interesses já exclui extras (`getInterestActivities`) e o checkbox de inscrição na visão Cards pertence apenas a minicursos.
+- Efeito no cadastro do participante: tentativa de enviar extras na inscrição pública é recusada ("atividade não disponível"); no formulário administrativo, inscrições legadas em extras deixam de aparecer como opção e o próximo salvamento (que substitui a lista em `saveParticipantActivities`) limpa esses vínculos.
+- Validação: `require` dos módulos alterados e conferência do SQL (placeholders dos cinco tipos) contra o banco do evento 3 — Pôster/Seminário/Minicurso permanecem escolhíveis; Almoço/Café/Coffee/Brunch/Jantar omitidos.
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ### Regra de carga horária: prioridade atividade > etapas > 0 e certificado por carga total efetiva da atividade
 
 - Relato: a carga horária do certificado somava apenas as cargas das etapas em que a pessoa esteve presente (etapas sem horas ou não frequentadas contavam 0, mesmo com a atividade tendo carga), e as exibições públicas/admin mostravam somente `event_activities.workload_hours`, ignorando as etapas.

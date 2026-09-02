@@ -77,6 +77,12 @@
         </div>
         <% const eventForcesApproval = event.registration_approval_mode === 'review'; %>
         <label style="display:block;margin:6px 0;font-size:13px;color:#94a3b8"><input type="checkbox" name="requires_approval" value="1" style="margin:0 6px 0 0" <%= (eventForcesApproval || Number(activityForm.requires_approval) === 1) ? 'checked' : '' %> <%= eventForcesApproval ? 'disabled' : '' %>> Inscrição nesta atividade exige aprovação da organização<% if (eventForcesApproval) { %> <span style="color:#fdba74">(exigida pela configuração do evento: inscrições sujeitas a análise)</span><% } %></label>
+        <% const activityFormRoles = String(activityForm.eligible_roles || '').split(',').filter(Boolean); const canBeRequired = !['breakfast','coffee_break','brunch','lunch','dinner'].includes(activityForm.activity_type || 'other') && activityFormRoles.includes('participant'); const requiredChecked = Number(activityForm.required_for_participants) === 1;
+        if (canBeRequired) { %>
+        <label style="display:block;margin:6px 0;font-size:13px;color:#94a3b8"><input type="checkbox" name="required_for_participants" value="1" style="margin:0 6px 0 0" <%= requiredChecked ? 'checked' : '' %>> Obrigatória para participantes <span style="color:#94a3b8">(todos os participantes inscritos no evento passam a ter esta atividade: aparece marcada e não pode ser desmarcada por eles)</span></label>
+        <% } else if (requiredChecked) { %>
+        <span class="hint" style="display:block;margin:6px 0;color:#fdba74">Esta atividade está marcada como obrigatória; desmarque ao menos o papel "Participante" em "Papéis elegíveis" (ou mude o tipo) para encerrar a regra.</span>
+        <% } %>
         <h3>Papéis elegíveis na chamada</h3>
         <% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach((role) => { %>
           <label><input type="checkbox" name="eligible_roles" value="<%= role[0] %>" <%= selectedRoles.includes(role[0]) ? 'checked' : '' %>> <%= role[1] %></label>
@@ -113,7 +119,7 @@
            const activityHoursSet = Number(activity.workload_hours || 0) > 0;
            const displayWorkload = activityHoursSet ? Number(activity.workload_hours) : Number(activity.sessions_workload || 0); %>
         <div class="activity-item">
-          <strong><%= activity.name %></strong>
+          <strong><%= activity.name %></strong><% if (Number(activity.required_for_participants) === 1) { %><span class="badge" style="background:#1d4ed8;color:#bfdbfe;margin-left:6px;font-size:10px">Obrigatória</span><% } %>
           <% if (activity.description) { %><small><%= activity.description %></small><% } %>
           <small><%= activityDateRange(activity) %><% if (activity.time_start || activity.time_end) { %> · <%= activity.time_start || '?' %>–<%= activity.time_end || '?' %><% } %><% if (displayWorkload > 0) { %> · <%= displayWorkload %>h<% if (hasSessions && !activityHoursSet) { %> (etapas)<% } %></small><% } else { %></small><% } %>
           <% if (activity.room_allocation) { %><small style="color:#93c5fd">Sala: <%= activity.room_allocation.room_name %> (<%= String(activity.room_allocation.time_start).slice(0,5) %>–<%= String(activity.room_allocation.time_end).slice(0,5) %>)</small><% } %>

@@ -727,12 +727,40 @@ function normalizeListenerRegistrationForm(body = {}, session = null) {
   };
 }
 
+const PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES = ['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'];
+
+function getRequiredParticipantActivityIds(eventId, previouslyEnrolledIds = []) {
+  const previouslyEnrolled = new Set((previouslyEnrolledIds || []).map(Number));
+  return db.prepare(`
+    SELECT id, activity_type, max_participants,
+      (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id = event_activities.id) AS enrolled
+    FROM event_activities
+    WHERE event_id = ? AND required_for_participants = 1
+      AND activity_type NOT IN (${PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES.map(() => '?').join(',')})
+      AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
+  `).all(eventId, ...PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES).filter((activity) => {
+    if (previouslyEnrolled.has(Number(activity.id))) return true;
+    if (activity.activity_type === 'course' && activity.max_participants) {
+      const seats = getActivitySeats(activity.id);
+      return !seats.full;
+    }
+    return true;
+  }).map((activity) => Number(activity.id));
+}
+
+function enforceRequiredActivities(eventId, activityIds, previouslyEnrolledIds = []) {
+  const selected = new Set((activityIds || []).map(Number).filter(Number.isInteger));
+  getRequiredParticipantActivityIds(eventId, previouslyEnrolledIds).forEach((id) => selected.add(id));
+  return [...selected];
+}
+
 function getPublicEventActivities(eventId) {
   return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,
       (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities WHERE event_id=?
+      AND activity_type NOT IN (${PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES.map(() => '?').join(',')})
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
-    ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId).map((activity) => {
+    ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId, ...PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES).map((activity) => {
       activity.effective_workload_hours = (Number(activity.workload_hours) || 0) > 0 ? Number(activity.workload_hours) : (Number(activity.sessions_workload) || 0);
       return activity;
     });
@@ -884,17 +912,20 @@ function removeReplacedRegistrationFiles(existingRegistration, uploadedFiles) {
 
 function renderListenerRegistrationForm(res, event, options = {}) {
   const eventWithMeta = withSubmissionMeta(withAreaMeta(event));
+  const formData = { ...(options.formData || {}) };
+  formData.activity_ids = enforceRequiredActivities(event.id, formData.activity_ids || [], options.previouslyEnrolledIds || []);
   res.render('public/event-register', {
     event: eventWithMeta,
     title: options.title || `Inscrição no Evento - ${event.name}`,
     error: options.error || null,
     success: options.success || null,
-    formData: options.formData || {},
+    formData,
     alreadyRegistered: !!options.alreadyRegistered,
     registrationType: options.registrationType || null,
     registrationStatus: options.registrationStatus || null,
     activities: getPublicEventActivities(event.id),
-    registrationWindow: getRegistrationWindow(eventWithMeta)
+    registrationWindow: getRegistrationWindow(eventWithMeta),
+    requiredActivityIds: new Set(getRequiredParticipantActivityIds(event.id))
   });
 }
 
@@ -1247,6 +1278,7 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
     alreadyRegistered: !!existingRegistration,
     registrationType: existingRegistration ? existingRegistration.registration_type : null,
     registrationStatus: existingRegistration ? existingRegistration.registration_status : null,
+    previouslyEnrolledIds: existingRegistration ? getRegistrationActivityIds(existingRegistration.id) : [],
     success: existingRegistration && existingRegistration.registration_status === 'approved'
       ? existingRegistration.registration_type === 'author'
         ? 'Você já está inscrito neste evento como apresentador.'
@@ -1313,7 +1345,8 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
   const errors = validateListenerRegistrationForm(formData, event, existingRegistration, uploadedFiles);
 
   const previouslyEnrolledForCapacity = existingRegistration ? getRegistrationActivityIds(existingRegistration.id) : [];
-  if (getCapacityBlockedActivityIds(formData.activity_ids, previouslyEnrolledForCapacity).length > 0) {
+  formData.activity_ids = enforceRequiredActivities(event.id, formData.activity_ids, previouslyEnrolledForCapacity);
+  if (getCapacityBlockedActivityIds(formData.activity_ids.filter((id) => !previouslyEnrolledForCapacity.includes(id)), previouslyEnrolledForCapacity).length > 0) {
     errors.push('Uma ou mais atividades selecionadas não possui mais vagas disponíveis.');
   }
 
@@ -1590,7 +1623,7 @@ router.post('/evento/:id/atividades', registrationLimiter, requireNonAdminAuthor
       .all(registration.id, req.session.userId).map((row) => Number(row.activity_id));
   } else {
     const submitted = Array.isArray(req.body.activity_ids) ? req.body.activity_ids : [req.body.activity_ids];
-    const activityIds = [...new Set(submitted.map((id) => Number(id)).filter(Number.isInteger))];
+    const activityIds = enforceRequiredActivities(event.id, submitted.filter((id) => Number.isInteger(Number(id))), getRegistrationActivityIds(registration.id));
     const validationError = validateRegistrationActivities(event.id, activityIds);
     if (validationError) return res.redirect(backTo(`error=${encodeURIComponent(validationError)}`));
     if (getCapacityBlockedActivityIds(activityIds, getRegistrationActivityIds(registration.id)).length > 0) {
@@ -1692,6 +1725,13 @@ router.post('/evento/:id/atividades/inscricao', activityEnrollLimiter, requireNo
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
   `).get(activityId, event.id);
   if (!activity) return fail('Esta atividade não está aberta para inscrição de participantes.');
+
+  let requiredForParticipants = 0;
+  try { requiredForParticipants = db.prepare('SELECT required_for_participants AS flag FROM event_activities WHERE id=?').get(activityId).flag || 0; } catch (_) { requiredForParticipants = 0; }
+  if (Number(requiredForParticipants) === 1) {
+    if (enable) return finish(true, { state: 'enrolled' }, 'success=' + encodeURIComponent(`"${activity.name}" é obrigatória: todos os participantes são inscritos nela automaticamente.`));
+    return fail(`"${activity.name}" é obrigatória para participantes e não pode ser desmarcada.`);
+  }
 
   const registration = getOwnedEventRegistration(event.id, req);
   if (!registration) {
