@@ -1919,6 +1919,18 @@ function renderActivitiesForm(req, res, { eventId, formDraft = null, editingActi
   });
 }
 
+function activityValidationFallback(getEventId, editMode) {
+  return (req, res, messages) => {
+    const draft = buildActivityDraft(req, editMode ? { id: req.params.activityId } : null);
+    return renderActivitiesForm(req, res, {
+      eventId: getEventId(req),
+      formDraft: draft,
+      editingActivity: editMode ? draft : null,
+      error: messages.join(' ')
+    });
+  };
+}
+
 router.get('/:id/activities', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -1938,7 +1950,7 @@ router.get('/:id/activities', (req, res) => {
   });
 });
 router.post('/:id/activities', strictLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, v.activityForm);
+  validateAndHandle(req, res, next, v.activityForm, (rq, rs, messages) => activityValidationFallback((r2) => r2.params.id)(rq, rs, messages));
 }, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -2005,7 +2017,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
 });
 router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, v.activityForm);
+  validateAndHandle(req, res, next, v.activityForm, (rq, rs, messages) => activityValidationFallback((r2) => r2.params.id, true)(rq, rs, messages));
 }, (req, res) => {
   const activity = db.prepare('SELECT * FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
   if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
