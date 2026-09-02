@@ -14,6 +14,13 @@ Versão atual registrada: **V0.32**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+### Cor por tipo de atividade nas visões Lista, Grade e Programação nas Salas da página pública
+
+- Relato: na visão "Grade" (`/evento/:id`), as atividades/etapas apareciam todas na mesma cor de letra (nome em `#f8fafc` pela regra CSS `.grid-item`), sem distinguir o tipo — a visão Cards já coloria os badges por tipo com `actTypeStyle`.
+- Implementação (apenas template + 1 coluna extra na query, sem mudança de regras/rotas): a paleta existente `actTypeStyle` (event.ejs) passa a colorir o **nome** da atividade/etapa com a cor de texto do badge do tipo (fallback neutro para tipo desconhecido), mantendo horários/descrições em cor neutra: (1) **Grade** — ocorrências de `actOcc` carregam `type` (herdado da atividade pai nas etapas) e o nome recebe a cor do tipo via span inline; (2) **Lista** — células "Atividade" das linhas de atividade e de etapa coloridas com a cor do tipo da atividade do loop pai; (3) **Programação nas Salas** — `ASSIGNMENT_SELECT` (services/rooms.js) agora traz `a.activity_type` (JOIN já existente; agenda admin/ocupação/conflitos sem impacto) e o `<td>` do rótulo recebe a cor do tipo, com "Reserva do evento" na cor padrão.
+- Validação: `node --check` nos módulos alterados e renderação dos templates via `require` (bootstrap completo, migração validada); conferência dos campos `type`/`activity_type` propagados nos três blocos do template.
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ## 2026-09-02
 
 ### Regra de carga horária: prioridade atividade > etapas > 0 e certificado por carga total efetiva da atividade

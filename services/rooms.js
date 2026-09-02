@@ -213,7 +213,7 @@ function eventReservation(eventId) {
 const ASSIGNMENT_SELECT = `
   SELECT ra.id,ra.date,ra.time_start,ra.time_end,ra.is_event_reservation,ra.activity_id,ra.session_id,
     ra.room_id,r.name AS room_name,r.size AS room_size,r.capacity AS room_capacity,
-    a.name AS activity_name,a.id AS activity_event_id,s.name AS session_name
+    a.name AS activity_name,a.id AS activity_event_id,a.activity_type AS activity_type,s.name AS session_name
   FROM room_assignments ra
   JOIN event_rooms r ON r.id=ra.room_id
   LEFT JOIN activity_sessions s ON s.id=ra.session_id

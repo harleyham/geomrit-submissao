@@ -160,13 +160,14 @@
         <%
           var actOcc = [];
           activities.forEach(function(a){
+            var aType = a.activity_type || 'other';
             if (a.sessions && a.sessions.length) {
-              a.sessions.forEach(function(s){ if (s.session_date && s.time_start) actOcc.push({ day: String(s.session_date).slice(0,10), hour: String(s.time_start).slice(0,2), name: a.name + ' : ' + s.name, time: String(s.time_start).slice(0,5) + '–' + String(s.time_end || '?').slice(0,5) }); });
+              a.sessions.forEach(function(s){ if (s.session_date && s.time_start) actOcc.push({ day: String(s.session_date).slice(0,10), hour: String(s.time_start).slice(0,2), name: a.name + ' : ' + s.name, time: String(s.time_start).slice(0,5) + '–' + String(s.time_end || '?').slice(0,5), type: aType }); });
             } else if (a.date_start && a.time_start) {
               var gStart = String(a.date_start).slice(0,10);
               var gEnd = (a.date_end && String(a.date_end).slice(0,10) > gStart) ? String(a.date_end).slice(0,10) : gStart;
               for (var gd = new Date(gStart + 'T00:00:00Z'), gLim = new Date(gEnd + 'T00:00:00Z'), gN = 0; gd <= gLim && gN < 92; gd.setUTCDate(gd.getUTCDate() + 1), gN++) {
-                actOcc.push({ day: gd.toISOString().slice(0,10), hour: String(a.time_start).slice(0,2), name: a.name, time: String(a.time_start).slice(0,5) + '–' + String(a.time_end || '?').slice(0,5) });
+                actOcc.push({ day: gd.toISOString().slice(0,10), hour: String(a.time_start).slice(0,2), name: a.name, time: String(a.time_start).slice(0,5) + '–' + String(a.time_end || '?').slice(0,5), type: aType });
               }
             }
           });
@@ -177,7 +178,7 @@
           var hasActivityGrid = gridDays.length > 0 && gridHours.length > 0;
           var actTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', breakfast:'Café da manhã', coffee_break:'Coffee Break', brunch:'Brunch', lunch:'Almoço', dinner:'Jantar', other:'Outra' };
           var actTypeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','breakfast','coffee_break','brunch','lunch','dinner','other'];
-          var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], breakfast:['#92400e','#fcd34d'], coffee_break:['#44403c','#e7e5e4'], brunch:['#134e4a','#5eead4'], lunch:['#7c2d12','#fdba74'], dinner:['#4c1d95','#c4b5fd'], other:['#1e293b','#94a3b8'] };
+          var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], breakfast:['#92400e','#fcd34d'], coffee_break:['#44403c','#e7e5e4'], brunch:['#134e4a','#5eead4'], lunch:['#7c2d12','#fb923c'], dinner:['#4c1d95','#c4b5fd'], other:['#1e293b','#94a3b8'] };
           var actByType = {};
           activities.forEach(function(a){ var t = a.activity_type || 'other'; (actByType[t] = actByType[t] || []).push(a); });
           var interestEligibleIds = new Set((interestActivities || []).map(function(a){ return a.id; }));
@@ -315,11 +316,12 @@
             <tbody>
               <% activities.forEach(function(activity) {
                 const activityTime = (activity.time_start || activity.time_end) ? String(activity.time_start || '?').slice(0,5) + '–' + String(activity.time_end || '?').slice(0,5) : '—';
+                const activityTypeColor = ((actTypeStyle[activity.activity_type || 'other'] || actTypeStyle.other)[1]);
               %>
                 <tr>
                   <td class="muted"><%= activityDateRange(activity) || 'A definir' %></td>
                   <td class="muted"><%= activityTime %></td>
-                  <td class="timeline-label"><%= activity.name %></td>
+                  <td class="timeline-label" style="color:<%= activityTypeColor %>"><%= activity.name %></td>
                   <td><%= activity.room_allocation ? activity.room_allocation.room_name : '—' %></td>
                   <td style="color:#f8fafc"><%= activity.description || '—' %></td>
                   <td class="timeline-action">
@@ -339,7 +341,7 @@
                 <tr class="session-row">
                   <td class="muted"><%= formatBRDate(session.session_date) || 'A definir' %></td>
                   <td class="muted"><%= sessionTime %></td>
-                  <td class="timeline-label">— <%= session.name %></td>
+                  <td class="timeline-label" style="color:<%= activityTypeColor %>">— <%= session.name %></td>
                   <td class="muted"><%= session.room_allocation ? session.room_allocation.room_name : '—' %></td>
                   <td class="muted"><%= session.description || '—' %></td>
                   <td class="timeline-action">
@@ -377,7 +379,7 @@
                         <% gridDays.forEach(function(day){ %>
                           <% var items = gridCell[day + '|' + hour] || []; %>
                           <td>
-                            <% if (items.length) { items.forEach(function(o){ %><span class="grid-item"><strong style="color:#cbd5e1;font-weight:600"><%= o.time %></strong> · <%= o.name %></span><% }); } else { %><span class="muted">—</span><% } %>
+                            <% if (items.length) { items.forEach(function(o){ var oSt = actTypeStyle[o.type] || actTypeStyle.other; %><span class="grid-item"><strong style="color:#cbd5e1;font-weight:600"><%= o.time %></strong> · <span style="color:<%= oSt[1] %>"><%= o.name %></span></span><% }); } else { %><span class="muted">—</span><% } %>
                           </td>
                         <% }) %>
                       </tr>
@@ -430,7 +432,7 @@
                       <tr>
                         <td class="muted"><%= String(row.time_start).slice(0,5) %>–<%= String(row.time_end).slice(0,5) %></td>
                         <td><%= row.room_name %></td>
-                        <td><%= assignmentLabel(row) %></td>
+                          <td style="<%= row.activity_type && typeof actTypeStyle !== 'undefined' && actTypeStyle[row.activity_type] ? 'color:' + actTypeStyle[row.activity_type][1] : '' %>"><%= assignmentLabel(row) %></td>
                       </tr>
                     <% }) %>
                   </tbody>
@@ -454,7 +456,7 @@
                         <tr>
                           <td class="muted"><%= formatBRDate(row.date) %></td>
                           <td class="muted"><%= String(row.time_start).slice(0,5) %>–<%= String(row.time_end).slice(0,5) %></td>
-                          <td><%= assignmentLabel(row) %></td>
+                        <td style="<%= row.activity_type && typeof actTypeStyle !== 'undefined' && actTypeStyle[row.activity_type] ? 'color:' + actTypeStyle[row.activity_type][1] : '' %>"><%= assignmentLabel(row) %></td>
                         </tr>
                       <% }) %>
                     </tbody>
