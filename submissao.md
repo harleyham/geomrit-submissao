@@ -559,7 +559,8 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - Na criação e edição do evento, `date_end` não pode ser anterior a `date_start`.
 - Na criação e edição do evento, `registration_end` não pode ser anterior a `registration_start`.
 - Na criação e edição do evento, `submission_end` não pode ser anterior a `submission_start`.
-- Na criação e edição do evento, `review_start` só pode ocorrer após o fim de `submission_end`.
+- Na criação e edição do evento, `review_start` pode ocorrer durante ou depois do período de submissões (sem sobreposição obrigatória de regras entre ambos).
+- Na criação e edição do evento, `review_end` não pode ser anterior ao fim de `submission_end`.
 - Na criação e edição do evento, `review_end` não pode ser anterior a `review_start`.
 - Na criação e edição do evento, `certificates_end` não pode ser anterior a `certificates_start`.
 - O logo do evento é uma imagem PNG ou JPEG com até 5 MB, armazenada em `uploads/event-logos/` com nome `<timestamp>-<hex>.<ext>`; persistem em `events` apenas o caminho relativo (`logo_path`) e o nome original (`logo_original_name`).

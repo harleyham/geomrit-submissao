@@ -470,7 +470,7 @@ router.post('/:id/event-roles', requireAuth, (req, res) => {
   const valid = ['admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter'];
   const selected = valid.filter((role) => roles.includes(role));
   const currentAdmins = db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(eventId).count;
-  // O evento precisa manter ao menos um administrador, nÃ£o importa quem
+  // O evento precisa manter ao menos um administrador, não importa quem
   // esteja editando (inclusive o superadmin): troque o papel antes de remover.
   const targetHasAdmin = !selected.includes('admin') && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId,userId);
   if (targetHasAdmin && currentAdmins <= 1) return res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&error=${encodeURIComponent('O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.')}`);
