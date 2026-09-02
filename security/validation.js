@@ -153,11 +153,11 @@ const validators = {
     body('name').trim().notEmpty().withMessage('O nome da atividade é obrigatório.'),
     body('activity_type').optional().isIn(['lecture', 'seminar', 'roundtable', 'course', 'oral_presentation', 'poster_presentation', 'breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner', 'other']).withMessage('Tipo de atividade inválido.'),
     body('description').optional().trim().isLength({ max: 2000 }).withMessage('A descrição ou ementa deve ter no máximo 2000 caracteres.'),
-    body('workload_hours').optional().isFloat({ min: 0 }).withMessage('Carga horária inválida.'),
+    body('workload_hours').optional({ values: 'falsy' }).isFloat({ min: 0 }).withMessage('Carga horária inválida.'),
     body('max_participants').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('O número máximo de participantes deve ser um inteiro maior que zero.'),
     body('video_url').optional({ values: 'falsy' }).isLength({ max: 500 }).withMessage('Link da transmissão de vídeo inválido.'),
     body('eligible_roles').custom((value) => (Array.isArray(value) ? value : [value]).filter(Boolean).length > 0).withMessage('Selecione ao menos um papel elegível.'),
-    body('eligible_roles').custom((value) => (Array.isArray(value) ? value : [value]).every((role) => ['participant', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(role))).withMessage('Papel inválido.')
+    body('eligible_roles').custom((value) => (Array.isArray(value) ? value : [value]).every((role) => ['participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(role))).withMessage('Papel inválido.')
   ],
   certificateRule: [
     body('certificate_role').isIn(['participant', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel de certificado inválido.'),
