@@ -330,7 +330,7 @@ Enquanto a prévia está ativa, **todas as páginas** exibem uma tarja laranja n
 - `activity_type`
 - `description` — descrição breve ou ementa, com até 2000 caracteres, utilizada por palestras e minicursos
 - `date_start` / `date_end` — intervalo da atividade (a coluna `activity_date` é legada, mantida apenas por compatibilidade; os dados foram migrados para `date_start`)
-- `workload_hours` — carga horária total (usada quando a atividade não tem etapas)
+- `workload_hours` — carga horária total da atividade; se informada (> 0), prevalece sobre as etapas e as etapas ficam sem carga própria (zero e bloqueadas na edição)
 - `certificate_enabled`
 - `video_url` — link da transmissão de vídeo (opcional, máximo 500 caracteres; exibido ao lado do nome da atividade na página pública do evento)
 - `has_video` — flag de transmissão prevista (1/0): indica que a atividade terá transmissão de vídeo mesmo quando o link ainda não está disponível; é gravada como 1 automaticamente quando `video_url` está preenchido
@@ -344,7 +344,7 @@ Etapas de uma atividade (ex.: aulas de um minicurso, períodos de um seminário)
 - `name` — ex.: "Aula 1", "Período da manhã"
 - `sequence_no` — ordem de exibição/chamada
 - `session_date` — data da etapa (validada contra o intervalo da atividade)
-- `workload_hours` — carga horária da etapa
+- `workload_hours` — carga horária da etapa (usada apenas quando a carga horária da atividade não está definida; soma das etapas define a carga da atividade)
 - `description` — descrição breve da etapa (opcional, máximo 2000 caracteres, validado no backend)
 - `video_url` — link da transmissão de vídeo da etapa (opcional, máximo 500 caracteres; quando vazio, a exibição pública usa o vídeo da atividade)
 - `has_video` — flag de transmissão prevista (1/0): indica que a etapa terá transmissão de vídeo mesmo quando o link ainda não está disponível; é gravada como 1 automaticamente quando `video_url` está preenchido
@@ -675,7 +675,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - `event_user_roles` declara os papéis atribuídos à pessoa no evento; `activity_attendance_records.role` registra a atuação efetiva. Marcar ou remover presença não cria nem remove papéis do evento.
 - Uma pessoa só pode receber presença em papel que já possua no evento; `participant` decorre de sua inscrição em `event_registrations`.
 - Uma atividade pode ser dividida em **etapas** (`activity_sessions`) — ex.: aulas de um minicurso ou períodos de um seminário. Quando existem etapas, a chamada, a lista de presença impressa e a carga horária do certificado passam a ser por etapa; a atividade sem etapas funciona como uma única etapa geral (registro com `session_id` nulo).
-- Cada etapa tem data e carga horária próprias; a data da etapa é validada contra o intervalo de início/fim da atividade. A carga horária do certificado soma as cargas das etapas em que a pessoa esteve presente.
+- Cada etapa tem data e carga horária próprias; a data da etapa é validada contra o intervalo de início/fim da atividade. A carga horária efetiva de uma atividade é a carga horária definida na atividade (> 0), senão a soma das cargas das etapas (quando a atividade tem carga definida, as etapas ficam sem carga própria: o zeramento é aplicado na gravação da atividade, no salvamento/publicação das etapas e na migração de boot).
 - Na página pública de atividades (`/evento/:id/atividades`), cada atividade com etapas exibe a contagem de presenças do usuário e a relação das etapas já frequentadas (em ordem de sequência); a inscrição de atividades frequentadas permanece preservada e não removível.
 - O intervalo da atividade (`date_start`/`date_end`) substitui a data única anterior; a presença e a ordenação usam `date_start`.
 - Atividades habilitadas para certificação são consolidadas por pessoa e por papel. Para o papel de participante, somente contam atividades em que coexistam inscrição e presença. Uma mesma pessoa pode receber certificados distintos de participante, palestrante, professor ou apresentador, cada um contendo apenas suas atividades e sua carga horária correspondentes.
@@ -722,7 +722,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 2. Admin cadastra e configura suas atividades em `/admin/events/:id/activities` (intervalo de datas, carga horária, papéis elegíveis). Para atividades divididas (minicurso, seminário), o admin adiciona as etapas em `/admin/events/:id/activities/:activityId/sessions`.
 3. Participante seleciona as atividades durante a inscrição ou posteriormente em `/evento/:id/atividades`; o administrador pode editar os mesmos vínculos no cadastro do participante.
 4. Admin acessa a chamada da atividade, seleciona a etapa (quando houver), o papel exercido e marca, atualiza ou remove a presença daquela etapa. Alternativamente, o admin imprime a folha de presença com QR Code da etapa; no dia, o usuário escaneia o código, autentica-se (se necessário) e marca a própria presença na página pública, no papel que exerce.
-5. Admin acessa `/admin/events/:id/certificates` e emite os certificados elegíveis. A elegibilidade é calculada atividade a atividade, por papel: apresentações oral/pôster e mesas-redondas qualificam a pessoa com qualquer presença registrada; palestras, seminários, minicursos e outras atividades com etapas exigem presença em pelo menos o percentual configurado em "Presença mínima (%)" das etapas da atividade (atividade sem etapas qualifica com qualquer presença). Para o papel de participante, cada atividade contabilizada precisa estar certificável e possuir inscrição e presença. Somente atividades qualificadas entram no certificado e na carga horária, que é a soma das etapas presentes (ou a carga da atividade, quando sem etapas). A pessoa é elegível quando possui ao menos uma atividade qualificada no papel (revisor: ao menos um parecer).
+5. Admin acessa `/admin/events/:id/certificates` e emite os certificados elegíveis. A elegibilidade é calculada atividade a atividade, por papel: apresentações oral/pôster e mesas-redondas qualificam a pessoa com qualquer presença registrada; palestras, seminários, minicursos e outras atividades com etapas exigem presença em pelo menos o percentual configurado em "Presença mínima (%)" das etapas da atividade (atividade sem etapas qualifica com qualquer presença). Para o papel de participante, cada atividade contabilizada precisa estar certificável e possuir inscrição e presença. Somente atividades qualificadas entram no certificado e na carga horária, que é a carga horária total efetiva da atividade qualificada (carga da atividade > 0, senão soma das cargas das etapas — não importa quantas etapas a pessoa frequentou). A pessoa é elegível quando possui ao menos uma atividade qualificada no papel (revisor: ao menos um parecer).
 
 ### Fluxo operacional de artigos
 

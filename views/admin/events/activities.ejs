@@ -67,7 +67,8 @@
         <% } else if (eventRooms && !eventRooms.length) { %>
           <span class="hint" style="display:block;margin:6px 4px">Cadastre <a href="/admin/events/<%= event.id %>/rooms" style="color:#93c5fd">salas</a> para poder alocá-las a atividades e etapas.</span>
         <% } %>
-        <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária (total, se sem etapas)" value="<%= activityForm.workload_hours ?? '' %>">
+        <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária total (prevalece sobre as etapas; vazio = soma das etapas)" value="<%= activityForm.workload_hours ?? '' %>" title="Se informado, define a carga horária total da atividade e as etapas ficam sem carga própria; se vazio, a carga é a soma das horas das etapas.">
+        <% if (editingActivity && Number(editingActivity.workload_hours) > 0) { %><span class="hint" style="display:block;margin:6px 4px">Carga horária informada na atividade: as etapas desta atividade ficam sem carga própria.</span><% } %>
         <input name="video_url" type="url" title="Link da transmissão de vídeo" placeholder="Link da transmissão de vídeo (ex.: YouTube)" value="<%= activityForm.video_url || '' %>">
         <label style="margin-left:10px;font-size:13px;color:#94a3b8"><input type="checkbox" name="has_video" value="1" style="margin:0 6px 0 0" <%= activityForm.has_video || activityForm.video_url ? 'checked' : '' %>> Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)</label>
         <div style="margin:10px 0 4px">
@@ -80,7 +81,7 @@
         <% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach((role) => { %>
           <label><input type="checkbox" name="eligible_roles" value="<%= role[0] %>" <%= selectedRoles.includes(role[0]) ? 'checked' : '' %>> <%= role[1] %></label>
         <% }) %>
-        <p><label><input type="checkbox" name="certificate_enabled" value="1" <%= ((typeof formDraft !== 'undefined' && formDraft) ? formDraft.certificate_enabled : !editingActivity) ? 'checked' : '' %>> Contabilizar esta atividade para certificados e carga horária</label></p>
+        <p><label><input type="checkbox" name="certificate_enabled" value="1" <%= (((typeof formDraft !== 'undefined' && formDraft) ? formDraft.certificate_enabled : (editingActivity ? editingActivity.certificate_enabled : true)) ? 'checked' : '') %>> Contabilizar esta atividade para certificados e carga horária</label></p>
         <button type="submit"><%= editingActivity ? 'Salvar atividade' : 'Cadastrar atividade' %></button>
         <% if (editingActivity) { %><a href="/admin/events/<%= event.id %>/activities">Cancelar edição</a><% } %>
       </form>
@@ -109,11 +110,12 @@
       <div class="activity-list">
         <% items.forEach((activity) => { %>
         <% const hasSessions = Number(activity.session_count || 0) > 0;
-           const displayWorkload = hasSessions ? Number(activity.sessions_workload || 0) : Number(activity.workload_hours || 0); %>
+           const activityHoursSet = Number(activity.workload_hours || 0) > 0;
+           const displayWorkload = activityHoursSet ? Number(activity.workload_hours) : Number(activity.sessions_workload || 0); %>
         <div class="activity-item">
           <strong><%= activity.name %></strong>
           <% if (activity.description) { %><small><%= activity.description %></small><% } %>
-          <small><%= activityDateRange(activity) %><% if (activity.time_start || activity.time_end) { %> · <%= activity.time_start || '?' %>–<%= activity.time_end || '?' %><% } %><% if (displayWorkload > 0) { %> · <%= displayWorkload %>h<% if (hasSessions) { %> (etapas)<% } %></small><% } else { %></small><% } %>
+          <small><%= activityDateRange(activity) %><% if (activity.time_start || activity.time_end) { %> · <%= activity.time_start || '?' %>–<%= activity.time_end || '?' %><% } %><% if (displayWorkload > 0) { %> · <%= displayWorkload %>h<% if (hasSessions && !activityHoursSet) { %> (etapas)<% } %></small><% } else { %></small><% } %>
           <% if (activity.room_allocation) { %><small style="color:#93c5fd">Sala: <%= activity.room_allocation.room_name %> (<%= String(activity.room_allocation.time_start).slice(0,5) %>–<%= String(activity.room_allocation.time_end).slice(0,5) %>)</small><% } %>
           <small>
             <% String(activity.eligible_roles || '').split(',').filter(Boolean).forEach((role) => { %><span class="badge" style="background:#334155;color:#94a3b8;font-size:10px"><%= activityRolesMap[role] || role %></span> <% }) %>

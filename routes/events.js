@@ -1552,7 +1552,8 @@ function getRoleActivityAttendance(eventId, userId, role) {
   const activities = db.prepare(`
     SELECT ea.id AS activity_id, ea.name AS activity_name, ea.activity_type,
       ea.date_start, ea.date_end, COALESCE(ea.workload_hours, 0) AS activity_workload,
-      (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id = ea.id) AS sessions_total
+      (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id = ea.id) AS sessions_total,
+      (SELECT COALESCE(SUM(COALESCE(s.workload_hours, 0)), 0) FROM activity_sessions s WHERE s.activity_id = ea.id) AS sessions_workload
     FROM activity_attendance_records aar
     JOIN event_activities ea ON ea.id = aar.activity_id
     WHERE ea.event_id = ? AND aar.user_id = ? AND aar.role = ?
@@ -1566,25 +1567,23 @@ function getRoleActivityAttendance(eventId, userId, role) {
     ORDER BY ea.date_start, ea.name
   `).all(eventId, userId, role, role);
   const records = db.prepare(`
-    SELECT aar.activity_id, aar.session_id, COALESCE(s.workload_hours, 0) AS session_workload
+    SELECT aar.activity_id, aar.session_id
     FROM activity_attendance_records aar
     JOIN event_activities ea ON ea.id = aar.activity_id
-    LEFT JOIN activity_sessions s ON s.id = aar.session_id
     WHERE ea.event_id = ? AND aar.user_id = ? AND aar.role = ? AND ea.certificate_enabled = 1
   `).all(eventId, userId, role);
-  const sessionWorkloadByActivity = {};
   const presentSessionsByActivity = {};
   records.forEach((record) => {
     if (record.session_id) {
-      sessionWorkloadByActivity[record.activity_id] = (sessionWorkloadByActivity[record.activity_id] || 0) + (Number(record.session_workload) || 0);
       if (!presentSessionsByActivity[record.activity_id]) presentSessionsByActivity[record.activity_id] = new Set();
       presentSessionsByActivity[record.activity_id].add(record.session_id);
     }
   });
   const attended_activities = activities.map((activity) => {
-    const hasSessions = Number(activity.sessions_total) > 0;
-    const workload_hours = hasSessions ? (sessionWorkloadByActivity[activity.activity_id] || 0) : (Number(activity.activity_workload) || 0);
-    return { ...activity, workload_hours, sessions_present: presentSessionsByActivity[activity.activity_id] ? presentSessionsByActivity[activity.activity_id].size : 0 };
+    const effectiveWorkload = (Number(activity.activity_workload) || 0) > 0
+      ? Number(activity.activity_workload)
+      : Number(activity.sessions_workload) || 0;
+    return { ...activity, workload_hours: effectiveWorkload, sessions_present: presentSessionsByActivity[activity.activity_id] ? presentSessionsByActivity[activity.activity_id].size : 0 };
   });
   return {
     attended_activities,
@@ -1800,7 +1799,17 @@ router.get('/:id/certificates/preview', (req, res) => {
 });
 
 function getActivitySessions(activityId) {
-  return db.prepare('SELECT * FROM activity_sessions WHERE activity_id=? ORDER BY sequence_no, session_date, id').all(activityId);
+  return db.prepare('SELECT * FROM activity_sessions WHERE activity_id=? ORDER BY (session_date IS NULL), session_date, (time_start IS NULL), time_start, sequence_no, id').all(activityId);
+}
+
+function activityWorkloadLocked(activity) {
+  return Number(activity.workload_hours) > 0;
+}
+
+function syncSessionWorkloadLock(activityId, activityWorkload) {
+  if (Number(activityWorkload) > 0) {
+    db.prepare('UPDATE activity_sessions SET workload_hours = 0 WHERE activity_id = ? AND workload_hours != 0').run(activityId);
+  }
 }
 function resolveSession(activityId, sessionId) {
   const id = sessionId ? Number(sessionId) : null;
@@ -2079,6 +2088,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
         name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
         eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, activity.id
       );
+      syncSessionWorkloadLock(activity.id, workloadHours);
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
     })();
   } catch (error) {
@@ -2188,7 +2198,7 @@ router.post('/:id/activities/:activityId/sessions', strictLimiter, (req, res) =>
   if (sessionTimeError) {
     return failSessions(sessionTimeError);
   }
-  const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  const workloadHours = activityWorkloadLocked(activity) ? 0 : Math.max(0, Number(req.body.workload_hours) || 0);
   const description = String(req.body.description || '').trim();
   if (description.length > 2000) {
     return failSessions('A descrição da etapa deve ter no máximo 2000 caracteres.');
@@ -2251,7 +2261,7 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
   if (sessionTimeError) {
     return failSessions(sessionTimeError);
   }
-  const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
+  const workloadHours = activityWorkloadLocked(activity) ? 0 : Math.max(0, Number(req.body.workload_hours) || 0);
   const description = String(req.body.description || '').trim();
   if (description.length > 2000) {
     return failSessions('A descrição da etapa deve ter no máximo 2000 caracteres.');
@@ -3320,8 +3330,13 @@ router.get('/:id/participants/user-search', strictLimiter, (req, res) => {
 });
 
 function getActivitiesForParticipantForm(eventId) {
-  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled
-    FROM event_activities WHERE event_id=? ORDER BY date_start,name COLLATE NOCASE`).all(eventId);
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,
+      (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
+    FROM event_activities WHERE event_id=? ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId)
+    .map((activity) => {
+      activity.effective_workload_hours = (Number(activity.workload_hours) || 0) > 0 ? Number(activity.workload_hours) : (Number(activity.sessions_workload) || 0);
+      return activity;
+    });
 }
 
 function normalizeActivityIds(value) {

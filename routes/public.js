@@ -728,10 +728,14 @@ function normalizeListenerRegistrationForm(body = {}, session = null) {
 }
 
 function getPublicEventActivities(eventId) {
-  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,
+      (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities WHERE event_id=?
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
-    ORDER BY date_start,name COLLATE NOCASE`).all(eventId);
+    ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId).map((activity) => {
+      activity.effective_workload_hours = (Number(activity.workload_hours) || 0) > 0 ? Number(activity.workload_hours) : (Number(activity.sessions_workload) || 0);
+      return activity;
+    });
 }
 
 function getRegistrationActivityIds(registrationId) {
@@ -741,10 +745,14 @@ function getRegistrationActivityIds(registrationId) {
 }
 
 function getInterestActivities(eventId) {
-  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,time_start,time_end,workload_hours
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,time_start,time_end,workload_hours,
+      (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities WHERE event_id=? AND activity_type NOT IN ('course','breakfast','coffee_break','brunch','lunch','dinner')
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
-    ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE`).all(eventId);
+    ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId).map((activity) => {
+      activity.effective_workload_hours = (Number(activity.workload_hours) || 0) > 0 ? Number(activity.workload_hours) : (Number(activity.sessions_workload) || 0);
+      return activity;
+    });
 }
 
 function getInterestActivityIds(userId, eventId) {
@@ -1060,17 +1068,22 @@ router.get('/evento/:id', (req, res) => {
   const eventWithMeta = withSubmissionMeta(event);
   const isClosed = event.status === 'encerrado';
   const activities = db.prepare(`
-    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video,max_participants,requires_approval
+    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video,max_participants,requires_approval,certificate_enabled,
+      COALESCE(workload_hours,0) AS workload_hours,
+      (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities
     WHERE event_id=?
-    ORDER BY (date_start IS NULL), date_start, name COLLATE NOCASE
+    ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE
   `).all(req.params.id);
+  activities.forEach((activity) => {
+    activity.effective_workload_hours = (Number(activity.workload_hours) || 0) > 0 ? Number(activity.workload_hours) : (Number(activity.sessions_workload) || 0);
+  });
   const sessionsByActivity = {};
   db.prepare(`
     SELECT id,activity_id,name,session_date,time_start,time_end,description,video_url,has_video
     FROM activity_sessions
     WHERE activity_id IN (SELECT id FROM event_activities WHERE event_id=?)
-    ORDER BY sequence_no, id
+    ORDER BY (session_date IS NULL), session_date, (time_start IS NULL), time_start, sequence_no, id
   `).all(req.params.id).forEach((session) => {
     if (!sessionsByActivity[session.activity_id]) sessionsByActivity[session.activity_id] = [];
     sessionsByActivity[session.activity_id].push(session);
@@ -1484,12 +1497,17 @@ router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => 
   const activities = db.prepare(`SELECT ea.*,
       CASE WHEN EXISTS (SELECT 1 FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id AND pae.registration_id=?) THEN 1 ELSE 0 END AS enrolled,
       CASE WHEN EXISTS (SELECT 1 FROM activity_attendance_records aar WHERE aar.activity_id=ea.id AND aar.user_id=? AND aar.role='participant') THEN 1 ELSE 0 END AS present,
-      (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id=ea.id) AS sessions_total
+      (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id=ea.id) AS sessions_total,
+      (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=ea.id) AS sessions_workload
     FROM event_activities ea
     WHERE ea.event_id=?
       AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0
       AND EXISTS (SELECT 1 FROM participant_activity_enrollments pae2 WHERE pae2.activity_id=ea.id AND pae2.registration_id=?)
-    ORDER BY ea.date_start,ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id, registration.id);
+    ORDER BY (ea.date_start IS NULL), ea.date_start, (ea.time_start IS NULL), ea.time_start, ea.name COLLATE NOCASE`).all(registration.id, req.session.userId, event.id, registration.id)
+    .map((activity) => {
+      activity.effective_workload_hours = (Number(activity.workload_hours) || 0) > 0 ? Number(activity.workload_hours) : (Number(activity.sessions_workload) || 0);
+      return activity;
+    });
   const attendedSessionsByActivity = {};
   db.prepare(`SELECT s.activity_id AS activity_id, s.name AS session_name
     FROM activity_attendance_records aar
@@ -2587,7 +2605,7 @@ function getCheckinContext(req) {
   if (!event) return { error: 'event' };
   const activity = Number.isInteger(activityId) && activityId > 0 ? db.prepare('SELECT * FROM event_activities WHERE id = ? AND event_id = ?').get(activityId, eventId) : null;
   if (!activity) return { error: 'activity' };
-  const sessions = db.prepare('SELECT * FROM activity_sessions WHERE activity_id = ? ORDER BY sequence_no, id').all(activityId);
+  const sessions = db.prepare('SELECT * FROM activity_sessions WHERE activity_id = ? ORDER BY (session_date IS NULL), session_date, (time_start IS NULL), time_start, sequence_no, id').all(activityId);
   let session = null;
   if (sessionId) {
     if (!Number.isInteger(sessionId) || sessionId <= 0 || !sessions.some((item) => item.id === sessionId)) return { error: 'session' };

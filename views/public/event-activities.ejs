@@ -99,7 +99,7 @@
                   <% } %>
                   <span>
                     <strong><%= activity.name %></strong>
-                    <small><%= activityDateRange(activity) %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small>
+                    <small><%= activityDateRange(activity) %> · <%= Number(activity.effective_workload_hours != null ? activity.effective_workload_hours : activity.workload_hours) > 0 ? (Number(activity.effective_workload_hours != null ? activity.effective_workload_hours : activity.workload_hours)) : 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small>
                     <% if (activity.sessions_total > 0) { %>
                       <span class="present"><%= activity.attended_sessions.length %> de <%= activity.sessions_total %> presenças<% if (activity.attended_sessions.length) { %> — <%= activity.attended_sessions.join(' · ') %><% } %></span>
                     <% } else if (activity.present) { %>

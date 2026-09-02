@@ -179,7 +179,7 @@ Abra a listagem de participantes e use **Analisar** para aprovar ou recusar a so
 
 1. Acesse `/admin/events/:id/activities`.
 2. Clique em **Nova atividade**.
-3. Informe nome, tipo, intervalo/data, **hora de início e hora de término**, carga horária e se a atividade emite certificado. Para **Palestra** e **Minicurso**, preencha também uma descrição breve ou ementa, com até 2000 caracteres.
+3. Informe nome, tipo, intervalo/data, **hora de início e hora de término**, carga horária e se a atividade emite certificado. Para **Palestra** e **Minicurso**, preencha também uma descrição breve ou ementa, com até 2000 caracteres. **Carga horária**: se informada (> 0), é a carga total da atividade e **prevalece sobre as etapas** — as etapas ficam sem carga própria (zeradas e bloqueadas na edição); se deixada vazia, a carga da atividade é a **soma das cargas das etapas**.
 4. Defina os papéis elegíveis.
 5. (Opcional) Selecione a **sala** da atividade — disponível quando a atividade não possui etapas (veja a Seção 9).
 6. (Opcional) Informe o **link da transmissão de vídeo** (ex.: YouTube). Ele aparece ao lado do nome da atividade na página pública do evento; deixe vazio para remover.
@@ -205,12 +205,12 @@ Use etapas quando uma atividade possui várias aulas ou partes, como um minicurs
 
 1. Na listagem de atividades, abra **Etapas**.
 2. Acesse `/admin/events/:id/activities/:activityId/sessions`.
-3. Informe nome, ordem, data, **hora de início e hora de término** e carga horária da etapa.
+3. Informe nome, ordem, data, **hora de início e hora de término** e carga horária da etapa. Quando a atividade já tem carga horária definida, o campo fica **desabilitado** (a carga total vem da atividade e as etapas não têm carga própria).
 4. Garanta que a data esteja dentro do intervalo da atividade (e os horários dentro do horário da atividade, quando a atividade ocupa um único dia).
 5. (Opcional) Selecione a **sala** da etapa (veja a Seção 9).
 6. Salve e repita para as demais etapas.
 
-Com etapas, a presença, a lista impressa e a carga horária do certificado são calculadas por etapa. Uma atividade sem etapas utiliza um único registro geral.
+Com etapas, a presença e a lista impressa são calculadas por etapa. A carga horária da atividade é a carga definida na atividade (> 0), senão a soma das cargas das etapas; o certificado (quando a atividade qualifica pelo percentual de presença) vale essa carga **total**, mesmo que a pessoa não tenha frequentado todas as etapas. Uma atividade sem etapas utiliza um único registro geral.
 
 As etapas também ficam disponíveis ao público na página somente-leitura `/evento/:id/atividades/:activityId/etapas`, acessível pelo botão **Etapas** na seção de atividades da página pública (o botão só surge quando a atividade tem etapas).
 
@@ -281,7 +281,7 @@ Regras principais:
 - participante precisa estar inscrito na atividade e ter presença;
 - palestras, seminários, minicursos e outras atividades usam o percentual mínimo de etapas;
 - apresentações e mesas-redondas qualificam com qualquer presença;
-- a carga horária é a soma das etapas presentes;
+- a carga horária é a carga total efetiva da atividade qualificada: a carga definida na atividade (> 0), senão a soma das cargas das etapas (não importa quantas etapas a pessoa frequentou);
 - revisor é elegível quando possui parecer enviado.
 - fundos enviados na **Biblioteca de fundos** pertencem ao evento onde foram enviados: os demais eventos não os veem nem podem usá-los; os fundos padrão são compartilhados por todos os eventos.
 - o card **Biblioteca de fundos** mostra as miniaturas dos fundos do evento com **Renomear** e **Excluir**; a exclusão é bloqueada enquanto houver certificados emitidos usando o fundo, e as regras que o utilizavam ficam sem fundo até você selecionar outro.

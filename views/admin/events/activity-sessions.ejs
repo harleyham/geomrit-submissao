@@ -30,7 +30,7 @@
   <main class="main-content">
     <p style="margin-bottom:8px"><a href="/admin/events/<%= event.id %>/activities" style="color:#93c5fd;text-decoration:none">← Voltar às atividades</a></p>
     <h1 style="font-size:1.5rem;margin:0 0 4px">Etapas — <%= activity.name %></h1>
-    <p class="hint"><%= activityDateRange(activity) %> · A presença é registrada por etapa. A carga horária do certificado soma as cargas das etapas em que a pessoa esteve presente.</p>
+    <p class="hint"><%= activityDateRange(activity) %><% if (Number(activity.workload_hours) > 0) { %> · Carga horária total da atividade: <strong style="color:#93c5fd"><%= activity.workload_hours %>h</strong> (definida na atividade; as etapas não têm carga própria)<% } else { %> · A presença é registrada por etapa. A carga horária do certificado é a soma das cargas das etapas desta atividade (ou a carga da atividade, quando definida).<% } %></p>
     <% if (success) { %><p class="alert success"><%= success %></p><% } %>
     <% if (error) { %><p class="alert error"><%= error %></p><% } %>
 
@@ -53,7 +53,9 @@
         <% } else { %>
           <a href="/admin/events/<%= event.id %>/rooms" style="color:#93c5fd;font-size:13px">Cadastre salas</a> para alocar salas às etapas.
         <% } %>
-        <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária" value="<%= sessionForm.workload_hours != null ? sessionForm.workload_hours : '' %>">
+        <% const workloadLocked = Number(activity.workload_hours) > 0; %>
+        <% if (workloadLocked) { %><input type="hidden" name="workload_hours" value="0"><% } %>
+        <input name="workload_hours" type="number" step=".5" min="0" placeholder="Carga horária" value="<%= workloadLocked ? 0 : (sessionForm.workload_hours != null ? sessionForm.workload_hours : '') %>" <%= workloadLocked ? 'disabled' : '' %> title="<%= workloadLocked ? 'A carga horária desta atividade é definida na atividade (' + activity.workload_hours + 'h)' : 'Carga horária da etapa' %>">
         <input name="video_url" type="url" placeholder="Link da transmissão da etapa (opcional — se vazio, usa o vídeo da atividade)" value="<%= sessionForm.video_url || '' %>">
         <label style="font-size:13px;color:#94a3b8"><input type="checkbox" name="has_video" value="1" style="margin:0 6px 0 0" <%= sessionForm.has_video || sessionForm.video_url ? 'checked' : '' %>> Haverá transmissão de vídeo (mesmo que o link ainda não esteja disponível)</label>
         <textarea name="description" rows="3" maxlength="2000" placeholder="Descrição breve da etapa (opcional)"><%= sessionForm.description || '' %></textarea>

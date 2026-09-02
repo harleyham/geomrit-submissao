@@ -137,7 +137,7 @@
           <% } else { %>
             <div class="activity-grid">
               <% const activitiesLockedByReview = alreadyRegistered && event.registration_approval_mode === 'review'; activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); %>
-                <label class="activity-option"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %> <%= activitiesLockedByReview ? 'disabled' : '' %>><span><strong><%= activity.name %></strong><small><%= activityDateRange(activity) %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small></span></label>
+                <label class="activity-option"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %> <%= activitiesLockedByReview ? 'disabled' : '' %>><span><strong><%= activity.name %></strong><small><%= activityDateRange(activity) %> · <%= (activity.effective_workload_hours != null ? activity.effective_workload_hours : (activity.workload_hours || 0)) %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %></small></span></label>
               <% }) %>
             </div>
             <small style="display:block;color:#94a3b8;margin-top:.55rem;line-height:1.5;"><%= activitiesLockedByReview ? 'As atividades foram definidas pela análise da organização e não podem ser alteradas por esta página.' : 'Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas.' %></small>

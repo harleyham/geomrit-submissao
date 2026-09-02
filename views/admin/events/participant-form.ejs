@@ -264,7 +264,7 @@
               <% activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); %>
                 <label class="activity-option">
                   <input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %>>
-                  <span><strong><%= activity.name %></strong><small><%= activityDateRange(activity) %> · <%= activity.workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · contabiliza para certificado' : '' %></small></span>
+                  <span><strong><%= activity.name %></strong><small><%= activityDateRange(activity) %> · <%= activity.effective_workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · contabiliza para certificado' : '' %></small></span>
                 </label>
               <% }) %>
             </div>

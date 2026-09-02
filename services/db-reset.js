@@ -1012,8 +1012,20 @@ function migrateSchema(db) {
         WHEN COALESCE(submission_start, submission_end, review_start, review_end) IS NOT NULL THEN 1
         ELSE 0
       END
-      WHERE has_article_submission IS NULL
-         OR (has_article_submission = 0 AND COALESCE(submission_start, submission_end, review_start, review_end) IS NOT NULL)
+       WHERE has_article_submission IS NULL
+          OR (has_article_submission = 0 AND COALESCE(submission_start, submission_end, review_start, review_end) IS NOT NULL)
+    `).run();
+  } catch(e) { throw e; }
+
+  try {
+    // Carga horária: quando a atividade define a carga total (> 0), as etapas
+    // da atividade ficam sem carga própria (zero) — a regra é cumulativa e
+    // idempotente (roda no boot sem efeito quando ja convergente).
+    db.prepare(`
+      UPDATE activity_sessions
+      SET workload_hours = 0
+      WHERE workload_hours IS NOT NULL AND workload_hours != 0
+        AND activity_id IN (SELECT id FROM event_activities WHERE COALESCE(workload_hours, 0) > 0)
     `).run();
   } catch(e) { throw e; }
 

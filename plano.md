@@ -137,7 +137,7 @@ Nomenclatura: "aulas" foram implementadas como **etapas** (`activity_sessions`) 
 
 ### 1.8 Integração — CONCLUÍDO ✔
 - Elegibilidade por percentual de etapas presentes, qualificada por tipo de atividade (apresentações oral/pôster e mesa-redonda: qualquer presença; demais: ≥ `ceil(etapas × % / 100)`) — 16/08.
-- Carga horária = soma das cargas das etapas presentes (ou carga da atividade, quando sem etapas) — 16/08.
+- Carga horária (efetiva) = carga horária definida na atividade (> 0), senão a soma das cargas das etapas; certificado de atividade qualificada vale a carga total efetiva da atividade (não das etapas presentes) — 02/09.
 
 ---
 
