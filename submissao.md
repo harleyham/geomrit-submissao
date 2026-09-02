@@ -160,6 +160,8 @@ O usuário possui um único cadastro e login. **Todos os papéis de atuação s�
 - Demais contas aprovadas e ativas: Área do Participante (`/author`), incluindo troca da própria senha.
 - `is_public = 1`: conta habilitada para autenticação (status de conta, não papel).
 - Redirecionamento pós-login: super → `/admin/dashboard`; admin/staff → `/admin/events`; revisor → `/reviewer`; demais → `/author`.
+- `/login?switch=1` (usado pelos links de e-mails da organização) exibe a tela de login mesmo com sessão ativa, com aviso "Você está logado como X" e opções de manter a sessão (ir à área do usuário) ou sair e entrar com outra conta; a troca de conta regenera a sessão. Sem o parâmetro, sessão ativa continua redirecionando direto para a área do usuário.
+- `/author` bloqueia a conta superadmin (fora da prévia "como participante"), redirecionando para `/admin/dashboard`.
 
 ### Sessão
 
@@ -177,6 +179,8 @@ Quando o usuário está autenticado, a interface deve exibir ação explícita d
 ### Prévia da área do participante (impersonação por sessão)
 
 Ao abrir a prévia de um usuário (`GET /admin/users/:id/participant`, botão "Área do Participante" na listagem de usuários), a sessão do admin passa a agir em nome do usuário pré-visualizado: `session.previewUserId` guarda o alvo e `session.realIdentity` guarda a identidade real do admin (`userId`, `userName`, `userEmail`, `userInstitution`, `isPublic`, `isAdmin`, `isReviewer`). Um middleware global mantém a identidade do alvo nos requests fora de `/admin/*` (revalidando a cada request que o alvo exista e esteja ativo) e a restaura automaticamente em qualquer request em `/admin/*` (a saída da prévia é voltar ao painel). Assim, inscrições, avaliações, submissões e demais ações realizadas na prévia são registradas em nome do usuário visualizado, e não do admin. Prévia de usuário inativo (`is_public = 0`) retorna 400 "Conta inativa".
+
+Enquanto a prévia está ativa, **todas as páginas** exibem uma tarja laranja no topo do conteúdo (injeta no fluxo da página, logo após a abertura do `<body>`, em `server.js`, via wrapper de `res.send`): "Visualização administrativa como \<nome\> (\<e-mail\>) — ações são registradas em nome deste usuário", com o link "Sair da visualização" que leva a `/admin/users` e encerra a prévia. A Área do Participante pré-visualizada mantém seu banner dedicado de visualização (a tarja global não é duplicada nela). Na saída da prévia, além da sessão, os `res.locals` são reavaliados a partir da identidade real, de modo que a página de aterrissagem no painel administrativo já renderiza com o nome do admin (não do impersonado).
 
 ## Modelo de Dados Principal
 
@@ -458,6 +462,10 @@ Os fundos padrão distribuídos pelo sistema ficam em `assets/Fundos` e são reg
 
 Registra os papéis de administrador, participante, revisor, palestrante, professor e apresentador (oral ou pôster) de uma pessoa em um evento, com artigo opcionalmente vinculado. É a fonte de verdade para autorização administrativa por evento e para papéis manuais de certificado.
 
+Regras de atribuição/remoção:
+- Um evento deve manter ao menos um papel `admin`: a remoção do último administrador é bloqueada em qualquer usuário que a tente, inclusive o superadmin (mensagem orienta atribuir o papel a outra pessoa antes de remover). Vale para a página de papéis do evento e para a edição de perfis por evento em `/admin/users`.
+- Na página de papéis, o combobox "Pessoa" possui filtros de busca (nome, e-mail, instituição ou CPF) e titulação (Graduado/Mestre/Doutor/Não especificado), com contador de pessoas na lista; a lista continua restrita a inscritos aprovados no evento (o superadmin vê todas as contas ativas).
+
 ### `event_certificate_rules`
 
 Configura fundo, cor, título, texto e regra de elegibilidade para cada tipo de certificado em cada evento.
@@ -590,7 +598,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - `Inscritos Autores` considera participantes distintos com submissão não rascunho.
 - `Inscritos Participantes` considera registros `listener` em `event_registrations`.
 - `Total de Usuários` conta todos os registros da tabela `users`.
-- `Eventos Realizados` conta eventos com `date_end` anterior à data de hoje (horário do Brasil, UTC-3).
+- `Eventos Realizados` conta eventos com status `encerrado` ou eventos publicados com `date_end` anterior à data de hoje (horário do Brasil, UTC-3); rascunhos nunca contam, mesmo com data anterior a hoje.
 - `Inscritos em Eventos Futuros` conta registros de inscrição em eventos com `date_start` igual ou posterior à data de hoje (horário do Brasil, UTC-3).
 
 ### Relatórios de evento
@@ -600,7 +608,8 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - O relatório exibe `Inscritos Participantes`.
 - O relatório lista participantes com nome, e-mail, órgão/instituição e situação de participação.
 - O relatório pode ser impresso/exportado para PDF por meio da impressão do navegador.
-- Antes da impressão, a administração pode marcar quais seções do relatório serão incluídas no PDF.
+- Antes da impressão, a administração pode marcar quais seções do relatório serão incluídas no PDF; o checkbox "Incluir no PDF" inicia marcado apenas nas seções com dados (Informações e Estatísticas do evento sempre marcadas; Atividades, Artigos por tipo/modalidade, Participantes e Decisões iniciam desmarcados quando a listagem está vazia).
+- Atividades dos tipos `breakfast` (Café da Manhã), `coffee_break` (Coffee Break) e `lunch` (Almoço) não aparecem no relatório (listagem por tipo nem contadores de atividades/inscrições/presenças/certificados).
 - O relatório exibe o card "Participantes que avaliaram" com a contagem de participantes distintos (`COUNT(DISTINCT user_id)`), e não o total de avaliações.
 - Por atividade, o relatório exibe a contagem de avaliações e o botão "Ver avaliações (n)", que expande a lista (nome, data e texto) oculta por padrão; atividades sem avaliações não exibem o botão.
 - Na coluna "Participação" da listagem de participantes do relatório, inscrições com conta inativa (`is_public = 0`) exibem o badge "Conta inativa", mantendo os badges de papéis/situação existentes; inscrições sem conta vinculada não são afetadas.
@@ -701,6 +710,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - Reset administrativo de senha envia e-mail (tipo `password_reset`, template `password-reset`) com o mesmo tipo de token de definição de senha; com o master global desligado nenhuma mensagem é enfileirada e o fluxo cai na página administrativa com a senha temporária.
 - A inscrição pública gera mensagem de confirmação imediata no modo automático ou de recebimento para análise no modo sujeito à análise. A decisão administrativa gera mensagem de aprovação, aprovação parcial (com as atividades aprovadas) ou recusa.
 - Alterações administrativas nas atividades de uma inscrição geram mensagem ao participante somente quando a seleção efetivamente muda.
+- As mensagens transacionais constroem seus links com `APP_BASE_URL` (ex.: área do participante em `APP_BASE_URL/author` no e-mail de resultado de inscrição, de atividades atualizadas e de decisão de pedido de atividade; login com `?switch=1` no e-mail de conta aprovada).
 - A fila persiste estados `queued`, `sending`, `sent`, `failed`, `cancelled` e `suppressed`; falha SMTP não desfaz a operação principal.
 
 ## Fluxos Principais

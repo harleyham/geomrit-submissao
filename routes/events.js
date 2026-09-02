@@ -3175,20 +3175,51 @@ router.get('/:id/roles', (req, res) => {
   const assignments = db.prepare(`SELECT eur.*, u.name AS user_name, u.email AS user_email, a.title AS article_title
     FROM event_user_roles eur JOIN users u ON u.id=eur.user_id LEFT JOIN articles a ON a.id=eur.article_id
     WHERE eur.event_id=? ORDER BY eur.role, u.name COLLATE NOCASE`).all(event.id);
+  // Filtros da lista de pessoas do combobox (mesma sintaxe dos filtros da
+  // pÃ¡gina de participantes): busca textual e titulaÃ§Ã£o.
+  const filters = {
+    query: String(req.query.q || '').trim(),
+    titulation: String(req.query.titulation || 'all')
+  };
+  const TITULATION_OPTIONS = ['Graduado', 'Mestre', 'Doutor'];
+  if (filters.titulation !== 'all' && filters.titulation.toLowerCase() !== 'n\u00e3o especificado' && !TITULATION_OPTIONS.includes(filters.titulation)) {
+    filters.titulation = 'all';
+  }
+  const userConditions = [];
+  const userParams = [];
+  if (isSuperAdminUser(req.session.userId)) {
+    userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'`);
+  } else {
+    userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'
+      AND (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
+        OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id))`);
+    userParams.push(event.id, event.id);
+  }
+  if (filters.titulation.toLowerCase() === 'n\u00e3o especificado') {
+    userConditions.push("(u.formacao_titulacao IS NULL OR u.formacao_titulacao = '')");
+  } else if (filters.titulation !== 'all') {
+    userConditions.push('u.formacao_titulacao = ?');
+    userParams.push(filters.titulation);
+  }
+  if (filters.query) {
+    userConditions.push(`(
+      LOWER(u.name) LIKE ?
+      OR LOWER(u.email) LIKE ?
+      OR LOWER(COALESCE(u.institution, '')) LIKE ?
+      OR LOWER(REPLACE(REPLACE(REPLACE(COALESCE(u.cpf, ''), '.', ''), '-', ''), ' ', '')) LIKE ?
+    )`);
+    const term = `%${filters.query.toLowerCase()}%`;
+    userParams.push(term, term, term, term);
+  }
   // Somente inscritos no evento (ou quem jÃ¡ tem papel nele) podem receber
   // papÃ©is; o superadmin mantÃ©m a lista completa de contas ativas.
-  const users = isSuperAdminUser(req.session.userId)
-    ? db.prepare(`SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter FROM users WHERE is_public=1 AND approval_status='approved' ORDER BY name COLLATE NOCASE`).all()
-    : db.prepare(`
-        SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter
-        FROM users u
-        WHERE u.is_public=1 AND u.approval_status='approved'
-          AND (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
-            OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id))
-        ORDER BY u.name COLLATE NOCASE
-      `).all(event.id, event.id);
+  const users = db.prepare(`SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter
+    FROM users u
+    WHERE ${userConditions.join(' AND ')}
+    ORDER BY u.name COLLATE NOCASE
+  `).all(...userParams);
   const articles = db.prepare(`SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title COLLATE NOCASE`).all(event.id);
-  res.render('admin/events/roles', { title: `PapÃ©is do evento - ${event.name}`, event, assignments, users, articles, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' }, staff: { label: 'Staff' } }, success: req.query.success || null, error: req.query.error || null });
+  res.render('admin/events/roles', { title: `PapÃ©is do evento - ${event.name}`, event, assignments, users, articles, filters, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' }, staff: { label: 'Staff' } }, success: req.query.success || null, error: req.query.error || null });
 });
 
 router.post('/:id/roles', strictLimiter, (req, res, next) => {
@@ -3225,11 +3256,12 @@ router.post('/:id/roles/:role/:userId/delete', strictLimiter, (req, res) => {
   const role = EVENT_ASSIGNABLE_ROLES.includes(req.params.role) ? req.params.role : null;
   const userId = parseInt(req.params.userId, 10);
   if (role) {
-    // Um evento nÃ£o pode ficar sem administrador: bloqueia remover o prÃ³prio
-    // papel de admin quando for o Ãºltimo (o superadmin pode reorganizar).
-    const removingOwnLastAdmin = role === 'admin' && userId === req.session.userId && !isSuperAdminUser(req.session.userId)
+    // Um evento nÃ£o pode ficar sem administrador: bloqueia a remoÃ§Ã£o do
+    // Ãºltimo admin, nÃ£o importa quem esteja tentando (inclusive o superadmin).
+    // Para trocar o admin, primeiro atribua o papel a outro usuÃ¡rio.
+    const removingLastAdmin = role === 'admin'
       && db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(req.params.id).count <= 1;
-    if (removingOwnLastAdmin) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('O evento precisa manter ao menos um administrador.')}`);
+    if (removingLastAdmin) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.')}`);
     db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').run(req.params.id, userId, role);
   }
   res.redirect(`/admin/events/${req.params.id}/roles?success=${encodeURIComponent('Papel removido.')}`);

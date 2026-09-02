@@ -470,8 +470,10 @@ router.post('/:id/event-roles', requireAuth, (req, res) => {
   const valid = ['admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter'];
   const selected = valid.filter((role) => roles.includes(role));
   const currentAdmins = db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(eventId).count;
-  const removingSelfAdmin = !selected.includes('admin') && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId,userId);
-  if (removingSelfAdmin && currentAdmins <= 1) return res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&error=${encodeURIComponent('O evento precisa manter ao menos um administrador.')}`);
+  // O evento precisa manter ao menos um administrador, nÃ£o importa quem
+  // esteja editando (inclusive o superadmin): troque o papel antes de remover.
+  const targetHasAdmin = !selected.includes('admin') && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId,userId);
+  if (targetHasAdmin && currentAdmins <= 1) return res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&error=${encodeURIComponent('O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.')}`);
   db.transaction(() => { db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=?').run(eventId,userId); const insert=db.prepare('INSERT INTO event_user_roles(event_id,user_id,role,article_id,assigned_by) VALUES(?,?,?,?,?)'); selected.forEach((role)=>{const articleId=role==='oral_presenter'?Number(req.body.oral_article_id)||null:role==='poster_presenter'?Number(req.body.poster_article_id)||null:null; insert.run(eventId,userId,role,articleId,req.session.userId);}); })();
   res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&success=${encodeURIComponent('Perfis do evento atualizados.')}`);
 });

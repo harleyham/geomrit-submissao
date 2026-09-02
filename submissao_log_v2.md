@@ -14,6 +14,16 @@ Versão atual registrada: **V0.32**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-02
+
+### Prévia "como participante": tarja global de visualização em todas as páginas e restauração completa da identidade ao sair
+
+- Relatos: (1) ao entrar na prévia de um usuário (`GET /admin/users/:id/participant`) e navegar por outras páginas do sistema, a sessão continuava agindo como o participante, mas **nenhum indicador de visualização aparecia** — só a Área do Participante (`/author`) possuía aviso próprio, deixando o restante da navegação com o nome do participante e sinalização nenhuma de impersonação; (2) a tarja adicionada como overlay fixo no topo (`position:fixed`) se sobrepunha ao menu superior; (3) ao clicar "Sair da visualização", a tarja desaparecia, mas o nome do participante **permanecia exibido** na página em que se aterrissava sem restaurar a identidade do admin.
+- Correção 1 (`server.js`, middleware da prévia): enquanto `session.previewUserId` estiver ativo, um wrapper de `res.send` injeta uma tarja laranja (`data-preview-banner`, laranja `#b45309`) **no fluxo da página**, imediatamente após a abertura do `<body>` (sem `position:fixed`), empurrando o menu e o conteúdo para baixo em vez de cobri-los. Texto: "Visualização administrativa como <nome> (<e-mail>) — ações são registradas em nome deste usuário", com link "Sair da visualização" para `/admin/users` (que encerra a prévia no middleware existente). Nome e e-mail escapados com helper HTML para evitar XSS; injeção pulada quando a resposta já é a Área do Participante em modo prévia (que tem banner próprio) e é guardada por marcador único, sem duplicação.
+- Correção 2 (`server.js`, saída da prévia): nos três ramos de restauração da identidade (request em `/admin/*`, admin inativo ou alvo inválido), além de `Object.assign(session, real)`, os `res.locals` são reavaliados a partir do id real (`userId`, `userName`, `userEmail`, `userInstitution`, `isPublic`, `isAdmin`/`isSuperAdmin`, `isReviewer`, `isEventStaff`). Antes, o middleware de `res.locals` rodava antes da restauração e a página de aterrissagem ainda renderizava com o nome do impersonado.
+- Validação: `node --check`; E2E em sandbox isolada (banco temporário, porta 3133, admin temporário removido ao final): tarja presente como primeiro elemento dentro do `<body>` (antes do `<header>`/topbar) em `/` e `/author` durante a prévia, ausente na própria área pré-visualizada (sem duplicação), e após navegar para `/admin/users` a tarja desaparece, a home volta a exibir `admin@admin.com` e sessão restaurada.
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ## 2026-09-01
 
 ### Implementação dos achados 1 a 10 da análise de código
@@ -65,6 +75,42 @@ Versão atual registrada: **V0.32**.
 - Validação: E2E em sandbox (banco temporário, porta 3133) com evento no dia corrente — atividade elegível só a `participant`: tela não oferece teacher e POST como teacher é recusado ("Você não pode registrar presença com este papel"); atividade elegível a `teacher`: POST como teacher marca a presença (302 `marked=1`, registro gravado com o papel correto); professor sem o papel `speaker` em atividade de palestrante segue recusado. Sem mudança de banco.
 - Status do achado atualizado em `ANALISE_MELHORIAS_CODIGO.md` (12 → corrigido); docs (`README.md`) ajustadas.
 - `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
+### Correção: clique no link de e-mail abria o sistema logado como outro usuário
+
+- Relato: participante clicando no link "Acessar o sistema"/"Área do Participante" de um e-mail de aprovação, no mesmo navegador em que um admin estava logado, entrava direto na página do admin em vez do login/participante — colisão de sessão (cookie `connect.sid` único, `sameSite: 'lax'` é enviado em navegação top-level) combinada com o `GET /login` redirecionar sessões ativas sem opção de troca.
+- Correções em camadas: (1) `GET /login?switch=1` (`routes/auth.js`) renderiza a tela de login mesmo com sessão ativa, com banner "Você está logado como X" e opções de continuar (destino pós-login) ou sair e entrar com outra conta (o POST já regenerava a sessão); (2) `requireNonAdminAuthorAccess` (`routes/public.js`) bloqueia a superadmin fora da prévia "como participante", redirecionando para `/admin/dashboard`; (3) `services/email.js` e `views/emails/imported-registration.ejs`: URLs fixas `https://teste.ham.eng.br/author` substituídas por `${appBaseUrl()}/author` em todas as mensagens de inscrição/atividades; e-mail de conta aprovada aponta para `APP_BASE_URL/login?switch=1`.
+- Validação: `node --check` e compilação EJS OK. Teste manual (aba anônima não afetada pelo cookie do admin) continua a via limpa de reprodução.
+- `Status: implementado; efetivo após reinício do servidor.`
+
+### Correção: contador "Eventos Realizados" do dashboard
+
+- Relato: com 1 evento encerrado, 1 publicado e 1 rascunho, o contador mostrava 0 — a consulta contava apenas `date_end < hoje`, e o evento encerrado manualmente (`status='encerrado'`) tinha `date_end` NULL; um rascunho com data antiga seria contado indevidamente.
+- Correção (`routes/auth.js`, dashboard): realizado = status `encerrado`, ou publicado com `date_end` já passado. Rascunhos nunca contam. Verificado com os dados reais (resultado 1).
+- `Status: implementado e verificado; efetivo após reinício do servidor.`
+
+### Filtros no combobox de pessoas da página de papéis do evento
+
+- Pedido: em `/admin/events/:id/roles`, a lista longa dificultava achar a pessoa.
+- Implementação: barra de filtros (GET) no padrão da página de participantes — busca textual `q` (nome, e-mail, instituição ou CPF, com normalização da pontuação do CPF) e titulação (`Graduado`/`Mestre`/`Doutor`/`Não especificado`, comparação case-insensitive e tolerante a acentuação via rota; a rota valida os valores com fallback `all`); contador no label ("N pessoas na lista — com filtros ativos"). A mesma consulta continua respeitando o escopo (inscritos aprovados no evento; superadmin vê todas as contas ativas). Arquivos: `routes/events.js`, `views/admin/events/roles.ejs`. Nota: strings de titulação pré-existentes em `events.js` (participantes) possuem mojibake (`NÃ£o especificado`) — o código novo evita herdar o problema.
+- Validação: `node --check`, compilação EJS e teste direto da consulta no banco (sem filtro: 6 pessoas; `q=cuda`: vazio).
+- `Status: implementado; efetivo após reinício do servidor.`
+
+### Regra reforçada: evento precisa manter ao menos um administrador
+
+- Relato: em `/admin/events/:id/roles`, com somente 1 admin no evento, o botão "Remover" era negado apenas quando o próprio admin tentava remover a si mesmo; o superadmin (ou um admin removendo o papel de outro) deixava o evento sem administrador.
+- Correção: a guarda da remoção do último `admin` passa a valer **para qualquer usuário, inclusive o superadmin** (mensagem orienta atribuir o papel a outra pessoa antes de remover) — `routes/events.js` (remoção na página de papéis) e `routes/users.js` (`POST /:id/event-roles`, edição de perfis por evento, que tinha a mesma limitação de auto-remoção). Para trocar de administrador: atribuir primeiro, remover depois.
+- Validação: `node --check`.
+- `Status: implementado; efetivo após reinício do servidor.`
+
+### Atividades de convivialidade fora dos relatórios e checkboxes "Incluir no PDF" por conteúdo
+
+- Relato 1: em `/admin/reports?eventId=2`, atividades "Coffee Break", "Almoço" e "Café da Manhã" apareciam nos relatórios.
+- Correção (`routes/reports.js`): a consulta de atividades do relatório exclui os tipos `breakfast`, `coffee_break` e `lunch` — fora da listagem por tipo e de todos os contadores (total de atividades, inscrições, presenças, certificados). Verificado no banco do evento 2: 7 atividades → 5 no relatório.
+- Relato 2: todos os cards iniciavam com "Incluir no PDF" marcado, incluindo seções sem dados.
+- Correção (`views/admin/reports/list.ejs`): o checkbox inicia marcado apenas se a seção tem conteúdo — Informações e Estatísticas do evento sempre marcadas; Atividades, Artigos Aprovados/Reprovados por Oral/Pôster e Participantes marcados somente quando as listagens não estão vazias; o card vazio "Artigos" inicia desmarcado. Cards "vazios" podem ser marcados manualmente se a administração quiser a constatação no PDF.
+- Validação: `node --check` e compilação EJS OK.
+- `Status: implementado; efetivo após reinício do servidor.`
 
 ## 2026-08-31
 

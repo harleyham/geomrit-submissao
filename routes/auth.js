@@ -310,6 +310,16 @@ router.get('/', (req, res) => {
     const user = db.prepare('SELECT password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
     if (user && !user.password_changed) return res.redirect('/login/change-password');
     if (user && !user.profile_completed) return res.redirect('/login/complete-profile');
+    // Links vindos de e-mails usam ?switch=1 para permitir trocar de conta
+    // mesmo com uma sessão ativa (evita cair direto na área do usuário
+    // logado, ex.: admin, ao clicar no link de outro e-mail).
+    if (req.query.switch === '1') {
+      return res.render('login', {
+        error: req.query.error ? decodeURIComponent(req.query.error) : null,
+        notice: { name: req.session.userName, email: req.session.userEmail, destination: authenticatedDestination(req) },
+        year: new Date().getFullYear()
+      });
+    }
     return res.redirect(authenticatedDestination(req));
   }
   res.render('login', {
@@ -324,7 +334,9 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
   const brToday = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
   const totalEvents = db.prepare('SELECT COUNT(*) as count FROM events').get().count;
   const publishedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'published'").get().count;
-  const concludedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE date_end IS NOT NULL AND date_end != '' AND date_end < ?").bind(brToday).get().count;
+  // Evento realizado = encerrado explicitamente, ou publicado cuja data de
+  // fim já passou. Rascunhos não contam, mesmo com data anterior a hoje.
+  const concludedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'encerrado' OR (status = 'published' AND date_end IS NOT NULL AND date_end != '' AND date_end < ?)").bind(brToday).get().count;
   const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   const futureRegistrations = db.prepare(`
     SELECT COUNT(*) as count

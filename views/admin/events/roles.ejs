@@ -77,10 +77,30 @@
     <section class="section">
       <h2 class="section-title">Atribuir papel</h2>
       <p class="hint">Administrador controla somente este evento. Somente pessoas inscritas neste evento (ou que já tenham papel nele) podem receber papéis; o participante comum não precisa de papel — a inscrição basta.</p>
+      <form method="GET" action="/admin/events/<%= event.id %>/roles" class="role-filters" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.25rem;background:rgba(15,23,42,0.3);">
+        <div style="flex:1 1 260px;">
+          <label for="q" style="display:block;color:#94a3b8;font-size:0.8125rem;font-weight:500;margin-bottom:0.375rem;">Buscar pessoa</label>
+          <input id="q" type="text" name="q" value="<%= filters.query %>" placeholder="Nome, e-mail, instituição ou CPF" style="width:100%;padding:0.6rem 0.85rem;border:1px solid rgba(148,163,184,0.2);border-radius:8px;background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.875rem;font-family:'Inter',sans-serif;">
+        </div>
+        <div style="flex:0 1 180px;">
+          <label for="titulation" style="display:block;color:#94a3b8;font-size:0.8125rem;font-weight:500;margin-bottom:0.375rem;">Titulação</label>
+          <select id="titulation" name="titulation" style="width:100%;padding:0.6rem 0.85rem;border:1px solid rgba(148,163,184,0.2);border-radius:8px;background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.875rem;font-family:'Inter',sans-serif;">
+            <option value="all" <%= filters.titulation === 'all' ? 'selected' : '' %>>Todas</option>
+            <option value="Graduado" <%= filters.titulation === 'Graduado' ? 'selected' : '' %>>Graduado</option>
+            <option value="Mestre" <%= filters.titulation === 'Mestre' ? 'selected' : '' %>>Mestre</option>
+            <option value="Doutor" <%= filters.titulation === 'Doutor' ? 'selected' : '' %>>Doutor</option>
+            <option value="Não especificado" <%= filters.titulation.toLowerCase() === 'não especificado' ? 'selected' : '' %>>Não especificado</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button type="submit" class="btn btn-primary">Aplicar Filtros</button>
+          <a href="/admin/events/<%= event.id %>/roles" class="btn btn-ghost">Limpar</a>
+        </div>
+      </form>
       <form method="POST" action="/admin/events/<%= event.id %>/roles">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
-          <label for="user_id">Pessoa</label>
+          <label for="user_id">Pessoa <span style="color:#64748b;font-size:0.75rem;font-weight:400">(<%= users.length %> pessoa<%= users.length === 1 ? '' : 's' %> na lista<%= (filters.query || filters.titulation !== 'all') ? ' — com filtros ativos' : '' %>)</span></label>
           <select name="user_id" id="user_id" required>
             <option value="">Selecione</option>
             <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.name %> — <%= u.email %></option><% }) %>

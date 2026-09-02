@@ -444,6 +444,16 @@ function requireNonAdminAuthorAccess(req, res, next) {
   if (!req.session || !req.session.userId) {
     return res.redirect('/login');
   }
+  // Prévia "como participante" (session.previewUserId) é permitida: a sessão
+  // já está agindo em nome do participante visualizado.
+  if (req.session.previewUserId) {
+    return next();
+  }
+  // O superadmin semente (admin@admin.com) não deve acessar a área do
+  // participante; redireciona para o painel administrativo.
+  if (req.session.isAdmin) {
+    return res.redirect('/admin/dashboard');
+  }
   return next();
 }
 

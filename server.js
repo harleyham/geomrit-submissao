@@ -201,6 +201,18 @@ app.use((req, res, next) => {
     Object.assign(session, real);
     delete session.previewUserId;
     delete session.realIdentity;
+    // A identidade de res.locals foi montada antes da restauração (middleware
+    // anterior) e ainda refletia o usuário impersonado; reavalie a partir do id real.
+    const restoredIsSuper = isSuperAdminId(real.userId);
+    res.locals.userId = real.userId;
+    res.locals.userName = real.userName;
+    res.locals.userEmail = real.userEmail;
+    res.locals.userInstitution = real.userInstitution;
+    res.locals.isPublic = Boolean(real.userId);
+    res.locals.isAdmin = restoredIsSuper;
+    res.locals.isSuperAdmin = restoredIsSuper;
+    res.locals.isReviewer = Boolean(real.userId && hasRoleAnyEventId(real.userId, 'reviewer'));
+    res.locals.isEventStaff = Boolean(session.isEventStaff) && !restoredIsSuper;
     return next();
   }
   const target = db.prepare('SELECT id, name, email, institution, is_public FROM users WHERE id = ?').get(session.previewUserId);
@@ -208,8 +220,42 @@ app.use((req, res, next) => {
     Object.assign(session, real);
     delete session.previewUserId;
     delete session.realIdentity;
+    const restoredIsSuper = isSuperAdminId(real.userId);
+    res.locals.userId = real.userId;
+    res.locals.userName = real.userName;
+    res.locals.userEmail = real.userEmail;
+    res.locals.userInstitution = real.userInstitution;
+    res.locals.isPublic = Boolean(real.userId);
+    res.locals.isAdmin = restoredIsSuper;
+    res.locals.isSuperAdmin = restoredIsSuper;
+    res.locals.isReviewer = Boolean(real.userId && hasRoleAnyEventId(real.userId, 'reviewer'));
+    res.locals.isEventStaff = Boolean(session.isEventStaff) && !restoredIsSuper;
     return next();
   }
+  const previewEscapeHtml = (value) => String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  let previewBannerInjected = false;
+  const originalSend = res.send.bind(res);
+  res.send = function sendWithPreviewBanner(body) {
+    if (!previewBannerInjected && typeof body === 'string' && body.indexOf('data-preview-banner') === -1 && body.indexOf('Visualização da Área do Participante') === -1) {
+      const openMatch = body.match(/<body[^>]*>/i);
+      if (openMatch && openMatch.index !== undefined && openMatch.index !== -1) {
+        previewBannerInjected = true;
+        const insertAt = openMatch.index + openMatch[0].length;
+        const banner =
+          '<div data-preview-banner style="display:block;width:100%;box-sizing:border-box;' +
+          'background:#b45309;color:#fff;padding:0.55rem 1rem;font-size:0.85rem;text-align:center;' +
+          'font-family:system-ui,sans-serif;">' +
+          'Visualização administrativa como <strong>' + previewEscapeHtml(target.name) + '</strong>' +
+          ' (' + previewEscapeHtml(target.email) + ') — ações são registradas em nome deste usuário.' +
+          ' <a href="/admin/users" style="color:#fde68a;font-weight:700;margin-left:0.5rem;">Sair da visualização</a>' +
+          '</div>';
+        body = body.slice(0, insertAt) + banner + body.slice(insertAt);
+      }
+    }
+    return originalSend(body);
+  };
   if (session.userId !== target.id) {
     const targetIsSuper = isSuperAdminId(target.id);
     const targetIsReviewer = hasRoleAnyEventId(target.id, 'reviewer');

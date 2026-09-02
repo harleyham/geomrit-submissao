@@ -24,6 +24,8 @@
     .btn-login { width: 100%; padding: 0.875rem; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
     .btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.4); }
     .error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+    .notice { background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3); color: #bfdbfe; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+    .notice a { color: #60a5fa; text-decoration: underline; }
     .footer-text { text-align: center; margin-top: 1.5rem; color: #64748b; font-size: 0.75rem; }
   </style>
   <%- include('partials/mobile-fixes') %>
@@ -37,8 +39,12 @@
       <div class="version-badge"><%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></div>
     </div>
 
-    <% if (typeof error !== 'undefined' && error) { %>
-      <div class="error"><%= error %></div>
+    <% if (typeof notice !== 'undefined' && notice) { %>
+      <div class="notice">
+        Você está logado como <strong><%= notice.name %></strong> (<%= notice.email %>).
+        <a href="<%= notice.destination %>">Continuar como <%= notice.name %></a>
+        ou <a href="/login/logout">sair</a> e entrar com outra conta.
+      </div>
     <% } %>
 
     <form method="POST" action="/login">

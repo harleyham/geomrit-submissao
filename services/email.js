@@ -227,7 +227,7 @@ function queueAccountApproved(user) {
     messageType: 'account_approved', templateName: 'account-approved',
     subject: 'Seu cadastro foi aprovado', identity,
     dedupeKey: `account-approved:${user.id}:${Date.now()}`,
-    payload: { name: user.name, loginUrl: `${appBaseUrl()}/login`, platformName: identity.platformName }
+    payload: { name: user.name, loginUrl: `${appBaseUrl()}/login?switch=1`, platformName: identity.platformName }
   });
 }
 
@@ -265,7 +265,7 @@ function queueImportedRegistration({ user, event, dedupeKey }) {
     eventId: event.id, userId: user.id, recipientEmail: user.email, recipientName: user.name,
     messageType: 'imported_registration', templateName: 'imported-registration',
     subject: `Sua inscrição em ${event.name} foi confirmada`, identity, dedupeKey,
-    payload: { name: user.name, eventName: event.name, platformName: identity.platformName }
+    payload: { name: user.name, eventName: event.name, authorUrl: `${appBaseUrl()}/author`, platformName: identity.platformName }
   });
 }
 
@@ -278,7 +278,7 @@ function queuePublicRegistrationSubmission({ event, registration, pendingReview 
     messageType: 'registration_submitted', templateName: 'registration-submitted',
     subject: pendingReview ? `Recebemos sua solicitação de inscrição em ${event.name}` : `Sua inscrição em ${event.name} foi confirmada`,
     identity, dedupeKey: `registration-submission:${registration.id}`,
-    payload: { name: registration.name, eventName: event.name, pendingReview, authorUrl: 'https://teste.ham.eng.br/author', platformName: identity.platformName }
+    payload: { name: registration.name, eventName: event.name, pendingReview, authorUrl: `${appBaseUrl()}/author`, platformName: identity.platformName }
   });
 }
 
@@ -300,7 +300,7 @@ function queueRegistrationReviewDecision({ event, registration, decision, approv
     payload: {
       name: registration.name, eventName: event.name, decision: rejected ? 'rejected' : (partial ? 'partial' : 'approved'),
       approvedActivities: approvedActivities.map((activity) => activity.name), reviewNotes: registration.registration_review_notes || '',
-      authorUrl: 'https://teste.ham.eng.br/author', platformName: identity.platformName
+      authorUrl: `${appBaseUrl()}/author`, platformName: identity.platformName
     }
   });
 }
@@ -315,7 +315,7 @@ function queueParticipantActivitiesUpdated({ event, registration, activities }) 
     subject: `Suas atividades em ${event.name} foram atualizadas`, identity,
     dedupeKey: `participant-activities:${registration.id}:${Date.now()}`,
     payload: { name: registration.name, eventName: event.name, activities: activities.map((activity) => activity.name),
-      authorUrl: 'https://teste.ham.eng.br/author', platformName: identity.platformName }
+      authorUrl: `${appBaseUrl()}/author`, platformName: identity.platformName }
   });
 }
 
@@ -334,7 +334,7 @@ function queueActivityRequestDecision({ event, registration, decision, activity 
     dedupeKey: `activity-request:${registration.id}:${activity.id}:${decision}:${Date.now()}`,
     payload: { name: registration.name, eventName: event.name, activityName: activity.name,
       decision: approved ? 'approved' : 'rejected',
-      authorUrl: 'https://teste.ham.eng.br/author', platformName: identity.platformName }
+      authorUrl: `${appBaseUrl()}/author`, platformName: identity.platformName }
   });
 }
 

@@ -288,18 +288,22 @@
                 <% } %>
                 <td>
                   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                    <a href="/evento/<%= participation.event_id %>" class="btn btn-secondary">Detalhes Evento</a>
-                    <% if (participation.registration_status === 'approved') { %>
-                      <a href="/evento/<%= participation.event_id %>/atividades" class="btn btn-secondary">Minhas atividades</a>
-                      <a href="/evento/<%= participation.event_id %>/qr-presenca" class="btn btn-secondary">QR de presença</a>
-                    <% } %>
-                    <% if (participation.registration_type === 'listener') { %>
-                      <a href="/evento/<%= participation.event_id %>/inscricao" class="btn btn-secondary">Ver Inscrição</a>
-                      <% if (participation.can_cancel) { %>
-                        <form method="POST" action="/evento/<%= participation.event_id %>/inscricao/cancelar" style="display:inline;" onsubmit="return confirm('Cancelar sua inscripçao neste evento?')" nonce="<%= cspNonce %>">
-                          <button type="submit" class="btn btn-danger">Cancelar</button>
-                        </form>
+                    <% if (['published','encerrado'].includes(participation.event_status)) { %>
+                      <a href="/evento/<%= participation.event_id %>" class="btn btn-secondary">Detalhes Evento</a>
+                      <% if (participation.registration_status === 'approved') { %>
+                        <a href="/evento/<%= participation.event_id %>/atividades" class="btn btn-secondary">Minhas atividades</a>
+                        <a href="/evento/<%= participation.event_id %>/qr-presenca" class="btn btn-secondary">QR de presença</a>
                       <% } %>
+                      <% if (participation.registration_type === 'listener') { %>
+                        <a href="/evento/<%= participation.event_id %>/inscricao" class="btn btn-secondary">Ver Inscrição</a>
+                        <% if (participation.can_cancel) { %>
+                          <form method="POST" action="/evento/<%= participation.event_id %>/inscricao/cancelar" style="display:inline;" onsubmit="return confirm('Cancelar sua inscripçao neste evento?')" nonce="<%= cspNonce %>">
+                            <button type="submit" class="btn btn-danger">Cancelar</button>
+                          </form>
+                        <% } %>
+                      <% } %>
+                    <% } else { %>
+                      <span style="color:#64748b;font-size:0.8rem;">Evento não publicado</span>
                     <% } %>
                   </div>
                 </td>

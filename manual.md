@@ -87,6 +87,8 @@ Contas novas podem exigir troca de senha e conclusão do perfil antes de acessar
 
 A área de usuários (`/admin/users` — cadastro, edição, reset de senha, aprovação, importação global e a prévia "Área do Participante") é **exclusiva do superadministrador** (`admin@admin.com`). Os demais usuários gerenciam pessoas apenas dentro dos seus eventos (participantes, importação por evento e página de Papéis). Quem precisa trocar a própria senha sem ser o superadmin usa **Alterar Senha** na Área do Participante (`/author/profile`).
 
+Ao usar a prévia "Área do Participante" de um usuário, a sessão passa a navegar como ele e **todas as páginas** mostram uma tarja laranja no topo: "Visualização administrativa como \<pessoa\> — ações são registradas em nome deste usuário". Clique em **Sair da visualização** na própria tarja (ou acesse qualquer página de `/admin/*`) para encerrar a prévia e retomar a sessão de administrador.
+
 ### Cadastro individual
 
 1. Acesse **Administração → Usuários → Novo usuário** (`/admin/users/new`).

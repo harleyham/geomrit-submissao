@@ -232,7 +232,7 @@
     <div class="section" data-report-section="activities">
       <div class="section-header">
         <h2>Atividades do Evento</h2>
-        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="activities" checked> Incluir no PDF</label>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="activities" <%= activities.length > 0 ? 'checked' : '' %>> Incluir no PDF</label>
       </div>
       <div class="section-body" style="padding:1.5rem">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem">
@@ -358,7 +358,7 @@
     <div class="section" data-report-section="approved-oral">
       <div class="section-header">
         <h2>Artigos Aprovados - Apresentação Oral (0)</h2>
-        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-oral" checked> Incluir no PDF</label>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-oral"> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <div class="empty-state"><p>Nenhum artigo aprovado para apresentação oral.</p></div>
@@ -408,7 +408,7 @@
     <div class="section" data-report-section="approved-poster">
       <div class="section-header">
         <h2>Artigos Aprovados - Apresentação de Pôster (0)</h2>
-        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-poster" checked> Incluir no PDF</label>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="approved-poster"> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <div class="empty-state"><p>Nenhum artigo aprovado para apresentação de pôster.</p></div>
@@ -460,7 +460,7 @@
     <div class="section" data-report-section="rejected-oral">
       <div class="section-header">
         <h2>Artigos Reprovados - Apresentação Oral (0)</h2>
-        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-oral" checked> Incluir no PDF</label>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-oral"> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <div class="empty-state"><p>Nenhum artigo reprovado para apresentação oral.</p></div>
@@ -512,7 +512,7 @@
     <div class="section" data-report-section="rejected-poster">
       <div class="section-header">
         <h2>Artigos Reprovados - Apresentação de Pôster (0)</h2>
-        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-poster" checked> Incluir no PDF</label>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="rejected-poster"> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <div class="empty-state"><p>Nenhum artigo reprovado para apresentação de pôster.</p></div>
@@ -524,7 +524,7 @@
     <div class="section" data-report-section="participants">
       <div class="section-header">
         <h2>Participantes do Evento (<%= participants.length %>)</h2>
-        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="participants" checked> Incluir no PDF</label>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="participants" <%= participants.length > 0 ? 'checked' : '' %>> Incluir no PDF</label>
       </div>
       <div class="section-body">
         <% if (participants.length > 0) { %>
@@ -653,7 +653,7 @@
     <div class="section" data-report-section="empty-articles">
       <div class="section-header">
         <h2>Artigos</h2>
-        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="empty-articles" checked> Incluir no PDF</label>
+        <label class="report-selection no-print"><input type="checkbox" data-report-toggle="empty-articles"> Incluir no PDF</label>
       </div>
       <div class="empty-state">
         <p>Nenhum artigo submetido para este evento.</p>
