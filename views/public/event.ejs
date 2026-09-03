@@ -221,13 +221,23 @@
           barDays.forEach(function(day){
             var items = barOcc.filter(function(o){ return o.day === day; });
             items.sort(function(x, y){ return (x.startMin - y.startMin) || (y.endMin - x.endMin); });
-            var laneEnds = [];
-            items.forEach(function(o){
-              var lane = laneEnds.findIndex(function(end){ return end <= o.startMin; });
-              if (lane === -1) { lane = laneEnds.length; laneEnds.push(o.endMin); } else { laneEnds[lane] = o.endMin; }
-              o.lane = lane;
-            });
-            items.forEach(function(o){ o.laneCount = laneEnds.length; });
+            var clusterStart = 0;
+            function flushCluster(from, to){
+              var laneEnds = [];
+              for (var i = from; i < to; i++) {
+                var o = items[i];
+                var lane = laneEnds.findIndex(function(end){ return end <= o.startMin; });
+                if (lane === -1) { lane = laneEnds.length; laneEnds.push(Math.min(o.endMin, 1440)); } else { laneEnds[lane] = Math.min(o.endMin, 1440); }
+                o.lane = lane;
+              }
+              for (var j = from; j < to; j++) items[j].laneCount = laneEnds.length;
+            }
+            var clusterMaxEnd = -1;
+            for (var i = 0; i < items.length; i++) {
+              if (clusterMaxEnd !== -1 && items[i].startMin >= clusterMaxEnd) { flushCluster(clusterStart, i); clusterStart = i; clusterMaxEnd = -1; }
+              clusterMaxEnd = Math.max(clusterMaxEnd, Math.min(items[i].endMin, 1440));
+            }
+            flushCluster(clusterStart, items.length);
           });
           var barPxPerMin = 67.2 / 60;
           var barAxisHeight = Math.round((barAxisEnd - barAxisStart) * barPxPerMin);
