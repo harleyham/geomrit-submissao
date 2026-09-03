@@ -176,6 +176,62 @@
           var gridCell = {};
           actOcc.forEach(function(o){ var k = o.day + '|' + o.hour; (gridCell[k] = gridCell[k] || []).push(o); });
           var hasActivityGrid = gridDays.length > 0 && gridHours.length > 0;
+          var barOcc = [];
+          var barHhmmToMin = function(v){ var m = String(v || '').match(/^(\d{1,2}):(\d{2})/); return m ? ((+m[1]) * 60 + (+m[2])) : null; };
+          var barShiftDay = function(day, n){ var d = new Date(day + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+          activities.forEach(function(a){
+            var aType = a.activity_type || 'other';
+            function pushBar(dayObj, name, startMin, endMin, fullDay){
+              barOcc.push({ day: dayObj.day, dayShift: dayObj.dayShift || 0, name: name, type: aType, startMin: startMin, endMin: endMin, fullDay: !!fullDay, time: fullDay ? 'Dia inteiro' : ('' + Math.floor(startMin / 60)).padStart(2, '0') + ':' + ('' + (startMin % 60)).padStart(2, '0') + '–' + ('' + Math.floor(endMin / 60)).padStart(2, '0') + ':' + ('' + (endMin % 60)).padStart(2, '0') });
+            }
+            var st0 = barHhmmToMin(a.time_start), en0 = barHhmmToMin(a.time_end);
+            function endFrom(st, en){
+              var e = (en !== null && en !== undefined) ? en : (st + 60);
+              var shift = 0;
+              if (e > 1440) { e -= 1440; shift = 1; }
+              return { e: e, shift: shift };
+            }
+            if (a.sessions && a.sessions.length) {
+              a.sessions.forEach(function(s){
+                if (!s.session_date) return;
+                var st = barHhmmToMin(s.time_start), en = barHhmmToMin(s.time_end);
+                if (st === null && en === null) { pushBar({ day: String(s.session_date).slice(0,10) }, a.name + ' : ' + s.name, 0, 0, true); return; }
+                if (st === null) return;
+                var e = endFrom(st, en);
+                pushBar({ day: barShiftDay(String(s.session_date).slice(0,10), e.shift), dayShift: e.shift }, a.name + ' : ' + s.name, st, e.e, false);
+              });
+            } else if (a.date_start && a.time_start && st0 !== null) {
+              var e0 = endFrom(st0, en0);
+              var gStart = String(a.date_start).slice(0,10);
+              var gEnd = (a.date_end && String(a.date_end).slice(0,10) > gStart) ? String(a.date_end).slice(0,10) : gStart;
+              for (var gd = new Date(gStart + 'T00:00:00Z'), gLim = new Date(gEnd + 'T00:00:00Z'), gN = 0; gd <= gLim && gN < 92; gd.setUTCDate(gd.getUTCDate() + 1), gN++) {
+                pushBar({ day: barShiftDay(gd.toISOString().slice(0,10), e0.shift), dayShift: e0.shift }, a.name, st0, e0.e, false);
+              }
+            }
+          });
+          var barAxisStart = 420, barAxisEnd = 1320;
+          var barTimed = barOcc.filter(function(o){ return !o.fullDay; });
+          if (barTimed.length) {
+            barAxisStart = Math.floor(Math.min.apply(null, barTimed.map(function(o){ return o.startMin; })) / 60) * 60;
+            barAxisEnd = Math.ceil(Math.max.apply(null, barTimed.map(function(o){ return Math.min(o.endMin, 1440); })) / 60) * 60;
+            if (barAxisEnd <= barAxisStart) barAxisEnd = barAxisStart + 60;
+          }
+          barOcc.forEach(function(o){ if (o.fullDay) { o.startMin = barAxisStart; o.endMin = barAxisEnd; } });
+          var barDays = Array.from(new Set(barOcc.map(function(o){ return o.day; }))).sort();
+          barDays.forEach(function(day){
+            var items = barOcc.filter(function(o){ return o.day === day; });
+            items.sort(function(x, y){ return (x.startMin - y.startMin) || (y.endMin - x.endMin); });
+            var laneEnds = [];
+            items.forEach(function(o){
+              var lane = laneEnds.findIndex(function(end){ return end <= o.startMin; });
+              if (lane === -1) { lane = laneEnds.length; laneEnds.push(o.endMin); } else { laneEnds[lane] = o.endMin; }
+              o.lane = lane;
+            });
+            items.forEach(function(o){ o.laneCount = laneEnds.length; });
+          });
+          var barPxPerMin = 67.2 / 60;
+          var barAxisHeight = Math.round((barAxisEnd - barAxisStart) * barPxPerMin);
+          var barAxisStartMin = barAxisStart, barAxisEndMin = barAxisEnd;
           var actTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', breakfast:'Café da manhã', coffee_break:'Coffee Break', brunch:'Brunch', lunch:'Almoço', dinner:'Jantar', other:'Outra' };
           var actTypeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','breakfast','coffee_break','brunch','lunch','dinner','other'];
           var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], breakfast:['#92400e','#fcd34d'], coffee_break:['#44403c','#e7e5e4'], brunch:['#134e4a','#5eead4'], lunch:['#7c2d12','#fb923c'], dinner:['#4c1d95','#c4b5fd'], other:['#1e293b','#94a3b8'] };
@@ -200,11 +256,13 @@
             .activities-toggle-block .activities-toggle label { padding:6px 14px;border:1px solid rgba(148,163,184,.35);border-radius:999px;font-size:.8rem;color:#cbd5e1;cursor:pointer; }
             .activities-toggle-block #activities-view-cards:checked ~ .activities-toggle label[for="activities-view-cards"],
             .activities-toggle-block #activities-view-list:checked ~ .activities-toggle label[for="activities-view-list"],
-            .activities-toggle-block #activities-view-grid:checked ~ .activities-toggle label[for="activities-view-grid"] { background:rgba(59,130,246,.25);border-color:#60a5fa;color:#fff; }
+            .activities-toggle-block #activities-view-grid:checked ~ .activities-toggle label[for="activities-view-grid"],
+            .activities-toggle-block #activities-view-bars:checked ~ .activities-toggle label[for="activities-view-bars"] { background:rgba(59,130,246,.25);border-color:#60a5fa;color:#fff; }
             .activities-toggle-block .activities-view { display:none; }
             .activities-toggle-block #activities-view-cards:checked ~ .activities-view-cards,
             .activities-toggle-block #activities-view-list:checked ~ .activities-view-list,
-            .activities-toggle-block #activities-view-grid:checked ~ .activities-view-grid { display:block; }
+            .activities-toggle-block #activities-view-grid:checked ~ .activities-view-grid,
+            .activities-toggle-block #activities-view-bars:checked ~ .activities-view-bars { display:block; }
             .activities-toggle-block .act-cards { display:flex; flex-direction:column; gap:16px; }
             .activities-toggle-block .act-type-card { background:#1e293b; border-radius:10px; padding:16px; }
             .activities-toggle-block .act-type-head { margin:0 0 12px; font-size:1rem; display:flex; align-items:center; gap:8px; }
@@ -222,6 +280,15 @@
             .activities-toggle-block .grid-table tbody th { background:rgba(15,23,42,0.6); color:#94a3b8; white-space:nowrap; font-weight:600; text-align:left; }
             .activities-toggle-block .grid-table td .grid-item { display:block; color:#f8fafc; }
             .activities-toggle-block .grid-table td .grid-item + .grid-item { margin-top:6px; padding-top:6px; border-top:1px dashed rgba(148,163,184,0.15); }
+            .activities-toggle-block .bars-flex { display:flex; min-width:640px; }
+            .activities-toggle-block .bars-hours { width:54px; flex:0 0 54px; position:relative; }
+            .activities-toggle-block .bars-hours-label { position:absolute; left:0; width:100%; text-align:right; padding-right:6px; font-size:.7rem; color:#94a3b8; transform:translateY(-50%); }
+            .activities-toggle-block .bars-col { flex:1 1 0; min-width:140px; border-left:1px solid rgba(148,163,184,0.12); }
+            .activities-toggle-block .bars-col-head { padding:6px 8px; font-size:.75rem; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; text-align:center; border-bottom:1px solid rgba(148,163,184,0.1); background:rgba(15,23,42,0.6); }
+            .activities-toggle-block .bars-col-body { position:relative; }
+            .activities-toggle-block .bars-line { position:absolute; left:0; width:100%; border-top:1px dashed rgba(148,163,184,0.12); }
+            .activities-toggle-block .bars-bar { position:absolute; border-radius:6px; padding:5px 7px; overflow:hidden; font-size:.72rem; line-height:1.35; border:1px solid rgba(0,0,0,0.35); display:flex; flex-direction:column; gap:2px; }
+            .activities-toggle-block .bars-bar-time { font-weight:600; opacity:.9; }
             .interest-alert { margin:0 0 12px; padding:.7rem .9rem; border-radius:10px; font-size:.85rem; line-height:1.5; }
             .interest-alert a { color:#93c5fd; }
             .interest-alert-success { color:#86efac; background:rgba(34,197,94,.1); border:1px solid rgba(74,222,128,.2); }
@@ -239,10 +306,12 @@
           <input type="radio" name="activities-view" id="activities-view-cards" class="activities-radio" checked>
           <input type="radio" name="activities-view" id="activities-view-list" class="activities-radio">
           <input type="radio" name="activities-view" id="activities-view-grid" class="activities-radio">
+          <input type="radio" name="activities-view" id="activities-view-bars" class="activities-radio">
           <div class="activities-toggle">
             <label for="activities-view-cards">Cards</label>
             <label for="activities-view-list">Lista</label>
             <label for="activities-view-grid">Grade (dia × hora)</label>
+            <label for="activities-view-bars">Grade (dia × hora) – Barras</label>
           </div>
           <div class="activities-view activities-view-cards">
             <% if (canMarkInterests) { %>
@@ -387,6 +456,45 @@
                     <% }) %>
                   </tbody>
                 </table>
+              </div>
+            <% } %>
+          </div>
+          <div class="activities-view activities-view-bars">
+            <% if (!barOcc.length) { %>
+              <p class="muted">Defina data e horário das atividades/etapas para visualizar em barras.</p>
+            <% } else { %>
+              <div class="grid-wrap">
+                <div class="bars-flex">
+                  <div class="bars-hours">
+                    <div class="bars-col-head" style="border-bottom:none;background:transparent"></div>
+                    <div style="position:relative;height:<%= barAxisHeight %>px">
+                      <% (function(){ for (var h = barAxisStartMin; h <= barAxisEndMin; h += 60) { var topPx = Math.round((h - barAxisStartMin) * barPxPerMin); %>
+                        <% if (h < barAxisEndMin) { %><div class="bars-hours-label" style="top:<%= topPx %>px"><%= ('' + Math.floor(h / 60) % 24).padStart(2, '0') %>:00</div><% } %>
+                      <% } })() %>
+                    </div>
+                  </div>
+                  <% barDays.forEach(function(day){ %>
+                    <div class="bars-col">
+                      <div class="bars-col-head"><%= formatBRDate(day) %></div>
+                      <div class="bars-col-body" style="height:<%= barAxisHeight %>px">
+                        <% (function(){ for (var h = barAxisStartMin + 60; h <= barAxisEndMin; h += 60) { var topPx = Math.round((h - barAxisStartMin) * barPxPerMin); %>
+                          <div class="bars-line" style="top:<%= topPx %>px"></div>
+                        <% } })() %>
+                        <% barOcc.filter(function(o){ return o.day === day; }).forEach(function(o){ var oSt = actTypeStyle[o.type] || actTypeStyle.other;
+                             var barTop = Math.round((o.startMin - barAxisStartMin) * barPxPerMin);
+                             var barHeight = Math.max(Math.round((o.endMin - o.startMin) * barPxPerMin) - 2, 16);
+                             var laneWidth = 100 / o.laneCount;
+                             var laneLeft = o.lane * laneWidth;
+                             var title = o.time + ' — ' + o.name; %>
+                          <div class="bars-bar" style="background:<%= oSt[0] %>;color:<%= oSt[1] %>;top:<%= barTop %>px;height:<%= barHeight %>px;left:calc(<%= laneLeft %>% + 2px);width:calc(<%= laneWidth %>% - 4px);<%= barHeight < 40 ? 'padding:2px 5px;font-size:.66rem;' : '' %>" title="<%= title %>">
+                            <span class="bars-bar-time"><%= o.time %></span>
+                            <span><%= o.name %></span>
+                          </div>
+                        <% }) %>
+                      </div>
+                    </div>
+                  <% }) %>
+                </div>
               </div>
             <% } %>
           </div>
