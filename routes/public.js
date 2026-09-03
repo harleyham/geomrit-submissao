@@ -12,7 +12,6 @@ const { registrationLimiter, interestsLimiter, activityEnrollLimiter, strictLimi
 const { validators: v, validateAndHandle } = require('../security/validation');
 const { brDate, brToday, brFormatDate } = require('../services/datetime');
 const { validateCsrfToken } = require('../security/csrf');
-const { body } = require('express-validator');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountRequested, queuePublicRegistrationSubmission } = require('../services/email');
 const roomsService = require('../services/rooms');
@@ -2547,17 +2546,9 @@ router.post('/definir-senha', strictLimiter, (req, res) => {
 });
 
 router.post('/cadastro', registrationLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, [
-    ...v.registration,
-    body('password').isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
-    body('password').matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('A senha deve conter maiúscula, minúscula e número.'),
-    body('confirm_password').custom((value, { req: r }) => {
-      if (value !== r.body.password) throw new Error('As senhas não conferem.');
-      return true;
-    })
-  ]);
+  validateAndHandle(req, res, next, v.registration);
 }, (req, res) => {
-  const { name, email, password, confirm_password, cpf, passport, country, institution } = req.body;
+  const { name, email, cpf, passport, country, institution } = req.body;
   const formData = {
     name: name || '',
     email: email || '',
@@ -2567,28 +2558,10 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
     institution: institution || ''
   };
 
-  if (!name || !email || !password || !confirm_password) {
+  if (!name || !email) {
     return res.status(400).render('public/register', {
       title: 'Solicitar Cadastro',
-      error: 'Nome, e-mail, senha e confirmação de senha são obrigatórios.',
-      success: null,
-      formData
-    });
-  }
-
-  if (password !== confirm_password) {
-    return res.status(400).render('public/register', {
-      title: 'Solicitar Cadastro',
-      error: 'As senhas não conferem.',
-      success: null,
-      formData
-    });
-  }
-
-  if (password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-    return res.status(400).render('public/register', {
-      title: 'Solicitar Cadastro',
-      error: 'A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula e número.',
+      error: 'Nome e e-mail são obrigatórios.',
       success: null,
       formData
     });
@@ -2606,14 +2579,16 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
     });
   }
 
-  const hash = bcrypt.hashSync(password, 10);
+  // Senha interna inutilizável: o acesso só é liberado pelo link de uso único
+  // enviado por e-mail após a aprovação do cadastro.
+  const hash = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   const created = db.prepare(`
     INSERT INTO users (
       name, email, password, cpf, passport, country, institution,
       is_admin, is_reviewer, is_public, approval_status, approved_at,
       password_changed, profile_completed, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'pending', NULL, 1, 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'pending', NULL, 0, 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
   `).bind(
     name,
     email,
@@ -2628,7 +2603,7 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
   return res.render('public/register', {
     title: 'Solicitar Cadastro',
     error: null,
-    success: 'Solicitação enviada com sucesso. Um administrador fará a validação do seu cadastro antes da liberação do acesso.',
+    success: 'Solicitação enviada com sucesso. Um administrador fará a validação do seu cadastro; após a aprovação, você receberá por e-mail um link de uso único para definir sua senha.',
     formData: {}
   });
 });

@@ -29,9 +29,6 @@
     .form-group label { display: block; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
     .form-group input, .form-group select { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font-size: 0.95rem; font-family: 'Inter', sans-serif; }
     .form-group input:focus, .form-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
-    .password-field { position: relative; }
-    .password-field input { padding-right: 3.25rem; }
-    .toggle-password { position: absolute; right: 0.8rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; }
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
@@ -62,7 +59,7 @@
 
     <div class="card">
       <div class="note">
-        Após o envio, sua conta ficará em análise. O acesso ao sistema só será liberado depois da aprovação administrativa.
+        Após o envio, sua conta ficará em análise. O acesso ao sistema só será liberado depois da aprovação administrativa, quando você receber por e-mail um link de uso único para definir sua senha.
       </div>
 
       <% if (error) { %>
@@ -106,23 +103,6 @@
           <%- include('../partials/country-select', { selectedCountry: formData.country || '', selectId: 'country', selectName: 'country' }) %>
         </div>
 
-        <div class="grid">
-          <div class="form-group">
-            <label for="password">Senha *</label>
-            <div class="password-field">
-              <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password">
-              <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="password">👁</button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="confirm_password">Confirmar senha *</label>
-            <div class="password-field">
-              <input type="password" id="confirm_password" name="confirm_password" required minlength="6" autocomplete="new-password">
-              <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="confirm_password">👁</button>
-            </div>
-          </div>
-        </div>
-
         <div class="actions">
           <a href="/" class="btn btn-secondary">Voltar ao início</a>
           <button type="submit" class="btn btn-primary">Enviar Solicitação</button>
@@ -132,16 +112,5 @@
   </main>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
-  <script nonce="<%= cspNonce %>">
-    document.querySelectorAll('.toggle-password').forEach(function(button) {
-      button.addEventListener('click', function() {
-        var input = document.getElementById(button.getAttribute('data-target'));
-        var showing = input.type === 'text';
-        input.type = showing ? 'password' : 'text';
-        button.textContent = showing ? '👁' : '🙈';
-        button.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
-      });
-    });
-  </script>
 </body>
 </html>

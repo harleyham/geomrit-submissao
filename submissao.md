@@ -705,7 +705,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - O master switch global (`system_settings.email_enabled`) prevalece sobre todos os demais e só pode ser alterado pelo superadministrador; o switch `events.email_enabled` controla cada evento. Ambos têm default `0`.
 - Desligar o global cancela toda mensagem pendente; desligar o evento cancela apenas suas pendências. Mensagens canceladas não são retomadas.
 - Solicitação e aprovação de conta usam identidade global neutra. Lembretes, certificados, importações do evento e transmissões usam identidade e logo do evento, quando existentes.
-- Tanto a aprovação de solicitação pública quanto a criação direta de usuário pelo administrador geram aviso de conta aprovada (quando o master global está ligado).
+- Tanto a aprovação de solicitação pública quanto a criação direta de usuário pelo administrador geram aviso de conta aprovada (quando o master global está ligado), com **link de uso único para o usuário definir a própria senha** (72h, hash em `user_setup_tokens`; cancelamento do e-mail revoga o token). Nenhuma senha é enviada por e-mail.
 - O lembrete é criado às 09h (America/Sao_Paulo) no dia anterior ao evento para inscritos ativos.
 - Alterações de transmissão notificam inscritos ativos da atividade; atividade e etapa são suportadas, remoção também notifica e mudanças feitas em até cinco minutos são consolidadas.
 - Importações exigem autorização explícita na tela de resultado. Novas contas usam token de definição de senha (hash no banco, uso único, 72 horas), sem senha no e-mail.

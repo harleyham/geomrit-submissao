@@ -222,12 +222,16 @@ function queueAccountRequested(user) {
 
 function queueAccountApproved(user) {
   const identity = getGlobalIdentity();
+  // Link de uso único para o usuário definir a própria senha (72h), no mesmo
+  // padrão do "esqueci a senha" e das contas importadas.
+  const token = createSetupToken(user.id);
+  const setupUrl = `${appBaseUrl()}/definir-senha?token=${encodeURIComponent(token.raw)}`;
   return enqueueEmail({
-    userId: user.id, recipientEmail: user.email, recipientName: user.name,
+    userId: user.id, setupTokenId: token.id, recipientEmail: user.email, recipientName: user.name,
     messageType: 'account_approved', templateName: 'account-approved',
     subject: 'Seu cadastro foi aprovado', identity,
     dedupeKey: `account-approved:${user.id}:${Date.now()}`,
-    payload: { name: user.name, loginUrl: `${appBaseUrl()}/login?switch=1`, platformName: identity.platformName }
+    payload: { name: user.name, setupUrl, loginUrl: `${appBaseUrl()}/login?switch=1`, platformName: identity.platformName }
   });
 }
 

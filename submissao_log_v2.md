@@ -23,6 +23,14 @@ Versão atual registrada: **V0.32**.
 
 ## 2026-09-02
 
+### Cadastro público sem senha (definição por link de uso único)
+
+- Requisito: o formulário `/cadastro` deixa de pedir senha/confirmação (removidos do template `views/public/register.ejs`, junto com o JavaScript de "mostrar senha" e o CSS `.password-field`/`.toggle-password`); a conta é criada com **senha interna aleatória inutilizável** (`bcrypt` de `crypto.randomBytes(32)`) e `password_changed = 0`, permanecendo inacessível até a aprovação.
+- Aprovação (`routes/users.js` `POST /:id/approve` e criação direta em `/admin/users/new`): o e-mail `account_approved` agora gera **token de definição de senha de uso único** (72h, hash em `user_setup_tokens`, revoke de tokens anteriores) e inclui o link `/definir-senha?token=...` (`services/email.js` — `queueAccountApproved` com `setupTokenId` + `setupUrl` no payload; cancelamento/suspensão do e-mail revoga o token, no padrão dos demais gatilhos). Template `account-approved.ejs` atualizado: botão "Definir minha senha" (em vez do acesso direto ao login) e aviso de que nenhuma senha é enviada por e-mail; o texto simples recebe os links automaticamente (chaves `*Url`).
+- Fluxo: cadastro pendente → aprovação administrativa → e-mail com link de uso único → usuário define a senha (rota `/definir-senha` existente, que grava `password_changed = 1`) → login e conclusão de perfil. Senhas nunca transitam por e-mail. Contas que perderem o link de 72h usam "Esqueci a senha".
+- Validação: `node --check` em `routes/public.js` e `services/email.js`; renderização dos templates `register.ejs` e `account-approved.ejs` sem erro.
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ### Atividades obrigatórias para participantes (required_for_participants)
 
 - Requisito: atividades podem ser marcadas como **obrigatórias** no formulário de criação/edição (`checkbox "Obrigatória para participantes"`, novo em `activities.ejs` com dica explicativa; badge "Obrigatória" na listagem admin). Em todas as páginas em que o participante escolhe atividades, as obrigatórias aparecem **marcadas e não podem ser desmarcadas**.

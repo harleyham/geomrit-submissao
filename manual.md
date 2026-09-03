@@ -104,6 +104,10 @@ Quando o usuário não possui curso de graduação, selecione essa opção. Os c
 
 Na listagem de usuários, o botão **Resetar Senha** (disponível também na linha do usuário logado, com aviso de que a senha atual deixará de valer) gera uma senha temporária (a antiga deixa de valer e a troca passa a ser obrigatória no primeiro acesso) e envia ao usuário um **e-mail com link de uso único** (válido por 72 horas) para ele definir a nova senha — a senha não transita no e-mail. Se o envio de e-mails estiver **desativado** (master switch global) ou a conta **não tiver e-mail**, o sistema abre uma página mostrando a senha temporária para você comunicá-la por canal seguro.
 
+### Cadastro público sem senha
+
+O formulário "Solicitar Cadastro" (`/cadastro`) não pede senha. A conta é criada em análise com senha interna inutilizável; ao aprovar o cadastro, o usuário recebe um **e-mail com link de uso único (72h)** para definir a própria senha (`/definir-senha`) e só então faz login e completa o perfil. O e-mail de aprovação enviado pelo superadministrador na criação de usuários em `/admin/users` segue o mesmo padrão. Senhas nunca são enviadas por e-mail; quem perder o link usa "Esqueci a senha" na `/login`.
+
 ### Importação
 
 Há dois fluxos:
