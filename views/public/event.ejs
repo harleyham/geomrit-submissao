@@ -261,11 +261,12 @@
                        var isRequested = isCourse && typeof pendingActivityRequests !== 'undefined' && pendingActivityRequests.has(a.id);
                        var isDenied = isCourse && !isEnrolled && typeof rejectedActivityIds !== 'undefined' && rejectedActivityIds.has(a.id);
                        var canToggle = isCourse && canEnrollCourses && !isEnrolled && !isRequested && !isDenied && (!seats || !seats.full); %>
+                        <% var isRequired = Number(a.required_for_participants) === 1; var requiredBadge = isRequired ? ' <span class="badge" style="background:#1d4ed8;color:#bfdbfe;margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span>' : ''; %>
                       <div class="act-item">
                         <% if (isCourse) { %>
                           <label class="act-item-interest">
                             <input type="checkbox" class="course-enroll" data-activity="<%= a.id %>" data-url="/evento/<%= event.id %>/atividades/inscricao" <%= (isEnrolled || isRequested) ? 'checked' : '' %> <%= canToggle ? '' : 'disabled' %>>
-                            <span class="act-item-title"><%= a.name %></span>
+                            <span class="act-item-title"><%= a.name %><%- requiredBadge %></span>
                           </label>
                           <% var enrollState = []; if (seats) { enrollState.push('Inscritos: ' + seats.enrolled + '/' + seats.max + (seats.full ? ' · Esgotado' : (' · Restam ' + seats.remaining + ' vaga' + (seats.remaining === 1 ? '' : 's')))); } if (isEnrolled) { enrollState.push('✓ Inscrito'); } else if (isRequested) { enrollState.push('Pedido em análise'); } else if (isDenied) { enrollState.push('Pedido negado pela organização'); } else if (!canEnrollCourses) { enrollState.push(registration ? 'Inscrição no evento necessária para solicitar' : 'Entre e inscreva-se no evento para solicitar'); } %>
                           <small class="act-item-meta course-enroll-state" style="color:#94a3b8"><%= enrollState.join(' · ') %></small>
@@ -273,10 +274,10 @@
                         <% } else if (isInterest) { %>
                           <label class="act-item-interest">
                             <input type="checkbox" name="interest_ids" value="<%= a.id %>" <%= interestIds.has(a.id) ? 'checked' : '' %>>
-                            <span class="act-item-title"><%= a.name %></span>
+                            <span class="act-item-title"><%= a.name %><%- requiredBadge %></span>
                           </label>
                         <% } else { %>
-                          <strong class="act-item-title"><%= a.name %></strong>
+                          <strong class="act-item-title"><%= a.name %><%- requiredBadge %></strong>
                         <% } %>
                         <% if (a.description) { %><small class="act-item-desc"><%= a.description %></small><% } %>
                         <small class="act-item-meta"><%= activityDateRange(a) || 'A definir' %><% if (a.time_start || a.time_end) { %> · <%= String(a.time_start || '?').slice(0,5) %>–<%= String(a.time_end || '?').slice(0,5) %><% } %><% if (!hasSess && a.room_allocation) { %> · <%= a.room_allocation.room_name %><% } %></small>
@@ -321,7 +322,7 @@
                 <tr>
                   <td class="muted"><%= activityDateRange(activity) || 'A definir' %></td>
                   <td class="muted"><%= activityTime %></td>
-                  <td class="timeline-label" style="color:<%= activityTypeColor %>"><%= activity.name %></td>
+                  <td class="timeline-label" style="color:<%= activityTypeColor %>"><%= activity.name %><% if (Number(activity.required_for_participants) === 1) { %> <span class="badge" style="background:#1d4ed8;color:#bfdbfe;margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %></td>
                   <td><%= activity.room_allocation ? activity.room_allocation.room_name : '—' %></td>
                   <td style="color:#f8fafc"><%= activity.description || '—' %></td>
                   <td class="timeline-action">
