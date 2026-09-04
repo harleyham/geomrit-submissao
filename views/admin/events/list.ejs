@@ -77,7 +77,7 @@
       <a href="/admin/events/new" class="btn btn-primary">+ Novo Evento</a>
     </div>
 
-    <% if (message) { %><div style="padding:1rem 1.25rem;margin-bottom:1rem;border-radius:10px;background:var(--surface-selected);border:1px solid var(--primary-border);color:var(--link);"><%= message %></div><% } %>
+    <% if (message) { const __msgDesativado = /desativad/i.test(message); const __msgAtivado = /ativad/i.test(message) && !__msgDesativado; %><div style="padding:1rem 1.25rem;margin-bottom:1rem;border-radius:10px;background:<%= __msgDesativado ? 'var(--danger-subtle)' : (__msgAtivado ? 'var(--success-subtle)' : 'var(--surface-selected)') %>;border:1px solid <%= __msgDesativado ? 'var(--danger-border)' : (__msgAtivado ? 'var(--success-border)' : 'var(--primary-border)') %>;color:<%= __msgDesativado ? 'var(--danger)' : (__msgAtivado ? 'var(--success)' : 'var(--link)') %>;"><%= message %></div><% } %>
     <% if (canManageEvents) { %>
     <div style="padding:1rem 1.25rem;margin-bottom:1.25rem;border-radius:12px;background:<%= systemEmailSettings.email_enabled ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.08)' %>;border:1px solid <%= systemEmailSettings.email_enabled ? 'var(--danger-border)' : 'rgba(248,113,113,.22)' %>;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
       <div><strong>Master switch global: <span style="color:<%= systemEmailSettings.email_enabled ? '#86efac' : '#fca5a5' %>"><%= systemEmailSettings.email_enabled ? 'Ativado' : 'Desativado' %></span></strong><br><small style="color:var(--text-muted)"><%= pendingEmailCount %> mensagem(ns) pendente(s). O switch global prevalece sobre todos os eventos.</small></div>
