@@ -694,7 +694,7 @@ router.put('/:id(\\d+)', requireAuth, (req, res, next) => {
 
 router.delete('/:id', requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const user = db.prepare('SELECT id, email, is_admin, is_public FROM users WHERE id = ?').bind(id).get();
+  const user = db.prepare('SELECT id, email, is_admin, is_public, approval_status FROM users WHERE id = ?').bind(id).get();
   if (!user) {
     return res.redirect('/admin/users?error=Usuário não encontrado');
   }
@@ -718,7 +718,10 @@ router.delete('/:id', requireAuth, (req, res) => {
   }
 
   db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
-  res.redirect('/admin/users?success=Usuário excluído');
+  const msg = user.approval_status === 'pending'
+    ? 'Cadastro negado com sucesso'
+    : 'Usuário excluído';
+  res.redirect('/admin/users?success=' + encodeURIComponent(msg));
 });
 
 // Alterar senha do admin logado
