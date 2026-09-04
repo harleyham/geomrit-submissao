@@ -566,6 +566,16 @@ function migrateSchema(db) {
         AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0`);
   }
 
+  backfillColumnSteps(db);
+}
+
+// Passos de ALTER colunas/rebuilds que são idempotentes (PRAGMA table_info +
+// checagens condicionais) e portanto seguros para rodar em TODOS os boots,
+// inclusive quando o schema já está na versão final — no boot da versão 2
+// anterior à ampliação do schema, o banco marcava user_version=2 e o bloco
+// abaixo nunca era executado, deixando colunas novas (ex.: system_settings.theme)
+// ausentes em bancos legados.
+function backfillColumnSteps(db) {
   try { const cols=db.prepare("PRAGMA table_info(system_settings)").all().map(c=>c.name); if(!cols.includes('theme')) db.exec("ALTER TABLE system_settings ADD COLUMN theme TEXT DEFAULT 'ligem'"); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){ throw e; }
   try {
@@ -1269,6 +1279,9 @@ function initializeDbSchema(db) {
     if (!recorded || recorded.name !== 'adopt-v0.32-schema') {
       throw new Error(`Registro da migração ${SCHEMA_VERSION} ausente ou incompatível.`);
     }
+    // Schema já na versão final: repassa os passos idempotentes (colunas novas
+    // em bancos legados que haviam sido marcados antes da última ampliação).
+    backfillColumnSteps(db);
   }
 
   assertDatabaseReady(db);
