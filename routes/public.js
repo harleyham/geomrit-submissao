@@ -2514,6 +2514,12 @@ router.get('/cadastro', (req, res) => {
   });
 });
 
+router.get('/cadastro/sucesso', (req, res) => {
+  res.render('public/register-success', {
+    title: 'Solicitação de Cadastro Enviada'
+  });
+});
+
 router.get('/definir-senha', (req, res) => {
   const token = String(req.query.token || '').trim();
   const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : '';
@@ -2548,20 +2554,30 @@ router.post('/definir-senha', strictLimiter, (req, res) => {
 router.post('/cadastro', registrationLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.registration);
 }, (req, res) => {
-  const { name, email, cpf, passport, country, institution } = req.body;
+  const { name, email, cpf, passport, country, institution, confirm_email } = req.body;
   const formData = {
     name: name || '',
     email: email || '',
     cpf: cpf || '',
     passport: passport || '',
     country: country || '',
-    institution: institution || ''
+    institution: institution || '',
+    confirm_email: confirm_email || ''
   };
 
   if (!name || !email) {
     return res.status(400).render('public/register', {
       title: 'Solicitar Cadastro',
       error: 'Nome e e-mail são obrigatórios.',
+      success: null,
+      formData
+    });
+  }
+
+  if (String(confirm_email || '').trim().toLowerCase() !== String(email || '').trim().toLowerCase()) {
+    return res.status(400).render('public/register', {
+      title: 'Solicitar Cadastro',
+      error: 'Os endereços de e-mail não conferem. Confirme se digitou o mesmo e-mail nos dois campos.',
       success: null,
       formData
     });
@@ -2600,12 +2616,7 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
   ).run();
   queueAccountRequested({ id: created.lastInsertRowid, name, email });
 
-  return res.render('public/register', {
-    title: 'Solicitar Cadastro',
-    error: null,
-    success: 'Solicitação enviada com sucesso. Um administrador fará a validação do seu cadastro; após a aprovação, você receberá por e-mail um link de uso único para definir sua senha.',
-    formData: {}
-  });
+  return res.redirect('/cadastro/sucesso');
 });
 
 // Presença por QR Code (folha impressa por etapa/atividade)
