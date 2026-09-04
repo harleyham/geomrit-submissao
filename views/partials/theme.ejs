@@ -1,0 +1,30 @@
+<%
+  /* Tokens da paleta global (transborda res.locals.theme) */
+  const __theme = typeof theme !== 'undefined' && theme ? theme : {
+    id: 'ligem', tokens: {
+      bg: '#0a0f1a', surface: 'rgba(30,41,59,0.6)', surfaceInput: 'rgba(148,163,184,0.08)',
+      border: 'rgba(148,163,184,0.1)', textStrong: '#f1f5f9', text: '#e2e8f0',
+      textMuted: '#94a3b8', textFaint: '#475569', primary: '#3b82f6', primaryHover: '#2563eb',
+      accent: '#60a5fa', link: '#93c5fd', success: '#34d399', danger: '#f87171', warn: '#fbbf24'
+    } };
+  const __t = __theme.tokens;
+%>
+<style<% if (typeof cspNonce !== 'undefined') { %> nonce="<%= cspNonce %>"<% } %>>
+  :root {
+    --bg: <%= __t.bg %>;
+    --surface: <%= __t.surface %>;
+    --surface-input: <%= __t.surfaceInput %>;
+    --border: <%= __t.border %>;
+    --text-strong: <%= __t.textStrong %>;
+    --text: <%= __t.text %>;
+    --text-muted: <%= __t.textMuted %>;
+    --text-faint: <%= __t.textFaint %>;
+    --primary: <%= __t.primary %>;
+    --primary-hover: <%= __t.primaryHover %>;
+    --accent: <%= __t.accent %>;
+    --link: <%= __t.link %>;
+    --success: <%= __t.success %>;
+    --danger: <%= __t.danger %>;
+    --warn: <%= __t.warn %>;
+  }
+</style>

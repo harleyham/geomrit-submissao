@@ -14,90 +14,91 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
     
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
-    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
-    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: var(--text); background: var(--border); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
 
     .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
     .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
-    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: var(--text-strong); }
 
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%,220px), 1fr)); gap: 1rem; margin-bottom: 2rem; }
     .stats-group { margin-bottom: 2rem; }
-    .stats-group-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 0.85rem; }
-    .stat-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 1.5rem; }
-    .stat-card .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem; }
-    .stat-card .stat-value { font-size: 2rem; font-weight: 700; color: #f1f5f9; }
-    .stat-card.events .stat-value { color: #60a5fa; }
+    .stats-group-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 0.85rem; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+    .stat-card .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-bottom: 0.5rem; }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 700; color: var(--text-strong); }
+    .stat-card.events .stat-value { color: var(--accent); }
     .stat-card.articles .stat-value { color: #a78bfa; }
     .stat-card.pending-articles .stat-value { color: #fb7185; }
-    .stat-card.review-running .stat-value { color: #fbbf24; }
-    .stat-card.ready-decision .stat-value { color: #34d399; }
-     .stat-card.reviewers .stat-value { color: #34d399; }
-     .stat-card.inactive-reviewers .stat-value { color: #64748b; }
+    .stat-card.review-running .stat-value { color: var(--warn); }
+    .stat-card.ready-decision .stat-value { color: var(--success); }
+     .stat-card.reviewers .stat-value { color: var(--success); }
+     .stat-card.inactive-reviewers .stat-value { color: var(--text-faint); }
      .stat-card.pending-users .stat-value { color: #f59e0b; }
-     .stat-card.published .stat-value { color: #fbbf24; }
-     .stat-card.concluded .stat-value { color: #94a3b8; }
-     .stat-card.total-users .stat-value { color: #60a5fa; }
+     .stat-card.published .stat-value { color: var(--warn); }
+     .stat-card.concluded .stat-value { color: var(--text-muted); }
+     .stat-card.total-users .stat-value { color: var(--accent); }
      .stat-card.future-registrations .stat-value { color: #38bdf8; }
 
-    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; overflow: hidden; }
-    .section-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); display: flex; align-items: center; justify-content: space-between; }
-    .section-header h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; }
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .section-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .section-header h2 { font-size: 1.125rem; font-weight: 600; color: var(--text-strong); }
     .section-body { padding: 0; }
 
     table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: rgba(15,23,42,0.3); }
-    td { padding: 0.75rem 1.5rem; font-size: 0.875rem; color: #cbd5e1; border-top: 1px solid rgba(148,163,184,0.05); }
+    th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); background: rgba(15,23,42,0.3); }
+    td { padding: 0.75rem 1.5rem; font-size: 0.875rem; color: var(--text); border-top: 1px solid rgba(148,163,184,0.05); }
     tr:hover td { background: rgba(148,163,184,0.03); }
 
     .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
-    .badge-submitted { background: rgba(96,165,250,0.15); color: #60a5fa; }
-    .badge-in-review { background: rgba(251,191,36,0.15); color: #fbbf24; }
-    .badge-approved { background: rgba(52,211,153,0.15); color: #34d399; }
-    .badge-rejected { background: rgba(248,113,113,0.15); color: #f87171; }
+    .badge-submitted { background: rgba(96,165,250,0.15); color: var(--accent); }
+    .badge-in-review { background: rgba(251,191,36,0.15); color: var(--warn); }
+    .badge-approved { background: rgba(52,211,153,0.15); color: var(--success); }
+    .badge-rejected { background: rgba(248,113,113,0.15); color: var(--danger); }
     .badge-oral { background: rgba(167,139,250,0.15); color: #a78bfa; }
     .badge-poster { background: rgba(56,189,248,0.15); color: #38bdf8; }
 
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
-    .btn-primary { background: #3b82f6; color: white; }
-    .btn-primary:hover { background: #2563eb; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
     .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
-    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
-    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
-    .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: var(--border); color: var(--text); }
+    .btn-danger { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
     .btn-danger:hover { background: rgba(239,68,68,0.25); }
-    .btn-success { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.2); text-decoration: none; }
+    .btn-success { background: rgba(52,211,153,0.15); color: var(--success); border: 1px solid rgba(52,211,153,0.2); text-decoration: none; }
     .btn-success:hover { background: rgba(52,211,153,0.25); }
-    .btn-warn { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); text-decoration: none; }
+    .btn-warn { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.2); text-decoration: none; }
     .btn-warn:hover { background: rgba(251,191,36,0.25); }
 
-    .empty { padding: 3rem; text-align: center; color: #64748b; }
+    .empty { padding: 3rem; text-align: center; color: var(--text-faint); }
     .empty p { margin-top: 0.5rem; font-size: 0.875rem; }
     .table-scroll { overflow-x: auto; }
-    .email-queue-summary { cursor: pointer; color: #93c5fd; font-size: .875rem; font-weight: 600; padding: 1rem 1.5rem; border-top: 1px solid rgba(148,163,184,.1); }
+    .email-queue-summary { cursor: pointer; color: var(--link); font-size: .875rem; font-weight: 600; padding: 1rem 1.5rem; border-top: 1px solid var(--border); }
     .email-queue-summary:hover { background: rgba(59,130,246,.06); }
     .email-error { color: #fca5a5; display: block; margin-top: .25rem; max-width: 34rem; white-space: normal; }
-    .email-status-queued { background: rgba(59,130,246,.15); color: #93c5fd; }
+    .email-status-queued { background: rgba(59,130,246,.15); color: var(--link); }
     .email-status-failed { background: rgba(239,68,68,.15); color: #fca5a5; }
     .email-status-suppressed { background: rgba(251,191,36,.15); color: #fde68a; }
     .email-suppressed-delete-form { display:flex; }
 
-    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
-    a { color: #60a5fa; text-decoration: none; }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
+    a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
   </style>
+  <%- include('../partials/theme') %>
   <%- include('../partials/mobile-fixes') %>
 </head>
 <body>
@@ -322,7 +323,7 @@
             <tr>
               <td>
                 <a href="/admin/events/<%= request.event_id %>/subsidies"><%= request.name %></a><br>
-                <small style="color:#64748b;"><%= request.email %></small>
+                <small style="color:var(--text-faint);"><%= request.email %></small>
               </td>
               <td><%= request.event_name %></td>
               <td><span class="badge badge-pending"><%= request.registration_type === 'author' ? 'Autor' : 'Participante' %></span></td>
@@ -356,7 +357,7 @@
             <tr>
               <td>
                 <a href="/admin/events/<%= request.event_id %>/participants/<%= request.id %>/edit"><%= request.name %></a><br>
-                <small style="color:#64748b;"><%= request.email %></small>
+                <small style="color:var(--text-faint);"><%= request.email %></small>
               </td>
               <td><a href="/admin/events/<%= request.event_id %>/participants"><%= request.event_name %></a></td>
               <td><%= request.activity_names %></td>
@@ -393,8 +394,8 @@
               <td><%= user.email %></td>
               <td>
                 <%= user.institution || '-' %>
-                <% if (user.country) { %><br><small style="color:#64748b;"><%= user.country %></small><% } %>
-                <% if (user.cpf || user.passport) { %><br><small style="color:#64748b;"><%= user.cpf || user.passport %></small><% } %>
+                <% if (user.country) { %><br><small style="color:var(--text-faint);"><%= user.country %></small><% } %>
+                <% if (user.cpf || user.passport) { %><br><small style="color:var(--text-faint);"><%= user.cpf || user.passport %></small><% } %>
               </td>
               <td><%= new Date(user.created_at).toLocaleDateString('pt-BR') %></td>
             </tr>
@@ -414,12 +415,33 @@
       <% if (query && query.message) { %>
       <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(96,165,250,0.25);border-radius:12px;padding:1rem 1.25rem;margin-top:1.5rem;color:#bfdbfe;"><%= query.message %></div>
       <% } %>
+      <% if (isSuperAdmin) { %>
+      <div class="section" style="margin-top:1.5rem;">
+        <div class="section-header"><h2>Paleta do sistema</h2></div>
+        <div class="section-body" style="padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+          <div>
+            <p style="color:var(--text);font-weight:700;margin:0 0 .35rem;"><%= (typeof theme !== 'undefined' && theme) ? theme.name : 'LIGEM (padrão)' %></p>
+            <p style="color:var(--text-muted);font-size:.875rem;margin:0;">Aplica a paleta de cores em todas as páginas do sistema.</p>
+          </div>
+          <form method="POST" action="/admin/theme" nonce="<%= cspNonce %>" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <% const __themesList = typeof listThemes !== 'undefined' ? listThemes : [ { id: 'ligem', name: 'LIGEM (padrão)' } ]; %>
+            <select name="theme" style="padding:.5rem .75rem;border-radius:8px;border:1px solid rgba(148,163,184,.25);background:var(--surface-input);color:var(--text);font-size:.875rem;">
+              <% __themesList.forEach(function (t) { %>
+                <option value="<%= t.id %>" <%= (typeof themeId !== 'undefined' && themeId === t.id) ? 'selected' : '' %>><%= t.name %></option>
+              <% }) %>
+            </select>
+            <button type="submit" class="btn btn-primary">Aplicar tema</button>
+          </form>
+        </div>
+      </div>
+      <% } %>
       <div class="section" style="margin-top:1.5rem;">
         <div class="section-header"><h2>Envio global de e-mails</h2></div>
         <div class="section-body" style="padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
           <div>
             <p style="color:<%= systemEmailSettings.email_enabled ? '#86efac' : '#fca5a5' %>;font-weight:700;margin:0 0 .35rem;"><%= systemEmailSettings.email_enabled ? 'Ativado' : 'Desativado' %></p>
-            <p style="color:#94a3b8;font-size:.875rem;margin:0;">Master switch do sistema. <span id="email-pending-count"><%= pendingEmailCount %></span> mensagem(ns) pendente(s).</p>
+            <p style="color:var(--text-muted);font-size:.875rem;margin:0;">Master switch do sistema. <span id="email-pending-count"><%= pendingEmailCount %></span> mensagem(ns) pendente(s).</p>
           </div>
           <form method="POST" action="/admin/email-settings/toggle" nonce="<%= cspNonce %>" onsubmit="return <%= systemEmailSettings.email_enabled ? "confirm('Desativar todos os e-mails e cancelar as mensagens pendentes?')" : 'true' %>;">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="return_to" value="dashboard">
@@ -432,9 +454,9 @@
           <form method="POST" action="/admin/email/direct" nonce="<%= cspNonce %>" style="display:flex;flex-direction:column;gap:.6rem;max-width:51rem;">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <input type="hidden" name="return_to" value="dashboard">
-            <input type="email" name="recipient_email" placeholder="destinatário@email.com" required style="background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:.55rem .75rem;color:#f1f5f9;font-size:.875rem;">
-            <input type="text" name="subject" placeholder="Assunto" required style="background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:.55rem .75rem;color:#f1f5f9;font-size:.875rem;">
-            <textarea name="body" rows="5" required placeholder="Mensagem" style="background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:.55rem .75rem;color:#f1f5f9;font-size:.875rem;font-family:inherit;resize:vertical;"></textarea>
+            <input type="email" name="recipient_email" placeholder="destinatário@email.com" required style="background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:.55rem .75rem;color:var(--text-strong);font-size:.875rem;">
+            <input type="text" name="subject" placeholder="Assunto" required style="background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:.55rem .75rem;color:var(--text-strong);font-size:.875rem;">
+            <textarea name="body" rows="5" required placeholder="Mensagem" style="background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:.55rem .75rem;color:var(--text-strong);font-size:.875rem;font-family:inherit;resize:vertical;"></textarea>
             <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Enviar e-mail</button>
           </form>
         </div>
@@ -447,20 +469,20 @@
       </div>
       <% if (query && query.reset === 'success') { %>
       <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
-        <p style="color:#34d399;font-weight:600;">Banco de dados resetado com sucesso. O servidor será reiniciado automaticamente.</p>
+        <p style="color:var(--success);font-weight:600;">Banco de dados resetado com sucesso. O servidor será reiniciado automaticamente.</p>
       </div>
       <% } else if (query && query.reset === 'error') { %>
       <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
-        <p style="color:#f87171;font-weight:600;">Erro ao resetar o banco de dados. Verifique os logs do servidor.</p>
+        <p style="color:var(--danger);font-weight:600;">Erro ao resetar o banco de dados. Verifique os logs do servidor.</p>
       </div>
       <% } %>
       <% if (query && query.restore === 'success') { %>
       <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
-        <p style="color:#34d399;font-weight:600;">Backup restaurado com sucesso. Banco de dados e arquivos substituídos.</p>
+        <p style="color:var(--success);font-weight:600;">Backup restaurado com sucesso. Banco de dados e arquivos substituídos.</p>
       </div>
       <% } else if (query && query.backup === 'error') { %>
       <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:1.25rem;margin-top:1.5rem;text-align:center;">
-        <p style="color:#f87171;font-weight:600;">Erro ao gerar o backup. Verifique os logs do servidor.</p>
+        <p style="color:var(--danger);font-weight:600;">Erro ao gerar o backup. Verifique os logs do servidor.</p>
       </div>
       <% } %>
 
@@ -469,7 +491,7 @@
           <h2>Backup e Restauração</h2>
         </div>
         <div class="section-body" style="padding:1.25rem 1.5rem;">
-          <p style="color:#94a3b8;font-size:0.875rem;margin-bottom:1rem;">O backup inclui o banco de dados completo (artigos.db) e a pasta de arquivos enviados (uploads). Use o backup para sincronizar o sistema entre as suas máquinas de desenvolvimento.</p>
+          <p style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem;">O backup inclui o banco de dados completo (artigos.db) e a pasta de arquivos enviados (uploads). Use o backup para sincronizar o sistema entre as suas máquinas de desenvolvimento.</p>
           <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
             <a href="/admin/backup/download" class="btn btn-success" nonce="<%= cspNonce %>" onclick="return confirm('Baixar o backup completo (banco + arquivos) agora?')">Baixar Backup</a>
             <a href="/admin/backup/restore" class="btn btn-warn" nonce="<%= cspNonce %>" onclick="return confirm('ATENÇÃO: Restaurar um backup SUBSTITUIRÁ todos os dados e arquivos atuais. Deseja continuar?')">Restaurar Backup</a>

@@ -7,35 +7,36 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
     .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
-    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
+    .topbar-nav a:hover { color: var(--text); background: var(--border); }
     .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
-    .back-link { display:inline-block; margin-bottom: 12px; color:#93c5fd; text-decoration:none; }
+    .back-link { display:inline-block; margin-bottom: 12px; color:var(--link); text-decoration:none; }
     .back-link:hover { text-decoration: underline; }
-    h1 { font-size: 1.5rem; margin: 0 0 4px; color:#f8fafc; }
-    .hint { color:#94a3b8; font-size:0.88rem; margin-bottom: 1.25rem; }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; color:var(--text-strong); }
+    .hint { color:var(--text-muted); font-size:0.88rem; margin-bottom: 1.25rem; }
     .table-wrap { border: 1px solid rgba(148,163,184,0.12); border-radius: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; background: rgba(2,6,23,0.3); }
     table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 0.9rem 1rem; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; background: rgba(15,23,42,0.6); }
-    td { padding: 1rem; font-size: 0.94rem; color: #e2e8f0; border-top: 1px solid rgba(148,163,184,0.08); vertical-align: top; }
+    th { text-align: left; padding: 0.9rem 1rem; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); background: rgba(15,23,42,0.6); }
+    td { padding: 1rem; font-size: 0.94rem; color: var(--text); border-top: 1px solid var(--surface-input); vertical-align: top; }
     tr:first-child td { border-top: none; }
-    .muted { color: #94a3b8; }
-    .desc { color:#cbd5e1; }
-    .video-link { color: #93c5fd; text-decoration: none; }
+    .muted { color: var(--text-muted); }
+    .desc { color:var(--text); }
+    .video-link { color: var(--link); text-decoration: none; }
     .video-link:hover { text-decoration: underline; }
-    .empty { padding: 1.25rem; color:#94a3b8; font-size:0.9rem; }
-    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    .empty { padding: 1.25rem; color:var(--text-muted); font-size:0.9rem; }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
     @media (max-width: 860px) {
       .main-content { padding: 1rem; }
       th, td { padding: 0.75rem; font-size: 0.82rem; }
     }
   </style>
+  <%- include('../partials/theme') %>
   <%- include('../partials/mobile-fixes') %>
 </head>
 <body>

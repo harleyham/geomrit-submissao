@@ -7,47 +7,48 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
-    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
-    .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: var(--text); background: var(--border); }
+    .topbar-nav a.active { color: var(--text); background: var(--border); }
     .main-content { max-width: 700px; margin: 0 auto; padding: 2rem; }
     .page-header { margin-bottom: 2rem; }
-    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
-    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; }
-    .section-title { font-size: 0.9375rem; font-weight: 600; color: #94a3b8; margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: var(--text-strong); }
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; }
+    .section-title { font-size: 0.9375rem; font-weight: 600; color: var(--text-muted); margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .form-group { margin-bottom: 1.25rem; }
-    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
-    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .form-group label { display: block; color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: var(--text); font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
     .form-group textarea { min-height: 90px; resize: vertical; }
     .password-field { position: relative; }
     .password-field input { padding-right: 3.25rem; }
-    .toggle-password { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; }
-    .form-group input:disabled { background: rgba(15,23,42,0.2); color: #64748b; }
+    .toggle-password { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; }
+    .form-group input:disabled { background: rgba(15,23,42,0.2); color: var(--text-faint); }
     .checkbox-group { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.15); border-radius: 8px; background: rgba(15,23,42,0.3); cursor: pointer; transition: all 0.15s; }
     .checkbox-group:hover { border-color: rgba(59,130,246,0.4); background: rgba(15,23,42,0.5); }
-    .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; accent-color: #3b82f6; cursor: pointer; }
-    .checkbox-group label { color: #cbd5e1; font-size: 0.9375rem; font-weight: 500; cursor: pointer; margin-bottom: 0 !important; }
-    .checkbox-group .role-desc { color: #64748b; font-size: 0.75rem; display: block; margin-top: 0.125rem; }
+    .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+    .checkbox-group label { color: var(--text); font-size: 0.9375rem; font-weight: 500; cursor: pointer; margin-bottom: 0 !important; }
+    .checkbox-group .role-desc { color: var(--text-faint); font-size: 0.75rem; display: block; margin-top: 0.125rem; }
     .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
-    .btn-primary { background: #3b82f6; color: white; }
-    .btn-primary:hover { background: #2563eb; }
-    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
-    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
-    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: var(--border); color: var(--text); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
-    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
   </style>
+  <%- include('../../partials/theme') %>
   <%- include('../../partials/mobile-fixes') %>
 </head>
 <body>
@@ -125,7 +126,7 @@
         <div class="form-group">
           <label for="phone">Telefone</label>
           <input type="tel" id="phone" name="phone" placeholder="+55 11 912345678" value="<%= user ? (user.phone || '') : '' %>">
-          <div class="help-text" style="color:#94a3b8;font-size:0.78rem;line-height:1.5;margin-top:0.4rem;">Formato internacional: +XX XXX XXXXXXXXX</div>
+          <div class="help-text" style="color:var(--text-muted);font-size:0.78rem;line-height:1.5;margin-top:0.4rem;">Formato internacional: +XX XXX XXXXXXXXX</div>
         </div>
       </div>
 
@@ -174,11 +175,11 @@
 
       <div class="section" style="margin-bottom: 1.5rem;">
         <div class="section-title">Dados gerais da conta</div>
-        <p style="color:#94a3b8;font-size:.82rem;line-height:1.5;margin:-.35rem 0 1rem;">Os papéis (participante, revisor, staff, palestrante, professor, apresentador) são atribuídos <strong>por evento</strong>, na seção "Perfis por evento" abaixo ou na página Papéis do evento.</p>
+        <p style="color:var(--text-muted);font-size:.82rem;line-height:1.5;margin:-.35rem 0 1rem;">Os papéis (participante, revisor, staff, palestrante, professor, apresentador) são atribuídos <strong>por evento</strong>, na seção "Perfis por evento" abaixo ou na página Papéis do evento.</p>
         <div class="form-group" style="margin-top:0;">
           <label for="reviewer_areas">Áreas de atuação do revisor</label>
           <textarea id="reviewer_areas" name="reviewer_areas" placeholder="Ex.: Inteligência Artificial, Educação, Engenharia de Software"><%= user ? (user.reviewer_areas || '') : '' %></textarea>
-          <small style="display:block;margin-top:0.4rem;color:#94a3b8;">Use vírgulas, ponto e vírgula ou quebra de linha. Essas áreas serão usadas para sugerir revisores compatíveis com a trilha do artigo.</small>
+          <small style="display:block;margin-top:0.4rem;color:var(--text-muted);">Use vírgulas, ponto e vírgula ou quebra de linha. Essas áreas serão usadas para sugerir revisores compatíveis com a trilha do artigo.</small>
         </div>
       </div>
 
@@ -187,7 +188,7 @@
 
       <% if (user) { %>
       <div class="section" style="margin-bottom:1.5rem;"><div class="section-title">Perfis por evento</div><% if (success) { %><p style="color:#86efac;margin-bottom:1rem"><%= success %></p><% } %><% if (error) { %><p style="color:#fca5a5;margin-bottom:1rem"><%= error %></p><% } %><form method="GET" action="/admin/users/<%= user.id %>/edit"><label>Evento para editar os perfis</label><select name="event_id" onchange="this.form.submit()" nonce="<%= cspNonce %>"><% (managedEvents || []).forEach((event) => { %><option value="<%= event.id %>" <%= Number(selectedEventId)===Number(event.id)?'selected':'' %>><%= event.name %></option><% }) %></select></form><% if (selectedEventId) { %><form method="POST" action="/admin/users/<%= user.id %>/event-roles" style="margin-top:1rem;">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="event_id" value="<%= selectedEventId %>"><p style="color:#94a3b8;font-size:.82rem;margin-bottom:.8rem;">Selecione os papéis desta pessoa exclusivamente no evento escolhido.</p><% const roles=(user && user.is_staff)?['admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter']:['admin','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter']; const labels={admin:'Administrador',staff:'Staff (operação do evento: presença, participantes, certificados, artigos e relatórios)',participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresentador Oral',poster_presenter:'Apresentador Pôster'}; roles.forEach((role)=>{ %><label class="checkbox-group"><input type="checkbox" name="roles" value="<%=role%>" <%= eventRoles.some((item)=>item.role===role)?'checked':'' %>><div><%=labels[role]%></div></label><% }) %><label>Artigo oral aprovado</label><select name="oral_article_id"><option value="">Selecione</option><% approvedArticles.filter(a=>a.type==='oral').forEach(a=>{ %><option value="<%=a.id%>" <%= eventRoles.some(r=>r.role==='oral_presenter'&&Number(r.article_id)===Number(a.id))?'selected':'' %>><%=a.title%></option><% }) %></select><label>Artigo pôster aprovado</label><select name="poster_article_id"><option value="">Selecionar</option><% approvedArticles.filter(a=>a.type==='poster').forEach(a=>{ %><option value="<%=a.id%>" <%= eventRoles.some(r=>r.role==='poster_presenter'&&Number(r.article_id)===Number(a.id))?'selected':'' %>><%=a.title%></option><% }) %></select><button class="btn btn-primary" style="margin-top:1rem">Salvar perfis deste evento</button></form><% } else { %><p style="color:#94a3b8">Você não administra eventos disponíveis para atribuição.</p><% } %></div>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="event_id" value="<%= selectedEventId %>"><p style="color:var(--text-muted);font-size:.82rem;margin-bottom:.8rem;">Selecione os papéis desta pessoa exclusivamente no evento escolhido.</p><% const roles=(user && user.is_staff)?['admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter']:['admin','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter']; const labels={admin:'Administrador',staff:'Staff (operação do evento: presença, participantes, certificados, artigos e relatórios)',participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresentador Oral',poster_presenter:'Apresentador Pôster'}; roles.forEach((role)=>{ %><label class="checkbox-group"><input type="checkbox" name="roles" value="<%=role%>" <%= eventRoles.some((item)=>item.role===role)?'checked':'' %>><div><%=labels[role]%></div></label><% }) %><label>Artigo oral aprovado</label><select name="oral_article_id"><option value="">Selecione</option><% approvedArticles.filter(a=>a.type==='oral').forEach(a=>{ %><option value="<%=a.id%>" <%= eventRoles.some(r=>r.role==='oral_presenter'&&Number(r.article_id)===Number(a.id))?'selected':'' %>><%=a.title%></option><% }) %></select><label>Artigo pôster aprovado</label><select name="poster_article_id"><option value="">Selecionar</option><% approvedArticles.filter(a=>a.type==='poster').forEach(a=>{ %><option value="<%=a.id%>" <%= eventRoles.some(r=>r.role==='poster_presenter'&&Number(r.article_id)===Number(a.id))?'selected':'' %>><%=a.title%></option><% }) %></select><button class="btn btn-primary" style="margin-top:1rem">Salvar perfis deste evento</button></form><% } else { %><p style="color:var(--text-muted)">Você não administra eventos disponíveis para atribuição.</p><% } %></div>
       <% } %>
 
   </main>

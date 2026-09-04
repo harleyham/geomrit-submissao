@@ -8,58 +8,59 @@
   <link href="/lib/flatpickr/flatpickr.min.css" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
-    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: var(--text); background: var(--border); }
     .main-content { max-width: 800px; margin: 0 auto; padding: 2rem; }
     .page-header { margin-bottom: 2rem; }
-    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
-    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: var(--text-strong); }
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; }
     .form-group { margin-bottom: 1.25rem; }
-    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
-    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
-    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .form-group label { display: block; color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: var(--text); font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
     .form-group textarea { min-height: 100px; resize: vertical; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; border: 1px solid rgba(148,163,184,0.14); border-radius: 12px; background: rgba(15,23,42,0.35); margin-bottom: 1.25rem; }
-    .toggle-copy strong { display: block; color: #f1f5f9; font-size: 0.95rem; margin-bottom: 0.25rem; }
-    .toggle-copy span { display: block; color: #94a3b8; font-size: 0.82rem; line-height: 1.5; }
+    .toggle-copy strong { display: block; color: var(--text-strong); font-size: 0.95rem; margin-bottom: 0.25rem; }
+    .toggle-copy span { display: block; color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; }
     .switch { position: relative; display: inline-flex; width: 54px; height: 30px; flex-shrink: 0; }
     .switch input { opacity: 0; width: 0; height: 0; }
     .switch-slider { position: absolute; inset: 0; cursor: pointer; background: rgba(100,116,139,0.5); border-radius: 999px; transition: 0.2s; }
     .switch-slider:before { content: ""; position: absolute; height: 22px; width: 22px; left: 4px; top: 4px; background: #fff; border-radius: 50%; transition: 0.2s; }
-    .switch input:checked + .switch-slider { background: #3b82f6; }
+    .switch input:checked + .switch-slider { background: var(--primary); }
     .switch input:checked + .switch-slider:before { transform: translateX(24px); }
     .submission-settings.is-hidden { display: none; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
-    .btn-primary { background: #3b82f6; color: white; }
-    .btn-primary:hover { background: #2563eb; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
     .btn-danger { background: #dc2626; color: white; }
     .btn-danger:hover { background: #b91c1c; }
-    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
-    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
-    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: var(--border); color: var(--text); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
     .form-actions { display: flex; gap: 0.75rem; justify-content: space-between; align-items: center; margin-top: 2rem; flex-wrap: wrap; }
     .form-actions-main { display: flex; gap: 0.75rem; justify-content: flex-end; flex-wrap: wrap; }
-    .help-text { color: #64748b; font-size: 0.75rem; margin-top: 0.375rem; }
+    .help-text { color: var(--text-faint); font-size: 0.75rem; margin-top: 0.375rem; }
     .logo-preview { margin-top: 0.75rem; display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
     .logo-preview[hidden] { display: none; }
     .logo-preview-image { max-height: 96px; max-width: 280px; object-fit: contain; background: #fff; border-radius: 8px; padding: 6px; }
-    .logo-preview-name { color: #94a3b8; font-size: 0.8rem; overflow-wrap: anywhere; }
+    .logo-preview-name { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
     .alert { margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 10px; font-size: 0.9rem; }
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
     .email-card { margin:1.5rem 0;padding:1.25rem;border:1px solid rgba(96,165,250,.2);border-radius:12px;background:rgba(30,64,175,.08); }
-    .email-card h2 { font-size:1.05rem;margin-bottom:.35rem;color:#f8fafc; }
-    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    .email-card h2 { font-size:1.05rem;margin-bottom:.35rem;color:var(--text-strong); }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
   </style>
+  <%- include('../../partials/theme') %>
   <%- include('../../partials/mobile-fixes') %>
 </head>
 <body>
@@ -115,7 +116,7 @@
             <div>
               <div id="logo-preview-name" class="logo-preview-name"><%= event && event.logo_original_name ? event.logo_original_name : '' %></div>
               <% if (event && event.logo_path) { %>
-              <label style="display:flex;align-items:center;gap:0.5rem;color:#94a3b8;font-size:0.875rem;font-weight:500;cursor:pointer;margin:0;">
+              <label style="display:flex;align-items:center;gap:0.5rem;color:var(--text-muted);font-size:0.875rem;font-weight:500;cursor:pointer;margin:0;">
                 <input type="checkbox" id="remove_logo" name="remove_logo" value="1" style="width:auto;"> Remover logo atual
               </label>
               <% } %>
@@ -130,7 +131,7 @@
           <div class="form-group">
             <label for="area">Áreas / Trilhas *</label>
             <textarea id="area" name="area" rows="3" required placeholder="Ex.: Inteligência Artificial, Educação, Engenharia de Software"><%= event ? event.area : '' %></textarea>
-            <small style="display:block;margin-top:0.4rem;color:#94a3b8;">Informe uma ou mais áreas separadas por vírgula, ponto e vírgula ou quebra de linha.</small>
+            <small style="display:block;margin-top:0.4rem;color:var(--text-muted);">Informe uma ou mais áreas separadas por vírgula, ponto e vírgula ou quebra de linha.</small>
           </div>
         </div>
         <div class="form-group">
@@ -146,10 +147,10 @@
               <% if (event.status !== 'draft') { %>
                 <a href="/evento/<%= event.id %>/conteudo" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">Visualizar conteúdo publicado</a>
               <% } else { %>
-                <span style="color:#fbbf24;">O conteúdo ficará público quando o evento for publicado.</span>
+                <span style="color:var(--warn);">O conteúdo ficará público quando o evento for publicado.</span>
               <% } %>
-              <span style="color:#cbd5e1;"><%= event.content_pdf_original_name || 'PDF do evento' %></span>
-              <label style="display:flex;align-items:center;gap:0.5rem;color:#94a3b8;font-size:0.875rem;font-weight:500;cursor:pointer;margin:0;">
+              <span style="color:var(--text);"><%= event.content_pdf_original_name || 'PDF do evento' %></span>
+              <label style="display:flex;align-items:center;gap:0.5rem;color:var(--text-muted);font-size:0.875rem;font-weight:500;cursor:pointer;margin:0;">
                 <input type="checkbox" id="remove_event_pdf" name="remove_event_pdf" value="1" style="width:auto;"> Remover PDF atual
               </label>
             </div>
@@ -162,7 +163,7 @@
             <option value="published" <%= event && event.status === 'published' ? 'selected' : '' %>>Publicado</option>
             <option value="encerrado" <%= event && event.status === 'encerrado' ? 'selected' : '' %>>Encerrado</option>
           </select>
-          <small style="display:block;margin-top:0.4rem;color:#94a3b8;">Eventos encerrados saem da página inicial e não aceitam novas inscrições ou submissões, mas permanecem disponíveis para consulta por sua URL.</small>
+          <small style="display:block;margin-top:0.4rem;color:var(--text-muted);">Eventos encerrados saem da página inicial e não aceitam novas inscrições ou submissões, mas permanecem disponíveis para consulta por sua URL.</small>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -200,7 +201,7 @@
             <option value="automatic" <%= !event || event.registration_approval_mode !== 'review' ? 'selected' : '' %>>Inscrição automática — confirma imediatamente</option>
             <option value="review" <%= event && event.registration_approval_mode === 'review' ? 'selected' : '' %>>Inscrição a ser analisada — administração aprova ou rejeita atividades</option>
           </select>
-          <small style="display:block;margin-top:0.4rem;color:#94a3b8;">Na análise, a organização pode aprovar somente parte das atividades solicitadas.</small>
+          <small style="display:block;margin-top:0.4rem;color:var(--text-muted);">Na análise, a organização pode aprovar somente parte das atividades solicitadas.</small>
         </div>
         <div class="toggle-row">
           <div class="toggle-copy">

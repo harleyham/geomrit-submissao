@@ -7,27 +7,28 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .login-container { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 420px; backdrop-filter: blur(20px); }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; width: 100%; max-width: 420px; backdrop-filter: blur(20px); }
     .login-header { text-align: center; margin-bottom: 2rem; }
-    .login-header .logo { font-size: 2rem; color: #60a5fa; margin-bottom: 0.5rem; }
-    .login-header h1 { font-size: 1.5rem; color: #f0f9ff; font-weight: 600; }
-    .login-header p { color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem; }
-    .version-badge { display: inline-block; margin-top: 0.75rem; padding: 0.28rem 0.65rem; border-radius: 999px; background: rgba(96,165,250,0.14); border: 1px solid rgba(147,197,253,0.22); color: #bfdbfe; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; }
+    .login-header .logo { font-size: 2rem; color: var(--accent); margin-bottom: 0.5rem; }
+    .login-header h1 { font-size: 1.5rem; color: var(--text-strong); font-weight: 600; }
+    .login-header p { color: var(--text-muted); font-size: 0.875rem; margin-top: 0.25rem; }
+    .version-badge { display: inline-block; margin-top: 0.75rem; padding: 0.28rem 0.65rem; border-radius: 999px; background: rgba(96,165,250,0.14); border: 1px solid rgba(96,165,250,0.3); color: var(--link); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; }
     .form-group { margin-bottom: 1.25rem; }
-    .form-group label { display: block; color: #cbd5e1; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
-    .form-group input { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; background: rgba(255,255,255,0.05); color: #f0f9ff; font-size: 0.9375rem; transition: border-color 0.2s, box-shadow 0.2s; }
-    .form-group input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .form-group label { display: block; color: var(--text); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .form-group input { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 8px; background: var(--surface-input); color: var(--text-strong); font-size: 0.9375rem; transition: border-color 0.2s, box-shadow 0.2s; }
+    .form-group input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
     .password-field { position: relative; }
     .password-field input { padding-right: 3.25rem; }
-    .toggle-password { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; }
-    .btn-login { width: 100%; padding: 0.875rem; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
-    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.4); }
+    .toggle-password { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; }
+    .btn-login { width: 100%; padding: 0.875rem; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; transition: background 0.2s, transform 0.2s, box-shadow 0.2s; }
+    .btn-login:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.4); }
     .error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
-    .notice { background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3); color: #bfdbfe; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
-    .notice a { color: #60a5fa; text-decoration: underline; }
-    .footer-text { text-align: center; margin-top: 1.5rem; color: #64748b; font-size: 0.75rem; }
+    .notice { background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3); color: var(--link); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+    .notice a { color: var(--accent); text-decoration: underline; }
+    .footer-text { text-align: center; margin-top: 1.5rem; color: var(--text-faint); font-size: 0.75rem; }
   </style>
+  <%- include('partials/theme') %>
   <%- include('partials/mobile-fixes') %>
 </head>
 <body>
@@ -63,9 +64,11 @@
       <button type="submit" class="btn-login">Entrar</button>
     </form>
     <div style="margin-top:1rem;text-align:center;">
-      <a href="/cadastro" style="color:#93c5fd;text-decoration:none;font-size:0.875rem;">Solicitar novo cadastro</a>
+      <a href="/" style="display:inline-block;margin-bottom:0.75rem;padding:0.5rem 1.25rem;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.18);border-radius:8px;color:var(--text);text-decoration:none;font-size:0.875rem;font-weight:500;transition:background 0.2s;">← Página inicial</a>
       <br>
-      <a href="/login/esqueci-senha" style="color:#94a3b8;text-decoration:none;font-size:0.875rem;">Esqueci a senha</a>
+      <a href="/cadastro" style="color:var(--link);text-decoration:none;font-size:0.875rem;">Solicitar novo cadastro</a>
+      <br>
+      <a href="/login/esqueci-senha" style="color:var(--text-muted);text-decoration:none;font-size:0.875rem;">Esqueci a senha</a>
     </div>
     <p class="footer-text">&copy; <%= typeof year !== 'undefined' ? year : new Date().getFullYear() %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></p>
   </div>

@@ -7,53 +7,54 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
     .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
-    .session-pill { padding: 0.4rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .session-pill { padding: 0.4rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
     .main-content { max-width: 760px; margin: 0 auto; padding: 2.5rem 1.5rem; }
-    .card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 18px; padding: 2rem; }
-    .event-badge { display: inline-block; margin-bottom: 1rem; padding: 0.3rem 0.8rem; border-radius: 9999px; background: rgba(96,165,250,0.14); color: #93c5fd; font-size: 0.75rem; font-weight: 700; }
-    h1 { font-size: 1.8rem; margin-bottom: 0.75rem; color: #f8fafc; }
-    p.lead { color: #94a3b8; line-height: 1.7; margin-bottom: 1.5rem; }
-    .event-meta { color: #94a3b8; font-size: 0.9rem; line-height: 1.7; margin-bottom: 1.5rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 2rem; }
+    .event-badge { display: inline-block; margin-bottom: 1rem; padding: 0.3rem 0.8rem; border-radius: 9999px; background: rgba(96,165,250,0.14); color: var(--link); font-size: 0.75rem; font-weight: 700; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.75rem; color: var(--text-strong); }
+    p.lead { color: var(--text-muted); line-height: 1.7; margin-bottom: 1.5rem; }
+    .event-meta { color: var(--text-muted); font-size: 0.9rem; line-height: 1.7; margin-bottom: 1.5rem; }
     .form-group { margin-bottom: 1rem; }
-    .form-group label { display: block; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
-    .form-group input, .form-group select { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font-size: 0.95rem; font-family: 'Inter', sans-serif; }
-    .form-group input:focus, .form-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    .form-group label { display: block; color: var(--text); font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
+    .form-group input, .form-group select { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: var(--text-strong); font-size: 0.95rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
     .alert { padding: 0.95rem 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.9rem; }
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
     .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
-    .status-box { margin-bottom: 1rem; padding: 1rem; border-radius: 12px; background: rgba(59,130,246,0.08); border: 1px solid rgba(96,165,250,0.18); color: #cbd5e1; line-height: 1.6; }
+    .status-box { margin-bottom: 1rem; padding: 1rem; border-radius: 12px; background: rgba(59,130,246,0.08); border: 1px solid rgba(96,165,250,0.18); color: var(--text); line-height: 1.6; }
     .status-box.pending { background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.3); color: #fde68a; }
     .subsidy-box { margin-top: 1.5rem; padding: 1.2rem; border-radius: 14px; background: rgba(14,116,144,0.08); border: 1px solid rgba(34,211,238,0.18); }
-    .subsidy-box h2 { font-size: 1.05rem; margin-bottom: 0.4rem; color: #f8fafc; }
-    .subsidy-box p { color: #94a3b8; line-height: 1.6; margin-bottom: 1rem; }
+    .subsidy-box h2 { font-size: 1.05rem; margin-bottom: 0.4rem; color: var(--text-strong); }
+    .subsidy-box p { color: var(--text-muted); line-height: 1.6; margin-bottom: 1rem; }
     .checkbox-inline { display: flex; align-items: center; gap: 0.7rem; padding: 0.9rem 1rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 12px; background: rgba(15,23,42,0.3); margin-bottom: 1rem; }
     .checkbox-inline input { width: 18px; height: 18px; accent-color: #22d3ee; }
-    .checkbox-inline label { margin-bottom: 0; color: #e2e8f0; font-weight: 600; cursor: pointer; }
+    .checkbox-inline label { margin-bottom: 0; color: var(--text); font-weight: 600; cursor: pointer; }
     .subsidy-fields { display: none; }
     .subsidy-fields.visible { display: block; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .activity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:.75rem; margin-top:.65rem; }
     .activity-option { display:flex !important; align-items:flex-start; gap:.7rem; padding:.85rem; margin:0 !important; border:1px solid rgba(148,163,184,.18); border-radius:12px; background:rgba(15,23,42,.3); cursor:pointer; }
-    .activity-option:has(input:checked) { border-color:#3b82f6; background:rgba(37,99,235,.12); }
-    .activity-option input { width:auto !important; min-width:18px; height:18px; margin-top:.1rem; accent-color:#3b82f6; }
-    .activity-option strong { display:block; color:#f8fafc; }
-    .activity-option small { display:block; color:#94a3b8; margin-top:.3rem; line-height:1.4; }
+    .activity-option:has(input:checked) { border-color:var(--primary); background:rgba(37,99,235,.12); }
+    .activity-option input { width:auto !important; min-width:18px; height:18px; margin-top:.1rem; accent-color:var(--primary); }
+    .activity-option strong { display:block; color:var(--text-strong); }
+    .activity-option small { display:block; color:var(--text-muted); margin-top:.3rem; line-height:1.4; }
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
-    .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
-    .btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2); }
-    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid rgba(148,163,184,0.2); }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
     .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
     @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
-    footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
   </style>
+  <%- include('../partials/theme') %>
   <%- include('../partials/mobile-fixes') %>
 </head>
 <body>
@@ -133,14 +134,14 @@
         <div class="form-group">
           <label>Atividades em que deseja se inscrever *</label>
           <% if (!activities.length) { %>
-            <p style="color:#94a3b8;line-height:1.5;">Este evento ainda não possui atividades abertas para participantes.</p>
+            <p style="color:var(--text-muted);line-height:1.5;">Este evento ainda não possui atividades abertas para participantes.</p>
           <% } else { %>
             <div class="activity-grid">
               <% const activitiesLockedByReview = alreadyRegistered && event.registration_approval_mode === 'review'; const requiredIds = (typeof requiredActivityIds !== 'undefined' && requiredActivityIds) ? requiredActivityIds : new Set(); activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); const isRequired = requiredIds.has(Number(activity.id)); %>
                 <label class="activity-option" style="<%= isRequired ? 'cursor:default' : '' %>"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %> <%= (isRequired || activitiesLockedByReview) ? 'disabled' : '' %>><span><strong><%= activity.name %><% if (isRequired) { %><span class="badge" style="background:#1d4ed8;color:#bfdbfe;margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %></strong><small><%= activityDateRange(activity) %> · <%= (activity.effective_workload_hours != null ? activity.effective_workload_hours : (activity.workload_hours || 0)) %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %><% if (isRequired) { %> · obrigatória: todos os participantes do evento são inscritos nela<% } %></small></span></label>
               <% }) %>
             </div>
-            <small style="display:block;color:#94a3b8;margin-top:.55rem;line-height:1.5;"><%= activitiesLockedByReview ? 'As atividades foram definidas pela análise da organização e não podem ser alteradas por esta página.' : 'Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas. Atividades marcadas como obrigatórias ficam sempre incluídas e não podem ser desmarcadas.' %></small>
+            <small style="display:block;color:var(--text-muted);margin-top:.55rem;line-height:1.5;"><%= activitiesLockedByReview ? 'As atividades foram definidas pela análise da organização e não podem ser alteradas por esta página.' : 'Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas. Atividades marcadas como obrigatórias ficam sempre incluídas e não podem ser desmarcadas.' %></small>
           <% } %>
         </div>
 
@@ -187,7 +188,7 @@
                   placeholder="16 dígitos numéricos"
                   value="<%= formData.student_lattes_id || '' %>"
                 >
-                <small style="display:block;color:#94a3b8;margin-top:0.35rem;line-height:1.5;">
+                <small style="display:block;color:var(--text-muted);margin-top:0.35rem;line-height:1.5;">
                   Informe os 16 dígitos numéricos do ID exibido no Currículo Lattes. Mantenha o seu currículo atualizado.
                 </small>
               </div>
@@ -212,33 +213,33 @@
                 <label for="academic_history_pdf">Histórico escolar atualizado (PDF, até 10 MB)</label>
                 <input type="file" id="academic_history_pdf" name="academic_history_pdf" accept=".pdf,application/pdf">
                 <% if (formData.academic_history_original_name) { %>
-                  <small style="display:block;color:#93c5fd;margin-top:0.35rem;">Arquivo atual: <%= formData.academic_history_original_name %></small>
+                  <small style="display:block;color:var(--link);margin-top:0.35rem;">Arquivo atual: <%= formData.academic_history_original_name %></small>
                 <% } %>
               </div>
 
               <div class="form-group">
                 <label for="motivation_letter_pdf">Carta de motivação (PDF, até 10 MB)</label>
                 <input type="file" id="motivation_letter_pdf" name="motivation_letter_pdf" accept=".pdf,application/pdf">
-                <small style="display:block;color:#94a3b8;margin-top:0.35rem;line-height:1.5;">
+                <small style="display:block;color:var(--text-muted);margin-top:0.35rem;line-height:1.5;">
                   Faça o upload da
-                  <a href="https://censipam365-my.sharepoint.com/:b:/g/personal/luis_abreu_sipam_gov_br/IQDQXyyMoT5OTLBxpsBcTDI6AfPDUixFuewRDwiHRwCgg9Q?e=DM5l4V" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;">carta de motivação</a>
+                  <a href="https://censipam365-my.sharepoint.com/:b:/g/personal/luis_abreu_sipam_gov_br/IQDQXyyMoT5OTLBxpsBcTDI6AfPDUixFuewRDwiHRwCgg9Q?e=DM5l4V" target="_blank" rel="noopener noreferrer" style="color:var(--link);">carta de motivação</a>
                   preenchida.
                 </small>
                 <% if (formData.motivation_letter_original_name) { %>
-                  <small style="display:block;color:#93c5fd;margin-top:0.35rem;">Arquivo atual: <%= formData.motivation_letter_original_name %></small>
+                  <small style="display:block;color:var(--link);margin-top:0.35rem;">Arquivo atual: <%= formData.motivation_letter_original_name %></small>
                 <% } %>
               </div>
 
               <div class="form-group">
                 <label for="recommendation_letter_pdf">Carta de recomendação (PDF, até 10 MB)</label>
                 <input type="file" id="recommendation_letter_pdf" name="recommendation_letter_pdf" accept=".pdf,application/pdf">
-                <small style="display:block;color:#94a3b8;margin-top:0.35rem;line-height:1.5;">
+                <small style="display:block;color:var(--text-muted);margin-top:0.35rem;line-height:1.5;">
                   Faça o upload da
-                  <a href="https://censipam365-my.sharepoint.com/:b:/g/personal/luis_abreu_sipam_gov_br/IQCEmSDvAm89S5t0C2XvCcxQASR4LbSGqvqWGyLgcSMYUx4?e=7mD54H" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;">carta de recomendação</a>
+                  <a href="https://censipam365-my.sharepoint.com/:b:/g/personal/luis_abreu_sipam_gov_br/IQCEmSDvAm89S5t0C2XvCcxQASR4LbSGqvqWGyLgcSMYUx4?e=7mD54H" target="_blank" rel="noopener noreferrer" style="color:var(--link);">carta de recomendação</a>
                   preenchida e assinada digitalmente por um docente da instituição de ensino superior.
                 </small>
                 <% if (formData.recommendation_letter_original_name) { %>
-                  <small style="display:block;color:#93c5fd;margin-top:0.35rem;">Arquivo atual: <%= formData.recommendation_letter_original_name %></small>
+                  <small style="display:block;color:var(--link);margin-top:0.35rem;">Arquivo atual: <%= formData.recommendation_letter_original_name %></small>
                 <% } %>
               </div>
             </div>

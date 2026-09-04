@@ -7,30 +7,31 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
-    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
-    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: var(--text); background: var(--border); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
     .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
     .danger-card { background: rgba(239,68,68,0.05); border: 2px solid rgba(239,68,68,0.3); border-radius: 12px; padding: 2rem; text-align: center; }
-    .danger-card h1 { color: #f87171; font-size: 1.5rem; margin-bottom: 1rem; }
-    .danger-card p { color: #cbd5e1; margin-bottom: 1.5rem; line-height: 1.6; }
-    .danger-card .warning { color: #fbbf24; font-size: 0.875rem; margin-bottom: 1.5rem; }
-    .danger-input { background: rgba(30,41,59,0.8); border: 1px solid rgba(239,68,68,0.3); color: #e2e8f0; padding: 0.75rem 1rem; border-radius: 8px; font-size: 1rem; width: 300px; text-align: center; margin-bottom: 1rem; font-family: 'Inter', sans-serif; }
-    .danger-input:focus { outline: none; border-color: #f87171; }
-    .btn-danger { background: rgba(239,68,68,0.2); color: #f87171; border: 2px solid rgba(239,68,68,0.4); padding: 0.75rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
+    .danger-card h1 { color: var(--danger); font-size: 1.5rem; margin-bottom: 1rem; }
+    .danger-card p { color: var(--text); margin-bottom: 1.5rem; line-height: 1.6; }
+    .danger-card .warning { color: var(--warn); font-size: 0.875rem; margin-bottom: 1.5rem; }
+    .danger-input { background: rgba(30,41,59,0.8); border: 1px solid rgba(239,68,68,0.3); color: var(--text); padding: 0.75rem 1rem; border-radius: 8px; font-size: 1rem; width: 300px; text-align: center; margin-bottom: 1rem; font-family: 'Inter', sans-serif; }
+    .danger-input:focus { outline: none; border-color: var(--danger); }
+    .btn-danger { background: rgba(239,68,68,0.2); color: var(--danger); border: 2px solid rgba(239,68,68,0.4); padding: 0.75rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
     .btn-danger:hover { background: rgba(239,68,68,0.35); }
-    .btn-back { color: #94a3b8; text-decoration: none; display: inline-block; margin-top: 1.5rem; font-size: 0.875rem; }
-    .btn-back:hover { color: #e2e8f0; }
+    .btn-back { color: var(--text-muted); text-decoration: none; display: inline-block; margin-top: 1.5rem; font-size: 0.875rem; }
+    .btn-back:hover { color: var(--text); }
   </style>
+  <%- include('../partials/theme') %>
   <%- include('../partials/mobile-fixes') %>
 </head>
 <body>

@@ -211,6 +211,7 @@ function migrateSchema(db) {
     CREATE TABLE IF NOT EXISTS system_settings (
       id INTEGER PRIMARY KEY CHECK(id = 1),
       email_enabled INTEGER NOT NULL DEFAULT 0,
+      theme TEXT DEFAULT 'ligem',
       updated_by INTEGER,
       updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       FOREIGN KEY(updated_by) REFERENCES users(id) ON DELETE SET NULL
@@ -565,6 +566,7 @@ function migrateSchema(db) {
         AND instr(',' || replace(COALESCE(ea.eligible_roles,''),' ','') || ',', ',participant,') > 0`);
   }
 
+  try { const cols=db.prepare("PRAGMA table_info(system_settings)").all().map(c=>c.name); if(!cols.includes('theme')) db.exec("ALTER TABLE system_settings ADD COLUMN theme TEXT DEFAULT 'ligem'"); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){ throw e; }
   try {
     const emissionCols = db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c => c.name);

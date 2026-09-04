@@ -7,51 +7,52 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1080px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
-    .topbar-nav a:hover, .topbar-nav a.active { color: #e2e8f0; background: rgba(148,163,184,0.1); }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: var(--text); background: var(--border); }
     .main-content { max-width: 820px; margin: 0 auto; padding: 2rem; }
     .page-header { margin-bottom: 1.5rem; }
-    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: #f8fafc; }
-    .page-header p { color: #94a3b8; margin-top: 0.45rem; line-height: 1.6; }
-    .card { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 14px; padding: 1.5rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; color: var(--text-strong); }
+    .page-header p { color: var(--text-muted); margin-top: 0.45rem; line-height: 1.6; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; }
     .alert { margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 10px; font-size: 0.9rem; }
     .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.24); color: #fca5a5; }
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
-    .meta-box { padding: 1rem; border-radius: 12px; background: rgba(2,6,23,0.28); border: 1px solid rgba(148,163,184,0.1); }
-    .meta-box strong { display: block; color: #f8fafc; margin-bottom: 0.35rem; }
-    .meta-box span { color: #94a3b8; line-height: 1.6; font-size: 0.9rem; }
+    .meta-box { padding: 1rem; border-radius: 12px; background: rgba(2,6,23,0.28); border: 1px solid var(--border); }
+    .meta-box strong { display: block; color: var(--text-strong); margin-bottom: 0.35rem; }
+    .meta-box span { color: var(--text-muted); line-height: 1.6; font-size: 0.9rem; }
     .form-group { margin-bottom: 1rem; }
-    .form-group label { display: block; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
-    .form-group input, .form-group select { width: 100%; padding: 0.78rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: #f8fafc; font-size: 0.95rem; font-family: 'Inter', sans-serif; }
-    .form-group input:focus, .form-group select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
-    .help-text { color: #94a3b8; font-size: 0.78rem; line-height: 1.5; margin-top: 0.4rem; }
+    .form-group label { display: block; color: var(--text); font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
+    .form-group input, .form-group select { width: 100%; padding: 0.78rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: var(--text-strong); font-size: 0.95rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    .help-text { color: var(--text-muted); font-size: 0.78rem; line-height: 1.5; margin-top: 0.4rem; }
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.05rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
-    .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; }
-    .btn-secondary { background: transparent; color: #cbd5e1; border-color: rgba(148,163,184,0.2); }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-secondary { background: transparent; color: var(--text); border-color: rgba(148,163,184,0.2); }
     .event-role-option { display:flex !important; align-items:center; gap:.6rem; margin:.6rem 0 !important; cursor:pointer; }
     .event-role-option input[type="checkbox"] { width:auto !important; min-width:16px; height:16px; margin:0; accent-color:#f97316; }
     .activity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:.75rem; margin-top:.65rem; }
     .activity-option { display:flex !important; align-items:flex-start; gap:.7rem; padding:.85rem; margin:0 !important; border:1px solid rgba(148,163,184,.16); border-radius:10px; background:rgba(2,6,23,.28); cursor:pointer; }
-    .activity-option:has(input:checked) { border-color:#3b82f6; background:rgba(37,99,235,.12); }
-    .activity-option input { width:auto !important; min-width:17px; height:17px; margin-top:.1rem; accent-color:#3b82f6; }
-    .activity-option strong { display:block; color:#f8fafc; font-size:.88rem; }
-    .activity-option small { display:block; color:#94a3b8; margin-top:.25rem; line-height:1.35; }
+    .activity-option:has(input:checked) { border-color:var(--primary); background:rgba(37,99,235,.12); }
+    .activity-option input { width:auto !important; min-width:17px; height:17px; margin-top:.1rem; accent-color:var(--primary); }
+    .activity-option strong { display:block; color:var(--text-strong); font-size:.88rem; }
+    .activity-option small { display:block; color:var(--text-muted); margin-top:.25rem; line-height:1.35; }
     .user-search-results { margin-top:.5rem; border:1px solid rgba(148,163,184,.18); border-radius:10px; overflow:hidden; background:rgba(2,6,23,.5); }
-    .user-search-result { width:100%; padding:.7rem .85rem; border:0; border-top:1px solid rgba(148,163,184,.1); background:transparent; color:#e2e8f0; text-align:left; cursor:pointer; font:inherit; }
+    .user-search-result { width:100%; padding:.7rem .85rem; border:0; border-top:1px solid var(--border); background:transparent; color:var(--text); text-align:left; cursor:pointer; font:inherit; }
     .user-search-result:first-child { border-top:0; }
     .user-search-result:hover { background:rgba(59,130,246,.14); }
-    .user-search-result small { display:block; margin-top:.2rem; color:#94a3b8; }
+    .user-search-result small { display:block; margin-top:.2rem; color:var(--text-muted); }
     .selected-user { margin-top:.6rem; padding:.7rem .85rem; border:1px solid rgba(52,211,153,.24); border-radius:10px; background:rgba(52,211,153,.08); color:#d1fae5; font-size:.85rem; }
-    footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.75rem; }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
     @media (max-width: 720px) { .meta-grid { grid-template-columns: 1fr; } }
   </style>
+  <%- include('../../partials/theme') %>
   <%- include('../../partials/mobile-fixes') %>
 </head>
 <body>
@@ -114,7 +115,7 @@
       <% if (locals.pendingActivityRequests && pendingActivityRequests.length) { %>
         <%# Bloco FORA do formulário de edição: forms de decisão não podem ser aninhados (o navegador submeteria o form externo, com _csrf duplicado → 403). %>
         <div class="help-text" style="border:1px solid #92610e;border-radius:6px;padding:8px 10px;margin:6px 0 1.5rem">
-          <strong style="color:#fbbf24">Pedidos de inscrição aguardando análise:</strong>
+          <strong style="color:var(--warn)">Pedidos de inscrição aguardando análise:</strong>
           <ul style="margin:6px 0;padding-left:18px">
             <% pendingActivityRequests.forEach(function(request){ %>
               <li style="margin:4px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -134,7 +135,7 @@
               </li>
             <% }) %>
           </ul>
-          <span style="color:#94a3b8">Ao negar, a pessoa não pode solicitar novamente (o checkbox dela na página do evento fica travado em não inscrita). Para reverter uma recusa, inscreva-a manualmente marcando a atividade abaixo e salvando.</span>
+          <span style="color:var(--text-muted)">Ao negar, a pessoa não pode solicitar novamente (o checkbox dela na página do evento fica travado em não inscrita). Para reverter uma recusa, inscreva-a manualmente marcando a atividade abaixo e salvando.</span>
         </div>
       <% } %>
       <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>">
@@ -182,8 +183,8 @@
         </div>
 
         <% if (registration && registration.user_id) { %>
-        <div style="border-top:1px solid rgba(148,163,184,0.1);padding-top:1rem;margin-top:1rem;">
-          <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Formação acadêmica (da conta vinculada)<%= globalLocked ? ' — somente o superadministrador pode alterar' : '' %></p>
+        <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:1rem;">
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Formação acadêmica (da conta vinculada)<%= globalLocked ? ' — somente o superadministrador pode alterar' : '' %></p>
 
           <div class="form-group">
             <label for="formacao_area">Área de Formação</label>
@@ -273,9 +274,9 @@
         </div>
 
         <% if (registration && registration.user_id) { %>
-        <div style="border-top:1px solid rgba(148,163,184,0.1);padding-top:1rem;margin-top:1rem;">
-          <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Perfis no evento (da conta vinculada)</p>
-          <p class="help-text" style="margin-bottom:0.5rem;">Selecione os papéis desta pessoa exclusivamente neste evento. Papéis de administrador, revisor e participante continuam em <a href="/admin/users/<%= registration.user_id %>/edit?event_id=<%= event.id %>" style="color:#93c5fd;">Perfis por evento</a>.</p>
+        <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:1rem;">
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Perfis no evento (da conta vinculada)</p>
+          <p class="help-text" style="margin-bottom:0.5rem;">Selecione os papéis desta pessoa exclusivamente neste evento. Papéis de administrador, revisor e participante continuam em <a href="/admin/users/<%= registration.user_id %>/edit?event_id=<%= event.id %>" style="color:var(--link);">Perfis por evento</a>.</p>
           <label class="event-role-option"><input type="checkbox" name="event_roles" value="speaker" <%= (eventRoles || []).some((item) => item.role === 'speaker') ? 'checked' : '' %>><span>Palestrante</span></label>
           <label class="event-role-option"><input type="checkbox" name="event_roles" value="teacher" <%= (eventRoles || []).some((item) => item.role === 'teacher') ? 'checked' : '' %>><span>Professor</span></label>
           <label class="event-role-option"><input type="checkbox" name="event_roles" value="oral_presenter" <%= (eventRoles || []).some((item) => item.role === 'oral_presenter') ? 'checked' : '' %>><span>Apresentador Oral</span></label>

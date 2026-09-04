@@ -7,46 +7,47 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
     .main-content { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem; }
     .hero { text-align: center; margin-bottom: 4rem; }
-    .hero h1 { font-size: 2.5rem; font-weight: 800; color: #f1f5f9; margin-bottom: 0.75rem; }
-    .hero h1 span { color: #60a5fa; }
-    .hero p { font-size: 1.125rem; color: #94a3b8; max-width: 600px; margin: 0 auto; line-height: 1.7; }
-    .section-title { font-size: 1.25rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center; }
+    .hero h1 { font-size: 2.5rem; font-weight: 800; color: var(--text-strong); margin-bottom: 0.75rem; }
+    .hero h1 span { color: var(--accent); }
+    .hero p { font-size: 1.125rem; color: var(--text-muted); max-width: 600px; margin: 0 auto; line-height: 1.7; }
+    .section-title { font-size: 1.25rem; font-weight: 700; color: var(--text-strong); margin-bottom: 1.5rem; text-align: center; }
     .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,280px), 1fr)); gap: 1.5rem; }
-    .event-card { display: block; background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 1.5rem; transition: all 0.2s; text-decoration: none; }
+    .event-card { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; transition: all 0.2s; text-decoration: none; }
     .event-card:hover { border-color: rgba(96,165,250,0.3); transform: translateY(-2px); }
     .event-card .event-logo { display: block; width: 100%; height: 84px; object-fit: contain; object-position: center; background: #fff; border-radius: 8px; padding: 8px; margin-bottom: 0.9rem; }
-    .event-card h3 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .event-card h3 { font-size: 1.125rem; font-weight: 600; color: var(--text-strong); margin-bottom: 0.5rem; }
     .event-card .area { display: inline-block; background: rgba(167,139,250,0.15); color: #a78bfa; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; margin-bottom: 0.75rem; }
     .event-card .submission-badge { display: inline-block; margin-left: 0.5rem; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
-    .event-card .submission-open { background: rgba(52,211,153,0.15); color: #34d399; }
-    .event-card .submission-closed { background: rgba(248,113,113,0.12); color: #f87171; }
-    .event-card .submission-ended { background: rgba(251,191,36,0.14); color: #fbbf24; }
-    .event-card p { color: #94a3b8; font-size: 0.875rem; line-height: 1.6; margin-bottom: 1rem; }
-    .event-section-label { display: block; color: #94a3b8; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
-    .event-meta { display: flex; gap: 1rem; color: #64748b; font-size: 0.75rem; margin-bottom: 1rem; }
+    .event-card .submission-open { background: rgba(52,211,153,0.15); color: var(--success); }
+    .event-card .submission-closed { background: rgba(248,113,113,0.12); color: var(--danger); }
+    .event-card .submission-ended { background: rgba(251,191,36,0.14); color: var(--warn); }
+    .event-card p { color: var(--text-muted); font-size: 0.875rem; line-height: 1.6; margin-bottom: 1rem; }
+    .event-section-label { display: block; color: var(--text-muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
+    .event-meta { display: flex; gap: 1rem; color: var(--text-faint); font-size: 0.75rem; margin-bottom: 1rem; }
     .event-meta span { display: flex; align-items: center; gap: 0.25rem; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
-    .btn-primary { background: #3b82f6; color: white; }
-    .btn-primary:hover { background: #2563eb; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); }
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
-    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
     .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
-    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
+    .topbar-nav a:hover { color: var(--text); background: var(--border); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
     .empty-state { text-align: center; padding: 4rem 2rem; }
-    .empty-state h2 { font-size: 1.5rem; font-weight: 600; color: #475569; margin-bottom: 0.5rem; }
-    .empty-state p { color: #334155; font-size: 0.9375rem; }
-    footer { text-align: center; padding: 3rem 2rem; color: #475569; font-size: 0.75rem; }
+    .empty-state h2 { font-size: 1.5rem; font-weight: 600; color: var(--text-faint); margin-bottom: 0.5rem; }
+    .empty-state p { color: var(--border); font-size: 0.9375rem; }
+    footer { text-align: center; padding: 3rem 2rem; color: var(--text-faint); font-size: 0.75rem; }
   </style>
+  <%- include('../partials/theme') %>
   <%- include('../partials/mobile-fixes') %>
 </head>
 <body>

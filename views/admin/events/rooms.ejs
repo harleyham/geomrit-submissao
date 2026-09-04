@@ -6,12 +6,13 @@
   <title><%= title %></title>
   <link href="/lib/flatpickr/flatpickr.min.css" rel="stylesheet">
   <style>
-    body{font-family:'Inter',sans-serif;background:#0a0f1a;color:#e2e8f0;margin:0}.topbar{background:rgba(15,23,42,0.8);border-bottom:1px solid rgba(148,163,184,0.1);backdrop-filter:blur(20px);padding:0 2rem;height:64px;display:flex;align-items:center;position:sticky;top:0;z-index:100}.topbar-inner{width:100%;max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}.logo{font-size:1.25rem;font-weight:700;color:#e2e8f0;text-decoration:none}.logo-icon{color:#60a5fa}.topbar-nav{display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap}.topbar-nav a{color:#94a3b8;padding:0.5rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.875rem;font-weight:500;transition:all 0.15s}.topbar-nav a:hover{color:#e2e8f0;background:rgba(148,163,184,0.1)}.session-pill{padding:0.42rem 0.78rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:#94a3b8;font-size:0.82rem}.btn-logout{background:transparent;color:#f87171;border:1px solid rgba(248,113,113,0.25);font-family:inherit;cursor:pointer}.btn{display:inline-flex;align-items:center;justify-content:center;padding:0.625rem 1.25rem;border-radius:8px;font-size:0.875rem;font-weight:500;cursor:pointer;border:none;text-decoration:none}.btn-secondary{background:rgba(148,163,184,0.12);color:#e2e8f0;border:1px solid rgba(148,163,184,0.18);text-decoration:none;font-weight:500}.btn-secondary:hover{background:rgba(148,163,184,0.2)}.main-content{max-width:1400px;margin:0 auto;padding:2rem}.hint{color:#64748b;font-size:0.85rem}.alert{padding:0.9rem 1rem;border-radius:10px;font-size:0.9rem;margin-bottom:1rem}.alert.success{background:rgba(34,197,94,0.1);border:1px solid rgba(74,222,128,0.22);color:#86efac}.alert.error{background:rgba(239,68,68,0.1);border:1px solid rgba(248,113,113,0.24);color:#fca5a5}.card{background:#1e293b;border-radius:10px;padding:16px;margin-bottom:16px}.card h2{font-size:1rem;margin:0 0 10px}.card form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.card input,.card select{padding:0.5rem 0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;font-size:0.875rem}.card input[type=number]{width:110px}.card textarea{padding:0.5rem 0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;font-size:0.875rem;min-width:min(320px,100%);flex:1 1 100%}.session-description{max-width:420px;word-break:break-word}.card button{padding:0.5rem 1rem;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.875rem}.card button.danger{background:transparent;color:#f87171;border:1px solid rgba(248,113,113,0.25);padding:2px 8px;font-size:11px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:0.7rem 0.9rem;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;border-bottom:1px solid rgba(148,163,184,0.15)}td{padding:0.7rem 0.9rem;border-bottom:1px solid rgba(148,163,184,0.07);font-size:0.9rem}.empty{color:#64748b;font-size:0.9rem}input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield;appearance:textfield}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0}.topbar{background:var(--surface);border-bottom:1px solid var(--border);backdrop-filter:blur(20px);padding:0 2rem;height:64px;display:flex;align-items:center;position:sticky;top:0;z-index:100}.topbar-inner{width:100%;max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}.logo{font-size:1.25rem;font-weight:700;color:var(--text);text-decoration:none}.logo-icon{color:var(--accent)}.topbar-nav{display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap}.topbar-nav a{color:var(--text-muted);padding:0.5rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.875rem;font-weight:500;transition:all 0.15s}.topbar-nav a:hover{color:var(--text);background:var(--border)}.session-pill{padding:0.42rem 0.78rem;border:1px solid rgba(148,163,184,0.18);border-radius:999px;color:var(--text-muted);font-size:0.82rem}.btn-logout{background:transparent;color:var(--danger);border:1px solid rgba(248,113,113,0.25);font-family:inherit;cursor:pointer}.btn{display:inline-flex;align-items:center;justify-content:center;padding:0.625rem 1.25rem;border-radius:8px;font-size:0.875rem;font-weight:500;cursor:pointer;border:none;text-decoration:none}.btn-secondary{background:rgba(148,163,184,0.12);color:var(--text);border:1px solid rgba(148,163,184,0.18);text-decoration:none;font-weight:500}.btn-secondary:hover{background:rgba(148,163,184,0.2)}.main-content{max-width:1400px;margin:0 auto;padding:2rem}.hint{color:var(--text-faint);font-size:0.85rem}.alert{padding:0.9rem 1rem;border-radius:10px;font-size:0.9rem;margin-bottom:1rem}.alert.success{background:rgba(34,197,94,0.1);border:1px solid rgba(74,222,128,0.22);color:#86efac}.alert.error{background:rgba(239,68,68,0.1);border:1px solid rgba(248,113,113,0.24);color:#fca5a5}.card{background:#1e293b;border-radius:10px;padding:16px;margin-bottom:16px}.card h2{font-size:1rem;margin:0 0 10px}.card form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.card input,.card select{padding:0.5rem 0.75rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:0.875rem}.card input[type=number]{width:110px}.card textarea{padding:0.5rem 0.75rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:0.875rem;min-width:min(320px,100%);flex:1 1 100%}.session-description{max-width:420px;word-break:break-word}.card button{padding:0.5rem 1rem;background:var(--primary-hover);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.875rem}.card button.danger{background:transparent;color:var(--danger);border:1px solid rgba(248,113,113,0.25);padding:2px 8px;font-size:11px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:0.7rem 0.9rem;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-faint);border-bottom:1px solid rgba(148,163,184,0.15)}td{padding:0.7rem 0.9rem;border-bottom:1px solid rgba(148,163,184,0.07);font-size:0.9rem}.empty{color:var(--text-faint);font-size:0.9rem}input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield;appearance:textfield}
   </style>
+  <%- include('../../partials/theme') %>
   <%- include('../../partials/mobile-fixes') %>
 </head>
   <main class="main-content">
-    <p style="margin-bottom:8px"><a href="/admin/events" style="color:#93c5fd;text-decoration:none">← Voltar aos eventos</a></p>
+    <p style="margin-bottom:8px"><a href="/admin/events" style="color:var(--link);text-decoration:none">← Voltar aos eventos</a></p>
     <h1 style="font-size:1.5rem;margin:0 0 4px">Salas — <%= event.name %></h1>
     <p class="hint">Crie quantas salas quiser para este evento, classificando por tipo e informando a capacidade. Alocule salas às atividades sem etapas, às etapas e (quando o evento não tem atividades) ao próprio evento — sobreposições de horário na mesma sala são bloqueadas.</p>
     <% if (success) { %><p class="alert success"><%= success %></p><% } %>
@@ -50,7 +51,7 @@
                 <td><%= room.capacity ? room.capacity + ' lugares' : '—' %></td>
                 <td><%= room.assignment_count %></td>
                 <td>
-                  <a href="/admin/events/<%= event.id %>/rooms?edit_room_id=<%= room.id %>" style="color:#93c5fd;text-decoration:none">Editar</a>
+                  <a href="/admin/events/<%= event.id %>/rooms?edit_room_id=<%= room.id %>" style="color:var(--link);text-decoration:none">Editar</a>
                   <form method="post" action="/admin/events/<%= event.id %>/rooms/<%= room.id %>/delete" style="display:inline">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="danger" nonce="<%= cspNonce %>" onclick="return confirm('Remover esta sala?')">Remover</button>
@@ -71,7 +72,7 @@
       <% } else { %>
         <p class="hint">Etapas e atividades sem etapas que ainda não têm sala alocada. Use os links para editar e escolher a sala.</p>
         <% if (pending.activities.length) { %>
-          <h3 style="font-size:.9rem;margin:12px 0 6px;color:#93c5fd">Atividades sem etapas (<%= pending.activities.length %>)</h3>
+          <h3 style="font-size:.9rem;margin:12px 0 6px;color:var(--link)">Atividades sem etapas (<%= pending.activities.length %>)</h3>
           <div class="table-scroll"><table>
             <thead><tr><th>Atividade</th><th>Data</th><th>Horário</th><th style="width:100px">Ação</th></tr></thead>
             <tbody>
@@ -80,14 +81,14 @@
                   <td><strong><%= activity.name %></strong></td>
                   <td><%= activity.date_start ? formatBRDate(activity.date_start) : 'A definir' %><%= activity.date_end && activity.date_end !== activity.date_start ? ' a ' + formatBRDate(activity.date_end) : '' %></td>
                   <td><%= activity.time_start && activity.time_end ? String(activity.time_start).slice(0,5) + '–' + String(activity.time_end).slice(0,5) : '—' %></td>
-                  <td><a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>" style="color:#93c5fd;text-decoration:none">Alocar sala</a></td>
+                  <td><a href="/admin/events/<%= event.id %>/activities?edit_activity_id=<%= activity.id %>" style="color:var(--link);text-decoration:none">Alocar sala</a></td>
                 </tr>
               <% }) %>
             </tbody>
           </table></div>
         <% } %>
         <% if (pending.sessions.length) { %>
-          <h3 style="font-size:.9rem;margin:12px 0 6px;color:#93c5fd">Etapas (<%= pending.sessions.length %>)</h3>
+          <h3 style="font-size:.9rem;margin:12px 0 6px;color:var(--link)">Etapas (<%= pending.sessions.length %>)</h3>
           <div class="table-scroll"><table>
             <thead><tr><th>Etapa</th><th>Atividade</th><th>Data</th><th>Horário</th><th style="width:100px">Ação</th></tr></thead>
             <tbody>
@@ -97,7 +98,7 @@
                   <td><%= session.activity_name %></td>
                   <td><%= session.session_date ? formatBRDate(session.session_date) : 'A definir' %></td>
                   <td><%= session.time_start && session.time_end ? String(session.time_start).slice(0,5) + '–' + String(session.time_end).slice(0,5) : '—' %></td>
-                  <td><a href="/admin/events/<%= event.id %>/activities/<%= session.activity_id %>/sessions?edit_session_id=<%= session.id %>" style="color:#93c5fd;text-decoration:none">Alocar sala</a></td>
+                  <td><a href="/admin/events/<%= event.id %>/activities/<%= session.activity_id %>/sessions?edit_session_id=<%= session.id %>" style="color:var(--link);text-decoration:none">Alocar sala</a></td>
                 </tr>
               <% }) %>
             </tbody>

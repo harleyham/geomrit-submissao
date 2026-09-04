@@ -7,39 +7,39 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(148,163,184,0.1); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; position: sticky; top: 0; z-index: 100; }
     .topbar-inner { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-size: 1.25rem; font-weight: 700; color: #e2e8f0; text-decoration: none; }
-    .logo-icon { color: #60a5fa; }
-    .topbar-nav a { color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
-    .topbar-nav a:hover { color: #e2e8f0; background: rgba(148,163,184,0.1); }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: #e2e8f0; font-size: 0.82rem; }
-    .btn-logout { background: transparent; color: #f87171; border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.18); }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: var(--text); background: var(--border); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
+    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); }
     .btn-secondary:hover { background: rgba(148,163,184,0.2); }
     .main-content { max-width: 1000px; margin: 0 auto; padding: 2rem; }
-    .back-link { display: inline-flex; align-items: center; gap: 0.375rem; color: #94a3b8; text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; }
-    .back-link:hover { color: #e2e8f0; }
-    .article-info { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(148,163,184,0.1); }
-    .article-info h1 { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
-    .article-info h2 { font-size: 1.125rem; font-weight: 500; color: #94a3b8; margin-bottom: 0.75rem; }
-    .article-meta { display: flex; flex-wrap: wrap; gap: 1rem; color: #94a3b8; font-size: 0.8125rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--text-muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    .back-link:hover { color: var(--text); }
+    .article-info { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+    .article-info h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-strong); margin-bottom: 0.5rem; }
+    .article-info h2 { font-size: 1.125rem; font-weight: 500; color: var(--text-muted); margin-bottom: 0.75rem; }
+    .article-meta { display: flex; flex-wrap: wrap; gap: 1rem; color: var(--text-muted); font-size: 0.8125rem; }
     .article-meta span { display: flex; align-items: center; gap: 0.25rem; }
-    .section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
-    .section h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 1rem; }
-    .section h3 { font-size: 0.875rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; margin-top: 1.5rem; }
-    .section p { color: #cbd5e1; line-height: 1.8; font-size: 0.9375rem; }
-    .author-list { background: rgba(15,23,42,0.4); border: 1px solid rgba(148,163,184,0.1); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
-    .author-list p { color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.25rem; }
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+    .section h2 { font-size: 1.125rem; font-weight: 600; color: var(--text-strong); margin-bottom: 1rem; }
+    .section h3 { font-size: 0.875rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; margin-top: 1.5rem; }
+    .section p { color: var(--text); line-height: 1.8; font-size: 0.9375rem; }
+    .author-list { background: rgba(15,23,42,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+    .author-list p { color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.25rem; }
     .keywords { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
-    .keyword { background: rgba(96,165,250,0.1); color: #60a5fa; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; }
-    .review-section { background: rgba(30,41,59,0.6); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
-    .review-section h2 { font-size: 1.125rem; font-weight: 600; color: #f1f5f9; margin-bottom: 1.25rem; }
+    .keyword { background: rgba(96,165,250,0.1); color: var(--accent); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; }
+    .review-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+    .review-section h2 { font-size: 1.125rem; font-weight: 600; color: var(--text-strong); margin-bottom: 1.25rem; }
     .form-group { margin-bottom: 1.25rem; }
-    .form-group label { display: block; color: #94a3b8; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
-    .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
-    .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .form-group label { display: block; color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: var(--text); font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
     .form-group textarea { min-height: 150px; resize: vertical; }
     .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
@@ -47,10 +47,11 @@
     .btn-approved:hover { background: #047857; }
     .btn-rejected { background: #dc2626; color: white; }
     .btn-rejected:hover { background: #b91c1c; }
-    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
-    .btn-ghost:hover { background: rgba(148,163,184,0.1); color: #e2e8f0; }
-    footer { text-align: center; padding: 2rem; color: #475569; font-size: 0.75rem; }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(148,163,184,0.2); }
+    .btn-ghost:hover { background: var(--border); color: var(--text); }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
   </style>
+  <%- include('../partials/theme') %>
   <%- include('../partials/mobile-fixes') %>
 </head>
 <body>
@@ -106,7 +107,7 @@
 
     <div class="review-section">
       <h2>Parecer do Revisor</h2>
-      <p style="margin-bottom: 1rem; color: #94a3b8;">Seu envio registra uma recomendação individual. A decisão final do artigo continua sob responsabilidade administrativa.</p>
+      <p style="margin-bottom: 1rem; color: var(--text-muted);">Seu envio registra uma recomendação individual. A decisão final do artigo continua sob responsabilidade administrativa.</p>
       <form method="POST" action="/reviewer/articles/<%= article.id %>/review">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">

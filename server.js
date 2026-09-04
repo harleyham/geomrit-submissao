@@ -18,6 +18,7 @@ const { defaultLimiter, adminLimiter } = require('./security/rate-limits');
 const { db } = require('./db');
 const { startEmailWorkers, stopEmailWorkers } = require('./services/email');
 const { maintenanceGuard } = require('./services/maintenance');
+const themeService = require('./services/theme');
 
 const app = express();
 // Somente proxies locais são confiáveis. O processo escuta em loopback por
@@ -171,6 +172,10 @@ app.use((req, res, next) => {
   res.locals.formatBRDate = formatBRDate;
   res.locals.activityDateRange = activityDateRange;
   res.locals.jsonForScript = jsonForScript;
+  let theme = null;
+  try { theme = themeService.getTheme(); } catch (e) { theme = null; }
+  res.locals.theme = theme;
+  res.locals.themeId = theme ? theme.id : 'ligem';
   next();
 });
 

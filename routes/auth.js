@@ -13,6 +13,7 @@ const { createBackupZip, restoreFromZip, backupFileName } = require('../services
 const { runMaintenance } = require('../services/maintenance');
 const { requireSuperAdmin } = require('../security/super-admin');
 const { validateCsrfToken } = require('../security/csrf');
+const themeService = require('../services/theme');
 const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue, queuePasswordReset, canQueueEmail } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
@@ -562,6 +563,9 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
     pendingEmails: isSuperAdmin ? getPendingEmails() : [],
     suppressedEmailCount: getSuppressedEmailCount(),
     suppressedEmails: isSuperAdmin ? getSuppressedEmails() : [],
+    theme: themeService.getTheme(),
+    themeId: themeService.getThemeId(),
+    listThemes: themeService.listThemes(),
     year: new Date().getFullYear(),
     query: req.query
   });
@@ -575,6 +579,17 @@ router.post('/email-settings/toggle', requireAuth, requireSuperAdmin, strictLimi
     : `Envio global de e-mails desativado. ${cancelled} mensagem(ns) pendente(s) cancelada(s).`;
   const returnTo = req.body.return_to === 'events' ? '/admin/events' : '/admin/dashboard';
   return res.redirect(`${returnTo}?email=${enabled ? 'enabled' : 'disabled'}&message=${encodeURIComponent(message)}`);
+});
+
+router.post('/theme', requireAuth, requireSuperAdmin, strictLimiter, (req, res) => {
+  try {
+    const themeId = String(req.body.theme || '').trim();
+    themeService.setTheme(themeId);
+    const name = themeService.THEMES[themeId].name;
+    return res.redirect(`/admin/dashboard?theme=applied&message=${encodeURIComponent(`Paleta aplicada: ${name}.`)}`);
+  } catch (err) {
+    return res.redirect(`/admin/dashboard?theme=error&message=${encodeURIComponent(err && err.status === 400 ? 'Tema desconhecido.' : 'Erro ao aplicar a paleta.')}`);
+  }
 });
 
 router.post('/email/direct', requireAuth, requireSuperAdmin, strictLimiter, (req, res) => {
