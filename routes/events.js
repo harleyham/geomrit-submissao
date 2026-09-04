@@ -3943,6 +3943,20 @@ router.post('/:id/publish', strictLimiter, (req, res, next) => {
   res.redirect('/admin/events');
 });
 
+// Voltar evento publicado para rascunho
+router.post('/:id/unpublish', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id, status FROM events WHERE id = ?').get(req.params.id);
+  if (!event) {
+    return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
+  }
+  if (event.status !== 'published') {
+    return res.redirect('/admin/events');
+  }
+  db.prepare("UPDATE events SET status = 'draft', updated_at = datetime('now', '-3 hours') WHERE id = ?").run(req.params.id);
+  const msg = `Evento ${event.id} voltou para Rascunho e não aparece mais na página inicial.`;
+  res.redirect(`/admin/events?message=${encodeURIComponent(msg)}`);
+});
+
 // Encerrar evento
 router.post('/:id/close', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT id, status FROM events WHERE id = ?').get(req.params.id);

@@ -678,6 +678,15 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Documentação: `manual.md` (card "Aguardando sala" agora menciona o botão "Alocar sala") e `submissao.md` (idem, seção de salas).
 - Status: **implementado** (efetivo após reinício/demora do cache de template conforme o ambiente).
 
+### Publicado → Rascunho: opção "Voltar para Rascunho"
+
+- Pedido: um evento publicado não podia voltar a "Rascunho" (só "Encerrar"), então não havia como retirá-lo da página inicial sem encerrá-lo.
+- `routes/events.js`: nova rota `POST /admin/events/:id/unpublish` (padrão de `publish`/`close`/`reopen`) — 404 se inexistente, sem efeito se `status !== 'published'`; senão `status='draft'` + mensagem no redirect (`/admin/events?message=...`, banner verde/vermelho existente).
+- `views/admin/events/list.ejs`: botão "Voltar para Rascunho" (`btn-secondary btn-sm`, `confirm()`) no bloco de eventos publicados, ao lado de "Encerrar".
+- Sem impacto em dados: páginas públicas já filtravam `status IN ('published','encerrado')` (`/evento/:id`), rascunho → 404 público; inscrições/submissões existentes preservadas, reaparecem ao republicar.
+- Docs: `manual.md` (botões de status), `submissao.md` (tabela de rotas).
+- Status: **implementado e verificado** (`node --check` OK; efetivo após reinício).
+
 ### Meus comentários de funções a implementar
 
 - Fotinha redonda e mini currículo dos palestrantes e professores

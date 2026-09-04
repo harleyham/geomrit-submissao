@@ -129,7 +129,7 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 
 1. Acesse **Administração → Eventos → Novo evento** (`/admin/events/new`).
 2. Informe nome, sigla, áreas/trilhas, datas e local.
-3. Defina o status: **Rascunho**, **Publicado** ou **Encerrado**. Na listagem de **Meus Eventos**, botões rápidos alternam o status: **Publicar** (rascunho), **Encerrar** (publicado) e **Reabrir** (encerrado, que devolve o evento à condição de publicado); na edição, o botão **Reabrir Evento** aparece para eventos encerrados.
+3. Defina o status: **Rascunho**, **Publicado** ou **Encerrado**. Na listagem de **Meus Eventos**, botões rápidos alternam o status: **Publicar** (rascunho), **Voltar para Rascunho** (publicado — sai da página inicial e as páginas públicas do evento passam a dar 404), **Encerrar** (publicado) e **Reabrir** (encerrado, que devolve o evento à condição de publicado); na edição, o botão **Reabrir Evento** aparece para eventos encerrados.
 4. Configure as janelas de inscrição, submissão, análise e certificados.
 5. Indique se o evento aceita artigos e se oferece subsídio.
 6. Defina **Inscrições abertas ao público?**: mantenha ativo para permitir a inscrição do público no site; desative para que apenas a administração cadastre os participantes (a linha "Inscrições" sai do cronograma público e a página de inscrição exibe a mensagem correspondente).

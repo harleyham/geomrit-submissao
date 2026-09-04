@@ -796,6 +796,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 | `/admin/dashboard` | Dashboard administrativo |
 | `/admin/events` | Gestão de eventos |
 | `POST /admin/events/:id/close` | Encerra o evento (published → encerrado) |
+| `POST /admin/events/:id/unpublish` | Volta o evento para Rascunho (published → draft); sai da página inicial e as páginas públicas passam a dar 404 |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
 | `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
 | `/admin/events/:id/participants/:registrationId/review` | Análise da solicitação de inscrição: aprova todas, algumas ou nenhuma das atividades solicitadas |
