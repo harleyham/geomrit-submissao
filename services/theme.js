@@ -4,7 +4,7 @@ const THEME_TOKENS = [
   'bg', 'surface', 'surfaceInput', 'border',
   'textStrong', 'text', 'textMuted', 'textFaint',
   'primary', 'primaryHover', 'accent', 'link',
-  'success', 'danger', 'warn'
+  'surface2', 'success', 'danger', 'warn'
 ];
 
 const THEMES = {
@@ -12,7 +12,7 @@ const THEMES = {
     id: 'ligem',
     name: 'LIGEM (padrão)',
     tokens: {
-      bg: '#0a0f1a',
+      bg: '#0a0f1a', surface2: '#1e293b',
       surface: 'rgba(30,41,59,0.6)',
       surfaceInput: 'rgba(148,163,184,0.08)',
       border: 'rgba(148,163,184,0.1)',
@@ -33,7 +33,7 @@ const THEMES = {
     id: 'sipam',
     name: 'SIPAM / Censipam',
     tokens: {
-      bg: '#0c1210',
+      bg: '#0c1210', surface2: '#163024',
       surface: 'rgba(16,45,30,0.6)',
       surfaceInput: 'rgba(128,194,218,0.08)',
       border: 'rgba(65,150,85,0.25)',
@@ -54,7 +54,7 @@ const THEMES = {
     id: 'claro',
     name: 'Claro',
     tokens: {
-      bg: '#f8fafc',
+      bg: '#f8fafc', surface2: '#ffffff',
       surface: '#ffffff',
       surfaceInput: '#f1f5f9',
       border: '#1e293b',
@@ -75,7 +75,7 @@ const THEMES = {
     id: 'contraste',
     name: 'Alto Contraste',
     tokens: {
-      bg: '#000000',
+      bg: '#000000', surface2: '#0a0a0a',
       surface: '#0a0a0a',
       surfaceInput: '#111111',
       border: '#ffff00',

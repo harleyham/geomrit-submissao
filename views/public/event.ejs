@@ -245,7 +245,7 @@
           var barAxisStartMin = barAxisStart, barAxisEndMin = barAxisEnd;
           var actTypeMap = { lecture:'Palestra', seminar:'Seminário', roundtable:'Mesa-redonda', course:'Minicurso', oral_presentation:'Apresentação oral', poster_presentation:'Apresentação pôster', breakfast:'Café da manhã', coffee_break:'Coffee Break', brunch:'Brunch', lunch:'Almoço', dinner:'Jantar', other:'Outra' };
           var actTypeOrder = ['lecture','seminar','roundtable','course','oral_presentation','poster_presentation','breakfast','coffee_break','brunch','lunch','dinner','other'];
-          var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], breakfast:['#92400e','#fcd34d'], coffee_break:['#44403c','#e7e5e4'], brunch:['#134e4a','#5eead4'], lunch:['#7c2d12','#fb923c'], dinner:['#4c1d95','#c4b5fd'], other:['#1e293b','var(--text-muted)'] };
+          var actTypeStyle = { lecture:['#312e81','#a5b4fc'], seminar:['#164e63','#67e8f9'], roundtable:['#365314','#84cc16'], course:['#78350f','#fdba74'], oral_presentation:['#7f1d1d','#fca5a5'], poster_presentation:['#581c87','#d8b4fe'], breakfast:['#92400e','#fcd34d'], coffee_break:['#44403c','#e7e5e4'], brunch:['#134e4a','#5eead4'], lunch:['#7c2d12','#fb923c'], dinner:['#4c1d95','#c4b5fd'], other:['var(--surface-2)','var(--text-muted)'] };
           var actByType = {};
           activities.forEach(function(a){ var t = a.activity_type || 'other'; (actByType[t] = actByType[t] || []).push(a); });
           var interestEligibleIds = new Set((interestActivities || []).map(function(a){ return a.id; }));
@@ -275,7 +275,7 @@
             .activities-toggle-block #activities-view-grid:checked ~ .activities-view-grid,
             .activities-toggle-block #activities-view-bars:checked ~ .activities-view-bars { display:block; }
             .activities-toggle-block .act-cards { display:flex; flex-direction:column; gap:16px; }
-            .activities-toggle-block .act-type-card { background:#1e293b; border-radius:10px; padding:16px; }
+            .activities-toggle-block .act-type-card { background:var(--surface-2); border-radius:10px; padding:16px; }
             .activities-toggle-block .act-type-head { margin:0 0 12px; font-size:1rem; display:flex; align-items:center; gap:8px; }
             .activities-toggle-block .act-type-count { color:var(--text-muted); font-weight:400; font-size:.85rem; }
             .activities-toggle-block .act-badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; letter-spacing:.3px; text-transform:uppercase; }
