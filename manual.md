@@ -106,7 +106,7 @@ Na listagem de usuários, o botão **Resetar Senha** (disponível também na lin
 
 ### Cadastro público sem senha
 
-O formulário "Solicitar Cadastro" (`/cadastro`) não pede senha. A conta é criada em análise com senha interna inutilizável; ao aprovar o cadastro, o usuário recebe um **e-mail com link de uso único (72h)** para definir a própria senha (`/definir-senha`) e só então faz login e completa o perfil. O e-mail de aprovação enviado pelo superadministrador na criação de usuários em `/admin/users` segue o mesmo padrão. Senhas nunca são enviadas por e-mail; quem perder o link usa "Esqueci a senha" na `/login`.
+O formulário "Solicitar Cadastro" (`/cadastro`) não pede senha. Além de nome, e-mail e instituição, o **e-mail deve ser repetido no campo "Confirme E-mail"**; o envio só é aceito quando os dois valores conferem, com validação feita no navegador e também no servidor (recusa o cadastro com aviso quando difiram). Após o envio, o usuário é encaminhado para a página de confirmação (/cadastro/sucesso), onde são relembrados que a conta ficará em análise e que devem verificar o e-mail — inclusive a caixa de Lixo Eletrônico ou Spam — para receber o. A conta é criada em análise com senha interna inutilizável; ao aprovar o cadastro, o usuário recebe um **e-mail com link de uso único (72h)** para definir a própria senha (`/definir-senha`) e só então faz login e completa o perfil. O e-mail de aprovação enviado pelo superadministrador na criação de usuários em `/admin/users` segue o mesmo padrão. Senhas nunca são enviadas por e-mail; quem perder o link usa "Esqueci a senha" na `/login`.
 
 ### Importação
 

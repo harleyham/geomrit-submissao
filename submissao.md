@@ -576,6 +576,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - O cadastro administrativo permite criar usuários com perfil de admin e/ou revisor.
 - O cadastro administrativo de revisor permite informar áreas de atuação em `reviewer_areas`.
 - O cadastro público gera usuário pendente de aprovação administrativa.
+- O formulário de cadastro público exige que o **e-mail seja repetido em "Confirme E-mail"**; o envio é recusado (com aviso) quando os valores não conferem — validado no navegador e no servidor — e o usuário é redirecionado para a página de confirmação /cadastro/sucesso.
 - A troca de senha é obrigatória no primeiro acesso quando `password_changed = 0`.
 - Contas novas possuem `profile_completed = 0` e, depois de trocar a senha, devem completar identificação, país, instituição, telefone e formação acadêmica antes de acessar qualquer painel.
 - A formação acadêmica possui a opção especial `Não possui curso de graduação`, disponível em todas as áreas de formação; quando selecionada, os campos Titulação e Status ficam ocultos e são gravados como nulos.
