@@ -3,9 +3,13 @@
   const __theme = typeof theme !== 'undefined' && theme ? theme : {
     id: 'ligem', tokens: {
       bg: '#0a0f1a', surface2: '#1e293b', surface: 'rgba(30,41,59,0.6)', surfaceInput: 'rgba(148,163,184,0.08)',
+      surfaceSubtle: 'rgba(15,23,42,0.3)', surfaceHover: 'rgba(148,163,184,0.12)', surfaceSelected: 'rgba(59,130,246,0.14)',
+      surfaceElevated: 'rgba(15,23,42,0.78)', surfaceInset: 'rgba(2,6,23,0.35)', overlay: 'rgba(2,6,23,0.72)',
       border: 'rgba(148,163,184,0.1)', textStrong: '#f1f5f9', text: '#e2e8f0',
+      borderStrong: 'rgba(148,163,184,0.25)', primaryBorder: 'rgba(96,165,250,0.4)', focusRing: 'rgba(59,130,246,0.2)',
       textMuted: '#94a3b8', textFaint: '#475569', primary: '#3b82f6', primaryHover: '#2563eb',
-      accent: '#60a5fa', link: '#93c5fd', success: '#34d399', danger: '#f87171', warn: '#fbbf24'
+      onPrimary: '#ffffff', accent: '#60a5fa', link: '#93c5fd', success: '#34d399', successHover: '#059669',
+      onSuccess: '#ffffff', danger: '#f87171', dangerHover: '#dc2626', onDanger: '#ffffff', warn: '#fbbf24'
     } };
   const __t = __theme.tokens;
 %>
@@ -15,17 +19,37 @@
     --surface: <%= __t.surface %>;
     --surface-2: <%= __t.surface2 %>;
     --surface-input: <%= __t.surfaceInput %>;
+    --surface-subtle: <%= __t.surfaceSubtle %>;
+    --surface-hover: <%= __t.surfaceHover %>;
+    --surface-selected: <%= __t.surfaceSelected %>;
+    --surface-elevated: <%= __t.surfaceElevated %>;
+    --surface-inset: <%= __t.surfaceInset %>;
+    --overlay: <%= __t.overlay %>;
     --border: <%= __t.border %>;
+    --border-strong: <%= __t.borderStrong %>;
+    --primary-border: <%= __t.primaryBorder %>;
+    --focus-ring: <%= __t.focusRing %>;
     --text-strong: <%= __t.textStrong %>;
     --text: <%= __t.text %>;
     --text-muted: <%= __t.textMuted %>;
     --text-faint: <%= __t.textFaint %>;
     --primary: <%= __t.primary %>;
     --primary-hover: <%= __t.primaryHover %>;
+    --on-primary: <%= __t.onPrimary %>;
     --accent: <%= __t.accent %>;
     --link: <%= __t.link %>;
     --success: <%= __t.success %>;
+    --success-hover: <%= __t.successHover %>;
+    --on-success: <%= __t.onSuccess %>;
+    --success-subtle: color-mix(in srgb, var(--success) 15%, transparent);
+    --success-border: color-mix(in srgb, var(--success) 38%, transparent);
     --danger: <%= __t.danger %>;
+    --danger-hover: <%= __t.dangerHover %>;
+    --on-danger: <%= __t.onDanger %>;
+    --danger-subtle: color-mix(in srgb, var(--danger) 15%, transparent);
+    --danger-border: color-mix(in srgb, var(--danger) 38%, transparent);
     --warn: <%= __t.warn %>;
+    --warn-subtle: color-mix(in srgb, var(--warn) 15%, transparent);
+    --warn-border: color-mix(in srgb, var(--warn) 38%, transparent);
   }
 </style>

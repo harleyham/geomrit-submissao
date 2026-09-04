@@ -244,7 +244,7 @@ O sistema **não permite sobreposição**: se a sala já estiver ocupada na data
 
 Para evitar conflito, o seletor de **Sala** nos formulários de atividade e etapa lista **apenas as salas livres** para a data e o horário informados, atualizando-se automaticamente conforme esses campos mudam (a sala já atribuída à própria atividade/etapa permanece selecionável). Caso a gravação ainda assim falhe por validação ou conflito, o formulário é reexibido **com todos os dados já preenchidos**, sem exigir redigitação.
 
-O card **Aguardando sala** na página de salas lista as etapas e as atividades sem etapas que ainda não têm sala, com link direto para alocar.
+O card **Aguardando sala** na página de salas lista as etapas e as atividades sem etapas que ainda não têm sala, com o botão **Alocar sala** que abre diretamente o formulário de edição correspondente.
 
 ### Relatórios e agenda
 

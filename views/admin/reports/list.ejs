@@ -14,7 +14,7 @@
     .logo-icon { color: var(--accent); }
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
     .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
-    .topbar-nav a:hover, .topbar-nav a.active { color: var(--text); background: var(--border); }
+    .topbar-nav a:hover, .topbar-nav a.active { color: var(--text); background: var(--surface-hover); }
     .main-content { max-width: 1400px; margin: 0 auto; padding: 2rem; }
     .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
     .page-header-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
@@ -27,32 +27,32 @@
     .section-header h2 { font-size: 1.125rem; font-weight: 600; color: var(--text-strong); }
     .section-body { padding: 0; }
     table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); background: rgba(15,23,42,0.3); }
-    td { padding: 0.75rem 1.5rem; font-size: 0.875rem; color: var(--text); border-top: 1px solid rgba(148,163,184,0.05); }
-    tr:hover td { background: rgba(148,163,184,0.03); }
+    th { text-align: left; padding: 0.75rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); background:var(--surface-elevated); }
+    td { padding: 0.75rem 1.5rem; font-size: 0.875rem; color: var(--text); border-top: 1px solid var(--border-strong); }
+    tr:hover td { background:var(--surface-hover); }
     .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
     .badge-area { background: rgba(167,139,250,0.15); color: #a78bfa; }
-    .badge-approved { background: rgba(52,211,153,0.15); color: var(--success); }
-    .badge-rejected { background: rgba(248,113,113,0.15); color: var(--danger); }
-    .badge-revision { background: rgba(251,191,36,0.15); color: var(--warn); }
+    .badge-approved { background:var(--success-subtle); color: var(--success); }
+    .badge-rejected { background:var(--danger-subtle); color: var(--danger); }
+    .badge-revision { background:var(--warn-subtle); color: var(--warn); }
     .badge-pending { background: rgba(100,116,139,0.2); color: var(--text-muted); }
-    .badge-role { background: rgba(96,165,250,0.15); color: var(--link); border: 1px solid rgba(96,165,250,0.25); }
+    .badge-role { background:var(--surface-selected); color: var(--link); border: 1px solid var(--primary-border); }
     .badge-role-teacher { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.25); }
     .badge-role-speaker { background: rgba(251,146,60,0.15); color: #fdba74; border: 1px solid rgba(251,146,60,0.25); }
     .badge-role-oral { background: rgba(56,189,248,0.15); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.25); }
     .badge-role-poster { background: rgba(192,132,252,0.15); color: #d8b4fe; border: 1px solid rgba(192,132,252,0.25); }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.4rem 0.75rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
-    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(148,163,184,0.2); }
-    .btn-ghost:hover { background: var(--border); color: var(--text); }
-    .btn-primary { background: var(--primary); color: white; }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border-strong); }
+    .btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
+    .btn-primary { background: var(--primary); color:var(--on-primary); }
     .btn-primary:hover { background: var(--primary-hover); }
     .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
-    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; cursor: pointer; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); text-decoration: none; }
-    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid var(--danger-border); font-family: inherit; cursor: pointer; }
+    .btn-secondary { background:var(--surface-hover); color: var(--text); border: 1px solid var(--border-strong); text-decoration: none; }
+    .btn-secondary:hover { background:var(--surface-hover); }
     .actions { display: flex; gap: 0.375rem; align-items: center; }
-    .decision-select { background: rgba(15,23,42,0.6); color: var(--text); border: 1px solid rgba(148,163,184,0.2); border-radius: 6px; padding: 0.35rem 0.6rem; font-size: 0.8125rem; }
+    .decision-select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 6px; padding: 0.35rem 0.6rem; font-size: 0.8125rem; }
     .form-inline { display: inline-flex; align-items: center; gap: 0.5rem; }
     .empty-state { text-align: center; padding: 3rem 2rem; color: var(--text-faint); }
     .empty-state p { margin-bottom: 1rem; }
@@ -189,39 +189,39 @@
       </div>
       <div class="section-body" style="padding: 1.5rem;">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem;">
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: var(--accent);"><%= totalSubmited %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Artigos Submetidos</div>
           </div>
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: var(--success);"><%= oralApproved %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Aprovados - Oral</div>
           </div>
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: #a78bfa;"><%= posterApproved %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Aprovados - Pôster</div>
           </div>
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: var(--danger);"><%= oralRejected %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Reprovados - Oral</div>
           </div>
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: var(--danger);"><%= posterRejected %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Reprovados - Pôster</div>
           </div>
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: var(--accent);"><%= authorRegistrations %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Inscritos com Artigo</div>
           </div>
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: var(--warn);"><%= listenerRegistrations %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Inscritos Participantes</div>
           </div>
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: var(--success);"><%= certificatesIssued %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Certificados Emitidos</div>
           </div>
-          <div style="text-align: center; padding: 1.5rem; background: rgba(15,23,42,0.3); border-radius: 10px;">
+          <div style="text-align: center; padding: 1.5rem; background:var(--surface-elevated); border-radius: 10px;">
             <div style="font-size: 2rem; font-weight: 700; color: #22d3ee;"><%= evaluatorsCount %></div>
             <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">Participantes que avaliaram</div>
           </div>
@@ -237,19 +237,19 @@
       </div>
       <div class="section-body" style="padding:1.5rem">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem">
-          <div style="background:rgba(15,23,42,0.35);border:1px solid var(--border);border-radius:8px;padding:1rem">
+          <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:1rem">
             <div style="font-size:1.5rem;font-weight:700;color:var(--text-strong)"><%= totalActivities %></div>
             <div style="color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Total de atividades</div>
           </div>
-          <div style="background:rgba(15,23,42,0.35);border:1px solid var(--border);border-radius:8px;padding:1rem">
+          <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:1rem">
             <div style="font-size:1.5rem;font-weight:700;color:var(--text-strong)"><%= totalEnrollments %></div>
             <div style="color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Inscrições vinculadas</div>
           </div>
-          <div style="background:rgba(15,23,42,0.35);border:1px solid var(--border);border-radius:8px;padding:1rem">
+          <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:1rem">
             <div style="font-size:1.5rem;font-weight:700;color:var(--text-strong)"><%= totalAttendance %></div>
             <div style="color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Presenças registradas</div>
           </div>
-          <div style="background:rgba(15,23,42,0.35);border:1px solid var(--border);border-radius:8px;padding:1rem">
+          <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:1rem">
             <div style="font-size:1.5rem;font-weight:700;color:var(--text-strong)"><%= certifiedActivities %></div>
             <div style="color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Atividades certificáveis</div>
           </div>
@@ -263,12 +263,12 @@
             <% var items = activitiesByType[type]; %>
             <div style="margin-bottom:1.25rem">
               <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">
-                <span style="background:<%= typeBgColors[type] || 'var(--text-faint)' %>;color:#fff;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:600"><%= activityTypeMap[type] || type %></span>
+                <span style="background:<%= typeBgColors[type] || 'var(--text-faint)' %>;color:var(--text-strong);padding:0.2rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:600"><%= activityTypeMap[type] || type %></span>
                 <span style="color:var(--text-muted);font-size:0.85rem;font-weight:400">(<%= items.length %> atividade<%= items.length > 1 ? 's' : '' %>)</span>
               </div>
               <div style="display:flex;flex-direction:column;gap:0.5rem">
                 <% items.forEach(function(activity) { %>
-                  <div style="background:rgba(15,23,42,0.3);border:1px solid var(--border);border-radius:8px;padding:0.85rem 1rem">
+                  <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:0.85rem 1rem">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
                       <div>
                         <div style="font-weight:600;color:var(--text-strong);font-size:0.9rem"><%= activity.name %></div>
@@ -278,11 +278,11 @@
                         </div>
                       </div>
                       <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
-                        <div style="text-align:center;padding:0.3rem 0.8rem;background:rgba(96,165,250,0.1);border-radius:6px">
+                        <div style="text-align:center;padding:0.3rem 0.8rem;background:var(--surface-selected);border-radius:6px">
                           <div style="font-size:1.1rem;font-weight:700;color:var(--accent)"><%= activity.enrolled_count || 0 %></div>
                           <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Inscritos</div>
                         </div>
-                        <div style="text-align:center;padding:0.3rem 0.8rem;background:rgba(52,211,153,0.1);border-radius:6px">
+                        <div style="text-align:center;padding:0.3rem 0.8rem;background:var(--success-subtle);border-radius:6px">
                           <div style="font-size:1.1rem;font-weight:700;color:var(--success)"><%= activity.attendees_count || 0 %></div>
                           <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Presentes</div>
                         </div>
@@ -297,7 +297,7 @@
                         <button type="button" class="btn btn-ghost no-print btn-evaluations-toggle" data-evaluations-target="evaluations-<%= activity.id %>" data-count="<%= activity.evaluations.length %>" style="font-size:0.78rem;padding:0.3rem 0.7rem">Ver avaliações (<%= activity.evaluations.length %>)</button>
                         <div id="evaluations-<%= activity.id %>" hidden style="margin-top:0.65rem">
                           <% activity.evaluations.forEach(function(ev) { %>
-                            <div style="background:rgba(2,6,23,0.45);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:0.7rem 0.9rem;margin-bottom:0.5rem">
+                            <div style="background:var(--surface-inset);border:1px solid var(--border-strong);border-radius:8px;padding:0.7rem 0.9rem;margin-bottom:0.5rem">
                               <div style="display:flex;justify-content:space-between;gap:1rem;font-size:0.8rem">
                                 <strong style="color:var(--text-strong)"><%= ev.name %></strong>
                                 <span style="color:var(--text-faint)"><%= formatBRDate(ev.updated_at) %></span>
@@ -570,7 +570,7 @@
                   <% } %>
                 <% } %>
                 <% if (participant.account_status === 0) { %>
-                  <div style="margin-top:3px"><span class="badge" style="background:rgba(248,113,113,0.12);color:#fca5a5;border:1px solid rgba(248,113,113,0.3);font-size:0.68rem;padding:0.12rem 0.45rem">Conta inativa</span></div>
+                  <div style="margin-top:3px"><span class="badge" style="background:var(--danger-subtle);color:var(--danger);border:1px solid var(--danger-border);font-size:0.68rem;padding:0.12rem 0.45rem">Conta inativa</span></div>
                 <% } %>
               </td>
             </tr>

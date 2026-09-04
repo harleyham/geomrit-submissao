@@ -14,41 +14,41 @@
     .logo-icon { color: var(--accent); }
     .topbar-nav { display: flex; gap: 0.25rem; align-items: center; }
     .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
-    .topbar-nav a:hover, .topbar-nav a.active { color: var(--text); background: var(--border); }
+    .topbar-nav a:hover, .topbar-nav a.active { color: var(--text); background: var(--surface-hover); }
     .main-content { max-width: 820px; margin: 0 auto; padding: 2rem; }
     .page-header { margin-bottom: 1.5rem; }
     .page-header h1 { font-size: 1.75rem; font-weight: 700; color: var(--text-strong); }
     .page-header p { color: var(--text-muted); margin-top: 0.45rem; line-height: 1.6; }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; }
     .alert { margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 10px; font-size: 0.9rem; }
-    .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.24); color: #fca5a5; }
+    .alert-error { background:var(--danger-subtle); border: 1px solid var(--danger-border); color:var(--danger); }
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
-    .meta-box { padding: 1rem; border-radius: 12px; background: rgba(2,6,23,0.28); border: 1px solid var(--border); }
+    .meta-box { padding: 1rem; border-radius: 12px; background:var(--surface-inset); border: 1px solid var(--border); }
     .meta-box strong { display: block; color: var(--text-strong); margin-bottom: 0.35rem; }
     .meta-box span { color: var(--text-muted); line-height: 1.6; font-size: 0.9rem; }
     .form-group { margin-bottom: 1rem; }
     .form-group label { display: block; color: var(--text); font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
-    .form-group input, .form-group select { width: 100%; padding: 0.78rem 0.95rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; background: rgba(2,6,23,0.35); color: var(--text-strong); font-size: 0.95rem; font-family: 'Inter', sans-serif; }
-    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.16); }
+    .form-group input, .form-group select { width: 100%; padding: 0.78rem 0.95rem; border: 1px solid var(--border-strong); border-radius: 10px; background:var(--surface-input); color: var(--text-strong); font-size: 0.95rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
     .help-text { color: var(--text-muted); font-size: 0.78rem; line-height: 1.5; margin-top: 0.4rem; }
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.05rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
-    .btn-primary { background: var(--primary); color: white; }
-    .btn-secondary { background: transparent; color: var(--text); border-color: rgba(148,163,184,0.2); }
+    .btn-primary { background: var(--primary); color:var(--on-primary); }
+    .btn-secondary { background: transparent; color: var(--text); border-color: var(--border-strong); }
     .event-role-option { display:flex !important; align-items:center; gap:.6rem; margin:.6rem 0 !important; cursor:pointer; }
     .event-role-option input[type="checkbox"] { width:auto !important; min-width:16px; height:16px; margin:0; accent-color:#f97316; }
     .activity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:.75rem; margin-top:.65rem; }
-    .activity-option { display:flex !important; align-items:flex-start; gap:.7rem; padding:.85rem; margin:0 !important; border:1px solid rgba(148,163,184,.16); border-radius:10px; background:rgba(2,6,23,.28); cursor:pointer; }
-    .activity-option:has(input:checked) { border-color:var(--primary); background:rgba(37,99,235,.12); }
+    .activity-option { display:flex !important; align-items:flex-start; gap:.7rem; padding:.85rem; margin:0 !important; border:1px solid var(--border-strong); border-radius:10px; background:var(--surface-inset); cursor:pointer; }
+    .activity-option:has(input:checked) { border-color:var(--primary); background:var(--surface-selected); }
     .activity-option input { width:auto !important; min-width:17px; height:17px; margin-top:.1rem; accent-color:var(--primary); }
     .activity-option strong { display:block; color:var(--text-strong); font-size:.88rem; }
     .activity-option small { display:block; color:var(--text-muted); margin-top:.25rem; line-height:1.35; }
-    .user-search-results { margin-top:.5rem; border:1px solid rgba(148,163,184,.18); border-radius:10px; overflow:hidden; background:rgba(2,6,23,.5); }
+    .user-search-results { margin-top:.5rem; border:1px solid var(--border-strong); border-radius:10px; overflow:hidden; background:var(--surface-inset); }
     .user-search-result { width:100%; padding:.7rem .85rem; border:0; border-top:1px solid var(--border); background:transparent; color:var(--text); text-align:left; cursor:pointer; font:inherit; }
     .user-search-result:first-child { border-top:0; }
-    .user-search-result:hover { background:rgba(59,130,246,.14); }
+    .user-search-result:hover { background:var(--surface-selected); }
     .user-search-result small { display:block; margin-top:.2rem; color:var(--text-muted); }
-    .selected-user { margin-top:.6rem; padding:.7rem .85rem; border:1px solid rgba(52,211,153,.24); border-radius:10px; background:rgba(52,211,153,.08); color:#d1fae5; font-size:.85rem; }
+    .selected-user { margin-top:.6rem; padding:.7rem .85rem; border:1px solid var(--success-border); border-radius:10px; background:var(--success-subtle); color:#d1fae5; font-size:.85rem; }
     footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
     @media (max-width: 720px) { .meta-grid { grid-template-columns: 1fr; } }
   </style>
@@ -124,13 +124,13 @@
                   <input type="hidden" name="activity_id" value="<%= request.id %>">
                   <input type="hidden" name="decision" value="approve">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <button type="submit" style="padding:2px 10px;font-size:12px;background:#14532d;color:#86efac;border:1px solid #166534;border-radius:4px;cursor:pointer;width:auto">Sim (aprovar)</button>
+                   <button type="submit" style="padding:2px 10px;font-size:12px;background:var(--success);color:var(--on-success);border:1px solid var(--success-border);border-radius:4px;cursor:pointer;width:auto">Sim (aprovar)</button>
                 </form>
                 <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= registration.id %>/activities/decide" style="display:inline">
                   <input type="hidden" name="activity_id" value="<%= request.id %>">
                   <input type="hidden" name="decision" value="reject">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <button type="submit" style="padding:2px 10px;font-size:12px;background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b;border-radius:4px;cursor:pointer;width:auto">Não (negar)</button>
+                   <button type="submit" style="padding:2px 10px;font-size:12px;background:var(--danger);color:var(--on-danger);border:1px solid var(--danger-border);border-radius:4px;cursor:pointer;width:auto">Não (negar)</button>
                 </form>
               </li>
             <% }) %>
@@ -265,7 +265,7 @@
               <% activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); const isRequired = Number(activity.required_for_participants) === 1; %>
                 <label class="activity-option" style="<%= isRequired ? 'cursor:default' : '' %>">
                   <input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= (selected || isRequired) ? 'checked' : '' %> <%= isRequired ? 'disabled' : '' %>>
-                  <span><strong><%= activity.name %><% if (isRequired) { %><span class="badge" style="background:#1d4ed8;color:#bfdbfe;margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %></strong><small><%= activityDateRange(activity) %> · <%= activity.effective_workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · contabiliza para certificado' : '' %></small></span>
+                  <span><strong><%= activity.name %><% if (isRequired) { %><span class="badge" style="background:var(--primary-hover);color:var(--link);margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %></strong><small><%= activityDateRange(activity) %> · <%= activity.effective_workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · contabiliza para certificado' : '' %></small></span>
                 </label>
               <% }) %>
             </div>

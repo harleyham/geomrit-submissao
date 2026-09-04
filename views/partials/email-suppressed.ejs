@@ -6,7 +6,7 @@
   }
 %>
 <% if (suppressedEmailCount > 0) { %>
-<div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.25);border-radius:12px;padding:1rem 1.25rem;margin-top:1rem;color:#fde68a;">
+<div style="background:var(--warn-subtle);border:1px solid var(--warn-border);border-radius:12px;padding:1rem 1.25rem;margin-top:1rem;color:var(--warn);">
   <%= suppressedEmailCount %> e-mail(s) suspenso(s) de serem enviados porque o envio de e-mails está desativado no evento (ou no sistema). Esses e-mails não serão enviados enquanto o envio permanecer desativado.
 </div>
 <form method="POST" action="/admin/email/suppressed/delete" class="email-suppressed-delete-form">

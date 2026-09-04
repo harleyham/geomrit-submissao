@@ -13,11 +13,11 @@
     .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
     .logo-icon { color: var(--accent); }
     .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
-    .topbar-nav a:hover { color: var(--text); background: var(--border); }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
-    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); }
-    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
+    .topbar-nav a:hover { color: var(--text); background: var(--surface-hover); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid var(--danger-border); font-family: inherit; }
+    .btn-secondary { background:var(--surface-hover); color: var(--text); border: 1px solid var(--border-strong); }
+    .btn-secondary:hover { background:var(--surface-hover); }
     .main-content { max-width: 1000px; margin: 0 auto; padding: 2rem; }
     .back-link { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--text-muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; }
     .back-link:hover { color: var(--text); }
@@ -30,25 +30,25 @@
     .section h2 { font-size: 1.125rem; font-weight: 600; color: var(--text-strong); margin-bottom: 1rem; }
     .section h3 { font-size: 0.875rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; margin-top: 1.5rem; }
     .section p { color: var(--text); line-height: 1.8; font-size: 0.9375rem; }
-    .author-list { background: rgba(15,23,42,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+    .author-list { background:var(--surface-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
     .author-list p { color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.25rem; }
     .keywords { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
-    .keyword { background: rgba(96,165,250,0.1); color: var(--accent); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; }
+    .keyword { background:var(--surface-selected); color: var(--accent); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; }
     .review-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
     .review-section h2 { font-size: 1.125rem; font-weight: 600; color: var(--text-strong); margin-bottom: 1.25rem; }
     .form-group { margin-bottom: 1.25rem; }
     .form-group label { display: block; color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
-    .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(148,163,184,0.2); border-radius: 8px; background: rgba(15,23,42,0.5); color: var(--text); font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
-    .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-strong); border-radius: 8px; background:var(--surface-input); color: var(--text); font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
     .form-group textarea { min-height: 150px; resize: vertical; }
     .form-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
-    .btn-approved { background: #059669; color: white; }
-    .btn-approved:hover { background: #047857; }
-    .btn-rejected { background: #dc2626; color: white; }
-    .btn-rejected:hover { background: #b91c1c; }
-    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(148,163,184,0.2); }
-    .btn-ghost:hover { background: var(--border); color: var(--text); }
+    .btn-approved { background:var(--success); color:var(--on-success); }
+    .btn-approved:hover { background:var(--success-hover); }
+    .btn-rejected { background:var(--danger); color:var(--on-danger); }
+    .btn-rejected:hover { background:var(--danger-hover); }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border-strong); }
+    .btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
     footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
   </style>
   <%- include('../partials/theme') %>

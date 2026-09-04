@@ -14,23 +14,23 @@
     .logo-icon { color: var(--accent); }
     .topbar-nav { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
     .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition:all 0.15s; }
-    .topbar-nav a:hover { color: var(--text); background: var(--border); }
-    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid rgba(148,163,184,0.18); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
-    .btn-logout { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-family: inherit; }
+    .topbar-nav a:hover { color: var(--text); background: var(--surface-hover); }
+    .session-pill { padding: 0.42rem 0.78rem; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
+    .btn-logout { background: transparent; color: var(--danger); border: 1px solid var(--danger-border); font-family: inherit; }
     .main-content { max-width: 1000px; margin: 0 auto; padding: 2rem; }
     .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
     .page-header h1 { font-size: 1.75rem; font-weight: 700; color: var(--text-strong); }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
-    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary { background: var(--primary); color:var(--on-primary); }
     .btn-primary:hover { background: var(--primary-hover); }
-    .btn-secondary { background: rgba(148,163,184,0.12); color: var(--text); border: 1px solid rgba(148,163,184,0.18); }
-    .btn-secondary:hover { background: rgba(148,163,184,0.2); }
+    .btn-secondary { background:var(--surface-hover); color: var(--text); border: 1px solid var(--border-strong); }
+    .btn-secondary:hover { background:var(--surface-hover); }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
     .card h2 { color: var(--text-strong); font-size: 1.1rem; margin-bottom: 0.5rem; }
     .card p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; }
     .alert { padding: 0.95rem 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.9rem; }
-    .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
-    .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(248,113,113,0.25); color: #fca5a5; }
+    .alert-success { background:var(--success-subtle); border: 1px solid var(--success-border); color:var(--success); }
+    .alert-error { background:var(--danger-subtle); border: 1px solid var(--danger-border); color:var(--danger); }
     .empty { padding: 3rem; text-align: center; color: var(--text-faint); }
     .empty p { margin-bottom: 0.5rem; }
     footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
@@ -105,7 +105,7 @@
               <a href="/author/certificates/<%= certificate.id %>/download" class="btn btn-primary">Baixar certificado em PDF</a>
             </div>
           <% } else { %>
-            <p style="margin-top:0.75rem;color:#fca5a5;"><%= certificate.window.message %></p>
+            <p style="margin-top:0.75rem;color:var(--danger);"><%= certificate.window.message %></p>
           <% } %>
         </div>
       <% }) %>
