@@ -40,6 +40,12 @@
     .subsidy-fields.visible { display: block; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .activity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:.75rem; margin-top:.65rem; }
+    .activity-cell { display:flex; flex-direction:column; gap:.5rem; }
+    .justification-field { display:none; padding:.75rem .85rem; border:1px dashed var(--border-strong); border-radius:12px; background:var(--surface-elevated); }
+    .justification-field.visible { display:block; }
+    .justification-field label { display:block; font-size:.8rem; font-weight:600; color:var(--text); margin-bottom:.35rem; }
+    .justification-field input[type=file] { width:100%; font-size:.82rem; color:var(--text); }
+    .justification-field small { display:block; color:var(--text-muted); margin-top:.35rem; line-height:1.45; }
     .activity-option { display:flex !important; align-items:flex-start; gap:.7rem; padding:.85rem; margin:0 !important; border:1px solid var(--border-strong); border-radius:12px; background:var(--surface-subtle); cursor:pointer; }
     .activity-option:has(input:checked) { border-color:var(--primary); background:var(--surface-selected); }
     .activity-option input { width:auto !important; min-width:18px; height:18px; margin-top:.1rem; accent-color:var(--primary); }
@@ -141,11 +147,21 @@
             <p style="color:var(--text-muted);line-height:1.5;"><%= automaticIds.size > 0 ? 'Este evento não possui atividades avulsas para escolher — apenas as automáticas acima.' : 'Este evento ainda não possui atividades abertas para participantes.' %></p>
           <% } else { %>
             <div class="activity-grid">
-              <% const activitiesLockedByReview = alreadyRegistered && event.registration_approval_mode === 'review'; const requiredIds = automaticIds; activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); const isRequired = requiredIds.has(Number(activity.id)); %>
-                <label class="activity-option" style="<%= isRequired ? 'cursor:default' : '' %>"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %> <%= (isRequired || activitiesLockedByReview) ? 'disabled' : '' %>><span><strong><%= activity.name %><% if (isRequired) { %><span class="badge" style="background:var(--primary-hover);color:var(--link);margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %></strong><small><%= activityDateRange(activity) %> · <%= (activity.effective_workload_hours != null ? activity.effective_workload_hours : (activity.workload_hours || 0)) %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %><% if (isRequired) { %> · obrigatória: todos os participantes do evento são inscritos nela<% } %></small></span></label>
+              <% const currentRegistrationStatus = (typeof registrationStatus !== 'undefined' && registrationStatus) ? registrationStatus : null; const activitiesLockedByReview = alreadyRegistered && event.registration_approval_mode === 'review' && currentRegistrationStatus !== 'pending'; const requiredIds = automaticIds; const justificationMap = (typeof justificationFiles !== 'undefined' && justificationFiles) ? justificationFiles : {}; activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); const isRequired = requiredIds.has(Number(activity.id)); const needsJustification = Number(activity.requires_justification) === 1; const existingJustification = justificationMap[Number(activity.id)] || ''; %>
+                <div class="activity-cell">
+                  <label class="activity-option" style="<%= isRequired ? 'cursor:default' : '' %>"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %> <%= (isRequired || activitiesLockedByReview) ? 'disabled' : '' %>><span><strong><%= activity.name %><% if (isRequired) { %><span class="badge" style="background:var(--primary-hover);color:var(--link);margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %><% if (needsJustification) { %><span class="badge" style="background:var(--warn-subtle);color:var(--warn);margin-left:6px;font-size:10px;vertical-align:middle">Exige justificativa</span><% } %></strong><small><%= activityDateRange(activity) %> · <%= (activity.effective_workload_hours != null ? activity.effective_workload_hours : (activity.workload_hours || 0)) %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %><% if (isRequired) { %> · obrigatória: todos os participantes do evento são inscritos nela<% } %><% if (needsJustification) { %> · exige envio de documento de justificativa<% } %></small></span></label>
+                  <% if (needsJustification) { %>
+                    <div class="justification-field" id="justification-box-<%= activity.id %>">
+                      <label for="justification_<%= activity.id %>">Documento de justificativa (PDF, até 10 MB — opcional)</label>
+                      <input type="file" id="justification_<%= activity.id %>" name="justification_<%= activity.id %>" accept=".pdf,application/pdf">
+                      <small>Esta atividade pede um arquivo de justificativa (PDF com o currículo ou o motivo do interesse). O envio é opcional nesta página e não impede a inscrição; a organização poderá solicitá-lo na análise.</small>
+                      <% if (existingJustification) { %><small style="color:var(--link);">Arquivo atual: <%= existingJustification %> — envie outro apenas para substituir.</small><% } %>
+                    </div>
+                  <% } %>
+                </div>
               <% }) %>
             </div>
-            <small style="display:block;color:var(--text-muted);margin-top:.55rem;line-height:1.5;"><%= activitiesLockedByReview ? 'As atividades foram definidas pela análise da organização e não podem ser alteradas por esta página.' : 'Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas.' %></small>
+            <small style="display:block;color:var(--text-muted);margin-top:.55rem;line-height:1.5;"><%= activitiesLockedByReview ? 'As atividades foram definidas pela análise da organização e não podem ser alteradas por esta página.' : (alreadyRegistered && event.registration_approval_mode === 'review' ? 'Você pode alterar aqui as atividades solicitadas; elas continuam sujeitas à análise da organização. Envie o documento nas atividades que exigem justificativa.' : 'Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas.') %></small>
           <% } %>
         </div>
 
@@ -272,6 +288,19 @@
       checkbox.addEventListener('change', syncSubsidyFields);
       syncSubsidyFields();
     })();
+
+    document.querySelectorAll('input[name="activity_ids"]').forEach(function(checkbox) {
+      var box = document.getElementById('justification-box-' + checkbox.value);
+      if (!box) return;
+      var input = box.querySelector('input[type="file"]');
+      function syncJustificationField() {
+        var show = checkbox.checked && !checkbox.disabled;
+        box.classList.toggle('visible', show);
+        if (input && !show) input.value = '';
+      }
+      checkbox.addEventListener('change', syncJustificationField);
+      syncJustificationField();
+    });
   </script>
 </body>
 </html>

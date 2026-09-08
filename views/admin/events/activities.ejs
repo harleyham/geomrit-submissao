@@ -77,7 +77,10 @@
           <input id="max_participants" name="max_participants" type="number" min="1" step="1" placeholder="Máximo de participantes (vazio = sem limite)" value="<%= activityForm.max_participants || '' %>" style="width:min(320px,100%)">
         </div>
         <% const eventForcesApproval = event.registration_approval_mode === 'review'; %>
-        <label style="display:block;margin:6px 0;font-size:13px;color:var(--text-muted)"><input type="checkbox" name="requires_approval" value="1" style="margin:0 6px 0 0" <%= (eventForcesApproval || Number(activityForm.requires_approval) === 1) ? 'checked' : '' %> <%= eventForcesApproval ? 'disabled' : '' %>> Inscrição nesta atividade exige aprovação da organização<% if (eventForcesApproval) { %> <span style="color:#fdba74">(exigida pela configuração do evento: inscrições sujeitas a análise)</span><% } %></label>
+        <label style="display:block;margin:6px 0;font-size:13px;color:var(--text-muted)"><input type="checkbox" name="requires_approval" value="1" id="requires_approval" style="margin:0 6px 0 0" <%= (eventForcesApproval || Number(activityForm.requires_approval) === 1) ? 'checked' : '' %> <%= eventForcesApproval ? 'disabled' : '' %>> Inscrição nesta atividade exige aprovação da organização<% if (eventForcesApproval) { %> <span style="color:#fdba74">(exigida pela configuração do evento: inscrições sujeitas a análise)</span><% } %></label>
+        <div id="requires-justification-wrap" style="margin:6px 0 6px 22px;font-size:13px;color:var(--text-muted)" <%= (eventForcesApproval || Number(activityForm.requires_approval) === 1) ? '' : 'hidden' %>>
+          <label style="display:block"><input type="checkbox" name="requires_justification" value="1" style="margin:0 6px 0 0" <%= Number(activityForm.requires_justification) === 1 ? 'checked' : '' %>> Exigir arquivo de justificativa de participação <span style="color:var(--text-muted)">(PDF com currículo ou o motivo do interesse; obrigatório no envio do pedido de inscrição)</span></label>
+        </div>
         <% const activityFormRoles = String(activityForm.eligible_roles || '').split(',').filter(Boolean); const canBeRequired = !['breakfast','coffee_break','brunch','lunch','dinner'].includes(activityForm.activity_type || 'other') && activityFormRoles.includes('participant'); const requiredChecked = Number(activityForm.required_for_participants) === 1; const defaultChecked = Number(activityForm.default_for_participants) === 1;
         if (canBeRequired) { %>
         <label style="display:block;margin:6px 0;font-size:13px;color:var(--text-muted)"><input type="checkbox" name="required_for_participants" value="1" style="margin:0 6px 0 0" <%= requiredChecked ? 'checked' : '' %>> Obrigatória para participantes <span style="color:var(--text-muted)">(todos os participantes do evento são inscritos automaticamente; não aparece como escolha na inscrição)</span></label>
@@ -155,6 +158,7 @@
             <span style="font-size:11px;color:<%= seatsFull ? '#fca5a5' : 'var(--text-faint)' %>">Inscritos: <%= enrolled %><%= maxP !== null ? '/' + maxP : '' %></span>
             <% if (seatsFull) { %><span class="badge" style="background:var(--danger-subtle);color:var(--danger);font-size:10px">Vagas esgotadas</span><% } %>
             <% if (Number(activity.requires_approval) === 1 || event.registration_approval_mode === 'review') { %><span class="badge" style="background:#78350f;color:#fdba74;font-size:10px">Aprovação obrigatória<%= event.registration_approval_mode === 'review' && Number(activity.requires_approval) !== 1 ? ' (do evento)' : '' %></span><% } %>
+            <% if (Number(activity.requires_justification) === 1 && (Number(activity.requires_approval) === 1 || event.registration_approval_mode === 'review')) { %><span class="badge" style="background:#155e75;color:#a5f3fc;font-size:10px">Justificativa obrigatória</span><% } %>
             <span style="font-size:11px;color:var(--text-faint)">Presentes: <%= activity.attendees_count || 0 %></span>
             <% if (activity.certificate_enabled) { %><span class="badge" style="background:var(--success-subtle);color:var(--success);font-size:10px">Certificável</span><% } else if (canManageActivities) { %><form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/certificate-enabled"><input type="hidden" name="enabled" value="1"><button type="submit" style="display:inline;padding:2px 8px;font-size:10px;background:var(--surface-2);color:var(--text-faint);border:1px solid var(--border);border-radius:4px;cursor:pointer;width:auto">Ativar cert.</button></form><% } %>
           </div>
@@ -179,6 +183,21 @@
       }
       type.addEventListener('change', syncDescription);
       syncDescription();
+    })();
+  </script>
+  <script nonce="<%= cspNonce %>">
+    (function () {
+      var approval = document.getElementById('requires_approval');
+      var wrap = document.getElementById('requires-justification-wrap');
+      if (!approval || !wrap) return;
+      var justification = wrap.querySelector('input[name="requires_justification"]');
+      function syncJustification() {
+        var visible = approval.checked;
+        wrap.hidden = !visible;
+        if (!visible && justification) justification.checked = false;
+      }
+      approval.addEventListener('change', syncJustification);
+      syncJustification();
     })();
   </script>
   <script src="/lib/flatpickr/flatpickr.min.js" nonce="<%= cspNonce %>"></script>

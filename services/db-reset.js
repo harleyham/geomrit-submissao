@@ -542,6 +542,21 @@ function migrateSchema(db) {
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS activity_enrollment_justifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id INTEGER NOT NULL,
+      registration_id INTEGER NOT NULL,
+      user_id INTEGER,
+      file_path TEXT NOT NULL,
+      original_name TEXT DEFAULT '',
+      mime_type TEXT DEFAULT 'application/pdf',
+      created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      updated_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      UNIQUE(activity_id,registration_id),
+      FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+      FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
     CREATE TABLE IF NOT EXISTS activity_attendance_records (id INTEGER PRIMARY KEY AUTOINCREMENT,activity_id INTEGER NOT NULL,registration_id INTEGER,user_id INTEGER,marked_by INTEGER,attended_at DATETIME DEFAULT (datetime('now','-3 hours')),UNIQUE(activity_id,registration_id),FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS activity_certificate_rules (activity_id INTEGER PRIMARY KEY,min_attendance INTEGER NOT NULL DEFAULT 1,background_id INTEGER,FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,FOREIGN KEY(background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL);
     CREATE TABLE IF NOT EXISTS event_qr_codes (
@@ -697,6 +712,24 @@ function backfillColumnSteps(db) {
     db.prepare('UPDATE event_activities SET required_for_participants = 0 WHERE required_for_participants IS NULL').run();
     if (!activityDateColumns.includes('default_for_participants')) db.exec('ALTER TABLE event_activities ADD COLUMN default_for_participants INTEGER DEFAULT 0');
     db.prepare('UPDATE event_activities SET default_for_participants = 0 WHERE default_for_participants IS NULL').run();
+    if (!activityDateColumns.includes('requires_justification')) db.exec('ALTER TABLE event_activities ADD COLUMN requires_justification INTEGER DEFAULT 0');
+    db.prepare('UPDATE event_activities SET requires_justification = 0 WHERE requires_justification IS NULL').run();
+    db.prepare('UPDATE event_activities SET requires_justification = 0 WHERE requires_justification = 1 AND COALESCE(requires_approval,0) = 0').run();
+    db.exec(`CREATE TABLE IF NOT EXISTS activity_enrollment_justifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id INTEGER NOT NULL,
+      registration_id INTEGER NOT NULL,
+      user_id INTEGER,
+      file_path TEXT NOT NULL,
+      original_name TEXT DEFAULT '',
+      mime_type TEXT DEFAULT 'application/pdf',
+      created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      updated_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      UNIQUE(activity_id,registration_id),
+      FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+      FOREIGN KEY(registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
     const sessionVideoColumns = db.prepare('PRAGMA table_info(activity_sessions)').all().map((column) => column.name);
     if (!sessionVideoColumns.includes('video_url')) db.exec('ALTER TABLE activity_sessions ADD COLUMN video_url TEXT');
     if (!sessionVideoColumns.includes('has_video')) db.exec('ALTER TABLE activity_sessions ADD COLUMN has_video INTEGER DEFAULT 0');

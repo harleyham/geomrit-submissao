@@ -41,8 +41,25 @@ const upload = multer({
   }
 });
 
+const justificationUploadDir = path.join(uploadsDir, 'activity-justifications');
+if (!fs.existsSync(justificationUploadDir)) {
+  fs.mkdirSync(justificationUploadDir, { recursive: true });
+}
+
+// Documentos da inscricao: os arquivos de subsídio vão para uploads/ e os de
+// justificativa de atividade (campo justification_<activityId>) para
+// uploads/activity-justifications/, o mesmo diretorio do fluxo da pagina do
+// evento (inscricao-justificativa).
+const registrationStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, String(file.fieldname || '').startsWith('justification_') ? justificationUploadDir : uploadsDir),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
+  }
+});
+
 const registrationUpload = multer({
-  storage,
+  storage: registrationStorage,
   limits: { fileSize: MAX_UPLOAD_SIZE },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
@@ -62,11 +79,19 @@ function runUpload(req, res, next) {
   });
 }
 
+function getJustificationUploadFields(eventId) {
+  const numericId = Number(eventId);
+  if (!Number.isInteger(numericId) || numericId <= 0) return [];
+  return db.prepare('SELECT id FROM event_activities WHERE event_id=? AND COALESCE(requires_justification,0)=1')
+    .all(numericId).map((row) => ({ name: `justification_${row.id}`, maxCount: 1 }));
+}
+
 function runRegistrationUpload(req, res, next) {
   registrationUpload.fields([
     { name: 'academic_history_pdf', maxCount: 1 },
     { name: 'motivation_letter_pdf', maxCount: 1 },
-    { name: 'recommendation_letter_pdf', maxCount: 1 }
+    { name: 'recommendation_letter_pdf', maxCount: 1 },
+    ...getJustificationUploadFields(req.params.id)
   ])(req, res, (err) => {
     if (err) {
       req.registrationUploadError = err.code === 'LIMIT_FILE_SIZE'
@@ -75,6 +100,102 @@ function runRegistrationUpload(req, res, next) {
       return next();
     }
     return validateCsrfToken(req, res, next);
+  });
+}
+
+const justificationUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, justificationUploadDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+    }
+  }),
+  limits: { fileSize: MAX_UPLOAD_SIZE },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    cb(null, ext === '.pdf');
+  }
+});
+
+function runJustificationUpload(req, res, next) {
+  justificationUpload.single('justification_file')(req, res, (err) => {
+    if (err) {
+      req.justificationUploadError = err.code === 'LIMIT_FILE_SIZE'
+        ? 'O arquivo de justificativa excede o limite de 10 MB.'
+        : 'Falha no upload da justificativa. Envie apenas um arquivo PDF válido.';
+      return next();
+    }
+    return validateCsrfToken(req, res, next);
+  });
+}
+
+function removeActivityJustificationFile(filePath) {
+  if (!filePath || !String(filePath).startsWith('activity-justifications/')) return;
+  try { fs.unlinkSync(path.join(uploadsDir, filePath)); } catch (_) {}
+}
+
+function deleteActivityJustification(activityId, registrationId) {
+  const row = db.prepare('SELECT id,file_path FROM activity_enrollment_justifications WHERE activity_id=? AND registration_id=?').get(activityId, registrationId);
+  if (!row) return;
+  db.prepare('DELETE FROM activity_enrollment_justifications WHERE id=?').run(row.id);
+  removeActivityJustificationFile(row.file_path);
+}
+
+function getJustificationRequiredActivities(eventId, activityIds) {
+  const ids = (activityIds || []).map(Number).filter(Number.isInteger);
+  if (!ids.length) return [];
+  return db.prepare(`SELECT id, name FROM event_activities WHERE event_id=? AND COALESCE(requires_justification,0)=1 AND id IN (${ids.map(() => '?').join(',')})`)
+    .all(eventId, ...ids);
+}
+
+function getRegistrationJustificationNames(registrationId) {
+  if (!registrationId) return {};
+  const map = {};
+  db.prepare('SELECT activity_id, original_name FROM activity_enrollment_justifications WHERE registration_id=?')
+    .all(registrationId).forEach((row) => { map[Number(row.activity_id)] = row.original_name; });
+  return map;
+}
+
+// Persiste os PDFs de justificativa enviados pelo formulario de inscricao
+// (campo justification_<activityId>) na mesma tabela usada pelo fluxo da
+// pagina do evento. Uploads de atividades nao selecionadas sao descartados.
+function saveRegistrationJustifications(eventId, registrationId, userId, activityIds, uploadedFiles) {
+  const justifications = (uploadedFiles && uploadedFiles.justifications) || {};
+  const selectedIds = new Set((activityIds || []).map(Number));
+  Object.keys(justifications).forEach((key) => {
+    if (!selectedIds.has(Number(key))) {
+      removeActivityJustificationFile(`activity-justifications/${justifications[key].filename}`);
+      delete justifications[key];
+    }
+  });
+  getJustificationRequiredActivities(eventId, activityIds).forEach((activity) => {
+    const file = justifications[Number(activity.id)];
+    if (!file) return;
+    const filePath = `activity-justifications/${file.filename}`;
+    const existing = db.prepare('SELECT id, file_path FROM activity_enrollment_justifications WHERE activity_id=? AND registration_id=?').get(activity.id, registrationId);
+    if (existing) {
+      db.prepare(`UPDATE activity_enrollment_justifications SET file_path=?, original_name=?, mime_type=?, user_id=?, updated_at=datetime('now','-3 hours') WHERE id=?`)
+        .run(filePath, file.originalname, file.mimetype, userId, existing.id);
+      if (existing.file_path && existing.file_path !== filePath) removeActivityJustificationFile(existing.file_path);
+    } else {
+      db.prepare(`INSERT INTO activity_enrollment_justifications (activity_id, registration_id, user_id, file_path, original_name, mime_type, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`)
+        .run(activity.id, registrationId, userId, filePath, file.originalname, file.mimetype);
+    }
+    recordParticipantAudit({
+      eventId, registrationId, actorUserId: userId,
+      action: 'participant_activity_justification_uploaded', details: { activity_id: activity.id, source: 'registration_form' }
+    });
+  });
+}
+
+// Desmarcar uma atividade que exige justificativa remove o registro e o
+// arquivo enviados (mesma regra do cancelamento pela pagina do evento).
+function removeJustificationsForDeselectedActivities(eventId, registrationId, activityIds) {
+  const selected = new Set((activityIds || []).map(Number));
+  db.prepare('SELECT activity_id FROM activity_enrollment_justifications WHERE registration_id=?').all(registrationId).forEach((row) => {
+    if (!selected.has(Number(row.activity_id))) deleteActivityJustification(Number(row.activity_id), registrationId);
   });
 }
 
@@ -754,7 +875,7 @@ function enforceRequiredActivities(eventId, activityIds, previouslyEnrolledIds =
 }
 
 function getPublicEventActivities(eventId) {
-  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,requires_approval,COALESCE(requires_justification,0) AS requires_justification,
       (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities WHERE event_id=?
       AND activity_type NOT IN (${PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES.map(() => '?').join(',')})
@@ -876,15 +997,30 @@ function getUploadedRegistrationFiles(req) {
   const files = req.files || {};
   const getFile = (field) => Array.isArray(files[field]) && files[field][0] ? files[field][0] : null;
 
+  const justifications = {};
+  Object.keys(files).forEach((field) => {
+    if (!field.startsWith('justification_')) return;
+    const activityId = Number(field.slice('justification_'.length));
+    if (Number.isInteger(activityId) && getFile(field)) justifications[activityId] = getFile(field);
+  });
+
   return {
     academic_history_pdf: getFile('academic_history_pdf'),
     motivation_letter_pdf: getFile('motivation_letter_pdf'),
-    recommendation_letter_pdf: getFile('recommendation_letter_pdf')
+    recommendation_letter_pdf: getFile('recommendation_letter_pdf'),
+    justifications
   };
 }
 
 function removeUploadedRegistrationFiles(uploadedFiles) {
-  Object.values(uploadedFiles || {}).forEach((file) => {
+  Object.keys(uploadedFiles || {}).forEach((field) => {
+    if (field === 'justifications') {
+      Object.values(uploadedFiles.justifications || {}).forEach((file) => {
+        if (file && file.filename) removeActivityJustificationFile(`activity-justifications/${file.filename}`);
+      });
+      return;
+    }
+    const file = uploadedFiles[field];
     if (file && file.filename) removeUploadedFile(file.filename);
   });
 }
@@ -915,10 +1051,11 @@ function removeReplacedRegistrationFiles(existingRegistration, uploadedFiles) {
   if (uploadedFiles.recommendation_letter_pdf && existingRegistration.recommendation_letter_pdf_path) removeUploadedFile(existingRegistration.recommendation_letter_pdf_path);
 }
 
-function renderListenerRegistrationForm(res, event, options = {}) {
+function renderListenerRegistrationForm(req, res, event, options = {}) {
   const eventWithMeta = withSubmissionMeta(withAreaMeta(event));
   const formData = { ...(options.formData || {}) };
   formData.activity_ids = enforceRequiredActivities(event.id, formData.activity_ids || [], options.previouslyEnrolledIds || []);
+  const registrationForJustifications = getOwnedEventRegistration(event.id, req);
   res.render('public/event-register', {
     event: eventWithMeta,
     title: options.title || `Inscrição no Evento - ${event.name}`,
@@ -929,6 +1066,7 @@ function renderListenerRegistrationForm(res, event, options = {}) {
     registrationType: options.registrationType || null,
     registrationStatus: options.registrationStatus || null,
     activities: getPublicEventActivities(event.id),
+    justificationFiles: getRegistrationJustificationNames(registrationForJustifications ? registrationForJustifications.id : null),
     registrationWindow: getRegistrationWindow(eventWithMeta),
     requiredActivityIds: new Set(getRequiredParticipantActivityIds(event.id))
   });
@@ -1104,7 +1242,7 @@ router.get('/evento/:id', (req, res) => {
   const eventWithMeta = withSubmissionMeta(event);
   const isClosed = event.status === 'encerrado';
   const activities = db.prepare(`
-    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video,max_participants,requires_approval,required_for_participants,COALESCE(default_for_participants,0) AS default_for_participants,certificate_enabled,
+    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video,max_participants,requires_approval,COALESCE(requires_justification,0) AS requires_justification,required_for_participants,COALESCE(default_for_participants,0) AS default_for_participants,certificate_enabled,
       COALESCE(workload_hours,0) AS workload_hours,
       (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities
@@ -1165,10 +1303,12 @@ router.get('/evento/:id', (req, res) => {
   let enrolledActivityIds = new Set();
   let pendingActivityRequests = new Set();
   let rejectedActivityIds = new Set();
+  let justifiedActivityIds = new Set();
   if (registration) {
     if (registrationApproved) enrolledActivityIds = new Set(getRegistrationActivityIds(registration.id));
     rejectedActivityIds = new Set(parseRequestedActivityIds(registration.rejected_activity_ids));
     pendingActivityRequests = new Set(parseRequestedActivityIds(registration.requested_activity_ids).filter((id) => !enrolledActivityIds.has(id) && !rejectedActivityIds.has(id)));
+    justifiedActivityIds = new Set(db.prepare('SELECT activity_id FROM activity_enrollment_justifications WHERE registration_id=?').all(registration.id).map((row) => row.activity_id));
   }
   const canEnrollCourses = registrationApproved && !isClosed;
 
@@ -1185,6 +1325,7 @@ router.get('/evento/:id', (req, res) => {
     enrolledActivityIds,
     pendingActivityRequests,
     rejectedActivityIds,
+    justifiedActivityIds,
     canEnrollCourses,
     hasInterestActivities: interestActivities.length > 0,
     isLoggedIn: !!(req.session && req.session.userId),
@@ -1261,7 +1402,7 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
     if (!existingRegistration) registrationWindow.message = 'O evento está encerrado e não aceita novas inscrições.';
   }
 
-  return renderListenerRegistrationForm(res, event, {
+  return renderListenerRegistrationForm(req, res, event, {
     error: !registrationWindow.isOpen ? registrationWindow.message : null,
     formData: existingRegistration
       ? {
@@ -1319,7 +1460,7 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
 
   if (!registrationWindow.isOpen) {
     removeUploadedRegistrationFiles(uploadedFiles);
-    return renderListenerRegistrationForm(res, event, {
+    return renderListenerRegistrationForm(req, res, event, {
       error: registrationWindow.message,
       formData: {
         ...formData,
@@ -1328,13 +1469,14 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
         recommendation_letter_original_name: existingRegistration ? existingRegistration.recommendation_letter_original_name || '' : ''
       },
       alreadyRegistered: !!existingRegistration,
-      registrationType: existingRegistration ? existingRegistration.registration_type : null
+      registrationType: existingRegistration ? existingRegistration.registration_type : null,
+      registrationStatus: existingRegistration ? existingRegistration.registration_status : null
     });
   }
 
   if (req.registrationUploadError) {
     removeUploadedRegistrationFiles(uploadedFiles);
-    return renderListenerRegistrationForm(res, event, {
+    return renderListenerRegistrationForm(req, res, event, {
       error: req.registrationUploadError,
       formData: {
         ...formData,
@@ -1343,7 +1485,8 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
         recommendation_letter_original_name: existingRegistration ? existingRegistration.recommendation_letter_original_name || '' : ''
       },
       alreadyRegistered: !!existingRegistration,
-      registrationType: existingRegistration ? existingRegistration.registration_type : null
+      registrationType: existingRegistration ? existingRegistration.registration_type : null,
+      registrationStatus: existingRegistration ? existingRegistration.registration_status : null
     });
   }
 
@@ -1357,7 +1500,7 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
 
   if (errors.length > 0) {
     removeUploadedRegistrationFiles(uploadedFiles);
-    return renderListenerRegistrationForm(res, event, {
+    return renderListenerRegistrationForm(req, res, event, {
       error: errors.join(' '),
       formData: {
         ...formData,
@@ -1366,16 +1509,20 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
         recommendation_letter_original_name: existingRegistration ? existingRegistration.recommendation_letter_original_name || '' : ''
       },
       alreadyRegistered: !!existingRegistration,
-      registrationType: existingRegistration ? existingRegistration.registration_type : null
+      registrationType: existingRegistration ? existingRegistration.registration_type : null,
+      registrationStatus: existingRegistration ? existingRegistration.registration_status : null
     });
   }
 
   const documentMeta = buildRegistrationDocumentMeta(existingRegistration, uploadedFiles);
 
   if (existingRegistration) {
-    if (event.registration_approval_mode === 'review') {
+    // No modo analise, a organizacao define as atividades na aprovacao, mas
+    // enquanto a inscricao esta pendente o participante pode editar os
+    // pedidos (inclusive enviar justificativas das atividades que exigem).
+    if (event.registration_approval_mode === 'review' && existingRegistration.registration_status !== 'pending') {
       removeUploadedRegistrationFiles(uploadedFiles);
-      return renderListenerRegistrationForm(res, event, {
+      return renderListenerRegistrationForm(req, res, event, {
         error: 'As atividades desta inscrição são definidas pela análise da organização e não podem ser alteradas por esta página.',
         formData: { ...formData, activity_ids: existingRegistration.registration_status === 'pending' ? parseRequestedActivityIds(existingRegistration.requested_activity_ids) : getRegistrationActivityIds(existingRegistration.id) },
         alreadyRegistered: true, registrationType: existingRegistration.registration_type, registrationStatus: existingRegistration.registration_status
@@ -1424,12 +1571,14 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
     } else {
       saveRegistrationActivities(existingRegistration.id, req.session.userId, formData.activity_ids);
     }
+    saveRegistrationJustifications(event.id, existingRegistration.id, req.session.userId, formData.activity_ids, uploadedFiles);
+    removeJustificationsForDeselectedActivities(event.id, existingRegistration.id, formData.activity_ids);
     recordParticipantAudit({
       eventId: event.id, registrationId: existingRegistration.id, actorUserId: req.session.userId,
       action: 'participant_activities_updated_self_service', details: { activity_ids: formData.activity_ids }
     });
 
-    return renderListenerRegistrationForm(res, event, {
+    return renderListenerRegistrationForm(req, res, event, {
       success: nextType === 'author'
         ? 'Sua participação já estava registrada como apresentador neste evento.'
         : awaitingReview ? 'Sua solicitação de inscrição continua aguardando análise.' : 'Sua inscrição como participante já estava registrada neste evento.',
@@ -1480,6 +1629,7 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
   if (event.registration_approval_mode !== 'review') {
     saveRegistrationActivities(registrationResult.lastInsertRowid, req.session.userId, formData.activity_ids);
   }
+  saveRegistrationJustifications(event.id, registrationResult.lastInsertRowid, req.session.userId, formData.activity_ids, uploadedFiles);
   recordParticipantAudit({
     eventId: event.id, registrationId: registrationResult.lastInsertRowid, actorUserId: req.session.userId,
     action: 'participant_activities_selected_on_registration', details: { activity_ids: formData.activity_ids, registration_status: event.registration_approval_mode === 'review' ? 'pending' : 'approved' }
@@ -1494,7 +1644,7 @@ router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorA
     console.error('[email] Falha ao enfileirar confirmação da inscrição pública:', error.message);
   }
 
-  return renderListenerRegistrationForm(res, event, {
+  return renderListenerRegistrationForm(req, res, event, {
     success: event.registration_approval_mode === 'review' ? 'Solicitação de inscrição enviada. Aguarde a análise da organização.' : 'Inscrição realizada com sucesso.',
       formData: {
         ...formData,
@@ -1725,7 +1875,7 @@ router.post('/evento/:id/atividades/inscricao', activityEnrollLimiter, requireNo
   const enable = String(req.body.enabled) !== '0';
   if (!Number.isInteger(activityId) || activityId <= 0) return fail('Atividade inválida.');
   const activity = db.prepare(`
-    SELECT id,name,requires_approval FROM event_activities
+    SELECT id,name,requires_approval,COALESCE(requires_justification,0) AS requires_justification FROM event_activities
     WHERE id=? AND event_id=? AND activity_type='course'
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
   `).get(activityId, event.id);
@@ -1760,6 +1910,9 @@ router.post('/evento/:id/atividades/inscricao', activityEnrollLimiter, requireNo
   if (enable) {
     if (enrollment) return finish(true, { state: 'enrolled', ...getActivitySeats(activityId) }, 'success=' + encodeURIComponent(`Você já está inscrito em "${activity.name}".`));
     if (rejectedIds.includes(activityId)) return fail(`O pedido de inscrição em "${activity.name}" foi negado pela organização. Entre em contato com ela para mais informações.`);
+    if (requiresAnalysis && Number(activity.requires_justification) === 1 && !db.prepare('SELECT 1 AS sent FROM activity_enrollment_justifications WHERE activity_id=? AND registration_id=?').get(activityId, registration.id)) {
+      return fail(`A inscrição em "${activity.name}" exige o envio de um arquivo de justificativa (PDF com o currículo ou o motivo do interesse). Marque a atividade novamente para enviar o arquivo.`);
+    }
     if (requiresAnalysis) {
       if (!requestedIds.includes(activityId)) updateRequested([...requestedIds, activityId]);
       recordParticipantAudit({
@@ -1791,6 +1944,7 @@ router.post('/evento/:id/atividades/inscricao', activityEnrollLimiter, requireNo
     if (attended) return fail(`Não é possível cancelar "${activity.name}": você já possui presença registrada nesta atividade.`);
     db.transaction(() => {
       db.prepare('DELETE FROM participant_activity_enrollments WHERE activity_id=? AND registration_id=?').run(activityId, registration.id);
+      deleteActivityJustification(activityId, registration.id);
       recordParticipantAudit({
         eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
         action: 'participant_activity_unenrolled_self', details: { activity_id: activityId, source: 'event_page' }
@@ -1800,6 +1954,7 @@ router.post('/evento/:id/atividades/inscricao', activityEnrollLimiter, requireNo
   }
   if (requestedIds.includes(activityId)) {
     updateRequested(requestedIds.filter((id) => id !== activityId));
+    deleteActivityJustification(activityId, registration.id);
     recordParticipantAudit({
       eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
       action: 'participant_activity_request_canceled', details: { activity_id: activityId, source: 'event_page' }
@@ -1807,6 +1962,78 @@ router.post('/evento/:id/atividades/inscricao', activityEnrollLimiter, requireNo
     return finish(true, { state: 'none' }, `success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" cancelado.`)}`);
   }
   return finish(true, { state: 'none', ...getActivitySeats(activityId) }, 'success=' + encodeURIComponent(''));
+});
+
+// Pedido de inscricao em atividade que exige justificativa: o participante envia
+// um PDF (curriculo ou motivo do interesse) junto com o pedido de analise.
+router.post('/evento/:id/atividades/inscricao-justificativa', activityEnrollLimiter, requireNonAdminAuthorAccess, runJustificationUpload, (req, res) => {
+  const fail = (message) => res.redirect(`/evento/${req.params.id}?error=${encodeURIComponent(message)}`);
+  if (req.justificationUploadError) {
+    if (req.file) removeActivityJustificationFile(`activity-justifications/${req.file.filename}`);
+    return fail(req.justificationUploadError);
+  }
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  if (event.status === 'encerrado') return fail('O evento está encerrado e não permite inscrições em atividades.');
+
+  const activityId = Number(req.body.activity_id);
+  if (!Number.isInteger(activityId) || activityId <= 0) return fail('Atividade inválida.');
+  const activity = db.prepare(`
+    SELECT id,name,requires_approval,COALESCE(requires_justification,0) AS requires_justification FROM event_activities
+    WHERE id=? AND event_id=? AND activity_type='course'
+      AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
+  `).get(activityId, event.id);
+  if (!activity) return fail('Esta atividade não está aberta para inscrição de participantes.');
+  const requiresAnalysis = event.registration_approval_mode === 'review' || Number(activity.requires_approval) === 1;
+  if (!requiresAnalysis || Number(activity.requires_justification) !== 1) {
+    return fail(`"${activity.name}" não exige envio de justificativa. Marque a atividade na página para solicitá-la.`);
+  }
+  let requiredForParticipants = 0;
+  try { requiredForParticipants = db.prepare('SELECT (COALESCE(required_for_participants,0) = 1 OR COALESCE(default_for_participants,0) = 1) AS flag FROM event_activities WHERE id=?').get(activityId).flag || 0; } catch (_) { requiredForParticipants = 0; }
+  if (Number(requiredForParticipants) === 1) return fail(`"${activity.name}" é obrigatória: todos os participantes são inscritos nela automaticamente.`);
+
+  const registration = getOwnedEventRegistration(event.id, req);
+  if (!registration) return res.redirect(`/evento/${event.id}/inscricao?error=${encodeURIComponent('Faça a sua inscrição no evento para solicitar minicursos.')}`);
+  if (registration.registration_status !== 'approved') {
+    return fail(registration.registration_status === 'pending' ? 'Sua inscrição no evento ainda está aguardando análise.' : 'Sua inscrição no evento não foi aprovada.');
+  }
+
+  const enrollment = db.prepare('SELECT id FROM participant_activity_enrollments WHERE activity_id=? AND registration_id=?').get(activityId, registration.id);
+  if (enrollment) return fail(`Você já está inscrito em "${activity.name}".`);
+  const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
+  const rejectedIds = parseRequestedActivityIds(registration.rejected_activity_ids);
+  if (rejectedIds.includes(activityId)) return fail(`O pedido de inscrição em "${activity.name}" foi negado pela organização. Entre em contato com ela para mais informações.`);
+  if (!req.file) return fail('Envie o arquivo de justificativa em PDF (currículo ou motivo do interesse).');
+
+  const filePath = `activity-justifications/${req.file.filename}`;
+  try {
+    db.transaction(() => {
+      const existing = db.prepare('SELECT id,file_path FROM activity_enrollment_justifications WHERE activity_id=? AND registration_id=?').get(activityId, registration.id);
+      if (existing) {
+        db.prepare(`UPDATE activity_enrollment_justifications SET file_path=?,original_name=?,mime_type=?,user_id=?,updated_at=datetime('now','-3 hours') WHERE id=?`)
+          .run(filePath, req.file.originalname, req.file.mimetype, req.session.userId, existing.id);
+      } else {
+        db.prepare(`INSERT INTO activity_enrollment_justifications (activity_id,registration_id,user_id,file_path,original_name,mime_type,created_at,updated_at)
+          VALUES (?,?,?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`)
+          .run(activityId, registration.id, req.session.userId, filePath, req.file.originalname, req.file.mimetype);
+      }
+      if (!requestedIds.includes(activityId)) {
+        db.prepare("UPDATE event_registrations SET requested_activity_ids=?,updated_at=datetime('now','-3 hours') WHERE id=?")
+          .run(JSON.stringify([...requestedIds, activityId]), registration.id);
+      }
+      recordParticipantAudit({
+        eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+        action: 'participant_activity_requested', details: { activity_id: activityId, justification: true, source: 'event_page' }
+      });
+    })();
+  } catch (error) {
+    removeActivityJustificationFile(filePath);
+    return fail((error && error.message) || 'Não foi possível enviar o pedido de inscrição.');
+  }
+  if (!requestedIds.includes(activityId)) {
+    return res.redirect(`/evento/${event.id}?success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" enviado com a justificativa para análise da organização.`)}`);
+  }
+  return res.redirect(`/evento/${event.id}?success=${encodeURIComponent(`Justificativa de inscrição em "${activity.name}" atualizada.`)}`);
 });
 
 // Presença por QR Code do participante (um código por usuário e por evento) — helpers em services/cracha.js

@@ -485,11 +485,14 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
     ORDER BY created_at DESC
     LIMIT 10
   `).all();
+  // Inclui inscrições pendentes: em eventos no modo análise os pedidos de
+  // atividade chegam junto com a inscrição pendente (requested_activity_ids),
+  // não apenas nas alterações feitas por quem já está aprovado.
   const activityRequestCandidates = db.prepare(`
     SELECT er.id, er.event_id, er.name, er.email, er.requested_activity_ids, er.rejected_activity_ids, er.updated_at, e.name AS event_name
     FROM event_registrations er
     JOIN events e ON e.id = er.event_id
-    WHERE er.registration_status = 'approved'
+    WHERE er.registration_status IN ('approved','pending')
       AND e.status != 'encerrado'
       AND er.requested_activity_ids IS NOT NULL
       AND er.requested_activity_ids != '[]'

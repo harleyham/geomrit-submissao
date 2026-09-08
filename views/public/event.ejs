@@ -340,15 +340,17 @@
                        var isEnrolled = isCourse && typeof enrolledActivityIds !== 'undefined' && enrolledActivityIds.has(a.id);
                        var isRequested = isCourse && typeof pendingActivityRequests !== 'undefined' && pendingActivityRequests.has(a.id);
                        var isDenied = isCourse && !isEnrolled && typeof rejectedActivityIds !== 'undefined' && rejectedActivityIds.has(a.id);
-                       var canToggle = isCourse && canEnrollCourses && !isEnrolled && !isRequested && !isDenied && (!seats || !seats.full); %>
+                       var canToggle = isCourse && canEnrollCourses && !isEnrolled && !isRequested && !isDenied && (!seats || !seats.full);
+                       var requiresJustification = isCourse && Number(a.requires_justification) === 1 && (event.registration_approval_mode === 'review' || Number(a.requires_approval) === 1);
+                       var hasJustification = isCourse && typeof justifiedActivityIds !== 'undefined' && justifiedActivityIds.has(a.id); %>
                         <% var isRequired = Number(a.required_for_participants) === 1; var isDefaultAct = !isRequired && Number(a.default_for_participants) === 1; var requiredBadge = isRequired ? ' <span class="badge" style="background:var(--primary-hover);color:var(--link);margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span>' : (isDefaultAct ? ' <span class="badge" style="background:var(--success);color:var(--on-success);margin-left:6px;font-size:10px;vertical-align:middle">Padrão</span>' : ''); %>
                       <div class="act-item">
                         <% if (isCourse) { %>
                           <label class="act-item-interest">
-                            <input type="checkbox" class="course-enroll" data-activity="<%= a.id %>" data-url="/evento/<%= event.id %>/atividades/inscricao" <%= (isEnrolled || isRequested) ? 'checked' : '' %> <%= canToggle ? '' : 'disabled' %>>
+                            <input type="checkbox" class="course-enroll" data-activity="<%= a.id %>" data-url="/evento/<%= event.id %>/atividades/inscricao" data-requires-justification="<%= requiresJustification ? '1' : '0' %>" data-justified="<%= hasJustification ? '1' : '0' %>" <%= (isEnrolled || isRequested) ? 'checked' : '' %> <%= canToggle ? '' : 'disabled' %>>
                             <span class="act-item-title"><%= a.name %><%- requiredBadge %></span>
                           </label>
-                          <% var enrollState = []; if (seats) { enrollState.push('Inscritos: ' + seats.enrolled + '/' + seats.max + (seats.full ? ' · Esgotado' : (' · Restam ' + seats.remaining + ' vaga' + (seats.remaining === 1 ? '' : 's')))); } if (isEnrolled) { enrollState.push('✓ Inscrito'); } else if (isRequested) { enrollState.push('Pedido em análise'); } else if (isDenied) { enrollState.push('Pedido negado pela organização'); } else if (!canEnrollCourses) { enrollState.push(registration ? 'Inscrição no evento necessária para solicitar' : 'Entre e inscreva-se no evento para solicitar'); } %>
+                          <% var enrollState = []; if (seats) { enrollState.push('Inscritos: ' + seats.enrolled + '/' + seats.max + (seats.full ? ' · Esgotado' : (' · Restam ' + seats.remaining + ' vaga' + (seats.remaining === 1 ? '' : 's')))); } if (isEnrolled) { enrollState.push('✓ Inscrito'); } else if (isRequested) { enrollState.push(hasJustification ? 'Pedido em análise · justificativa enviada' : 'Pedido em análise'); } else if (isDenied) { enrollState.push('Pedido negado pela organização'); } else if (!canEnrollCourses) { enrollState.push(registration ? 'Inscrição no evento necessária para solicitar' : 'Entre e inscreva-se no evento para solicitar'); } else if (requiresJustification) { enrollState.push('Exige justificativa em PDF (currículo ou motivo do interesse)'); } %>
                           <small class="act-item-meta course-enroll-state" style="color:var(--text-muted)"><%= enrollState.join(' · ') %></small>
                           <small class="course-enroll-feedback" hidden style="display:block;color:var(--danger)"></small>
                         <% } else if (isInterest) { %>
@@ -379,6 +381,22 @@
                 <span id="interest-status" class="interest-status" role="status" aria-live="polite"></span>
               </div>
             </form>
+            <% } %>
+            <% var anyJustificationRequired = (activities || []).some(function(x) { return x.activity_type === 'course' && Number(x.requires_justification) === 1 && (event.registration_approval_mode === 'review' || Number(x.requires_approval) === 1); }); %>
+            <% if (anyJustificationRequired) { %>
+            <div id="course-justification-panel" hidden style="margin:0 0 14px;padding:14px 16px;border:1px solid var(--primary-border);border-radius:12px;background:var(--surface-selected)">
+              <form method="POST" action="/evento/<%= event.id %>/atividades/inscricao-justificativa" enctype="multipart/form-data">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="activity_id" id="justification-activity-id" value="">
+                <strong>Justificativa de participação — <span id="justification-activity-name"></span></strong>
+                <p class="interest-form-help" style="margin:.4rem 0 .6rem">Esta atividade exige aprovação da organização e o envio de um arquivo de justificativa: anexe seu currículo ou explique por que deseja participar (PDF, máximo 10 MB).</p>
+                <input type="file" name="justification_file" accept="application/pdf,.pdf" required>
+                <div class="interest-form-actions">
+                  <button type="submit" class="btn btn-primary">Enviar pedido com justificativa</button>
+                  <button type="button" id="course-justification-cancel" class="btn btn-secondary">Cancelar</button>
+                </div>
+              </form>
+            </div>
             <% } %>
           </div>
           <div class="activities-view activities-view-list">
@@ -718,6 +736,13 @@
   (function() {
     function init() {
       var boxes = Array.prototype.slice.call(document.querySelectorAll('input.course-enroll'));
+      var panel = document.getElementById('course-justification-panel');
+      var panelId = document.getElementById('justification-activity-id');
+      var panelName = document.getElementById('justification-activity-name');
+      var cancelBtn = document.getElementById('course-justification-cancel');
+      if (panel && cancelBtn) {
+        cancelBtn.addEventListener('click', function() { panel.hidden = true; });
+      }
       if (!boxes.length) return;
           var csrf = '<%- csrfToken %>';
           var queue = Promise.resolve();
@@ -728,6 +753,17 @@
           }
           boxes.forEach(function(cb) {
         cb.addEventListener('change', function() {
+          if (panel && cb.checked && cb.getAttribute('data-requires-justification') === '1' && cb.getAttribute('data-justified') !== '1') {
+            cb.checked = false;
+            if (panelId) panelId.value = cb.getAttribute('data-activity');
+            if (panelName) {
+              var titleEl = cb.parentElement ? cb.parentElement.querySelector('.act-item-title') : null;
+              panelName.textContent = titleEl ? titleEl.textContent : '';
+            }
+            panel.hidden = false;
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
           var item = cb.closest('.act-item');
           var feedback = item ? item.querySelector('.course-enroll-feedback') : null;
           var state = item ? item.querySelector('.course-enroll-state') : null;

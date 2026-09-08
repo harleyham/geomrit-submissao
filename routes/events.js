@@ -1920,6 +1920,7 @@ function buildActivityDraft(req, existing) {
     has_video: req.body.has_video === '1' ? 1 : 0,
     max_participants: String(req.body.max_participants || '').trim() || null,
     requires_approval: req.body.requires_approval === '1' ? 1 : 0,
+    requires_justification: req.body.requires_justification === '1' ? 1 : 0,
     certificate_enabled: req.body.certificate_enabled === '1' ? 1 : 0,
     eligible_roles: submittedRoles.join(','),
     session_count: existing ? (existing.session_count != null ? existing.session_count : db.prepare('SELECT COUNT(*) AS count FROM activity_sessions WHERE activity_id=?').get(existing.id).count) : 0,
@@ -2025,14 +2026,15 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
     return failActivities(seatSettings.error);
   }
   const requiresApproval = event.registration_approval_mode === 'review' ? 1 : (req.body.requires_approval === '1' ? 1 : 0);
+  const requiresJustification = requiresApproval === 1 && req.body.requires_justification === '1' ? 1 : 0;
   let createdActivityId = null;
   try {
     db.transaction(() => {
       const created = db.prepare(`INSERT INTO event_activities
-        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval,required_for_participants,default_for_participants)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval,required_for_participants,default_for_participants,requires_justification)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         event.id, name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours,
-        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants
+        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, requiresJustification
       );
       createdActivityId = created.lastInsertRowid;
       if (allocation.roomId) {
@@ -2100,12 +2102,13 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   }
   const parentEvent = db.prepare('SELECT registration_approval_mode FROM events WHERE id=?').get(activity.event_id);
   const requiresApproval = parentEvent && parentEvent.registration_approval_mode === 'review' ? 1 : (req.body.requires_approval === '1' ? 1 : 0);
+  const requiresJustification = requiresApproval === 1 && req.body.requires_justification === '1' ? 1 : 0;
   try {
     db.transaction(() => {
       db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,time_start=?,time_end=?,workload_hours=?,
-        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=?,required_for_participants=?,default_for_participants=? WHERE id=?`).run(
+        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=?,required_for_participants=?,default_for_participants=?,requires_justification=? WHERE id=?`).run(
         name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
-        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, activity.id
+        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, requiresJustification, activity.id
       );
       syncSessionWorkloadLock(activity.id, workloadHours);
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
@@ -3351,7 +3354,7 @@ router.get('/:id/participants/user-search', strictLimiter, (req, res) => {
 
 function getActivitiesForParticipantForm(eventId) {
   const nonSelectableTypes = ['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'];
-  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,required_for_participants,COALESCE(default_for_participants,0) AS default_for_participants,
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,required_for_participants,COALESCE(default_for_participants,0) AS default_for_participants,COALESCE(requires_justification,0) AS requires_justification,
       (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities WHERE event_id=? AND activity_type NOT IN (${nonSelectableTypes.map(() => '?').join(',')}) ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId, ...nonSelectableTypes)
     .map((activity) => {
@@ -3452,8 +3455,13 @@ function getPendingActivityRequests(registration) {
   const rejected = new Set(parseRequestedActivityIds(registration.rejected_activity_ids));
   const pending = requestedIds.filter((id) => !enrolled.includes(id) && !rejected.has(id));
   if (!pending.length) return [];
-  return db.prepare(`SELECT id,name FROM event_activities WHERE event_id=? AND id IN (${pending.map(() => '?').join(',')})`)
-    .all(registration.event_id, ...pending);
+  return db.prepare(`SELECT id,name,COALESCE(requires_justification,0) AS requires_justification,(SELECT COUNT(*) FROM activity_enrollment_justifications j WHERE j.activity_id=event_activities.id AND j.registration_id=?) AS has_justification FROM event_activities WHERE event_id=? AND id IN (${pending.map(() => '?').join(',')})`)
+    .all(registration.id, registration.event_id, ...pending);
+}
+
+function getJustifiedActivityIds(registrationId) {
+  if (!registrationId) return new Set();
+  return new Set(db.prepare('SELECT activity_id FROM activity_enrollment_justifications WHERE registration_id=?').all(registrationId).map((row) => row.activity_id));
 }
 
 function validateParticipantActivities(eventId, activityIds) {
@@ -3522,6 +3530,7 @@ function renderParticipantFormError(res, event, registration, formData, error) {
     selectedExistingUser: formData.account_mode === 'existing' ? getParticipantSelectableUser(formData.existing_user_id) : null,
     activities: getActivitiesForParticipantForm(event.id),
     pendingActivityRequests: registration ? getPendingActivityRequests(registration) : [],
+    justifiedActivityIds: getJustifiedActivityIds(registration && registration.id),
     eventRoles: getParticipantEventRoles(event.id, registration && registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
     areas: areas,
@@ -3669,7 +3678,7 @@ router.get('/:id/participants/:registrationId/review', (req, res) => {
   const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids);
   const requiredIds = getRequiredParticipantActivityIdsAdmin(event.id);
   const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)) || requiredIds.includes(Number(activity.id)));
-  return res.render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities, requiredIds: new Set(requiredIds), error: null });
+  return res.render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities, requiredIds: new Set(requiredIds), justifiedActivityIds: getJustifiedActivityIds(registration.id), error: null });
 });
 
 router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res) => {
@@ -3686,6 +3695,7 @@ router.post('/:id/participants/:registrationId/review', strictLimiter, (req, res
     const reviewedActivities = [...getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id))),
       ...getActivitiesForParticipantForm(event.id).filter((activity) => requiredIds.includes(Number(activity.id)) && !requestedIds.includes(Number(activity.id)))];
     return res.status(400).render('admin/events/participant-review', { title: `Analisar inscrição - ${event.name}`, event, registration, activities: reviewedActivities,
+      justifiedActivityIds: getJustifiedActivityIds(registration.id),
       error: invalid ? 'Selecione apenas atividades solicitadas pela pessoa.' : 'Selecione ao menos uma atividade para aprovar, ou rejeite a solicitação.' });
   }
   const activities = getActivitiesForParticipantForm(event.id).filter((activity) => requestedIds.includes(Number(activity.id)) || requiredIds.includes(Number(activity.id)));
@@ -3768,6 +3778,24 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
   return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" negado. A pessoa ficará impossibilitada de solicitá-la novamente.`)}`);
 });
 
+// Download (visualizacao) do arquivo de justificativa enviado pelo participante
+// ao solicitar inscricao em atividade que exige justificativa.
+router.get('/:id/participants/:registrationId/activities/:activityId/justification', (req, res) => {
+  const registration = getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
+  if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
+  const activity = db.prepare('SELECT id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const row = db.prepare('SELECT file_path,original_name FROM activity_enrollment_justifications WHERE activity_id=? AND registration_id=?').get(activity.id, registration.id);
+  if (!row || !row.file_path || !String(row.file_path).startsWith('activity-justifications/')) {
+    return res.status(404).render('error', { title: 'Justificativa não encontrada' });
+  }
+  const absolutePath = path.join(__dirname, '..', 'uploads', row.file_path);
+  if (!fs.existsSync(absolutePath)) return res.status(404).render('error', { title: 'Arquivo de justificativa não encontrado' });
+  res.type('application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${String(row.original_name || 'justificativa.pdf').replace(/"/g, '')}"`);
+  return res.sendFile(absolutePath);
+});
+
 router.get('/:id/participants/:registrationId/edit', (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
@@ -3798,6 +3826,7 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
     selectedExistingUser: null,
     activities: getActivitiesForParticipantForm(event.id),
     pendingActivityRequests: getPendingActivityRequests(registration),
+    justifiedActivityIds: getJustifiedActivityIds(registration.id),
     eventRoles: getParticipantEventRoles(event.id, registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
     areas: areas,
