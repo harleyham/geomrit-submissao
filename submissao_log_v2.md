@@ -689,6 +689,26 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Docs: `manual.md` (botões de status), `submissao.md` (tabela de rotas).
 - Status: **implementado e verificado** (`node --check` OK; efetivo após reinício).
 
+### Atividades automáticas: checkbox "Padrão para todos os participantes" (default_for_participants)
+
+- Pedido: além das **obrigatórias** (ex.: credenciamento), a organização precisa marcar atividades que **oferece a todos** (ex.: sessão de abertura, coquetel) como incluídas automaticamente na inscrição. As atividades obrigatórias ou padrão **não devem aparecer como escolha** na inscrição do participante. Decisões do usuário (07/09): as duas flags têm a mesma mecânica e diferem só pelo rótulo/badge; ao marcar a flag, a inscrição é **retroativa** a todos os aprovados do evento (desmarcar não remove inscrições).
+- Schema (`services/db-reset.js`): coluna nova `event_activities.default_for_participants INTEGER DEFAULT 0` no DDL de criação e no bloco idempotente `backfillColumnSteps` (roda em todo boot; sem bump de `SCHEMA_VERSION`, no padrão do fix de `system_settings.theme`).
+- Formulário administrativo (`views/admin/events/activities.ejs` + `routes/events.js`): checkbox "Padrão para todos os participantes" ao lado do "Obrigatória", mesmo gate (`participant` elegível + tipo não-logístico); `buildActivityDraft` grava a flag só quando elegível; INSERT/UPDATE atualizados. Badges na listagem: "Obrigatória" (primário) e "Padrão" (cor de sucesso).
+- **Backfill retroativo** (`applyAutomaticActivityEnrollments` em `routes/events.js`): no create/update com qualquer flag ligada, inscreve em transação todos os `event_registrations` aprovados ainda não inscritos; minicurso com `max_participants` inscreve até esgotar e o redirect informa quantos entraram ("incluídos automaticamente") e quantos ficaram de fora por vaga; desligar a flag preserva inscrições.
+- Fora da escolha do participante (`routes/public.js`): `getPublicEventActivities` passa a excluir automáticas (somem da inscrição e da lista de escolha); `validateRegistrationActivities` aceita ids de automáticas do mesmo evento (inscrições existentes com retroativo continuam salvando; id de outro evento segue rejeitado); `getRequiredParticipantActivityIds` (público) e `getRequiredParticipantActivityIdsAdmin` passaram a considerar `required_for_participants = 1 OR default_for_participants = 1` — propaga para `enforceRequiredActivities` (inscrição e re-seleção), `enforceRequiredActivitiesAdmin` (participante novo/edição), aprovação de pedidos (`approvedIds` na análise) e regra de vagas; endpoint de auto-inscrição de minicurso recusa desmarcar automáticas.
+- Importação por evento (`/admin/events/:id/import-users`): toda inscrição criada pela planilha já entra nas atividades automáticas do evento (`enrollImportedInAutomaticActivities`; corrige também a lacuna existente para as obrigatórias).
+- Views: `event-register.ejs` aviso "as atividades obrigatórias e padrão já estão incluídas automaticamente" (e estado vazio ajustado quando só há automáticas); `event-activities.ejs` badge "Padrão" + input oculto/bloqueado para inscritas automáticas; `event.ejs` badges nos Cards e na Lista; `participant-form.ejs` automáticas marcadas e travadas (bônus: a flag `required_for_participants` não era selecionada em `getActivitiesForParticipantForm` — travadura não aparecia; corrigido); `participant-review.ejs` badge "Padrão" nas aprovadas automaticamente.
+- Verificação: `node --check` em `routes/events.js`, `routes/public.js`, `services/db-reset.js` e compilação EJS das 6 views OK. E2E em sandbox isolado (porta 3106, banco limpo) iniciado — colunas conferidas no boot limpo; bateria completa com seed HTTP **pendente de conclusão** (bug no harness de seed, não na aplicação); validação funcional pelo administrador no dev recomendada após reinício.
+- Docs: `submissao.md` (regras de atividades automáticas), `README.md`, `manual.md` (Seções 6/7).
+- Status: **implementado**; verificação E2E completa pendente.
+
+### Correções de UI por paleta (selects, banners e Verde)
+
+- Selects de paleta (dashboard) ilegíveis: no dropdown nativo o navegador desenha as `<option>` com fundo branco e a letra herdava a cor clara do tema — `views/partials/theme.ejs` ganhou `select option, select optgroup { background-color: var(--surface-2); color: var(--text); }` (fundo sólido por tema em todos os combobox do sistema).
+- Banner "Paleta aplicada" do dashboard ficava azul: `views/admin/dashboard.ejs` passou de `--surface-selected`/`--link` para os tokens de sucesso (`--success-subtle`/`--success-border`/`--success`), acompanhando a paleta ativa.
+- Cards de escolha de atividade com fundo azul ao marcar na paleta **Verde**: o token `sipam.surfaceSelected` era azulado (`rgba(37,74,145,0.2)`) e é usado pelo `:has(input:checked)` dos cards (`event-register.ejs`, `event-activities.ejs`, `participant-form.ejs`, `event.ejs`) — trocado para verde `rgba(65,150,85,0.22)` em `services/theme.js`.
+- Status: **implementado** (commit `a460b9b` + `096fc95`).
+
 ### Meus comentários de funções a implementar
 
 - Fotinha redonda e mini currículo dos palestrantes e professores
