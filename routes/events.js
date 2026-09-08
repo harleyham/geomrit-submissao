@@ -1380,6 +1380,15 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
   const findUserByCpf = db.prepare("SELECT id, name, email, institution, phone, cpf FROM users WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = ? LIMIT 1");
   const findUserByPassport = db.prepare("SELECT id, name, email, institution, phone, passport FROM users WHERE UPPER(REPLACE(passport,' ','')) = UPPER(?) LIMIT 1");
   const findUserByEmail = db.prepare("SELECT id, name, email, institution, phone FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1");
+  // Inscreve as pessoas importadas tambem nas atividades automaticas do evento
+  // (obrigatorias ou padrao para todos), no padrao dos fluxos administrativos.
+  const insertImportEnrollment = db.prepare(`INSERT OR IGNORE INTO participant_activity_enrollments
+    (activity_id,registration_id,user_id,enrolled_by,created_at,updated_at)
+    VALUES(?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`);
+  const importAutomaticActivityIds = getRequiredParticipantActivityIdsAdmin(event.id);
+  const enrollImportedInAutomaticActivities = (registrationId, userId) => {
+    importAutomaticActivityIds.forEach((activityId) => insertImportEnrollment.run(activityId, registrationId, userId, req.session.userId));
+  };
 
    const defaultPassword = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   let imported = 0;
@@ -1431,6 +1440,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
               phone || existing.phone || null
             );
             if (!registrationResult.changes) throw new Error('A inscrição já existe para outro identificador deste evento.');
+            enrollImportedInAutomaticActivities(registrationResult.lastInsertRowid, existing.id);
             registered += 1;
             report.push({ name: existing.name, email: canonicalEmail, status: 'success', detail: 'Usuário existente — inscrito no evento' });
           } catch (dbErr) {
@@ -1464,6 +1474,8 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
             cpf || null, passport || null, phone || null
           ).lastInsertRowid;
           insertRegistration.run(event.id, userId, nameToUse, email || null, institution || null, phone || null);
+          const newReg = findRegistration.get(event.id, userId);
+          if (newReg) enrollImportedInAutomaticActivities(newReg.id, userId);
           imported += 1;
           registered += 1;
           report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado e inscrito no evento' });
@@ -1897,6 +1909,7 @@ function buildActivityDraft(req, existing) {
     name: String(req.body.name || ''),
     activity_type: draftType,
     required_for_participants: (req.body.required_for_participants === '1' && canBeRequired) ? 1 : 0,
+    default_for_participants: (req.body.default_for_participants === '1' && canBeRequired) ? 1 : 0,
     description: String(req.body.description || ''),
     date_start: req.body.date_start || null,
     date_end: req.body.date_end || null,
@@ -2012,14 +2025,16 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
     return failActivities(seatSettings.error);
   }
   const requiresApproval = event.registration_approval_mode === 'review' ? 1 : (req.body.requires_approval === '1' ? 1 : 0);
+  let createdActivityId = null;
   try {
     db.transaction(() => {
       const created = db.prepare(`INSERT INTO event_activities
-        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval,required_for_participants)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval,required_for_participants,default_for_participants)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         event.id, name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours,
-        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants
+        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants
       );
+      createdActivityId = created.lastInsertRowid;
       if (allocation.roomId) {
         rooms.syncTargetAssignments({ eventId: event.id, activityId: created.lastInsertRowid, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
       }
@@ -2027,7 +2042,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   } catch (error) {
     return failActivities((error && error.message) || 'Não foi possível salvar a atividade.');
   }
-  return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent('Atividade cadastrada.')}`);
+  return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent(automaticEnrollmentMessage(applyAutomaticActivityEnrollments(db.prepare('SELECT * FROM event_activities WHERE id=?').get(createdActivityId), req.session.userId), 'Atividade cadastrada.'))}`);
 });
 router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.activityForm, (rq, rs, messages) => activityValidationFallback((r2) => r2.params.id, true)(rq, rs, messages));
@@ -2088,9 +2103,9 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   try {
     db.transaction(() => {
       db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,time_start=?,time_end=?,workload_hours=?,
-        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=?,required_for_participants=? WHERE id=?`).run(
+        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=?,required_for_participants=?,default_for_participants=? WHERE id=?`).run(
         name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
-        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, activity.id
+        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, activity.id
       );
       syncSessionWorkloadLock(activity.id, workloadHours);
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
@@ -2100,7 +2115,8 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   }
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity: { ...activity, name }, oldUrl: activity.video_url, newUrl: videoUrl });
-  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade atualizada.')}`);
+  const backfillResult = applyAutomaticActivityEnrollments(db.prepare('SELECT * FROM event_activities WHERE id=?').get(activity.id), req.session.userId);
+  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(automaticEnrollmentMessage(backfillResult, 'Atividade atualizada.'))}`);
 });
 router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
   const activity = db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
@@ -3335,7 +3351,7 @@ router.get('/:id/participants/user-search', strictLimiter, (req, res) => {
 
 function getActivitiesForParticipantForm(eventId) {
   const nonSelectableTypes = ['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'];
-  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,
+  return db.prepare(`SELECT id,name,activity_type,date_start,date_end,workload_hours,certificate_enabled,required_for_participants,COALESCE(default_for_participants,0) AS default_for_participants,
       (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities WHERE event_id=? AND activity_type NOT IN (${nonSelectableTypes.map(() => '?').join(',')}) ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId, ...nonSelectableTypes)
     .map((activity) => {
@@ -3362,24 +3378,69 @@ function getParticipantActivityIds(registrationId) {
     .all(registrationId).map((row) => Number(row.activity_id));
 }
 
-// Atividades marcadas como obrigatorias para participantes: elegiveis a
-// participante, tipo nao-logistico e flag required_for_participants = 1.
+function enforceRequiredActivitiesAdmin(eventId, activityIds, previouslyEnrolledIds = []) {
+  const selected = new Set((activityIds || []).map(Number).filter(Number.isInteger));
+  getRequiredParticipantActivityIdsAdmin(eventId).forEach((id) => selected.add(id));
+  return [...selected];
+}
+
+// Atividades automaticas do evento (obrigatorias ou padrao para todos):
+// elegiveis a participante, tipo nao-logistico e ao menos uma das flags
+// (required_for_participants ou default_for_participants) ligada.
 // No fluxo administrativo nao ha checagem de vagas (o admin pode inscrever
 // alem do limite).
 function getRequiredParticipantActivityIdsAdmin(eventId) {
   const nonSelectableTypes = ['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'];
   return db.prepare(`
     SELECT id FROM event_activities
-    WHERE event_id = ? AND required_for_participants = 1
+    WHERE event_id = ? AND (required_for_participants = 1 OR COALESCE(default_for_participants, 0) = 1)
       AND activity_type NOT IN (${nonSelectableTypes.map(() => '?').join(',')})
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
   `).all(eventId, ...nonSelectableTypes).map((row) => Number(row.id));
 }
 
-function enforceRequiredActivitiesAdmin(eventId, activityIds, previouslyEnrolledIds = []) {
-  const selected = new Set((activityIds || []).map(Number).filter(Number.isInteger));
-  getRequiredParticipantActivityIdsAdmin(eventId).forEach((id) => selected.add(id));
-  return [...selected];
+// Backfill retroativo: ao criar/editar uma atividade automatica (obrigatoria
+// ou padrao), inscreve todos os participantes aprovados do evento ainda nao
+// inscritos. Minicurso respeita vagas: inscreve ate esgotar e reporta quantos
+// ficaram de fora (a organizacao decide). Desligar a flag nao remove nada.
+function applyAutomaticActivityEnrollments(activity, actorUserId) {
+  const result = { enrolled: 0, overflow: 0 };
+  if (!activity) return result;
+  const isAutomatic = Number(activity.required_for_participants) === 1 || Number(activity.default_for_participants) === 1;
+  const roles = String(activity.eligible_roles || '').split(',').map((role) => role.trim()).filter(Boolean);
+  if (!isAutomatic || !roles.includes('participant')) return result;
+  if (['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'].includes(activity.activity_type)) return result;
+  const pending = db.prepare(`
+    SELECT er.id AS registration_id, er.user_id FROM event_registrations er
+    WHERE er.event_id=? AND er.registration_status='approved' AND er.user_id IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM participant_activity_enrollments pae WHERE pae.registration_id=er.id AND pae.activity_id=?)
+    ORDER BY er.id`).all(activity.event_id, activity.id);
+  if (!pending.length) return result;
+  let capacity = pending.length;
+  if (activity.max_participants) {
+    const enrolledNow = Number(db.prepare('SELECT COUNT(*) AS count FROM participant_activity_enrollments WHERE activity_id=?').get(activity.id).count);
+    capacity = Math.max(0, Number(activity.max_participants) - enrolledNow);
+  }
+  const insert = db.prepare(`INSERT INTO participant_activity_enrollments
+    (activity_id,registration_id,user_id,enrolled_by,created_at,updated_at)
+    VALUES(?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`);
+  db.transaction(() => {
+    pending.forEach((row) => {
+      if (capacity <= 0) { result.overflow += 1; return; }
+      insert.run(activity.id, row.registration_id, row.user_id, actorUserId);
+      capacity -= 1;
+      result.enrolled += 1;
+    });
+  })();
+  return result;
+}
+
+function automaticEnrollmentMessage(backfill, baseMessage) {
+  if (!backfill || (!backfill.enrolled && !backfill.overflow)) return baseMessage;
+  const parts = [];
+  if (backfill.enrolled) parts.push(`${backfill.enrolled} participante(s) já inscritos no evento foram incluídos automaticamente`);
+  if (backfill.overflow) parts.push(`${backfill.overflow} ficaram de fora por falta de vaga (inscreva manualmente se desejar)`);
+  return `${baseMessage} ${parts.join('; ')}.`;
 }
 
 // Pedidos de atividade aguardando analise: solicitados, ainda nao inscritos e nao negados.

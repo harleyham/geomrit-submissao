@@ -133,15 +133,19 @@
 
         <div class="form-group">
           <label>Atividades em que deseja se inscrever *</label>
+          <% const automaticIds = (typeof requiredActivityIds !== 'undefined' && requiredActivityIds) ? requiredActivityIds : new Set(); %>
+          <% if (automaticIds.size > 0) { %>
+            <p style="color:var(--text-muted);line-height:1.5;">As atividades <strong>obrigatórias</strong> e <strong>padrão para todos os participantes</strong> deste evento já estão incluídas automaticamente na sua inscrição e não aparecem como escolha abaixo.</p>
+          <% } %>
           <% if (!activities.length) { %>
-            <p style="color:var(--text-muted);line-height:1.5;">Este evento ainda não possui atividades abertas para participantes.</p>
+            <p style="color:var(--text-muted);line-height:1.5;"><%= automaticIds.size > 0 ? 'Este evento não possui atividades avulsas para escolher — apenas as automáticas acima.' : 'Este evento ainda não possui atividades abertas para participantes.' %></p>
           <% } else { %>
             <div class="activity-grid">
-              <% const activitiesLockedByReview = alreadyRegistered && event.registration_approval_mode === 'review'; const requiredIds = (typeof requiredActivityIds !== 'undefined' && requiredActivityIds) ? requiredActivityIds : new Set(); activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); const isRequired = requiredIds.has(Number(activity.id)); %>
+              <% const activitiesLockedByReview = alreadyRegistered && event.registration_approval_mode === 'review'; const requiredIds = automaticIds; activities.forEach((activity) => { const selected = (formData.activity_ids || []).map(Number).includes(Number(activity.id)); const isRequired = requiredIds.has(Number(activity.id)); %>
                 <label class="activity-option" style="<%= isRequired ? 'cursor:default' : '' %>"><input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= selected ? 'checked' : '' %> <%= (isRequired || activitiesLockedByReview) ? 'disabled' : '' %>><span><strong><%= activity.name %><% if (isRequired) { %><span class="badge" style="background:var(--primary-hover);color:var(--link);margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } %></strong><small><%= activityDateRange(activity) %> · <%= (activity.effective_workload_hours != null ? activity.effective_workload_hours : (activity.workload_hours || 0)) %>h<%= activity.certificate_enabled ? ' · certificável mediante presença' : '' %><% if (isRequired) { %> · obrigatória: todos os participantes do evento são inscritos nela<% } %></small></span></label>
               <% }) %>
             </div>
-            <small style="display:block;color:var(--text-muted);margin-top:.55rem;line-height:1.5;"><%= activitiesLockedByReview ? 'As atividades foram definidas pela análise da organização e não podem ser alteradas por esta página.' : 'Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas. Atividades marcadas como obrigatórias ficam sempre incluídas e não podem ser desmarcadas.' %></small>
+            <small style="display:block;color:var(--text-muted);margin-top:.55rem;line-height:1.5;"><%= activitiesLockedByReview ? 'As atividades foram definidas pela análise da organização e não podem ser alteradas por esta página.' : 'Você poderá alterar esta seleção depois na sua área de participante. Atividades com presença já registrada não poderão ser removidas.' %></small>
           <% } %>
         </div>
 

@@ -734,7 +734,7 @@ function getRequiredParticipantActivityIds(eventId, previouslyEnrolledIds = []) 
     SELECT id, activity_type, max_participants,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id = event_activities.id) AS enrolled
     FROM event_activities
-    WHERE event_id = ? AND required_for_participants = 1
+    WHERE event_id = ? AND (required_for_participants = 1 OR COALESCE(default_for_participants, 0) = 1)
       AND activity_type NOT IN (${PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES.map(() => '?').join(',')})
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
   `).all(eventId, ...PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES).filter((activity) => {
@@ -758,6 +758,7 @@ function getPublicEventActivities(eventId) {
       (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities WHERE event_id=?
       AND activity_type NOT IN (${PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES.map(() => '?').join(',')})
+      AND COALESCE(required_for_participants,0) = 0 AND COALESCE(default_for_participants,0) = 0
       AND instr(',' || replace(COALESCE(eligible_roles,''),' ','') || ',', ',participant,') > 0
     ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE`).all(eventId, ...PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES).map((activity) => {
       activity.effective_workload_hours = (Number(activity.workload_hours) || 0) > 0 ? Number(activity.workload_hours) : (Number(activity.sessions_workload) || 0);
@@ -823,6 +824,11 @@ function validateRegistrationActivities(eventId, activityIds) {
   const activities = getPublicEventActivities(eventId);
   if (activities.length && !activityIds.length) return 'Selecione ao menos uma atividade para concluir a inscrição.';
   const allowed = new Set(activities.map((activity) => Number(activity.id)));
+  // Atividades automaticas (obrigatorias/padrao) nao aparecem na escolha mas
+  // sao gravadas pelo servidor: ids delas em POSTs (inclusive de inscricoes
+  // existentes com retroativo) continuam validos.
+  db.prepare(`SELECT id FROM event_activities WHERE event_id=? AND (COALESCE(required_for_participants,0) = 1 OR COALESCE(default_for_participants,0) = 1)`)
+    .all(eventId).forEach((row) => allowed.add(Number(row.id)));
   if (activityIds.some((id) => !allowed.has(id))) return 'Uma das atividades selecionadas não está disponível para inscrição.';
   return null;
 }
@@ -1098,7 +1104,7 @@ router.get('/evento/:id', (req, res) => {
   const eventWithMeta = withSubmissionMeta(event);
   const isClosed = event.status === 'encerrado';
   const activities = db.prepare(`
-    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video,max_participants,requires_approval,required_for_participants,certificate_enabled,
+    SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video,max_participants,requires_approval,required_for_participants,COALESCE(default_for_participants,0) AS default_for_participants,certificate_enabled,
       COALESCE(workload_hours,0) AS workload_hours,
       (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
     FROM event_activities
@@ -1726,7 +1732,7 @@ router.post('/evento/:id/atividades/inscricao', activityEnrollLimiter, requireNo
   if (!activity) return fail('Esta atividade não está aberta para inscrição de participantes.');
 
   let requiredForParticipants = 0;
-  try { requiredForParticipants = db.prepare('SELECT required_for_participants AS flag FROM event_activities WHERE id=?').get(activityId).flag || 0; } catch (_) { requiredForParticipants = 0; }
+  try { requiredForParticipants = db.prepare('SELECT (COALESCE(required_for_participants,0) = 1 OR COALESCE(default_for_participants,0) = 1) AS flag FROM event_activities WHERE id=?').get(activityId).flag || 0; } catch (_) { requiredForParticipants = 0; }
   if (Number(requiredForParticipants) === 1) {
     if (enable) return finish(true, { state: 'enrolled' }, 'success=' + encodeURIComponent(`"${activity.name}" é obrigatória: todos os participantes são inscritos nela automaticamente.`));
     return fail(`"${activity.name}" é obrigatória para participantes e não pode ser desmarcada.`);

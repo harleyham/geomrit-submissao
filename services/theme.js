@@ -55,7 +55,7 @@ const THEMES = {
       surfaceInput: 'rgba(128,194,218,0.08)',
       surfaceSubtle: 'rgba(35,103,59,0.22)',
       surfaceHover: 'rgba(65,150,85,0.18)',
-      surfaceSelected: 'rgba(37,74,145,0.2)',
+      surfaceSelected: 'rgba(65,150,85,0.22)',
       surfaceElevated: 'rgba(16,45,30,0.9)',
       surfaceInset: 'rgba(7,22,14,0.5)',
       overlay: 'rgba(7,22,14,0.78)',
