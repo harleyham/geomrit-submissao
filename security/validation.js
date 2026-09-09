@@ -228,8 +228,8 @@ const validators = {
     body('country').trim().notEmpty().withMessage('O país é obrigatório.').isLength({ max: 100 }),
     body('formacao_area').trim().notEmpty().withMessage('A área de formação é obrigatória.').isLength({ max: 10 }),
     body('formacao_curso').trim().notEmpty().withMessage('O curso é obrigatório.').isLength({ max: 200 }),
-    body('formacao_titulacao').isIn(['Graduado', 'Mestre', 'Doutor']).withMessage('Titulação inválida.'),
-    body('formacao_status').isIn(['Formado', 'Cursando']).withMessage('Status da formação inválido.')
+    body('formacao_titulacao').optional({ values: 'falsy' }).trim().isIn(['Graduado', 'Mestre', 'Doutor']).withMessage('Titulação inválida.'),
+    body('formacao_status').optional({ values: 'falsy' }).trim().isIn(['Formado', 'Cursando']).withMessage('Status da formação inválido.')
   ],
   certificateCode: [
     body('certificate_code').trim().notEmpty().withMessage('Informe o código do certificado.')
