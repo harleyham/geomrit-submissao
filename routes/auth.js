@@ -897,7 +897,10 @@ router.get('/complete-profile', (req, res) => {
 });
 
 router.post('/complete-profile', loginLimiter, (req, res, next) => {
-  validateAndHandle(req, res, next, v.completeProfile);
+  validateAndHandle(req, res, next, v.completeProfile, (rq, rs, messages) => {
+    const draft = normalizeProfileForm(rq.body);
+    return renderCompleteProfile(rs, { id: rq.session.userId, email: rq.session.userEmail || '' }, draft, messages.join(' '));
+  });
 }, (req, res) => {
   if (!req.session.userId) return res.redirect('/login');
   const user = db.prepare('SELECT id, email, password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
