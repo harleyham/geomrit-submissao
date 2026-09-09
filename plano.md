@@ -22,7 +22,7 @@ Documento vivo: atualizar o `Status` de cada item conforme a execução.
 - Presença é **por aula** (não por evento), sem flag presencial/remoto.
 - QR Code: exige **domínio HTTPS**; fluxo de **auto-check-in** (participante) + **proxy por admin** (operador).
 - Evento encerrado: status **`'encerrado'`** explícito (não reutilizar `draft`/`published`).
-- "Não possui curso de graduação": disponível em **todas** as áreas de formação; ao selecioná-la, **esconder** Titulação e Status.
+- "Não possui curso de graduação": disponível em **todas** as áreas de formação; ao selecioná-la, **bloquear** (desabilitado) Titulação e Status nos formulários do usuário (`/login/complete-profile` e `/author/profile`); nos formulários administrativos os campos continuam ocultos (atualizado em 08/09/2026: antes eram escondidos em todos).
 - Módulos novos nesta roadmap: **somente e-mails** (Fase 3).
 - Ordem: **Fase 0 → Fase 1 (Aulas+QR) → Avaliação de atividades → Fase 3 (E-mails) → Fase 2 (Auditoria)** (ordem ajustada em 17/08 a pedido do usuário: troca E-mails/Auditoria e inserção da Avaliação de atividades como próxima execução; nomes das fases mantidos).
 - Inscrições públicas podem ser de confirmação automática ou sujeitas à análise da organização, inclusive com aprovação parcial das atividades solicitadas.

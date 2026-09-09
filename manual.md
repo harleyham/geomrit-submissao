@@ -98,7 +98,7 @@ Ao usar a prévia "Área do Participante" de um usuário, a sessão passa a nave
 
 > As antigas chaves globais (**Administrador**, **Revisor**, **Staff**, **Participante**, **Palestrante**, **Professor**, **Apresentador**) foram removidas da criação/edição e da listagem de usuários: todos os papéis são **por evento**, atribuídos em `/admin/events/:id/roles`. As colunas `is_*` permanecem no banco por compatibilidade, mas não autorizam mais nada. A flag `is_admin` sobrevive apenas no seed do superadministrador (`admin@admin.com`). A listagem de usuários agora mostra quantos papéis a pessoa exerce, por resumo.
 
-Quando o usuário não possui curso de graduação, selecione essa opção. Os campos de titulação e status ficam ocultos e são armazenados como nulos.
+Quando o usuário não possui curso de graduação, selecione essa opção — disponível em todas as áreas. Os campos de titulação e status são armazenados como nulos; nos formulários do usuário (`/login/complete-profile` e Área do Participante) eles ficam **bloqueados** (desabilitados), e nos formulários administrativos ficam ocultos.
 
 ### Reset de senha
 

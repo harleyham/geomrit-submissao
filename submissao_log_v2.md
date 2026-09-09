@@ -16,6 +16,17 @@ Versão atual registrada: **V0.33**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-08
+
+### Formação acadêmica: "Não possui curso de graduação" bloqueia Titulação e Status (em vez de escondê-los)
+
+- Relato: em `/login/complete-profile`, com o curso especial `Não possui curso de graduação`, a titulação e o status eram cobrados — os campos ficavam ocultos na UI, mas o `express-validator` de `security/validation.js` (`completeProfile`) exigia `isIn(['Graduado','Mestre','Doutor'])` e `isIn(['Formado','Cursando'])` incondicionalmente, recusando o POST em 400 antes do handler. Idem na Área do Participante (`/author/profile`), onde ocultar os campos confundia o usuário.
+- Correções: (1) `security/validation.js` — `formacao_titulacao` e `formacao_status` passam a `optional({ values: 'falsy' })`, mantendo o `isIn` quando preenchidos (o handler `validateCompleteProfile` de `routes/auth.js` já pulava titulação/status no curso especial e `normalizeFormacaoForStorage` gravava nulos); (2) `views/complete-profile.ejs` e `views/public/participant-profile.ejs` — os campos Titulação e Status deixam de ser ocultados (`hidden` removido do wrapper `#formacao-titulacao-status`) e passam a ficar **visíveis e bloqueados** (`disabled`, valores limpos, `required` desligado por JS `syncTitulacaoVisibility`), reabilitando ao escolher um curso normal.
+- Os formulários administrativos (`views/admin/users/form.ejs`, `views/admin/events/participant-form.ejs`) mantêm o comportamento anterior de ocultar os campos.
+- Validação: `node --check` em `security/validation.js` e `routes/auth.js`; compilação EJS dos dois templates.
+- Docs atualizadas: `submissao.md` (regras e Fase 0).
+- `Status: implementado e validado localmente; efetivo após reinício do servidor.`
+
 ### Cor por tipo de atividade nas visões Lista, Grade e Programação nas Salas da página pública
 
 - Relato: na visão "Grade" (`/evento/:id`), as atividades/etapas apareciam todas na mesma cor de letra (nome em `#f8fafc` pela regra CSS `.grid-item`), sem distinguir o tipo — a visão Cards já coloria os badges por tipo com `actTypeStyle`.
