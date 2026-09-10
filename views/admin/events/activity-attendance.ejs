@@ -125,7 +125,10 @@
         </p>
       </div>
       <div>
-        <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance-print<%= selectedSession ? `?session_id=${selectedSession.id}` : '' %>" class="btn-secondary btn-sm" style="text-decoration:none">Imprimir lista de presença</a>
+        <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-end">
+          <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance-print<%= selectedSession ? `?session_id=${selectedSession.id}` : '' %>" class="btn-secondary btn-sm" style="text-decoration:none">Imprimir lista de presença</a>
+          <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/checkin-print<%= selectedSession ? `?session_id=${selectedSession.id}` : '' %>" class="btn-secondary btn-sm" style="text-decoration:none">Imprimir QR code</a>
+        </div>
       </div>
     </div>
 
