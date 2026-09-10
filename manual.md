@@ -136,7 +136,8 @@ Desative **Conta ativa** para impedir novo acesso preservando inscrições, pres
 7. Defina **Confirmação das inscrições públicas**: em **Automática**, a inscrição é confirmada assim que enviada; em **Sujeita à análise**, a organização precisa decidir sobre a solicitação.
 8. Selecione um logo PNG/JPEG de até 5 MB. A tela mostra a prévia imediatamente.
 9. Se o evento não possui site próprio, envie em **Conteúdo do evento em PDF** um documento de até 50 MB com sua programação e demais informações.
-10. Salve o evento.
+10. Se o evento oferece subsídio, envie o **Modelo de Carta de Motivação** e o **Modelo de Carta de Recomendação** (PDF de até 10 MB cada): eles ficam disponíveis como download na inscrição de quem solicitar subsídio (`/evento/:id/inscricao`). O link "Faça o upload da carta ..." só aparece quando o modelo correspondente foi enviado; substituição e remoção seguem o mesmo padrão do logo e do conteúdo em PDF.
+11. Salve o evento.
 
 Ao criar o evento, o usuário criador recebe automaticamente o papel de administrador daquele evento, podendo gerenciá-lo por completo e delegar papéis (inclusive o de administrador do evento) na página de Papéis (`/admin/events/:id/roles`). A página **Meus Eventos** lista apenas os eventos que o usuário administra ou onde é staff. Um evento publicado aparece na página inicial. Ao encerrá-lo, o evento deixa de figurar na lista principal e passa ao bloco **Eventos Encerrados** da página inicial; a página pública e os certificados permanecem acessíveis, mas novas inscrições e submissões são bloqueadas.
 

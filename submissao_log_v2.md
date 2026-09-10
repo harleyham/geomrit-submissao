@@ -18,6 +18,16 @@ Versão atual registrada: **V0.34**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-10
+
+### Modelos de carta do subsídio: links da inscrição apontam somente para o arquivo enviado pelo organizador
+
+- Relato: em `/evento/:id/inscricao`, os links "carta de motivação" e "carta de recomendação" caíam em URLs externas fixas (sharepoint) sempre que o evento ainda não tinha os modelos enviados — fallback hardcoded em `views/public/event-register.ejs`.
+- Correções: (1) `views/public/event-register.ejs` — os dois links passam a apontar sempre para `GET /evento/<id>/subsidy-template/{motivacao,recomendacao}` (PDF enviado pelo organizador, sem fallback externo) e o bloco "Faça o upload da carta ..." só é exibido quando `event.subsidy_motivation_template_path`/`event.subsidy_recommendation_template_path` existem; quando não há modelo, o link simplesmente não aparece; (2) a rota de download em `routes/public.js` já devolvia 404 com mensagem amigável quando o modelo não existe e permanece inalterada.
+- Docs atualizadas: `submissao.md` (regra da exibição condicional + rota pública na tabela) e `manual.md` (passo do formulário de evento).
+- Verificação: consulta ao banco (evento 3 com `subsidy_*_template_path = NULL` não exibe mais os links); renderização do template EJS.
+- Status: implementado e validado localmente; efetivo após reinício do servidor (views EJS são recarregadas a cada request).
+
 ## 2026-09-08
 
 ### Formação acadêmica: "Não possui curso de graduação" bloqueia Titulação e Status (em vez de escondê-los)

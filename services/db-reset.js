@@ -204,6 +204,10 @@ function migrateSchema(db) {
       logo_original_name TEXT,
       content_pdf_path TEXT,
       content_pdf_original_name TEXT,
+      subsidy_motivation_template_path TEXT,
+      subsidy_motivation_template_original_name TEXT,
+      subsidy_recommendation_template_path TEXT,
+      subsidy_recommendation_template_original_name TEXT,
       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
     );
@@ -1055,6 +1059,10 @@ function backfillColumnSteps(db) {
     if (!eventColumns.includes('logo_original_name')) db.exec('ALTER TABLE events ADD COLUMN logo_original_name TEXT');
     if (!eventColumns.includes('content_pdf_path')) db.exec('ALTER TABLE events ADD COLUMN content_pdf_path TEXT');
     if (!eventColumns.includes('content_pdf_original_name')) db.exec('ALTER TABLE events ADD COLUMN content_pdf_original_name TEXT');
+    if (!eventColumns.includes('subsidy_motivation_template_path')) db.exec('ALTER TABLE events ADD COLUMN subsidy_motivation_template_path TEXT');
+    if (!eventColumns.includes('subsidy_motivation_template_original_name')) db.exec('ALTER TABLE events ADD COLUMN subsidy_motivation_template_original_name TEXT');
+    if (!eventColumns.includes('subsidy_recommendation_template_path')) db.exec('ALTER TABLE events ADD COLUMN subsidy_recommendation_template_path TEXT');
+    if (!eventColumns.includes('subsidy_recommendation_template_original_name')) db.exec('ALTER TABLE events ADD COLUMN subsidy_recommendation_template_original_name TEXT');
     db.prepare(`
       UPDATE events
       SET has_article_submission = CASE

@@ -292,9 +292,11 @@ const eventLogoDir = path.join(__dirname, '..', 'uploads', 'event-logos');
 if (!fs.existsSync(eventLogoDir)) fs.mkdirSync(eventLogoDir, { recursive: true });
 const eventContentDir = path.join(__dirname, '..', 'uploads', 'event-content');
 if (!fs.existsSync(eventContentDir)) fs.mkdirSync(eventContentDir, { recursive: true });
+const eventTemplateDir = path.join(__dirname, '..', 'uploads', 'event-templates');
+if (!fs.existsSync(eventTemplateDir)) fs.mkdirSync(eventTemplateDir, { recursive: true });
 const eventAssetUpload = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, file.fieldname === 'event_pdf' ? eventContentDir : eventLogoDir),
+    destination: (req, file, cb) => cb(null, file.fieldname === 'event_pdf' ? eventContentDir : file.fieldname.endsWith('_template') ? eventTemplateDir : eventLogoDir),
     filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`)
   }),
   limits: { fileSize: 50 * 1024 * 1024 },
@@ -304,6 +306,9 @@ const eventAssetUpload = multer({
     }
     if (file.fieldname === 'event_pdf' && (file.mimetype !== 'application/pdf' || path.extname(file.originalname || '').toLowerCase() !== '.pdf')) {
       return cb(new Error('PDF_INVALID_TYPE'));
+    }
+    if (file.fieldname.endsWith('_template') && (file.mimetype !== 'application/pdf' || path.extname(file.originalname || '').toLowerCase() !== '.pdf')) {
+      return cb(new Error('TEMPLATE_INVALID_TYPE'));
     }
     cb(null, true);
   }
@@ -321,17 +326,27 @@ function removeEventContentFile(relativePath) {
   }
 }
 
+function removeEventTemplateFile(relativePath) {
+  if (!relativePath) return;
+  const resolved = path.resolve(path.join(__dirname, '..'), relativePath);
+  if (resolved !== eventTemplateDir && resolved.startsWith(`${eventTemplateDir}${path.sep}`)) {
+    try { fs.unlinkSync(resolved); } catch (error) { if (error.code !== 'ENOENT') console.error('Falha ao remover modelo de carta:', error); }
+  }
+}
+
 // Executa os uploads do evento e converte erros em mensagem amigável,
 // removendo o arquivo em caso de falha, para o form poder ser re-renderizado sem 500.
 function runEventAssetUpload(req, res, next) {
-  eventAssetUpload.fields([{ name: 'logo', maxCount: 1 }, { name: 'event_pdf', maxCount: 1 }])(req, res, (error) => {
+  eventAssetUpload.fields([{ name: 'logo', maxCount: 1 }, { name: 'event_pdf', maxCount: 1 }, { name: 'subsidy_motivation_template', maxCount: 1 }, { name: 'subsidy_recommendation_template', maxCount: 1 }])(req, res, (error) => {
     if (error) {
       Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
       req.eventAssetUploadError = error.code === 'LIMIT_FILE_SIZE'
-        ? 'Um arquivo excede o limite permitido (logo: 5 MB; PDF: 50 MB).'
+        ? 'Um arquivo excede o limite permitido (logo: 5 MB; PDFs: 50 MB; modelos de carta: 10 MB).'
         : error.message === 'PDF_INVALID_TYPE'
           ? 'O conteúdo do evento deve ser um arquivo PDF válido (máximo 50 MB).'
-          : 'O logo do evento deve ser uma imagem PNG ou JPEG (máximo 5 MB).';
+          : error.message === 'TEMPLATE_INVALID_TYPE'
+            ? 'Os modelos de carta de motivação e de recomendação devem ser arquivos PDF.'
+            : 'O logo do evento deve ser uma imagem PNG ou JPEG (máximo 5 MB).';
       return next();
     }
     const logo = uploadedEventAsset(req, 'logo');
@@ -339,6 +354,14 @@ function runEventAssetUpload(req, res, next) {
       Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
       req.eventAssetUploadError = 'O logo do evento excede 5 MB.';
       return next();
+    }
+    for (const templateField of ['subsidy_motivation_template', 'subsidy_recommendation_template']) {
+      const template = uploadedEventAsset(req, templateField);
+      if (template && template.size > 10 * 1024 * 1024) {
+        Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
+        req.eventAssetUploadError = 'Os modelos de carta devem ter no máximo 10 MB.';
+        return next();
+      }
     }
     const contentPdf = uploadedEventAsset(req, 'event_pdf');
     if (contentPdf) {
@@ -948,19 +971,33 @@ router.post('/', requireSignedUser, strictLimiter, runEventAssetUpload, (req, re
 
   const logoFile = uploadedEventAsset(req, 'logo');
   const contentPdfFile = uploadedEventAsset(req, 'event_pdf');
+  const motivationTemplateFile = uploadedEventAsset(req, 'subsidy_motivation_template');
+  const recommendationTemplateFile = uploadedEventAsset(req, 'subsidy_recommendation_template');
+  const templateFields = offersSubsidy ? {
+    motivation_path: motivationTemplateFile ? `uploads/event-templates/${motivationTemplateFile.filename}` : null,
+    motivation_name: motivationTemplateFile ? motivationTemplateFile.originalname : null,
+    recommendation_path: recommendationTemplateFile ? `uploads/event-templates/${recommendationTemplateFile.filename}` : null,
+    recommendation_name: recommendationTemplateFile ? recommendationTemplateFile.originalname : null
+  } : { motivation_path: null, motivation_name: null, recommendation_path: null, recommendation_name: null };
+  if (!offersSubsidy) {
+    [motivationTemplateFile, recommendationTemplateFile].forEach((file) => { if (file) { try { fs.unlinkSync(file.path); } catch (_) {} } });
+  }
   const createdEvent = db.transaction(() => {
     const info = db.prepare(`
       INSERT INTO events (name, short_name, description, date_start, date_end, location, url, area, has_article_submission, offers_subsidy, public_registration, registration_approval_mode,
         email_enabled,email_platform_name,email_sender_name,email_signature,email_contact,status, institution, language, registration_start, registration_end,
         submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name,
-        content_pdf_path, content_pdf_original_name, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+        content_pdf_path, content_pdf_original_name, subsidy_motivation_template_path, subsidy_motivation_template_original_name,
+        subsidy_recommendation_template_path, subsidy_recommendation_template_original_name, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
     `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
       emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
       normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
       normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null,
       logoFile ? `uploads/event-logos/${logoFile.filename}` : null, logoFile ? logoFile.originalname : null,
-      contentPdfFile ? `uploads/event-content/${contentPdfFile.filename}` : null, contentPdfFile ? contentPdfFile.originalname : null).run();
+      contentPdfFile ? `uploads/event-content/${contentPdfFile.filename}` : null, contentPdfFile ? contentPdfFile.originalname : null,
+      templateFields.motivation_path, templateFields.motivation_name,
+      templateFields.recommendation_path, templateFields.recommendation_name).run();
     db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(info.lastInsertRowid, req.session.userId, req.session.userId);
     return info;
   })();
@@ -992,7 +1029,7 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
   const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
-  const currentAssets = db.prepare('SELECT logo_path, logo_original_name, content_pdf_path, content_pdf_original_name, email_enabled FROM events WHERE id=?').get(req.params.id) || {};
+  const currentAssets = db.prepare('SELECT logo_path, logo_original_name, content_pdf_path, content_pdf_original_name, subsidy_motivation_template_path, subsidy_motivation_template_original_name, subsidy_recommendation_template_path, subsidy_recommendation_template_original_name, email_enabled FROM events WHERE id=?').get(req.params.id) || {};
 
   if (req.eventAssetUploadError) {
     return renderEventForm(res, {
@@ -1025,7 +1062,11 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
         logo_path: currentAssets.logo_path || null,
         logo_original_name: currentAssets.logo_original_name || null,
         content_pdf_path: currentAssets.content_pdf_path || null,
-        content_pdf_original_name: currentAssets.content_pdf_original_name || null
+        content_pdf_original_name: currentAssets.content_pdf_original_name || null,
+        subsidy_motivation_template_path: currentAssets.subsidy_motivation_template_path || null,
+        subsidy_motivation_template_original_name: currentAssets.subsidy_motivation_template_original_name || null,
+        subsidy_recommendation_template_path: currentAssets.subsidy_recommendation_template_path || null,
+        subsidy_recommendation_template_original_name: currentAssets.subsidy_recommendation_template_original_name || null
       }),
       title: 'Editar Evento',
       error: req.eventAssetUploadError
@@ -1080,7 +1121,11 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
         logo_path: currentAssets.logo_path || null,
         logo_original_name: currentAssets.logo_original_name || null,
         content_pdf_path: currentAssets.content_pdf_path || null,
-        content_pdf_original_name: currentAssets.content_pdf_original_name || null
+        content_pdf_original_name: currentAssets.content_pdf_original_name || null,
+        subsidy_motivation_template_path: currentAssets.subsidy_motivation_template_path || null,
+        subsidy_motivation_template_original_name: currentAssets.subsidy_motivation_template_original_name || null,
+        subsidy_recommendation_template_path: currentAssets.subsidy_recommendation_template_path || null,
+        subsidy_recommendation_template_original_name: currentAssets.subsidy_recommendation_template_original_name || null
       }),
       title: 'Editar Evento',
       error: formError
@@ -1113,17 +1158,51 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
     contentPdfOriginalName = null;
   }
 
+  const motivationTemplateFile = uploadedEventAsset(req, 'subsidy_motivation_template');
+  const recommendationTemplateFile = uploadedEventAsset(req, 'subsidy_recommendation_template');
+  let motivationTemplatePath = currentAssets.subsidy_motivation_template_path || null;
+  let motivationTemplateName = currentAssets.subsidy_motivation_template_original_name || null;
+  let recommendationTemplatePath = currentAssets.subsidy_recommendation_template_path || null;
+  let recommendationTemplateName = currentAssets.subsidy_recommendation_template_original_name || null;
+  if (!offersSubsidy) {
+    if (motivationTemplatePath) removeEventTemplateFile(motivationTemplatePath);
+    if (recommendationTemplatePath) removeEventTemplateFile(recommendationTemplatePath);
+    motivationTemplatePath = null; motivationTemplateName = null;
+    recommendationTemplatePath = null; recommendationTemplateName = null;
+  } else {
+    if (motivationTemplateFile) {
+      if (motivationTemplatePath) removeEventTemplateFile(motivationTemplatePath);
+      motivationTemplatePath = `uploads/event-templates/${motivationTemplateFile.filename}`;
+      motivationTemplateName = motivationTemplateFile.originalname;
+    } else if (req.body.remove_subsidy_motivation_template) {
+      if (motivationTemplatePath) removeEventTemplateFile(motivationTemplatePath);
+      motivationTemplatePath = null; motivationTemplateName = null;
+    }
+    if (recommendationTemplateFile) {
+      if (recommendationTemplatePath) removeEventTemplateFile(recommendationTemplatePath);
+      recommendationTemplatePath = `uploads/event-templates/${recommendationTemplateFile.filename}`;
+      recommendationTemplateName = recommendationTemplateFile.originalname;
+    } else if (req.body.remove_subsidy_recommendation_template) {
+      if (recommendationTemplatePath) removeEventTemplateFile(recommendationTemplatePath);
+      recommendationTemplatePath = null; recommendationTemplateName = null;
+    }
+  }
+
   db.prepare(`
     UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, registration_approval_mode=?,
       email_enabled=?,email_platform_name=?,email_sender_name=?,email_signature=?,email_contact=?,status=?, institution=?, language=?, registration_start=?, registration_end=?,
       submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?,
-      content_pdf_path=?, content_pdf_original_name=?, updated_at=datetime('now', '-3 hours')
+      content_pdf_path=?, content_pdf_original_name=?,
+      subsidy_motivation_template_path=?, subsidy_motivation_template_original_name=?,
+      subsidy_recommendation_template_path=?, subsidy_recommendation_template_original_name=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
   `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
     emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
     normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
     normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName,
-    contentPdfPath, contentPdfOriginalName, req.params.id).run();
+    contentPdfPath, contentPdfOriginalName,
+    motivationTemplatePath, motivationTemplateName,
+    recommendationTemplatePath, recommendationTemplateName, req.params.id).run();
   if (Number(currentAssets.email_enabled || 0) !== emailSettings.email_enabled) {
     const cancelled = setEventEmailEnabled(req.params.id, emailSettings.email_enabled, req.session.userId);
     recordParticipantAudit({ eventId: Number(req.params.id), actorUserId: req.session.userId,
@@ -1134,10 +1213,12 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
 
 // Deletar evento
 router.delete('/:id', (req, res) => {
-  const event = db.prepare('SELECT logo_path, content_pdf_path FROM events WHERE id = ?').get(req.params.id);
+  const event = db.prepare('SELECT logo_path, content_pdf_path, subsidy_motivation_template_path, subsidy_recommendation_template_path FROM events WHERE id = ?').get(req.params.id);
   db.prepare('DELETE FROM events WHERE id = ?').bind(req.params.id).run();
   if (event && event.logo_path) removeEventLogoFile(event.logo_path);
   if (event && event.content_pdf_path) removeEventContentFile(event.content_pdf_path);
+  if (event && event.subsidy_motivation_template_path) removeEventTemplateFile(event.subsidy_motivation_template_path);
+  if (event && event.subsidy_recommendation_template_path) removeEventTemplateFile(event.subsidy_recommendation_template_path);
   res.redirect('/admin/events');
 });
 

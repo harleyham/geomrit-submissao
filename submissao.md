@@ -556,6 +556,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - Quando `offers_subsidy = 1`, a inscrição do participante pode incluir candidatura a subsídio financeiro.
 - Ao solicitar subsídio, o participante deve informar nível acadêmico, curso, instituição de vínculo, UF da instituição e ID Lattes com 16 dígitos.
 - Ao solicitar subsídio, o participante deve anexar histórico escolar, carta de motivação e carta de recomendação em PDF, com limite de 10 MB por arquivo.
+- Os modelos de carta de motivação e de recomendação são servidos somente quando o organizador do evento os enviou (`subsidy_*_template_path`): os links "Faça o upload da carta ..." aparecem na inscrição apenas quando existir o modelo correspondente, apontando sempre para `GET /evento/:id/subsidy-template/motivacao` ou `/recomendacao` (PDF do organizador, sem fallback externo). Quando não há modelo, o link não é exibido.
 - Pedidos de subsídio ficam disponíveis apenas para administradores, com status de análise (`pending`, `approved`, `rejected`), leitura dos anexos e registro de observações.
 - Na criação e edição do evento, `date_end` não pode ser anterior a `date_start`.
 - Na criação e edição do evento, `registration_end` não pode ser anterior a `registration_start`.
@@ -764,6 +765,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 | `/evento/:id/atividades/inscricao` | `POST` de auto-inscrição do participante em **minicursos** pela página do evento (fetch/JSON, limitador `activityEnrollLimiter`): entra direto quando a atividade não exige aprovação e há vagas, ou vira pedido em `requested_activity_ids` quando a atividade exige aprovação; recusa vagas esgotadas e cancelamento com presença registrada |
 | `/evento/:id/conteudo` | Página pública que apresenta o conteúdo do evento a partir do PDF enviado pela administração |
 | `/evento/:id/conteudo/pdf` | Exibição direta, em modo inline, do PDF público do evento |
+| `/evento/:id/subsidy-template/:type` | Download inline do modelo de carta do subsídio enviado pelo organizador (`motivacao` ou `recomendacao`); 404 quando o modelo ainda não foi enviado ou o evento não oferece subsídio |
 | `/evento/:id/inscricao` | Inscrição do participante no evento, automática ou sujeita à análise conforme configuração do evento |
 | `/submeter/:eventId` | Formulário de submissão |
 | `/author` | Página do participante |

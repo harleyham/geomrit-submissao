@@ -1220,6 +1220,30 @@ router.get('/evento/:id/conteudo/pdf', (req, res) => {
   res.sendFile(absolutePath);
 });
 
+// Modelos de carta do subsídio (motivação / recomendação) enviados pelo organizador.
+router.get('/evento/:id/subsidy-template/:type', (req, res) => {
+  const which = req.params.type === 'recomendacao' ? 'recommendation' : req.params.type === 'motivacao' ? 'motivation' : null;
+  if (!which) return res.status(404).render('error', { title: 'Modelo não encontrado' });
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event || !event.offers_subsidy) {
+    return res.status(404).render('error', { title: 'Modelo não encontrado', message: 'Este evento não oferece subsídio.' });
+  }
+  const relativePath = which === 'motivation' ? event.subsidy_motivation_template_path : event.subsidy_recommendation_template_path;
+  if (!relativePath) {
+    return res.status(404).render('error', { title: 'Modelo não encontrado', message: 'O organizador ainda não disponibilizou este modelo.' });
+  }
+  const templateDir = path.resolve(path.join(__dirname, '..', 'uploads', 'event-templates'));
+  const absolutePath = path.resolve(path.join(__dirname, '..'), relativePath);
+  if (!absolutePath.startsWith(`${templateDir}${path.sep}`) || !fs.existsSync(absolutePath)) {
+    return res.status(404).render('error', { title: 'Modelo não encontrado', message: 'O arquivo do modelo não está disponível.' });
+  }
+  const originalName = which === 'motivation' ? event.subsidy_motivation_template_original_name : event.subsidy_recommendation_template_original_name;
+  const displayName = String(originalName || `modelo-carta-${req.params.type}.pdf`).replace(/[\r\n"]/g, '');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(displayName)}`);
+  res.sendFile(absolutePath);
+});
+
 router.get('/evento/:id', (req, res) => {
   const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published', 'encerrado')").bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não existe ou não está publicado.' });
