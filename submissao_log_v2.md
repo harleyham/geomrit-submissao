@@ -735,3 +735,38 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Rever procedimento de inscrição
 - Número de participantes de uma Atividade
 
+
+## 2026-09-09 — Papéis exclusivamente na página de Papéis + proteção do superadmin + dashboard personalizado por admin
+
+### Papéis: atribuição multi-papel e lista agrupada em `/admin/events/:id/roles`
+
+- Pedido: papéis só podem ser atribuídos na página de Papéis do evento (nunca em `/admin/users/:id/edit`); um participante pode ter vários papéis no evento; a lista "Papéis atribuídos" agrupava mal (uma linha por papel, repetindo a pessoa).
+- `security/validation.js`: schema `roleAssignment` reescrito — `user_id` + `roles[]` (allowlist) + `oral_article_id`/`poster_article_id` opcionais (antes: `role` único + `article_id`).
+- `routes/events.js`:
+  - `GET /:id/roles`: lista de atribuições agora **agrupada por pessoa** (`assignmentsMap`), com todos os papéis e artigos de cada uma; combobox lista apenas contas ativas **inscritas com inscrição aprovada** (ou que já possuem papel no evento, para ajustes) — para qualquer operador, **sem exceção de superadmin**.
+  - `POST /:id/roles`: recebe `user_id` + `roles[]` + artigos e **substitui atomicamente** o conjunto de papéis da pessoa no evento (transação DELETE + INSERT); envio sem nenhum papel remove todos. Mantém: artigo aprovado obrigatório para `oral_presenter`/`poster_presenter`, validação de inscrição (agora também para o superadmin) e proteção do **último administrador** do evento.
+  - `POST /:id/roles/:role/:userId/delete` mantido como fallback (mesma proteção de admin).
+  - `authenticatedDestination` e acesso do staff inalterados nesta parte.
+- `views/admin/events/roles.ejs`: formulário reformulado — combobox de pessoa + **checkboxes dos 7 papéis** (Administrador, Staff, Revisor, Palestrante, Professor, Apresentador Oral/Pôster, com descrições); blocos de artigo aprovado (oral/pôster) aparecem dinamicamente ao marcar o papel; ao selecionar a pessoa, os checkboxes e artigos já vêm **pré-marcados com os papéis atuais** (JS com `rolesByUser` do backend). Lista "Papéis atribuídos" com **uma linha por pessoa**, coluna "Papéis" com todos os badges simultaneamente + artigos vinculados, botões **"Editar papéis"** (seleciona a pessoa no formulário de cima, pré-marca e rola/foca) e **"Remover papéis"** (com `confirm()`).
+- **Imutabilidade do superadmin**: os papéis de `admin@admin.com` não podem ser atribuídos, alterados ou removidos por ninguém, em nenhuma via — helper `eventRolesProtected(userId)` + `SUPERADMIN_ROLES_MESSAGE` em `routes/events.js`; guardes no POST da página de Papéis, na rota de remoção individual, em `validateAndSaveParticipantEventRoles` (edição de participante) e na listagem (superadmin sai do combobox; a linha aparece como "**Protegido — papéis do administrador geral não podem ser editados**", sem botões).
+- `routes/users.js` + `views/admin/users/form.ejs`: removido o `POST /admin/users/:id/event-roles`; seção "Perfis por evento" virou **"Papéis por evento" somente leitura** (badges por evento, com link "Gerenciar papéis" → `/admin/events/:id/roles`). O `GET /:id/edit` passou a carregar apenas eventos onde o usuário tem papéis (`roleEvents`).
+- `views/admin/events/participant-form.ejs` + `requestedEventRoles`/`validateAndSaveParticipantEventRoles` (`routes/events.js`): a edição de participante passou a gerenciar os **7 papéis** (antes só os 4 operacionais), com a mesma semântica de substituição e proteção do último admin — as duas páginas (Participante e Papéis) gravam sincronizadas em `event_user_roles`.
+- Verificação: `node --check` OK (`routes/events.js`, `routes/users.js`, `security/validation.js`); renderização EJS simulada de `roles.ejs`, `form.ejs` e `participant-form.ejs` OK (cenários protegido/normal); servidor sobe e `GET /admin/events/3/roles` sem sessão → 302 `/login`.
+- Status: **implementado e verificado localmente**; validação funcional pelo usuário pendente (página de Papéis: multi-papel, substituição, bloqueio de não-inscrito inclusive para superadmin, último admin).
+
+### Dashboard personalizado por admin de evento
+
+- Pedido: qualquer administrador de evento deve ver um dashboard personalizado com os dados dos eventos que administra; cards "Paleta", "Envio global de e-mails" e "Backup e Restauração" continuam exclusivos de `admin@admin.com`.
+- `routes/auth.js`:
+  - `authenticatedDestination`: admin de evento passa a aterrissar em `/admin/dashboard` (antes `/admin/events`); staff continua em `/admin/events`.
+  - `GET /admin/dashboard`: guarda trocada de `requireSuperAdminUser` para `requireAuth` + papel de admin de evento (`hasRoleAnyEvent 'admin'`); staff e contas sem papel continuam fora.
+  - Todas as métricas e listas agora são computadas em função do escopo: superadmin = global (comportamento anterior preservado); admin de evento = **filtra por `eventos` que administra** via cláusulas `IN (...)` (helpers `evIn`/`evBind`), cobrindo eventos (total/publicados/realizados), inscritos (total/futuros/autor/participante), revisores ativos/inativos, artigos (total/sem revisor/em análise/prontos), tabelas de artigos, subsídios pendentes e pedidos de inclusão em atividades. Zero eventos administrados → métricas zeradas, listas vazias e estado vazio na UI.
+  - Métricas globais de conta (Total/Pendentes de usuários, solicitações de cadastro) computadas apenas no ramo superadmin.
+- `views/admin/dashboard.ejs`:
+  - Título "Meu painel" + nota "Dados referentes apenas aos eventos em que você é administrador" para admin de evento; "Dashboard" para o superadmin.
+  - Nova seção **"Eventos que administro"** (só admin de evento): card por evento (status — Publicado/Rascunho/Encerrado, data de início, nome) com links rápidos para Participantes, Atividades, Papéis e Certificados.
+  - Grupo de métricas "Usuários" e seção "Solicitações de cadastro não analisadas" **somente superadmin**; link "Usuários" da topbar também.
+  - Cards **"Paleta do sistema"**, **"Envio global de e-mails"** (com fila, suprimidos e envio individual) e **"Backup e Restauração"** seguem exclusivos de `admin@admin.com` (guarda agora unificada em `isSuperAdmin`).
+- Verificação: `node --check` OK; renderização EJS nos 3 perfis (admin de evento com/sem eventos, superadmin) com asserts de presença/ausência das seções; SQL do escopo validado no `artigos.db` para o admin dos eventos 2 e 3 (subsídio pendente do evento 2 visível); servidor sobe e `/admin/dashboard` sem sessão → 302 `/login`.
+- Docs: `manual.md`, `README.md`, `submissao.md`, este log.
+- Status: **implementado e verificado localmente**; validação funcional pelo usuário pendente.

@@ -21,8 +21,8 @@
     .hint { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; line-height: 1.6; }
     .form-group { margin-bottom: 1rem; }
     .form-group label { display: block; color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.375rem; }
-    .form-group select { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-strong); border-radius: 8px; background:var(--surface-input); color: var(--text); font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
-    .form-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
+    .form-group select, .form-group input[type="text"] { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-strong); border-radius: 8px; background:var(--surface-input); color: var(--text); font-size: 0.9375rem; font-family: 'Inter', sans-serif; }
+    .form-group select:focus, .form-group input[type="text"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
     .btn-primary { background: var(--primary); color:var(--on-primary); }
     .btn-primary:hover { background: var(--primary-hover); }
@@ -34,18 +34,31 @@
     .btn-secondary:hover { background:var(--surface-hover); }
     .session-pill { padding: 0.42rem 0.78rem; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text); font-size: 0.82rem; }
     .btn-logout { background: transparent; color: var(--danger); border: 1px solid var(--danger-border); font-family: inherit; cursor: pointer; }
+    .roles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 0.5rem; }
+    .role-option { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-input); cursor: pointer; }
+    .role-option:hover { background: var(--surface-hover); }
+    .role-option input[type="checkbox"] { width: 16px; height: 16px; margin-top: 0.15rem; accent-color: var(--primary); cursor: pointer; flex-shrink: 0; }
+    .role-option .role-name { font-size: 0.875rem; font-weight: 500; color: var(--text-strong); }
+    .role-option .role-desc { display: block; color: var(--text-faint); font-size: 0.75rem; margin-top: 0.125rem; }
+    .article-group { margin: 0.75rem 0 0; padding: 0.75rem; border: 1px dashed var(--border-strong); border-radius: 8px; display: none; }
+    .article-group.visible { display: block; }
+    .article-group label { margin-bottom: 0.375rem; }
+    .article-group select { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-input); color: var(--text); font-size: 0.875rem; font-family: 'Inter', sans-serif; }
     table { width: 100%; border-collapse: collapse; }
     th { text-align: left; padding: 0.75rem 1rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); background:var(--surface-elevated); }
-    td { padding: 0.75rem 1rem; font-size: 0.8125rem; color: var(--text); border-top: 1px solid var(--border-strong); }
-    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.65rem; font-weight: 600; }
+    td { padding: 0.75rem 1rem; font-size: 0.8125rem; color: var(--text); border-top: 1px solid var(--border-strong); vertical-align: top; }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.65rem; font-weight: 600; margin: 0.125rem 0.25rem 0.125rem 0; }
     .badge-admin { background: rgba(167,139,250,0.15); color: #a78bfa; }
     .badge-staff { background: rgba(244,114,182,0.15); color: #f472b6; }
     .badge-reviewer { background:var(--success-subtle); color: var(--success); }
     .badge-participant { background:var(--surface-selected); color: var(--accent); }
     .badge-speaker { background:var(--warn-subtle); color: var(--warn); }
     .badge-teacher { background: rgba(167,139,250,0.15); color: #a78bfa; }
-    .badge-oral { background: rgba(167,139,250,0.15); color: #a78bfa; }
-    .badge-poster { background: rgba(56,189,248,0.15); color: #38bdf8; }
+    .badge-oral_presenter { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .badge-poster_presenter { background: rgba(56,189,248,0.15); color: #38bdf8; }
+    .badge-role-none { background: var(--surface-hover); color: var(--text-faint); }
+    .row-actions { display: flex; gap: 0.5rem; align-items: center; }
+    .article-note { display: block; color: var(--text-faint); font-size: 0.72rem; margin-top: 0.25rem; }
     .alert { padding: 0.875rem 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem; }
     .alert-success { background:var(--success-subtle); color: var(--success); border: 1px solid var(--success-border); }
     .alert-error { background:var(--danger-subtle); color: var(--danger); border: 1px solid var(--danger-border); }
@@ -76,8 +89,8 @@
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
     <section class="section">
-      <h2 class="section-title">Atribuir papel</h2>
-      <p class="hint">Administrador controla somente este evento. Somente pessoas inscritas neste evento (ou que já tenham papel nele) podem receber papéis; o participante comum não precisa de papel — a inscrição basta.</p>
+      <h2 class="section-title">Atribuir papéis</h2>
+      <p class="hint">Selecione uma pessoa inscrita no evento, marque os papéis que ela exerce <strong>neste evento</strong> e salve: o conjunto salvo substitui os papéis anteriores da pessoa. Um participante pode acumular vários papéis; o mesmo papel não é duplicado. Papéis só podem ser atribuídos a quem está inscrito neste evento, e o participante comum não precisa de papel — a inscrição basta.</p>
       <form method="GET" action="/admin/events/<%= event.id %>/roles" class="role-filters" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;border:1px solid var(--border);border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.25rem;background:var(--surface-input);">
         <div style="flex:1 1 260px;">
           <label for="q" style="display:block;color:var(--text-muted);font-size:0.8125rem;font-weight:500;margin-bottom:0.375rem;">Buscar pessoa</label>
@@ -98,7 +111,16 @@
           <a href="/admin/events/<%= event.id %>/roles" class="btn btn-ghost">Limpar</a>
         </div>
       </form>
-      <form method="POST" action="/admin/events/<%= event.id %>/roles">
+      <% const roleOptions = [
+        ['admin', 'Administrador do evento', 'Controla todo o evento (papéis, atividades, artigos, certificados e relatórios).'],
+        ['staff', 'Staff', 'Operação do evento: presença, participantes e certificados.'],
+        ['reviewer', 'Revisor', 'Avalia artigos do evento.'],
+        ['speaker', 'Palestrante', ''],
+        ['teacher', 'Professor', ''],
+        ['oral_presenter', 'Apresentador Oral', 'Vinculado a um artigo oral aprovado.'],
+        ['poster_presenter', 'Apresentador Pôster', 'Vinculado a um artigo pôster aprovado.']
+      ]; %>
+      <form method="POST" action="/admin/events/<%= event.id %>/roles" id="roles-form">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
           <label for="user_id">Pessoa <span style="color:var(--text-faint);font-size:0.75rem;font-weight:400">(<%= users.length %> pessoa<%= users.length === 1 ? '' : 's' %> na lista<%= (filters.query || filters.titulation !== 'all') ? ' — com filtros ativos' : '' %>)</span></label>
@@ -108,26 +130,36 @@
           </select>
         </div>
         <div class="form-group">
-          <label for="role">Papel</label>
-          <select name="role" id="role" required>
-            <option value="admin">Administrador do evento</option>
-            <option value="staff">Staff (operação do evento: presença, participantes e certificados)</option>
-            <option value="reviewer">Revisor (avalia artigos do evento)</option>
-            <option value="speaker">Palestrante</option>
-            <option value="teacher">Professor</option>
-            <option value="oral_presenter">Apresentador Oral</option>
-            <option value="poster_presenter">Apresentador Pôster</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="article_id">Artigo aprovado (opcional)</label>
-          <select name="article_id" id="article_id">
-            <option value="">Nenhum</option>
-            <% articles.forEach(a => { %><option value="<%= a.id %>"><%= a.title %> — <%= a.type %></option><% }) %>
-          </select>
+          <label>Papéis neste evento</label>
+          <div class="roles-grid">
+            <% roleOptions.forEach(([role, label, desc]) => { %>
+              <label class="role-option">
+                <input type="checkbox" name="roles" value="<%= role %>" class="role-checkbox" data-role="<%= role %>">
+                <span><span class="role-name"><%= label %></span><% if (desc) { %><span class="role-desc"><%= desc %></span><% } %></span>
+              </label>
+            <% }) %>
+          </div>
+          <div class="article-group" id="article-group-oral_presenter">
+            <div class="form-group" style="margin-bottom:0.5rem">
+              <label for="oral_article_id" style="margin-bottom:0.25rem">Artigo oral aprovado</label>
+              <select name="oral_article_id" id="oral_article_id">
+                <option value="">Selecione</option>
+                <% articles.filter(a => a.type === 'oral').forEach(a => { %><option value="<%= a.id %>"><%= a.title %></option><% }) %>
+              </select>
+            </div>
+          </div>
+          <div class="article-group" id="article-group-poster_presenter">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="poster_article_id" style="margin-bottom:0.25rem">Artigo pôster aprovado</label>
+              <select name="poster_article_id" id="poster_article_id">
+                <option value="">Selecione</option>
+                <% articles.filter(a => a.type === 'poster').forEach(a => { %><option value="<%= a.id %>"><%= a.title %></option><% }) %>
+              </select>
+            </div>
+          </div>
         </div>
         <div class="form-actions" style="margin-top:1.5rem">
-          <button type="submit" class="btn btn-primary">Atribuir</button>
+          <button type="submit" class="btn btn-primary">Salvar papéis</button>
         </div>
       </form>
     </section>
@@ -135,23 +167,104 @@
     <section class="section">
       <h2 class="section-title">Papéis atribuídos</h2>
       <div class="table-scroll"><table>
-        <thead><tr><th>Pessoa</th><th>Papel</th><th>Artigo</th><th></th></tr></thead>
+        <thead><tr><th>Pessoa</th><th>Papéis</th><th style="width:260px"></th></tr></thead>
         <tbody>
-          <% assignments.forEach(a => { %><tr>
+          <% const badgeClass = { admin: 'admin', staff: 'staff', reviewer: 'reviewer', speaker: 'speaker', teacher: 'teacher', oral_presenter: 'oral_presenter', poster_presenter: 'poster_presenter' }; %>
+          <% if (!assignments.length) { %><tr><td colspan="3" class="hint" style="text-align:center">Nenhum papel atribuído neste evento.</td></tr><% } %>
+          <% assignments.forEach(a => { %><tr data-user-row="<%= a.user_id %>">
             <td><%= a.user_name %><br><small style="color:var(--text-faint)"><%= a.user_email %></small></td>
-            <td><span class="badge badge-<%= a.role === 'admin' ? 'admin' : a.role === 'staff' ? 'staff' : a.role === 'reviewer' ? 'reviewer' : a.role === 'speaker' ? 'speaker' : a.role === 'teacher' ? 'teacher' : a.role === 'oral_presenter' ? 'oral' : 'poster' %>"><%= (roleMeta[a.role] && roleMeta[a.role].label) || a.role %></span></td>
-            <td><%= a.article_title || '—' %></td>
             <td>
-              <form method="POST" action="/admin/events/<%= event.id %>/roles/<%= a.role %>/<%= a.user_id %>/delete">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button type="submit" class="btn btn-danger btn-sm">Remover</button>
-              </form>
+              <% if (a.items.length) { %>
+                <% a.items.forEach(item => { %><span class="badge <%= badgeClass[item.role] || 'participant' %>"><%= (roleMeta[item.role] && roleMeta[item.role].label) || item.role %></span><% if (item.article_title) { %><span class="article-note">Artigo: <%= item.article_title %></span><% } %><% }) %>
+              <% } else { %>
+                <span class="badge badge-role-none">Nenhum papel</span>
+              <% } %>
+            </td>
+            <td>
+              <% if (a.protected) { %>
+                <span class="badge" style="background:var(--surface-hover);color:var(--text-faint)">Protegido — papéis do administrador geral não podem ser editados</span>
+              <% } else { %>
+              <div class="row-actions">
+                <button type="button" class="btn btn-secondary btn-sm edit-roles-btn" data-user-id="<%= a.user_id %>">Editar papéis</button>
+                <form method="POST" action="/admin/events/<%= event.id %>/roles" class="clear-roles-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="user_id" value="<%= a.user_id %>">
+                  <button type="submit" class="btn btn-danger btn-sm">Remover papéis</button>
+                </form>
+              </div>
+              <% } %>
             </td>
           </tr><% }) %>
         </tbody>
       </table></div>
     </section>
   </main>
+
+  <% const currentRolesByUser = {}; assignments.forEach(a => { currentRolesByUser[a.user_id] = a.items; }); %>
+  <script nonce="<%= cspNonce %>">
+    (function () {
+      var rolesByUser = <%- JSON.stringify(currentRolesByUser) %>;
+      var select = document.getElementById('user_id');
+      var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.role-checkbox'));
+      var groups = {
+        oral_presenter: document.getElementById('article-group-oral_presenter'),
+        poster_presenter: document.getElementById('article-group-poster_presenter')
+      };
+      var articleSelects = {
+        oral_presenter: document.getElementById('oral_article_id'),
+        poster_presenter: document.getElementById('poster_article_id')
+      };
+
+      function refreshArticleGroups() {
+        Object.keys(groups).forEach(function (role) {
+          var checked = checkboxes.some(function (cb) { return cb.dataset.role === role && cb.checked; });
+          groups[role].classList.toggle('visible', checked);
+          if (!checked) articleSelects[role].value = '';
+        });
+      }
+
+      function applyUserRoles(userId) {
+        var items = rolesByUser[userId] || [];
+        var byRole = {};
+        items.forEach(function (item) { byRole[item.role] = item; });
+        checkboxes.forEach(function (cb) {
+          var item = byRole[cb.dataset.role];
+          cb.checked = Boolean(item);
+        });
+        Object.keys(groups).forEach(function (role) {
+          var item = byRole[role];
+          articleSelects[role].value = item && item.article_id ? String(item.article_id) : '';
+        });
+        refreshArticleGroups();
+      }
+
+      select.addEventListener('change', function () {
+        applyUserRoles(select.value);
+      });
+      checkboxes.forEach(function (cb) {
+        cb.addEventListener('change', refreshArticleGroups);
+      });
+
+      document.querySelectorAll('.edit-roles-btn').forEach(function (button) {
+        button.addEventListener('click', function () {
+          select.value = button.dataset.userId;
+          applyUserRoles(select.value);
+          document.getElementById('roles-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          select.focus({ preventScroll: true });
+        });
+      });
+
+      document.querySelectorAll('.clear-roles-form').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+          if (!window.confirm('Remover todos os papéis desta pessoa neste evento?')) {
+            event.preventDefault();
+          }
+        });
+      });
+
+      refreshArticleGroups();
+    })();
+  </script>
 
   <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
 </body>

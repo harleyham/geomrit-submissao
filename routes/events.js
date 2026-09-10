@@ -187,6 +187,13 @@ function certificateRoleMeta(role) { return CERTIFICATE_ROLES[role] || CERTIFICA
 // listas e QR Codes do dia, sem acesso administrativo ao restante do evento.
 const EVENT_ASSIGNABLE_ROLES = ['admin', 'staff', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'];
 const EVENT_ROLE_LABELS = { admin: 'Administrador do evento', staff: 'Staff' };
+// Os papéis do superadministrador do sistema (admin@admin.com) são imutáveis:
+// ninguém pode atribuir, alterar ou remover papéis dessa conta, em nenhum
+// evento e por nenhuma via (papéis do evento ou edição de participante).
+function eventRolesProtected(userId) {
+  return isSuperAdminUser(userId);
+}
+const SUPERADMIN_ROLES_MESSAGE = 'Os papéis do administrador geral do sistema (admin@admin.com) não podem ser atribuídos, alterados ou removidos.';
 function certificateText(value, eventName, activityName) {
   let text = String(value || '');
   text = text.replaceAll('{event}', eventName || '');
@@ -3217,9 +3224,19 @@ router.get('/:id/certificates/export-all', (req, res) => {
 router.get('/:id/roles', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const assignments = db.prepare(`SELECT eur.*, u.name AS user_name, u.email AS user_email, a.title AS article_title
+  const rolesRows = db.prepare(`SELECT eur.*, u.name AS user_name, u.email AS user_email, a.title AS article_title
     FROM event_user_roles eur JOIN users u ON u.id=eur.user_id LEFT JOIN articles a ON a.id=eur.article_id
-    WHERE eur.event_id=? ORDER BY eur.role, u.name COLLATE NOCASE`).all(event.id);
+    WHERE eur.event_id=? ORDER BY u.name COLLATE NOCASE, eur.role`).all(event.id);
+  // Agrupa por pessoa: um participante pode ter vários papéis no evento, e a
+  // lista exibe todos simultaneamente em uma única linha.
+  const assignmentsMap = new Map();
+  rolesRows.forEach((row) => {
+    if (!assignmentsMap.has(row.user_id)) {
+      assignmentsMap.set(row.user_id, { user_id: row.user_id, user_name: row.user_name, user_email: row.user_email, items: [], protected: eventRolesProtected(row.user_id) });
+    }
+    assignmentsMap.get(row.user_id).items.push({ role: row.role, article_id: row.article_id, article_title: row.article_title });
+  });
+  const assignments = [...assignmentsMap.values()];
   // Filtros da lista de pessoas do combobox (mesma sintaxe dos filtros da
   // página de participantes): busca textual e titulação.
   const filters = {
@@ -3232,14 +3249,13 @@ router.get('/:id/roles', (req, res) => {
   }
   const userConditions = [];
   const userParams = [];
-  if (isSuperAdminUser(req.session.userId)) {
-    userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'`);
-  } else {
-    userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'
-      AND (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
-        OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id))`);
-    userParams.push(event.id, event.id);
-  }
+  // Papéis só podem ser atribuídos a quem está inscrito no evento; quem já
+  // possui papel nele permanece listado para permitir ajustes (inclusive
+  // remoção, respeitando a proteção do último administrador).
+  userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'
+    AND (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
+      OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id))`);
+  userParams.push(event.id, event.id);
   if (filters.titulation.toLowerCase() === 'n\u00e3o especificado') {
     userConditions.push("(u.formacao_titulacao IS NULL OR u.formacao_titulacao = '')");
   } else if (filters.titulation !== 'all') {
@@ -3256,51 +3272,63 @@ router.get('/:id/roles', (req, res) => {
     const term = `%${filters.query.toLowerCase()}%`;
     userParams.push(term, term, term, term);
   }
-  // Somente inscritos no evento (ou quem já tem papel nele) podem receber
-  // papéis; o superadmin mantém a lista completa de contas ativas.
+  // Papéis só podem ser atribuídos a pessoas inscritas no evento (ou que já
+  // possuem papel nele), independentemente do nível de acesso do operador.
   const users = db.prepare(`SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter
     FROM users u
     WHERE ${userConditions.join(' AND ')}
     ORDER BY u.name COLLATE NOCASE
   `).all(...userParams);
+  // O superadministrador do sistema não pode receber/editar papéis; ele sai do
+  // combobox e a linha dele aparece protegida na lista abaixo.
+  const assignableUsers = users.filter((user) => !eventRolesProtected(user.id));
   const articles = db.prepare(`SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title COLLATE NOCASE`).all(event.id);
-  res.render('admin/events/roles', { title: `Papéis do evento - ${event.name}`, event, assignments, users, articles, filters, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' }, staff: { label: 'Staff' } }, success: req.query.success || null, error: req.query.error || null });
+  res.render('admin/events/roles', { title: `Papéis do evento - ${event.name}`, event, assignments, users: assignableUsers, articles, filters, roleMeta: { ...CERTIFICATE_ROLES, admin: { label: 'Administrador do evento' }, staff: { label: 'Staff' } }, success: req.query.success || null, error: req.query.error || null });
 });
 
 router.post('/:id/roles', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.roleAssignment);
 }, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
-  const role = EVENT_ASSIGNABLE_ROLES.includes(req.body.role) ? req.body.role : null;
   const userId = parseInt(req.body.user_id, 10);
-  if (!event || !role || !Number.isInteger(userId)) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel válidos.')}`);
-  let articleId = null;
+  const list = Array.isArray(req.body.roles) ? req.body.roles : (req.body.roles ? [req.body.roles] : []);
+  const selected = EVENT_ASSIGNABLE_ROLES.filter((role) => list.includes(role));
+  const backWithError = (message) => res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent(message)}`);
+  if (!event || !Number.isInteger(userId)) return backWithError('Informe uma pessoa válida.');
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(userId);
-  if (!user) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Informe uma pessoa e um papel válidos.')}`);
-  // Fora do superadmin, papéis só podem ser atribuídos a inscritos no evento
-  // (ou a quem já tenha papel nele, para permitir ajustes).
-  if (!isSuperAdminUser(req.session.userId)) {
-    const inscrita = db.prepare("SELECT 1 FROM event_registrations WHERE event_id=? AND user_id=? AND registration_status='approved'").get(event.id, userId)
-      || db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=?').get(event.id, userId);
-    if (!inscrita) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Somente pessoas inscritas neste evento podem receber papéis.')}`);
+  if (!user) return backWithError('Informe uma pessoa válida.');
+  if (eventRolesProtected(userId)) return backWithError(SUPERADMIN_ROLES_MESSAGE);
+  // Papéis podem ser atribuídos exclusivamente a quem está inscrito no evento
+  // (ou a quem já tenha papel nele, para permitir ajustes) — sem exceções.
+  const inscrita = db.prepare("SELECT 1 FROM event_registrations WHERE event_id=? AND user_id=? AND registration_status='approved'").get(event.id, userId)
+    || db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=?').get(event.id, userId);
+  if (!inscrita) return backWithError('Somente pessoas inscritas neste evento podem receber papéis.');
+  const articleByRole = {};
+  for (const role of ['oral_presenter', 'poster_presenter']) {
+    if (selected.includes(role)) {
+      const articleId = parseInt(role === 'oral_presenter' ? req.body.oral_article_id : req.body.poster_article_id, 10);
+      const article = db.prepare(`SELECT id FROM articles WHERE id=? AND event_id=? AND status='approved' AND type=?`).get(articleId, event.id, role === 'oral_presenter' ? 'oral' : 'poster');
+      if (!article) return backWithError(`Selecione um artigo aprovado com a modalidade correspondente para o papel de ${role === 'oral_presenter' ? 'apresentador oral' : 'apresentador de pôster'}.`);
+      articleByRole[role] = articleId;
+    }
   }
-  if (role === 'oral_presenter' || role === 'poster_presenter') {
-    articleId = parseInt(req.body.article_id, 10);
-    const article = db.prepare(`SELECT id FROM articles WHERE id=? AND event_id=? AND status='approved' AND type=?`).get(articleId, event.id, role === 'oral_presenter' ? 'oral' : 'poster');
-    if (!article) return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Selecione um artigo aprovado com a modalidade correspondente.')}`);
+  const hadAdmin = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(event.id, userId);
+  const currentAdmins = db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(event.id).count;
+  if (hadAdmin && !selected.includes('admin') && currentAdmins <= 1) {
+    return backWithError('O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.');
   }
-  try {
-    db.prepare(`INSERT INTO event_user_roles (event_id,user_id,role,article_id,assigned_by) VALUES (?,?,?,?,?)`).run(event.id, userId, role, articleId, req.session.userId);
-  } catch (error) {
-    return res.redirect(`/admin/events/${event.id}/roles?error=${encodeURIComponent('Esta pessoa já possui esse papel no evento.')}`);
-  }
-  res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent('Papel atribuído com sucesso.')}`);
+  db.transaction(() => {
+    db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=?').run(event.id, userId);
+    const insert = db.prepare('INSERT INTO event_user_roles (event_id,user_id,role,article_id,assigned_by) VALUES (?,?,?,?,?)');
+    selected.forEach((role) => insert.run(event.id, userId, role, articleByRole[role] || null, req.session.userId));
+  })();
+  res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent(selected.length ? 'Papéis atualizados com sucesso.' : 'Papéis removidos.')}`);
 });
 
 router.post('/:id/roles/:role/:userId/delete', strictLimiter, (req, res) => {
   const role = EVENT_ASSIGNABLE_ROLES.includes(req.params.role) ? req.params.role : null;
   const userId = parseInt(req.params.userId, 10);
-  if (role) {
+  if (role && !eventRolesProtected(userId)) {
     // Um evento não pode ficar sem administrador: bloqueia a remoção do
     // último admin, não importa quem esteja tentando (inclusive o superadmin).
     // Para trocar o admin, primeiro atribua o papel a outro usuário.
@@ -3308,8 +3336,9 @@ router.post('/:id/roles/:role/:userId/delete', strictLimiter, (req, res) => {
       && db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(req.params.id).count <= 1;
     if (removingLastAdmin) return res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent('O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.')}`);
     db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').run(req.params.id, userId, role);
+    return res.redirect(`/admin/events/${req.params.id}/roles?success=${encodeURIComponent('Papel removido.')}`);
   }
-  res.redirect(`/admin/events/${req.params.id}/roles?success=${encodeURIComponent('Papel removido.')}`);
+  res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent(role ? SUPERADMIN_ROLES_MESSAGE : 'Papel inválido.')}`);
 });
 
 router.get('/:id/participants/new', (req, res) => {
@@ -3490,7 +3519,7 @@ function getApprovedEventArticles(eventId) {
 }
 
 function requestedEventRoles(body = {}) {
-  const allowed = ['speaker', 'teacher', 'oral_presenter', 'poster_presenter'];
+  const allowed = ['admin', 'staff', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'];
   const selected = Array.isArray(body.event_roles) ? body.event_roles : [body.event_roles];
   const parseArticleId = (value) => { const parsed = parseInt(value, 10); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; };
   return allowed.filter((role) => selected.includes(role)).map((role) => ({
@@ -3501,6 +3530,7 @@ function requestedEventRoles(body = {}) {
 
 function validateAndSaveParticipantEventRoles(eventId, userId, body, actorUserId) {
   if (!userId) return 'A inscrição precisa estar vinculada a uma conta para receber papéis no evento.';
+  if (eventRolesProtected(userId)) return SUPERADMIN_ROLES_MESSAGE;
   const roles = requestedEventRoles(body);
   for (const item of roles) {
     if (item.role === 'oral_presenter' || item.role === 'poster_presenter') {
@@ -3509,10 +3539,17 @@ function validateAndSaveParticipantEventRoles(eventId, userId, body, actorUserId
       if (!article) return `Selecione um artigo aprovado na modalidade ${type === 'oral' ? 'oral' : 'pôster'} para o papel de apresentador.`;
     }
   }
+  // O evento precisa manter ao menos um administrador: se o novo conjunto
+  // remove o admin e ele é o último, bloqueia (inclusive para superadmin).
+  if (!roles.some((item) => item.role === 'admin')
+    && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId, userId)
+    && db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(eventId).count <= 1) {
+    return 'O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.';
+  }
   db.transaction(() => {
-    // A edição de participação gerencia apenas os papéis operacionais abaixo.
-    // Papéis administrativos e de revisão são preservados e gerenciados no fluxo próprio.
-    db.prepare("DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role IN ('speaker','teacher','oral_presenter','poster_presenter')").run(eventId, userId);
+    // Esta edição gerencia todos os papéis do evento, sincronizando com a
+    // página de papéis (/admin/events/:id/roles), que usa a mesma semântica.
+    db.prepare("DELETE FROM event_user_roles WHERE event_id=? AND user_id=? AND role IN ('admin','staff','reviewer','speaker','teacher','oral_presenter','poster_presenter')").run(eventId, userId);
     const insert = db.prepare('INSERT INTO event_user_roles (event_id,user_id,role,article_id,assigned_by) VALUES (?,?,?,?,?)');
     roles.forEach((item) => insert.run(eventId, userId, item.role, item.articleId || null, actorUserId));
   })();
@@ -3532,6 +3569,7 @@ function renderParticipantFormError(res, event, registration, formData, error) {
     pendingActivityRequests: registration ? getPendingActivityRequests(registration) : [],
     justifiedActivityIds: getJustifiedActivityIds(registration && registration.id),
     eventRoles: getParticipantEventRoles(event.id, registration && registration.user_id),
+    rolesLocked: eventRolesProtected(registration && registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
     areas: areas,
     formacaoAreas: areas,
@@ -3828,6 +3866,7 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
     pendingActivityRequests: getPendingActivityRequests(registration),
     justifiedActivityIds: getJustifiedActivityIds(registration.id),
     eventRoles: getParticipantEventRoles(event.id, registration.user_id),
+    rolesLocked: eventRolesProtected(registration.user_id),
     approvedArticles: getApprovedEventArticles(event.id),
     areas: areas,
     formacaoAreas: areas,

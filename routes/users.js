@@ -440,17 +440,17 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
 router.get('/:id/edit', requireAuth, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').bind(req.params.id).get();
   if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
-  const managedEvents = isSuperAdminUser(req.session.userId)
-    ? db.prepare('SELECT e.id,e.name,e.date_start FROM events e ORDER BY e.date_start DESC,e.name').all()
-    : db.prepare(`SELECT e.id,e.name,e.date_start FROM events e JOIN event_user_roles eur ON eur.event_id=e.id WHERE eur.user_id=? AND eur.role='admin' ORDER BY e.date_start DESC,e.name`).all(req.session.userId);
-  const selectedEventId = managedEvents.some((event) => event.id === Number(req.query.event_id)) ? Number(req.query.event_id) : (managedEvents[0] && managedEvents[0].id);
-  const eventRoles = selectedEventId ? db.prepare('SELECT role,article_id FROM event_user_roles WHERE event_id=? AND user_id=?').all(selectedEventId, user.id) : [];
-  const approvedArticles = selectedEventId ? db.prepare("SELECT id,title,type FROM articles WHERE event_id=? AND status='approved' ORDER BY title").all(selectedEventId) : [];
+  // Papéis são atribuídos exclusivamente na página "Papéis" do evento
+  // (/admin/events/:id/roles); aqui só se exibe onde a pessoa atua.
+  const roleEvents = db.prepare(`SELECT e.id, e.name, e.date_start,
+      GROUP_CONCAT(eur.role, ',') AS roles
+    FROM events e JOIN event_user_roles eur ON eur.event_id=e.id
+    WHERE eur.user_id=? GROUP BY e.id ORDER BY e.date_start DESC, e.name COLLATE NOCASE`).all(user.id);
   const areas = getAreas();
   const cursosMap = getCursosMap();
   res.render('admin/users/form', {
     user,
-    managedEvents, selectedEventId, eventRoles, approvedArticles,
+    roleEvents,
     title: 'Editar Usuário',
     year: new Date().getFullYear(),
     success: req.query.success || null,
@@ -460,22 +460,6 @@ router.get('/:id/edit', requireAuth, (req, res) => {
     cursosMap: cursosMap,
     noDegreeCourse: NO_DEGREE_COURSE
   });
-});
-
-router.post('/:id/event-roles', requireAuth, (req, res) => {
-  const userId = Number(req.params.id), eventId = Number(req.body.event_id);
-  const allowed = db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId, req.session.userId) || isSuperAdminUser(req.session.userId);
-  if (!allowed) return res.status(403).render('error', { title: 'Acesso negado', message: 'Você não administra este evento.' });
-  const roles = Array.isArray(req.body.roles) ? req.body.roles : [req.body.roles];
-  const valid = ['admin','staff','participant','reviewer','speaker','teacher','oral_presenter','poster_presenter'];
-  const selected = valid.filter((role) => roles.includes(role));
-  const currentAdmins = db.prepare("SELECT COUNT(*) AS count FROM event_user_roles WHERE event_id=? AND role='admin'").get(eventId).count;
-  // O evento precisa manter ao menos um administrador, não importa quem
-  // esteja editando (inclusive o superadmin): troque o papel antes de remover.
-  const targetHasAdmin = !selected.includes('admin') && db.prepare("SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role='admin'").get(eventId,userId);
-  if (targetHasAdmin && currentAdmins <= 1) return res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&error=${encodeURIComponent('O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.')}`);
-  db.transaction(() => { db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=?').run(eventId,userId); const insert=db.prepare('INSERT INTO event_user_roles(event_id,user_id,role,article_id,assigned_by) VALUES(?,?,?,?,?)'); selected.forEach((role)=>{const articleId=role==='oral_presenter'?Number(req.body.oral_article_id)||null:role==='poster_presenter'?Number(req.body.poster_article_id)||null:null; insert.run(eventId,userId,role,articleId,req.session.userId);}); })();
-  res.redirect(`/admin/users/${userId}/edit?event_id=${eventId}&success=${encodeURIComponent('Perfis do evento atualizados.')}`);
 });
 
 router.get('/:id/participant', requireAuth, (req, res) => {

@@ -109,7 +109,7 @@
         <a href="/" class="btn btn-secondary">Início</a>
         <a href="/admin" class="active">Dashboard</a>
         <a href="/admin/events" class="btn btn-secondary">Eventos</a>
-        <a href="/admin/users" class="btn btn-secondary">Usuários</a>
+        <% if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) { %><a href="/admin/users" class="btn btn-secondary">Usuários</a><% } %>
         <% if (isReviewer) { %>
           <a href="/reviewer" class="btn btn-secondary">Painel do Revisor</a>
         <% } %>
@@ -124,11 +124,45 @@
 
   <main class="main-content">
     <div class="page-header">
-      <h1>Dashboard</h1>
+      <div>
+        <h1><%= (typeof dashboardScoped !== 'undefined' && dashboardScoped) ? 'Meu painel' : 'Dashboard' %></h1>
+        <% if (typeof dashboardScoped !== 'undefined' && dashboardScoped) { %>
+          <p style="color:var(--text-muted);margin-top:0.35rem;">Dados referentes apenas aos eventos em que você é administrador.</p>
+        <% } %>
+      </div>
       <% if (isReviewer) { %>
         <a href="/reviewer" class="btn btn-primary">Abrir Painel do Revisor</a>
       <% } %>
     </div>
+
+    <% if (typeof dashboardScoped !== 'undefined' && dashboardScoped && (!managedEvents || !managedEvents.length)) { %>
+      <div class="section">
+        <div class="empty">
+          <p>Você ainda não administra nenhum evento.</p>
+          <p>Crie um evento em <a href="/admin/events">Meus Eventos</a> e você passará a administrá-lo automaticamente.</p>
+        </div>
+      </div>
+    <% } else { %>
+
+    <% if (typeof dashboardScoped !== 'undefined' && dashboardScoped && managedEvents && managedEvents.length) { %>
+    <div class="stats-group">
+      <div class="stats-group-title">Eventos que administro</div>
+      <div class="stats-grid">
+        <% managedEvents.forEach(function (me) { const st = { published: 'Publicado', draft: 'Rascunho', encerrado: 'Encerrado' }[me.status] || (me.status || '-') ; const d = (v) => { if (!v) return '-'; const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : v; }; %>
+          <div class="stat-card" style="text-align:left">
+            <div class="stat-label" style="margin-bottom:0.35rem"><%= st %> <% if (me.date_start) { %>· <%= d(me.date_start) %><% } %></div>
+            <div style="font-size:1.05rem;font-weight:700;color:var(--text-strong);margin-bottom:0.6rem;"><%= me.name %></div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+              <a href="/admin/events/<%= me.id %>/participants" class="btn btn-ghost btn-sm">Participantes</a>
+              <a href="/admin/events/<%= me.id %>/activities" class="btn btn-ghost btn-sm">Atividades</a>
+              <a href="/admin/events/<%= me.id %>/roles" class="btn btn-ghost btn-sm">Papéis</a>
+              <a href="/admin/events/<%= me.id %>/certificates" class="btn btn-ghost btn-sm">Certificados</a>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
 
     <div class="stats-group">
       <div class="stats-group-title">Eventos</div>
@@ -162,6 +196,7 @@
       </div>
     </div>
 
+    <% if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) { %>
     <div class="stats-group">
       <div class="stats-group-title">Usuários</div>
       <div class="stats-grid">
@@ -190,7 +225,9 @@
           <div class="stat-value"><%= listenerRegistrations %></div>
         </div>
       </div>
+      <p style="color:var(--text-faint);font-size:0.78rem;margin-top:0.5rem;">Inscritos, usuários e cadastros consideram todas as contas do sistema (visão global).</p>
     </div>
+    <% } %>
 
     <div class="stats-group">
       <div class="stats-group-title">Artigos</div>
@@ -376,6 +413,7 @@
       </div>
     </div>
 
+    <% if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) { %>
     <div class="section" style="margin-top:1.5rem;">
       <div class="section-header">
         <h2>Solicitações de cadastro não analisadas</h2>
@@ -411,8 +449,9 @@
         <% } %>
       </div>
     </div>
+    <% } %>
 
-    <% if (userEmail === 'admin@admin.com') { %>
+    <% if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) { %>
       <% if (query && query.message) { %>
       <div style="background:var(--success-subtle);border:1px solid var(--success-border);border-radius:12px;padding:1rem 1.25rem;margin-top:1.5rem;color:var(--success);"><%= query.message %></div>
       <% } %>
@@ -500,6 +539,7 @@
           </div>
         </div>
       </div>
+    <% } %>
     <% } %>
   </main>
 

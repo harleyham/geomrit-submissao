@@ -77,7 +77,7 @@ Use uma senha inicial forte e troque-a no primeiro acesso. Sem `SUPER_ADMIN_INIT
 
 ## 3. Navegação e perfis
 
-Após o login, o usuário é encaminhado conforme seus papéis, consultados no banco a cada acesso: `admin@admin.com` vai para `/admin/dashboard`; quem é administrador ou staff de algum evento vai para `/admin/events`; quem tem papel **Revisor** em pelo menos um evento pode alternar com `/reviewer`; as demais contas aprovadas vão para `/author` (Área do Participante). Não existem mais papéis globais: participante, revisor, palestrante, professor, apresentador e staff são exercidos **por evento**.
+Após o login, o usuário é encaminhado conforme seus papéis, consultados no banco a cada acesso: `admin@admin.com` vai para `/admin/dashboard` (Dashboard global); quem é **administrador** de algum evento vai para o próprio `/admin/dashboard` ("Meu painel", personalizado com os eventos que administra); staff vai para `/admin/events`; quem tem papel **Revisor** em pelo menos um evento pode alternar com `/reviewer`; as demais contas aprovadas vão para `/author` (Área do Participante). Não existem mais papéis globais: participante, revisor, palestrante, professor, apresentador e staff são exercidos **por evento**.
 
 O administrador de evento administra apenas os eventos nos quais possui o papel `admin` (e, nos artigos e relatórios, enxerga só os seus eventos). O papel atribuído em um evento não altera os demais eventos nem o cadastro global da pessoa.
 
@@ -156,7 +156,7 @@ Durante a inclusão ou edição:
 4. informe as atividades nas quais a pessoa participará, quando aplicável;
 5. salve.
 
-Os papéis disponíveis no evento incluem participante, administrador, **revisor**, palestrante, professor, apresentador oral e apresentador pôster — todos **exclusivamente por evento**. A página de Papéis (`/admin/events/:id/roles`) lista como candidatos apenas **inscritos no evento** (ou quem já tem papel nele); o superadmin pode atribuir a qualquer conta aprovada. Atribuir um papel **não altera mais nenhum dado do cadastro global** da pessoa. O participante comum não precisa de papel: a inscrição basta. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento. O painel de revisão (`/reviewer`) fica disponível a quem tem papel `reviewer` em pelo menos um evento; o administrador só pode atribuir revisores entre os inscritos do seu evento.
+Os papéis disponíveis no evento incluem administrador, staff, **revisor**, palestrante, professor, apresentador oral e apresentador pôster — todos **exclusivamente por evento**. A atribuição é feita **somente** na página de Papéis (`/admin/events/:id/roles`) ou na edição do participante do evento (as duas páginas gravam no mesmo registro e ficam sincronizadas): seleciona-se a pessoa **inscrita no evento**, marcam-se os papéis desejados (checkboxes) e salvar **substitui o conjunto anterior** — o mesmo papel nunca é duplicado. Papéis de apresentador exigem artigo aprovado na modalidade correspondente. Atribuir um papel **não altera nenhum dado do cadastro global** da pessoa. O participante comum não precisa de papel: a inscrição basta. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento. A lista "Papéis atribuídos" mostra uma linha por pessoa com **todos os papéis simultaneamente** (badges + artigos), e permite editar ou remover o conjunto. A proteção do último administrador impede remover o papel `admin` quando ele é o único. Os papéis do superadministrador do sistema (`admin@admin.com`) são **imutáveis**: ninguém pode atribuir, alterar ou remover papéis dessa conta. O painel de revisão (`/reviewer`) fica disponível a quem tem papel `reviewer` em pelo menos um evento; o administrador só pode atribuir revisores entre os inscritos do seu evento.
 
 **Toda inscrição possui conta vinculada** (garantia imposta pelo banco de dados). Registros históricos sem vínculo são corrigidos automaticamente na inicialização do sistema: a inscrição é ligada à conta com o mesmo e-mail ou, se não existir conta, uma nova é criada (aprovada, com senha desconhecida — use **Resetar Senha** na listagem de usuários para enviar o link de definição por e-mail). Por isso a coluna "Conta" nunca mais exibe "Sem vínculo de conta".
 
@@ -164,7 +164,7 @@ No credenciamento, use **Imprimir crachá** na linha do participante. O crachá 
 
 ### Papel Staff
 
-O papel **Staff** é uma designação **exclusivamente por evento**, atribuída na página de Papéis (`/admin/events/:id/roles`) ou na seção **Perfis por evento** da edição de usuário (restrita ao superadmin). Não existe mais elegibilidade global: desligar contas não revoga papéis, e remover o papel na página de Papéis é o que encerra a designação. O acesso efetivo do Staff limita-se **apenas aos eventos em que foi designado**.
+O papel **Staff** é uma designação **exclusivamente por evento**, atribuída apenas na página de Papéis (`/admin/events/:id/roles`) ou na edição do participante do evento. Em `/admin/users/:id/edit` a seção "Papéis por evento" é **somente leitura** (mostra onde a pessoa atua, com link para gerenciar). Não existe mais elegibilidade global: desligar contas não revoga papéis, e remover o papel na página de Papéis é o que encerra a designação. O acesso efetivo do Staff limita-se **apenas aos eventos em que foi designado**.
 
 Dentro dos seus eventos, o Staff concentra a operação, sem ser administrador:
 
@@ -296,9 +296,18 @@ O certificado pode ser baixado pelo participante e verificado publicamente pelo 
 
 ## 12. Dashboard administrativo
 
-O dashboard (`/admin/dashboard`) é exclusivo do superadministrador (`admin@admin.com`) e apresenta um resumo operacional:
+Após o login, todo administrador de evento aterrissa no **"Meu painel"** (`/admin/dashboard`), com dados exclusivos dos eventos que administra. O superadministrador (`admin@admin.com`) vê o **Dashboard** global do sistema.
 
-- total de usuários;
+**Meu painel (administrador de evento)**:
+
+- seção **"Eventos que administro"**: um card por evento (status Publicado/Rascunho/Encerrado, data de início e nome) com links rápidos para Participantes, Atividades, Papéis e Certificados;
+- métricas e listas (pêndencias) **referentes apenas aos seus eventos**: eventos (total, publicados, realizados), inscritos (total, em eventos futuros, autores, participantes), revisores ativos/inativos, artigos (total, sem revisor, em análise, prontos para deliberação), pedidos de subsídio e pedidos de inclusão em atividades não analisados; as tabelas de pendência levam direto à página correspondente do evento;
+- se ainda não administra nenhum evento, o painel orienta a criar um em **Meus Eventos**;
+- o administrador de evento **não vê**: métricas globais de usuários, solicitações de cadastro, os cards "Paleta do sistema", "Envio global de e-mails" e "Backup e Restauração", nem o link Usuários do menu.
+
+**Dashboard (superadministrador — `admin@admin.com`)**: visão global do sistema, incluindo:
+
+- total de usuários e usuários pendentes;
 - eventos realizados;
 - inscritos em eventos futuros;
 - artigos sem revisor;

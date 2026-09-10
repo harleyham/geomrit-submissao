@@ -180,9 +180,10 @@ const validators = {
   ],
   publication: [],
   roleAssignment: [
-    body('role').isIn(['admin', 'staff', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter']).withMessage('Papel inválido.'),
     body('user_id').isInt({ min: 1 }).withMessage('Usuário inválido.'),
-    body('article_id').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Artigo inválido.')
+    body('roles').custom((value) => (Array.isArray(value) ? value : [value || null]).filter(Boolean).every((role) => ['admin', 'staff', 'reviewer', 'speaker', 'teacher', 'oral_presenter', 'poster_presenter'].includes(role))).withMessage('Papel inválido.'),
+    body('oral_article_id').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Artigo inválido.'),
+    body('poster_article_id').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Artigo inválido.')
   ],
   attendanceAction: [
     body('action').isIn(['mark', 'update', 'remove', 'present', 'absent']).withMessage('Ação inválida.'),

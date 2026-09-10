@@ -291,9 +291,12 @@ Ordem de execução: 6.1 → 6.2 → 6.3 → 6.4 → 6.5.
 ## Reforma de Permissões — papéis exclusivamente por evento
 Status geral: **IMPLEMENTADA, VALIDADA E COMMITADA (31/08/2026; consolidada no commit `9661aba`)**.
 
-- Superadmin (`admin@admin.com`): poder total; único com `/admin/users` e
-  `/admin/dashboard` (`requireSuperAdminUser`). `is_admin` é só o marcador da
-  linha semente.
+- Superadmin (`admin@admin.com`): poder total; único com `/admin/users` e com os
+  cards globais do `/admin/dashboard` (Paleta, Envio global de e-mails, Backup).
+  `is_admin` é só o marcador da linha semente. *(Atualizado em 09/09/2026: o
+  `/admin/dashboard` deixou de ser exclusivo do super — administradores de
+  evento veem "Meu painel" escopado aos seus eventos; e `requireSuperAdminUser`
+  permanece apenas para a guarda global.)*
 - Qualquer usuário autenticado cria evento e vira admin dele (papel gravado em
   `event_user_roles`; sem promoção de sessão).
 - Não-supers: apenas papéis de **inscritos** nos eventos que administram

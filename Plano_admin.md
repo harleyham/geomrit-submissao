@@ -1,6 +1,6 @@
 # Plano: admin por evento (autorização escopada) + STAFF + revisor por evento
 
-> **Documento histórico, superado em 31/08/2026 e corrigido em 01/09/2026.** Este arquivo preserva a proposta original e não descreve integralmente o modelo vigente. A implementação final está documentada em `plano.md`, `submissao_log_v2.md` e `manual.md`. No modelo atual, `/admin/users` e `/admin/dashboard` são exclusivos do superadministrador; `staff` não acessa artigos, pareceres ou relatórios; e o acesso a cada artigo pelo revisor exige simultaneamente atribuição e papel `reviewer` ativo no evento.
+> **Documento histórico, superado em 31/08/2026 e corrigido em 01/09/2026.** Este arquivo preserva a proposta original e não descreve integralmente o modelo vigente. A implementação final está documentada em `plano.md`, `submissao_log_v2.md` e `manual.md`. No modelo atual, `/admin/users` é exclusivo do superadministrador; o `/admin/dashboard` é global para o superadmin e personalizado ("Meu painel", escopado aos eventos que administra) para administradores de evento; `staff` não acessa artigos, pareceres ou relatórios; e o acesso a cada artigo pelo revisor exige simultaneamente atribuição e papel `reviewer` ativo no evento.
 
 > Contexto: no estado atual, um usuário com papel de admin de evento acaba com poder
 > sobre **todo** o sistema (via escalada em `requireAuth`), porque `event_user_roles

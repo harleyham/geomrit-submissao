@@ -150,17 +150,17 @@ Flags legadas de permissão no cadastro global:
 - `approved_at`
 - `approved_by`
 
-O usuário possui um único cadastro e login. **Todos os papéis de atuação são exclusivamente por evento**, em `event_user_roles`: `admin`, `staff`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter` — atribuídos apenas a inscritos no evento (o superadmin pode atribuir a qualquer conta ativa) e **sem alterar o cadastro global**. Administradores consultam e administram artigos, pareceres e relatórios somente nos eventos em que possuem papel `admin`; `staff` permanece restrito à operação de participantes, presença, listas, QR e certificados. As flags `is_*` são legadas, não autorizam ações, e `is_admin` sobrevive apenas na linha do superadmin (`admin@admin.com`).
+O usuário possui um único cadastro e login. **Todos os papéis de atuação são exclusivamente por evento**, em `event_user_roles`: `admin`, `staff`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter` — atribuídos apenas a inscritos no evento, **somente** na página de Papéis do evento (`/admin/events/:id/roles`) ou na edição do participante do evento (substituição atômica do conjunto, um participante pode acumular vários papéis) e **sem alterar o cadastro global**; os papéis do superadmin (`admin@admin.com`) são imutáveis. Administradores consultam e administram artigos, pareceres e relatórios somente nos eventos em que possuem papel `admin`; `staff` permanece restrito à operação de participantes, presença, listas, QR e certificados. As flags `is_*` são legadas, não autorizam ações, e `is_admin` sobrevive apenas na linha do superadmin (`admin@admin.com`).
 
 ### Regras de acesso
 
-- Superadmin (`admin@admin.com` com `is_admin = 1` confirmado no banco): acesso total, incluídos `/admin/users` e `/admin/dashboard`, exclusivos.
-- Papel `admin` em algum evento: gestão do evento, incluídos artigos, pareceres, atribuições, decisões e relatórios daquele evento.
-- Papel `staff` em algum evento: operação de participantes, presença, listas, QR e certificados; sem acesso administrativo a artigos ou relatórios.
+- Superadmin (`admin@admin.com` com `is_admin = 1` confirmado no banco): acesso total, incluídos `/admin/users` (exclusivo) e `/admin/dashboard` global (os cards "Paleta do sistema", "Envio global de e-mails" e "Backup e Restauração" são exclusivos dele); os papéis dessa conta em `event_user_roles` não podem ser atribuídos, alterados ou removidos por ninguém.
+- Papel `admin` em algum evento: gestão do evento, incluídos artigos, pareceres, atribuições, decisões e relatórios daquele evento; dashboard personalizado em `/admin/dashboard` com métricas e pendências apenas dos eventos que administra.
+- Papel `staff` em algum evento: operação de participantes, presença, listas, QR e certificados; sem acesso administrativo a artigos ou relatórios; aterrissa em `/admin/events`.
 - Papel `reviewer` em algum evento: acesso ao painel `/reviewer`; cada artigo exige também atribuição ativa no mesmo evento.
 - Demais contas aprovadas e ativas: Área do Participante (`/author`), incluindo troca da própria senha.
 - `is_public = 1`: conta habilitada para autenticação (status de conta, não papel).
-- Redirecionamento pós-login: super → `/admin/dashboard`; admin/staff → `/admin/events`; revisor → `/reviewer`; demais → `/author`.
+- Redirecionamento pós-login: super e admin de evento → `/admin/dashboard` (admin de evento vê "Meu painel" escopado); staff → `/admin/events`; revisor → `/reviewer`; demais → `/author`.
 - `/login?switch=1` (usado pelos links de e-mails da organização) exibe a tela de login mesmo com sessão ativa, com aviso "Você está logado como X" e opções de manter a sessão (ir à área do usuário) ou sair e entrar com outra conta; a troca de conta regenera a sessão. Sem o parâmetro, sessão ativa continua redirecionando direto para a área do usuário.
 - `/author` bloqueia a conta superadmin (fora da prévia "como participante"), redirecionando para `/admin/dashboard`.
 

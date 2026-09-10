@@ -277,7 +277,13 @@
         <% if (registration && registration.user_id) { %>
         <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:1rem;">
           <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.75rem;font-weight:600;">Perfis no evento (da conta vinculada)</p>
-          <p class="help-text" style="margin-bottom:0.5rem;">Selecione os papéis desta pessoa exclusivamente neste evento. Papéis de administrador, revisor e participante continuam em <a href="/admin/users/<%= registration.user_id %>/edit?event_id=<%= event.id %>" style="color:var(--link);">Perfis por evento</a>.</p>
+          <p class="help-text" style="margin-bottom:0.5rem;">Selecione os papéis desta pessoa exclusivamente neste evento; ao salvar, o conjunto substitui os papéis anteriores. A mesma gestão está disponível em <a href="/admin/events/<%= event.id %>/roles" style="color:var(--link);">Papéis do evento</a>.</p>
+          <% if (rolesLocked) { %>
+            <div class="help-text" style="padding:0.75rem;border:1px solid var(--border);border-radius:8px;background:var(--surface-hover)">A conta vinculada é o administrador geral do sistema (admin@admin.com): seus papéis não podem ser atribuídos, alterados ou removidos.</div>
+          <% } else { %>
+          <label class="event-role-option"><input type="checkbox" name="event_roles" value="admin" <%= (eventRoles || []).some((item) => item.role === 'admin') ? 'checked' : '' %>><span>Administrador do evento</span></label>
+          <label class="event-role-option"><input type="checkbox" name="event_roles" value="staff" <%= (eventRoles || []).some((item) => item.role === 'staff') ? 'checked' : '' %>><span>Staff</span></label>
+          <label class="event-role-option"><input type="checkbox" name="event_roles" value="reviewer" <%= (eventRoles || []).some((item) => item.role === 'reviewer') ? 'checked' : '' %>><span>Revisor</span></label>
           <label class="event-role-option"><input type="checkbox" name="event_roles" value="speaker" <%= (eventRoles || []).some((item) => item.role === 'speaker') ? 'checked' : '' %>><span>Palestrante</span></label>
           <label class="event-role-option"><input type="checkbox" name="event_roles" value="teacher" <%= (eventRoles || []).some((item) => item.role === 'teacher') ? 'checked' : '' %>><span>Professor</span></label>
           <label class="event-role-option"><input type="checkbox" name="event_roles" value="oral_presenter" <%= (eventRoles || []).some((item) => item.role === 'oral_presenter') ? 'checked' : '' %>><span>Apresentador Oral</span></label>
@@ -300,6 +306,7 @@
               <% }) %>
             </select>
           </div>
+          <% } %>
         </div>
         <% } %>
 

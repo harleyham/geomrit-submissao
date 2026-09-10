@@ -30,7 +30,8 @@ function authenticatedDestination(req) {
   const userId = req.session && req.session.userId;
   if (!userId) return '/';
   if (isSuperAdminUser(userId)) return '/admin/dashboard';
-  if (hasRoleAnyEvent(userId, 'admin') || hasRoleAnyEvent(userId, 'staff')) return '/admin/events';
+  if (hasRoleAnyEvent(userId, 'admin')) return '/admin/dashboard';
+  if (hasRoleAnyEvent(userId, 'staff')) return '/admin/events';
   if (hasRoleAnyEvent(userId, 'reviewer')) return '/reviewer';
   return '/author';
 }
@@ -329,31 +330,51 @@ router.get('/', (req, res) => {
   });
 });
 
-// Dashboard admin
-router.get('/dashboard', requireSuperAdminUser, (req, res) => {
+// Dashboard: superadmin vê o sistema inteiro; administrador de evento vê um
+// painel personalizado com os dados exclusivos dos eventos que administra
+// (staff não acessa o dashboard). eventIds === null significa escopo global.
+router.get('/dashboard', requireAuth, (req, res) => {
   const isSuperAdmin = isSuperAdminUser(req.session.userId);
+  const dashboardEventIds = isSuperAdmin ? null : getEventIdsByRole(req.session.userId, 'admin');
+  const hasScope = dashboardEventIds === null || dashboardEventIds.length > 0;
+  const scopedParams = hasScope && dashboardEventIds !== null ? dashboardEventIds : [];
+  // Cláusula de escopo por evento (aplicada como último predicado do WHERE,
+  // com os parâmetros ao final do bind, na mesma ordem).
+  const evIn = (column) => {
+    if (dashboardEventIds === null) return '';
+    return ` AND ${column} IN (${scopedParams.map(() => '?').join(',') || 'NULL'})`;
+  };
+  const evBind = (params = []) => (dashboardEventIds === null ? params : [...params, ...scopedParams]);
   const brToday = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
-  const totalEvents = db.prepare('SELECT COUNT(*) as count FROM events').get().count;
-  const publishedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'published'").get().count;
+
+  const managedEventRows = dashboardEventIds === null ? [] : (hasScope
+    ? db.prepare(`SELECT id,name,status,date_start,date_end FROM events WHERE id IN (${scopedParams.map(() => '?').join(',')}) ORDER BY date_start DESC, name COLLATE NOCASE`).all(...scopedParams)
+    : []);
+
+  const totalEvents = !hasScope ? 0 : db.prepare(`SELECT COUNT(*) as count FROM events e WHERE 1=1 ${evIn('e.id')}`).bind(...evBind()).get().count;
+  const publishedEvents = !hasScope ? 0 : db.prepare(`SELECT COUNT(*) as count FROM events e WHERE e.status = 'published' ${evIn('e.id')}`).bind(...evBind()).get().count;
   // Evento realizado = encerrado explicitamente, ou publicado cuja data de
   // fim já passou. Rascunhos não contam, mesmo com data anterior a hoje.
-  const concludedEvents = db.prepare("SELECT COUNT(*) as count FROM events WHERE status = 'encerrado' OR (status = 'published' AND date_end IS NOT NULL AND date_end != '' AND date_end < ?)").bind(brToday).get().count;
-  const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-  const futureRegistrations = db.prepare(`
+  const concludedEvents = !hasScope ? 0 : db.prepare(`SELECT COUNT(*) as count FROM events e WHERE (e.status = 'encerrado' OR (e.status = 'published' AND e.date_end IS NOT NULL AND e.date_end != '' AND e.date_end < ?)) ${evIn('e.id')}`).bind(...evBind([brToday])).get().count;
+  // Métricas globais de conta: exclusivas do superadmin (dados do cadastro).
+  const totalUsers = !isSuperAdmin ? 0 : db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+  const futureRegistrations = !hasScope ? 0 : db.prepare(`
     SELECT COUNT(*) as count
     FROM event_registrations er
     JOIN events e ON e.id = er.event_id
     WHERE e.date_start IS NOT NULL AND e.date_start != '' AND e.date_start >= ?
-  `).bind(brToday).get().count;
-  const totalArticles = db.prepare("SELECT COUNT(*) as count FROM articles WHERE status != 'draft'").get().count;
-  const articlesWithoutReviewer = db.prepare(`
+    ${evIn('e.id')}
+  `).bind(...evBind([brToday])).get().count;
+  const totalArticles = !hasScope ? 0 : db.prepare(`SELECT COUNT(*) as count FROM articles a WHERE a.status != 'draft' ${evIn('a.event_id')}`).bind(...evBind()).get().count;
+  const articlesWithoutReviewer = !hasScope ? 0 : db.prepare(`
     SELECT COUNT(DISTINCT a.id) as count
     FROM articles a
     LEFT JOIN assignments ass ON ass.article_id = a.id
     WHERE a.status NOT IN ('draft', 'approved', 'rejected')
       AND ass.id IS NULL
-  `).get().count;
-  const articlesUnderReview = db.prepare(`
+      ${evIn('a.event_id')}
+  `).bind(...evBind()).get().count;
+  const articlesUnderReview = !hasScope ? 0 : db.prepare(`
     SELECT COUNT(DISTINCT a.id) as count
     FROM articles a
     JOIN assignments ass ON ass.article_id = a.id
@@ -361,8 +382,9 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
     WHERE a.status NOT IN ('draft', 'approved', 'rejected')
       AND ass.status != 'declined'
       AND rp.id IS NULL
-  `).get().count;
-  const articlesReadyForDecision = db.prepare(`
+      ${evIn('a.event_id')}
+  `).bind(...evBind()).get().count;
+  const articlesReadyForDecision = !hasScope ? 0 : db.prepare(`
     SELECT COUNT(DISTINCT a.id) as count
     FROM articles a
     WHERE a.status NOT IN ('draft', 'approved', 'rejected')
@@ -380,15 +402,16 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
           AND ass.status != 'declined'
           AND rp.id IS NULL
       )
-  `).get().count;
+      ${evIn('a.event_id')}
+  `).bind(...evBind()).get().count;
   const pendingArticles = articlesWithoutReviewer + articlesUnderReview + articlesReadyForDecision;
-  const authorRegistrations = getAuthorRegistrationCountWhere();
-  const listenerRegistrations = getListenerRegistrationCountWhere();
+  const authorRegistrations = !hasScope ? 0 : getAuthorRegistrationCountWhere(evIn('event_id') === '' ? '' : `AND event_id IN (${scopedParams.map(() => '?').join(',')})`, scopedParams);
+  const listenerRegistrations = !hasScope ? 0 : getListenerRegistrationCountWhere(evIn('event_id') === '' ? '' : `AND event_id IN (${scopedParams.map(() => '?').join(',')})`, scopedParams);
   const totalRegisteredParticipants = authorRegistrations + listenerRegistrations;
-  const activeReviewers = db.prepare("SELECT COUNT(DISTINCT eur.user_id) as count FROM event_user_roles eur JOIN users u ON u.id = eur.user_id WHERE eur.role = 'reviewer' AND u.is_public = 1").get().count;
-  const inactiveReviewers = db.prepare("SELECT COUNT(DISTINCT eur.user_id) as count FROM event_user_roles eur JOIN users u ON u.id = eur.user_id WHERE eur.role = 'reviewer' AND u.is_public = 0").get().count;
-  const pendingUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
-  const pendingReviewAssignmentArticles = db.prepare(`
+  const activeReviewers = !hasScope ? 0 : db.prepare(`SELECT COUNT(DISTINCT eur.user_id) as count FROM event_user_roles eur JOIN users u ON u.id = eur.user_id WHERE eur.role = 'reviewer' AND u.is_public = 1 ${evIn('eur.event_id')}`).bind(...evBind()).get().count;
+  const inactiveReviewers = !hasScope ? 0 : db.prepare(`SELECT COUNT(DISTINCT eur.user_id) as count FROM event_user_roles eur JOIN users u ON u.id = eur.user_id WHERE eur.role = 'reviewer' AND u.is_public = 0 ${evIn('eur.event_id')}`).bind(...evBind()).get().count;
+  const pendingUsers = !isSuperAdmin ? 0 : db.prepare("SELECT COUNT(*) as count FROM users WHERE approval_status = 'pending'").get().count;
+  const pendingReviewAssignmentArticles = !hasScope ? [] : db.prepare(`
     SELECT
       a.id,
       a.event_id,
@@ -402,10 +425,11 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
     LEFT JOIN assignments ass ON ass.article_id = a.id
     WHERE a.status != 'draft'
       AND ass.id IS NULL
+      ${evIn('a.event_id')}
     ORDER BY COALESCE(a.date_submitted, a.created_at) DESC, a.created_at DESC
     LIMIT 10
-  `).all();
-  const inReviewArticles = db.prepare(`
+  `).all(...evBind());
+  const inReviewArticles = !hasScope ? [] : db.prepare(`
     SELECT DISTINCT
       a.id,
       a.event_id,
@@ -421,10 +445,11 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
     WHERE a.status NOT IN ('draft', 'approved', 'rejected')
       AND ass.status != 'declined'
       AND rp.id IS NULL
+      ${evIn('a.event_id')}
     ORDER BY COALESCE(a.date_submitted, a.created_at) DESC, a.created_at DESC
     LIMIT 10
-  `).all();
-  const readyForDecisionArticles = db.prepare(`
+  `).all(...evBind());
+  const readyForDecisionArticles = !hasScope ? [] : db.prepare(`
     SELECT DISTINCT
       a.id,
       a.event_id,
@@ -450,10 +475,11 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
           AND ass.status != 'declined'
           AND rp.id IS NULL
       )
+      ${evIn('a.event_id')}
     ORDER BY COALESCE(a.date_submitted, a.created_at) DESC, a.created_at DESC
     LIMIT 10
-  `).all();
-  const pendingSubsidyRequests = db.prepare(`
+  `).all(...evBind());
+  const pendingSubsidyRequests = !hasScope ? [] : db.prepare(`
     SELECT
       er.id,
       er.event_id,
@@ -467,10 +493,12 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
     JOIN events e ON e.id = er.event_id
     WHERE er.subsidy_requested = 1
       AND COALESCE(er.subsidy_status, 'pending') = 'pending'
+      ${evIn('er.event_id')}
     ORDER BY er.created_at DESC
     LIMIT 10
-  `).all();
-  const pendingRegistrationRequests = db.prepare(`
+  `).all(...evBind());
+  // Solicitações de cadastro: processo global, exclusivo do superadmin.
+  const pendingRegistrationRequests = !isSuperAdmin ? [] : db.prepare(`
     SELECT
       id,
       name,
@@ -488,7 +516,7 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
   // Inclui inscrições pendentes: em eventos no modo análise os pedidos de
   // atividade chegam junto com a inscrição pendente (requested_activity_ids),
   // não apenas nas alterações feitas por quem já está aprovado.
-  const activityRequestCandidates = db.prepare(`
+  const activityRequestCandidates = !hasScope ? [] : db.prepare(`
     SELECT er.id, er.event_id, er.name, er.email, er.requested_activity_ids, er.rejected_activity_ids, er.updated_at, e.name AS event_name
     FROM event_registrations er
     JOIN events e ON e.id = er.event_id
@@ -496,9 +524,10 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
       AND e.status != 'encerrado'
       AND er.requested_activity_ids IS NOT NULL
       AND er.requested_activity_ids != '[]'
+      ${evIn('er.event_id')}
     ORDER BY er.updated_at DESC
     LIMIT 50
-  `).all();
+  `).all(...evBind());
   const pendingActivityEnrollmentRequests = [];
   if (activityRequestCandidates.length) {
     const parseIds = (value) => {
@@ -539,6 +568,9 @@ router.get('/dashboard', requireSuperAdminUser, (req, res) => {
   
   res.render('admin/dashboard', {
     title: 'Dashboard',
+    isSuperAdmin,
+    dashboardScoped: dashboardEventIds !== null,
+    managedEvents: managedEventRows,
     totalEvents,
     publishedEvents,
     concludedEvents,
