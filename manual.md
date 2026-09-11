@@ -104,6 +104,24 @@ Quando o usuário não possui curso de graduação, selecione essa opção — d
 
 Na listagem de usuários, o botão **Resetar Senha** (disponível também na linha do usuário logado, com aviso de que a senha atual deixará de valer) gera uma senha temporária (a antiga deixa de valer e a troca passa a ser obrigatória no primeiro acesso) e envia ao usuário um **e-mail com link de uso único** (válido por 72 horas) para ele definir a nova senha — a senha não transita no e-mail. Se o envio de e-mails estiver **desativado** (master switch global) ou a conta **não tiver e-mail**, o sistema abre uma página mostrando a senha temporária para você comunicá-la por canal seguro.
 
+### E-mail de recuperação de senha do superadministrador
+
+O superadministrador (`admin@admin.com`) **não possui uma caixa de e-mail real acessível** — e o endereço só existe dentro do sistema. Por isso, se ele perder a senha, o "Esqueci a senha" comum (`/login`) não tem como entregar o link. A solução é o superadministrador **configurar um e-mail real de recuperação**, disponível na própria página `/admin/users`, em uma caixa **E-mail de Recuperação** posicionada logo acima do formulário de mudança de senha.
+
+Como funciona:
+
+1. Na caixa **E-mail de Recuperação**, informe a **Senha Atual** e o **E-mail de Recuperação** (um endereço real, de preferência seu).
+2. Salve. O sistema valida o formato do endereço, **exige a senha atual** e enfileira um **link de confirmação de uso único (válido por 72 horas)** para esse endereço — que **ainda não está confirmado**.
+3. Para entrar em vigor, o endereço deve ser **confirmado**: acesse o link recebido no e-mail, o que marca o e-mail como confirmado (a página `/admin/users` passa a mostrar "✓ Confirmado").
+
+Na listagem `/admin/users`, a caixa mostra o status atual:
+
+- **Sem e-mail configurado**: "Nenhum e-mail de recuperação configurado".
+- **Configurado mas não confirmado**: mostra o endereço, "Pendente de confirmação por link enviado a esse endereço" e a data de expiração do link.
+- **Confirmado**: mostra o endereço e "✓ Confirmado".
+
+Quando o superadministrador esquecer a senha, o "Esqueci a senha" (`/login`) deixa de usar o e-mail principal da conta e envia o **link de redefinição para o e-mail de recuperação** — e **só depois que esse endereço está confirmado** na caixa acima. O token está vinculado **à conta** (não ao endereço de envio), portanto mesmo que o e-mail de recuperação seja igual ao de outra conta do sistema, o link **redefine exclusivamente a senha do `admin@admin.com`**. A redefinição é feita no passo seguinte em `/definir-senha`, como nas demais contas.
+
 ### Cadastro público sem senha
 
 O formulário "Solicitar Cadastro" (`/cadastro`) não pede senha. Além de nome, e-mail e instituição, o **e-mail deve ser repetido no campo "Confirme E-mail"**; o envio só é aceito quando os dois valores conferem, com validação feita no navegador e também no servidor (recusa o cadastro com aviso quando difiram). Após o envio, o usuário é encaminhado para a página de confirmação (/cadastro/sucesso), onde são relembrados que a conta ficará em análise e que devem verificar o e-mail — inclusive a caixa de Lixo Eletrônico ou Spam — para receber o e-mail de aprovação. A conta é criada em análise com senha interna inutilizável; ao aprovar o cadastro, o usuário recebe um **e-mail com link de uso único (72h)** para definir a própria senha (`/definir-senha`) e só então faz login e completa o perfil. O e-mail de aprovação enviado pelo superadministrador na criação de usuários em `/admin/users` segue o mesmo padrão. Senhas nunca são enviadas por e-mail; quem perder o link usa "Esqueci a senha" na `/login`.

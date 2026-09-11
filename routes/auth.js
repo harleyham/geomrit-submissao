@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const router = express.Router();
@@ -14,7 +15,7 @@ const { runMaintenance } = require('../services/maintenance');
 const { requireSuperAdmin } = require('../security/super-admin');
 const { validateCsrfToken } = require('../security/csrf');
 const themeService = require('../services/theme');
-const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue, queuePasswordReset, canQueueEmail } = require('../services/email');
+const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue, queuePasswordReset, queueRecoveryEmailConfirmation, canQueueEmail } = require('../services/email');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
 fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
@@ -277,12 +278,19 @@ router.post('/esqueci-senha', strictLimiter, (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   let user = null;
   if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    user = db.prepare('SELECT id, name, email FROM users WHERE LOWER(email) = ?').get(email);
+    user = db.prepare('SELECT id, name, email, recovery_email, recovery_email_verified FROM users WHERE LOWER(email) = ?').get(email);
   }
   let sent = false;
   if (user && user.email && canQueueEmail(null).allowed) {
     try {
-      const result = queuePasswordReset({ user });
+      // Canal de recuperação: somente o superadmin (conta fixa) e apenas após
+      // confirmar o e-mail. O token é vinculado ao 'user.id' e não ao endereço
+      // de envio, então mesmo que o e-mail de recuperação coincida com o de
+      // outra conta, o reset reseta exclusivamente a conta superadmin.
+      const deliverTo = isSuperAdminUser(user.id) && user.recovery_email && user.recovery_email_verified
+        ? user.recovery_email
+        : null;
+      const result = queuePasswordReset({ user, deliverTo });
       sent = result.status === 'queued';
     } catch (error) {
       console.error('[email] Falha ao enfileirar link de esqueci a senha:', error.message);
@@ -302,6 +310,31 @@ router.post('/esqueci-senha', strictLimiter, (req, res) => {
     success: null,
     formData: { email: '' }
   });
+});
+
+// Confirmação do e-mail de recuperação do superadmin: link de uso único
+// (72h) enviado somente para o endereço que a conta configurou. O hash está
+// vinculado à conta (recovery_email_hash), portanto clicar no link confirma
+// exatamente a conta superadmin, independentemente do endereço de envio.
+router.get('/account/confirm-recovery', strictLimiter, (req, res) => {
+  const token = String(req.query.token || '').trim();
+  const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : '';
+  const target = tokenHash ? db.prepare("SELECT id, recovery_email, recovery_email_verified FROM users WHERE recovery_email_hash=? AND recovery_email_verified=0 AND recovery_email_expires_at>datetime('now','-3 hours')").get(tokenHash) : null;
+  if (!target) {
+    return res.status(400).render('recovery-confirm', { title: 'Confirme o e-mail de recuperação', error: 'Este link é inválido, expirou ou já foi confirmado.', success: null, token: '', valid: false });
+  }
+  return res.render('recovery-confirm', { title: 'Confirme o e-mail de recuperação', error: null, success: null, token, valid: true });
+});
+
+router.post('/account/confirm-recovery', strictLimiter, (req, res) => {
+  const token = String(req.body.token || '').trim();
+  const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : '';
+  const target = tokenHash ? db.prepare("SELECT id, recovery_email, recovery_email_verified FROM users WHERE recovery_email_hash=? AND recovery_email_verified=0 AND recovery_email_expires_at>datetime('now','-3 hours')").get(tokenHash) : null;
+  if (!target) {
+    return res.status(400).render('recovery-confirm', { title: 'Confirme o e-mail de recuperação', error: 'Este link é inválido, expirou ou já foi confirmado.', success: null, token: '', valid: false });
+  }
+  db.prepare("UPDATE users SET recovery_email_verified=1, recovery_email_hash=NULL, recovery_email_expires_at=NULL WHERE id=?").run(target.id);
+  return res.render('recovery-confirm', { title: 'Confirmed', error: null, success: 'E-mail de recuperação confirmado. Agora os links de redefinição serão enviados para esse endereço.', token: '' });
 });
 
 // Login page

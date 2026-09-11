@@ -12,8 +12,8 @@ const { strictLimiter } = require('../security/rate-limits');
 const { validateCsrfToken } = require('../security/csrf');
 const { validators: v, validateAndHandle, sanitizeHtml } = require('../security/validation');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
-const { queueAccountApproved, queuePasswordReset, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
-  canQueueEmail, getSystemEmailSettings } = require('../services/email');
+const { queueAccountApproved, queuePasswordReset, queueRecoveryEmailConfirmation, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
+   canQueueEmail, getSystemEmailSettings } = require('../services/email');
 const { brDate, brToday } = require('../services/datetime');
 const { isSuperAdminUser } = require('./auth');
 
@@ -320,7 +320,7 @@ router.get('/', requireAuth, (req, res) => {
     LIMIT ? OFFSET ?
   `).bind(...params, perPage, clampedOffset).all();
 
-  const currentUser = db.prepare('SELECT id, name, email FROM users WHERE id = ?').bind(req.session.userId).get();
+  const currentUser = db.prepare('SELECT id, name, email, recovery_email, recovery_email_verified, recovery_email_expires_at FROM users WHERE id = ?').bind(req.session.userId).get();
   res.render('admin/users/list', {
     pendingUsers: allPending,
     approvedUsers: paginatedApproved,
@@ -742,6 +742,49 @@ router.post('/change-password', requireAuth, strictLimiter, (req, res, next) => 
     .bind(hash, req.session.userId).run();
 
   res.redirect('/admin/users?success=Senha alterada com sucesso');
+});
+
+// Configurar e-mail de recuperação de senha do superadmin. Exige a senha atual
+// da sessão (defensa contra roubo de sessão) e envia um link de confirmação de
+// uso único (72h); só após o clique o endereço passa a ser o destino dos links
+// de redefinição. O destino da entrega pode ser qualquer e-mail real; o reset
+// futuro reseta a conta do superadmin, nunca a outra conta com o mesmo endereço.
+router.post('/me/recovery-email', requireAuth, strictLimiter, (req, res) => {
+  const currentPassword = String(req.body.current_password || '').trim();
+  const recoveryEmail = String(req.body.recovery_email || '').trim().toLowerCase();
+  const user = db.prepare('SELECT id, password FROM users WHERE id = ?').bind(req.session.userId).get();
+
+  if (!user) {
+    return res.redirect('/admin/users?error=Conta não encontrada');
+  }
+  if (!currentPassword) {
+    return res.redirect('/admin/users?error=Informe a senha atual para alterar o e-mail de recuperação');
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recoveryEmail)) {
+    return res.redirect('/admin/users?error=E-mail de recuperação inválido');
+  }
+  if (!bcrypt.compareSync(currentPassword, user.password)) {
+    return res.redirect('/admin/users?error=Senha atual incorreta');
+  }
+
+  try {
+    const raw = crypto.randomBytes(32).toString('hex');
+    const hash = crypto.createHash('sha256').update(raw).digest('hex');
+    db.prepare("UPDATE users SET recovery_email=?, recovery_email_hash=?, recovery_email_expires_at=datetime('now','-3 hours','+72 hours'), recovery_email_verified=0 WHERE id=?").run(recoveryEmail, hash, user.id);
+  } catch (error) {
+    console.error('[recovery-email] Falha ao persistir endereço:', error.message);
+    return res.redirect('/admin/users?error=Falha ao registrar o e-mail de recuperação');
+  }
+
+  if (canQueueEmail(null).allowed) {
+    try {
+      queueRecoveryEmailConfirmation({ user: { id: user.id, name: user.name || 'Administrador', email: recoveryEmail }, deliverTo: recoveryEmail });
+    } catch (error) {
+      console.error('[recovery-email] Falha ao enfileirar confirmação:', error.message);
+    }
+  }
+
+  return res.redirect('/admin/users?success=E-mail de recuperação atualizado. Verifique a caixa de e-mail (inclui spam) e confirme o link de uso único.');
 });
 
 // Resetar senha de usuário (admin): gera senha temporária (invalida a antiga e

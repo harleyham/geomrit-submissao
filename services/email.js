@@ -249,17 +249,39 @@ function queueImportedAccount({ user, event = null, registration = false, dedupe
   });
 }
 
-function queuePasswordReset({ user }) {
+function queuePasswordReset({ user, deliverTo }) {
   const identity = getGlobalIdentity();
   const token = createSetupToken(user.id);
+  // 'deliverTo' é o e-mail de recuperação configurado (destino da entrega). O
+  // alvo do reset é sempre o 'user.id' do token, nunca o endereçço de envio,
+  // evitando que um e-mail duplicado resete a conta errada.
+  const recipientEmail = deliverTo && String(deliverTo).trim().toLowerCase() ? String(deliverTo).trim().toLowerCase() : user.email.toLowerCase();
   const setupUrl = `${appBaseUrl()}/definir-senha?token=${encodeURIComponent(token.raw)}`;
   return enqueueEmail({
     userId: user.id, setupTokenId: token.id,
-    recipientEmail: user.email, recipientName: user.name,
+    recipientEmail, recipientName: user.name,
     messageType: 'password_reset', templateName: 'password-reset',
     subject: 'Redefinição de senha solicitada', identity,
     dedupeKey: `password-reset:${token.id}`,
     payload: { name: user.name, setupUrl, platformName: identity.platformName }
+  });
+}
+
+// Confirmação do e-mail de recuperação do superadministrador. Envia um link de
+// uso único (72h) para o endereço configurado; só após o clique a conta passa a
+// usar esse endereço como destino de redefinição. O token está vinculado ao
+// user_id do superadmin, então não há risco de resetar outra conta.
+function queueRecoveryEmailConfirmation({ user, deliverTo }) {
+  const identity = getGlobalIdentity();
+  const token = createSetupToken(user.id);
+  const confirmUrl = `${appBaseUrl()}/login/account/confirm-recovery?token=${encodeURIComponent(token.raw)}`;
+  return enqueueEmail({
+    userId: user.id, setupTokenId: token.id,
+    recipientEmail: String(deliverTo).trim().toLowerCase(), recipientName: user.name,
+    messageType: 'recovery_email_confirmation', templateName: 'recovery-email-confirmation',
+    subject: 'Confirme o e-mail de recuperação', identity,
+    dedupeKey: `recovery-email-confirmation:${token.id}`,
+    payload: { name: user.name, confirmUrl, recoveryEmail: deliverTo, platformName: identity.platformName }
   });
 }
 
@@ -621,7 +643,7 @@ function isValidHttpUrl(value) {
 module.exports = {
   getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, getGlobalIdentity, getEventIdentity,
   setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail, clearEmailQueue,
-  queueAccountRequested, queueAccountApproved, queuePasswordReset, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
+  queueAccountRequested, queueAccountApproved, queuePasswordReset, queueRecoveryEmailConfirmation, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
   queueRegistrationReviewDecision, queueParticipantActivitiesUpdated, queueActivityRequestDecision,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   queueCertificateIssued, queueVideoLinkNotifications, queueDueEventReminders,

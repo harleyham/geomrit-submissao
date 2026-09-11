@@ -294,9 +294,11 @@ const eventContentDir = path.join(__dirname, '..', 'uploads', 'event-content');
 if (!fs.existsSync(eventContentDir)) fs.mkdirSync(eventContentDir, { recursive: true });
 const eventTemplateDir = path.join(__dirname, '..', 'uploads', 'event-templates');
 if (!fs.existsSync(eventTemplateDir)) fs.mkdirSync(eventTemplateDir, { recursive: true });
+const eventEditalDir = path.join(__dirname, '..', 'uploads', 'event-edital');
+if (!fs.existsSync(eventEditalDir)) fs.mkdirSync(eventEditalDir, { recursive: true });
 const eventAssetUpload = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, file.fieldname === 'event_pdf' ? eventContentDir : file.fieldname.endsWith('_template') ? eventTemplateDir : eventLogoDir),
+    destination: (req, file, cb) => cb(null, file.fieldname === 'event_pdf' ? eventContentDir : file.fieldname === 'subsidy_edital' ? eventEditalDir : file.fieldname.endsWith('_template') ? eventTemplateDir : eventLogoDir),
     filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`)
   }),
   limits: { fileSize: 50 * 1024 * 1024 },
@@ -309,6 +311,9 @@ const eventAssetUpload = multer({
     }
     if (file.fieldname.endsWith('_template') && (file.mimetype !== 'application/pdf' || path.extname(file.originalname || '').toLowerCase() !== '.pdf')) {
       return cb(new Error('TEMPLATE_INVALID_TYPE'));
+    }
+    if (file.fieldname === 'subsidy_edital' && (file.mimetype !== 'application/pdf' || path.extname(file.originalname || '').toLowerCase() !== '.pdf')) {
+      return cb(new Error('EDITAL_INVALID_TYPE'));
     }
     cb(null, true);
   }
@@ -334,19 +339,29 @@ function removeEventTemplateFile(relativePath) {
   }
 }
 
+function removeEventEditalFile(relativePath) {
+  if (!relativePath) return;
+  const resolved = path.resolve(path.join(__dirname, '..'), relativePath);
+  if (resolved !== eventEditalDir && resolved.startsWith(`${eventEditalDir}${path.sep}`)) {
+    try { fs.unlinkSync(resolved); } catch (error) { if (error.code !== 'ENOENT') console.error('Falha ao remover edital:', error); }
+  }
+}
+
 // Executa os uploads do evento e converte erros em mensagem amigável,
 // removendo o arquivo em caso de falha, para o form poder ser re-renderizado sem 500.
 function runEventAssetUpload(req, res, next) {
-  eventAssetUpload.fields([{ name: 'logo', maxCount: 1 }, { name: 'event_pdf', maxCount: 1 }, { name: 'subsidy_motivation_template', maxCount: 1 }, { name: 'subsidy_recommendation_template', maxCount: 1 }])(req, res, (error) => {
+  eventAssetUpload.fields([{ name: 'logo', maxCount: 1 }, { name: 'event_pdf', maxCount: 1 }, { name: 'subsidy_motivation_template', maxCount: 1 }, { name: 'subsidy_recommendation_template', maxCount: 1 }, { name: 'subsidy_edital', maxCount: 1 }])(req, res, (error) => {
     if (error) {
       Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
       req.eventAssetUploadError = error.code === 'LIMIT_FILE_SIZE'
-        ? 'Um arquivo excede o limite permitido (logo: 5 MB; PDFs: 50 MB; modelos de carta: 10 MB).'
+        ? 'Um arquivo excede o limite permitido (logo: 5 MB; conteúdo do evento: 50 MB; modelos de carta e edital: 10 MB).'
         : error.message === 'PDF_INVALID_TYPE'
           ? 'O conteúdo do evento deve ser um arquivo PDF válido (máximo 50 MB).'
-          : error.message === 'TEMPLATE_INVALID_TYPE'
-            ? 'Os modelos de carta de motivação e de recomendação devem ser arquivos PDF.'
-            : 'O logo do evento deve ser uma imagem PNG ou JPEG (máximo 5 MB).';
+          : error.message === 'EDITAL_INVALID_TYPE'
+            ? 'O edital deve ser um arquivo PDF válido (máximo 10 MB).'
+            : error.message === 'TEMPLATE_INVALID_TYPE'
+              ? 'Os modelos de carta de motivação e de recomendação devem ser arquivos PDF.'
+              : 'O logo do evento deve ser uma imagem PNG ou JPEG (máximo 5 MB).';
       return next();
     }
     const logo = uploadedEventAsset(req, 'logo');
@@ -355,11 +370,11 @@ function runEventAssetUpload(req, res, next) {
       req.eventAssetUploadError = 'O logo do evento excede 5 MB.';
       return next();
     }
-    for (const templateField of ['subsidy_motivation_template', 'subsidy_recommendation_template']) {
+    for (const templateField of ['subsidy_motivation_template', 'subsidy_recommendation_template', 'subsidy_edital']) {
       const template = uploadedEventAsset(req, templateField);
       if (template && template.size > 10 * 1024 * 1024) {
         Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
-        req.eventAssetUploadError = 'Os modelos de carta devem ter no máximo 10 MB.';
+        req.eventAssetUploadError = 'Os modelos de carta e o edital devem ter no máximo 10 MB.';
         return next();
       }
     }
@@ -380,6 +395,26 @@ function runEventAssetUpload(req, res, next) {
       if (signature !== '%PDF-') {
         Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
         req.eventAssetUploadError = 'O conteúdo do evento deve ser um arquivo PDF válido (máximo 50 MB).';
+        return next();
+      }
+    }
+    const editalFile = uploadedEventAsset(req, 'subsidy_edital');
+    if (editalFile) {
+      let signature = '';
+      let descriptor;
+      try {
+        descriptor = fs.openSync(editalFile.path, 'r');
+        const header = Buffer.alloc(5);
+        fs.readSync(descriptor, header, 0, 5, 0);
+        signature = header.toString('ascii');
+      } catch (_) {
+        signature = '';
+      } finally {
+        if (descriptor !== undefined) try { fs.closeSync(descriptor); } catch (_) {}
+      }
+      if (signature !== '%PDF-') {
+        Object.values(req.files || {}).flat().forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
+        req.eventAssetUploadError = 'O edital deve ser um arquivo PDF válido (máximo 10 MB).';
         return next();
       }
     }
@@ -973,14 +1008,17 @@ router.post('/', requireSignedUser, strictLimiter, runEventAssetUpload, (req, re
   const contentPdfFile = uploadedEventAsset(req, 'event_pdf');
   const motivationTemplateFile = uploadedEventAsset(req, 'subsidy_motivation_template');
   const recommendationTemplateFile = uploadedEventAsset(req, 'subsidy_recommendation_template');
+  const editalFile = uploadedEventAsset(req, 'subsidy_edital');
   const templateFields = offersSubsidy ? {
     motivation_path: motivationTemplateFile ? `uploads/event-templates/${motivationTemplateFile.filename}` : null,
     motivation_name: motivationTemplateFile ? motivationTemplateFile.originalname : null,
     recommendation_path: recommendationTemplateFile ? `uploads/event-templates/${recommendationTemplateFile.filename}` : null,
-    recommendation_name: recommendationTemplateFile ? recommendationTemplateFile.originalname : null
-  } : { motivation_path: null, motivation_name: null, recommendation_path: null, recommendation_name: null };
+    recommendation_name: recommendationTemplateFile ? recommendationTemplateFile.originalname : null,
+    edital_path: editalFile ? `uploads/event-edital/${editalFile.filename}` : null,
+    edital_name: editalFile ? editalFile.originalname : null
+  } : { motivation_path: null, motivation_name: null, recommendation_path: null, recommendation_name: null, edital_path: null, edital_name: null };
   if (!offersSubsidy) {
-    [motivationTemplateFile, recommendationTemplateFile].forEach((file) => { if (file) { try { fs.unlinkSync(file.path); } catch (_) {} } });
+    [motivationTemplateFile, recommendationTemplateFile, editalFile].forEach((file) => { if (file) { try { fs.unlinkSync(file.path); } catch (_) {} } });
   }
   const createdEvent = db.transaction(() => {
     const info = db.prepare(`
@@ -988,8 +1026,8 @@ router.post('/', requireSignedUser, strictLimiter, runEventAssetUpload, (req, re
         email_enabled,email_platform_name,email_sender_name,email_signature,email_contact,status, institution, language, registration_start, registration_end,
         submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, logo_path, logo_original_name,
         content_pdf_path, content_pdf_original_name, subsidy_motivation_template_path, subsidy_motivation_template_original_name,
-        subsidy_recommendation_template_path, subsidy_recommendation_template_original_name, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+        subsidy_recommendation_template_path, subsidy_recommendation_template_original_name, subsidy_edital_path, subsidy_edital_original_name, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
     `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
       emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
       normalizedStatus, institution || '', language || '', registration_start || null, registration_end || null, normalizedSubmissionStart, normalizedSubmissionEnd,
@@ -997,7 +1035,8 @@ router.post('/', requireSignedUser, strictLimiter, runEventAssetUpload, (req, re
       logoFile ? `uploads/event-logos/${logoFile.filename}` : null, logoFile ? logoFile.originalname : null,
       contentPdfFile ? `uploads/event-content/${contentPdfFile.filename}` : null, contentPdfFile ? contentPdfFile.originalname : null,
       templateFields.motivation_path, templateFields.motivation_name,
-      templateFields.recommendation_path, templateFields.recommendation_name).run();
+      templateFields.recommendation_path, templateFields.recommendation_name,
+      templateFields.edital_path, templateFields.edital_name).run();
     db.prepare("INSERT OR IGNORE INTO event_user_roles (event_id,user_id,role,assigned_by) VALUES (? ,? ,'admin',?)").run(info.lastInsertRowid, req.session.userId, req.session.userId);
     return info;
   })();
@@ -1029,7 +1068,7 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
   const normalizedSubmissionEnd = hasArticleSubmission ? (submission_end || null) : null;
   const normalizedReviewStart = hasArticleSubmission ? (review_start || null) : null;
   const normalizedReviewEnd = hasArticleSubmission ? (review_end || null) : null;
-  const currentAssets = db.prepare('SELECT logo_path, logo_original_name, content_pdf_path, content_pdf_original_name, subsidy_motivation_template_path, subsidy_motivation_template_original_name, subsidy_recommendation_template_path, subsidy_recommendation_template_original_name, email_enabled FROM events WHERE id=?').get(req.params.id) || {};
+  const currentAssets = db.prepare('SELECT logo_path, logo_original_name, content_pdf_path, content_pdf_original_name, subsidy_motivation_template_path, subsidy_motivation_template_original_name, subsidy_recommendation_template_path, subsidy_recommendation_template_original_name, subsidy_edital_path, subsidy_edital_original_name, email_enabled FROM events WHERE id=?').get(req.params.id) || {};
 
   if (req.eventAssetUploadError) {
     return renderEventForm(res, {
@@ -1164,11 +1203,15 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
   let motivationTemplateName = currentAssets.subsidy_motivation_template_original_name || null;
   let recommendationTemplatePath = currentAssets.subsidy_recommendation_template_path || null;
   let recommendationTemplateName = currentAssets.subsidy_recommendation_template_original_name || null;
+  let editalPath = currentAssets.subsidy_edital_path || null;
+  let editalName = currentAssets.subsidy_edital_original_name || null;
   if (!offersSubsidy) {
     if (motivationTemplatePath) removeEventTemplateFile(motivationTemplatePath);
     if (recommendationTemplatePath) removeEventTemplateFile(recommendationTemplatePath);
+    if (editalPath) removeEventEditalFile(editalPath);
     motivationTemplatePath = null; motivationTemplateName = null;
     recommendationTemplatePath = null; recommendationTemplateName = null;
+    editalPath = null; editalName = null;
   } else {
     if (motivationTemplateFile) {
       if (motivationTemplatePath) removeEventTemplateFile(motivationTemplatePath);
@@ -1188,13 +1231,27 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
     }
   }
 
+  const editalFile = uploadedEventAsset(req, 'subsidy_edital');
+  if (offersSubsidy) {
+    if (editalFile) {
+      if (editalPath) removeEventEditalFile(editalPath);
+      editalPath = `uploads/event-edital/${editalFile.filename}`;
+      editalName = editalFile.originalname;
+    } else if (req.body.remove_subsidy_edital) {
+      if (editalPath) removeEventEditalFile(editalPath);
+      editalPath = null; editalName = null;
+    }
+  } else if (editalFile) {
+    try { fs.unlinkSync(editalFile.path); } catch (_) {}
+  }
+
   db.prepare(`
     UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, registration_approval_mode=?,
       email_enabled=?,email_platform_name=?,email_sender_name=?,email_signature=?,email_contact=?,status=?, institution=?, language=?, registration_start=?, registration_end=?,
       submission_start=?, submission_end=?, review_start=?, review_end=?, certificates_start=?, certificates_end=?, logo_path=?, logo_original_name=?,
       content_pdf_path=?, content_pdf_original_name=?,
       subsidy_motivation_template_path=?, subsidy_motivation_template_original_name=?,
-      subsidy_recommendation_template_path=?, subsidy_recommendation_template_original_name=?, updated_at=datetime('now', '-3 hours')
+      subsidy_recommendation_template_path=?, subsidy_recommendation_template_original_name=?, subsidy_edital_path=?, subsidy_edital_original_name=?, updated_at=datetime('now', '-3 hours')
     WHERE id=?
   `).bind(name, short_name || '', description || '', date_start, date_end || null, location || '', url || '', normalizedArea, hasArticleSubmission, offersSubsidy, publicRegistration, registrationApprovalMode,
     emailSettings.email_enabled, emailSettings.email_platform_name || null, emailSettings.email_sender_name || null, emailSettings.email_signature || null, emailSettings.email_contact || null,
@@ -1202,7 +1259,8 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
     normalizedReviewStart, normalizedReviewEnd, certificates_start || null, certificates_end || null, logoPath, logoOriginalName,
     contentPdfPath, contentPdfOriginalName,
     motivationTemplatePath, motivationTemplateName,
-    recommendationTemplatePath, recommendationTemplateName, req.params.id).run();
+    recommendationTemplatePath, recommendationTemplateName,
+    editalPath, editalName, req.params.id).run();
   if (Number(currentAssets.email_enabled || 0) !== emailSettings.email_enabled) {
     const cancelled = setEventEmailEnabled(req.params.id, emailSettings.email_enabled, req.session.userId);
     recordParticipantAudit({ eventId: Number(req.params.id), actorUserId: req.session.userId,
@@ -1213,12 +1271,13 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
 
 // Deletar evento
 router.delete('/:id', (req, res) => {
-  const event = db.prepare('SELECT logo_path, content_pdf_path, subsidy_motivation_template_path, subsidy_recommendation_template_path FROM events WHERE id = ?').get(req.params.id);
+  const event = db.prepare('SELECT logo_path, content_pdf_path, subsidy_motivation_template_path, subsidy_recommendation_template_path, subsidy_edital_path FROM events WHERE id = ?').get(req.params.id);
   db.prepare('DELETE FROM events WHERE id = ?').bind(req.params.id).run();
   if (event && event.logo_path) removeEventLogoFile(event.logo_path);
   if (event && event.content_pdf_path) removeEventContentFile(event.content_pdf_path);
   if (event && event.subsidy_motivation_template_path) removeEventTemplateFile(event.subsidy_motivation_template_path);
   if (event && event.subsidy_recommendation_template_path) removeEventTemplateFile(event.subsidy_recommendation_template_path);
+  if (event && event.subsidy_edital_path) removeEventEditalFile(event.subsidy_edital_path);
   res.redirect('/admin/events');
 });
 

@@ -305,6 +305,24 @@
               </div>
             <% } %>
           </div>
+          <div class="form-group">
+            <label for="subsidy_edital">Edital do subsídio</label>
+            <input type="file" id="subsidy_edital" name="subsidy_edital" accept="application/pdf,.pdf">
+            <div class="help-text">PDF de até 10 MB. Disponível para visualização na inscrição de participantes (página pública do evento).</div>
+            <% if (event && event.subsidy_edital_path) { %>
+              <div style="margin-top:0.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                <% if (event.status !== 'draft') { %>
+                  <a href="/evento/<%= event.id %>/subsidy-edital" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">Visualizar edital</a>
+                <% } else { %>
+                  <span style="color:var(--warn);">O edital ficará público quando o evento for publicado.</span>
+                <% } %>
+                <span style="color:var(--text);"><%= event.subsidy_edital_original_name || 'Edital do subsídio' %></span>
+                <label style="display:flex;align-items:center;gap:0.5rem;color:var(--text-muted);font-size:0.875rem;font-weight:500;cursor:pointer;margin:0;">
+                  <input type="checkbox" id="remove_subsidy_edital" name="remove_subsidy_edital" value="1" style="width:auto;"> Remover edital atual
+                </label>
+              </div>
+            <% } %>
+          </div>
         </div>
         <div class="email-card">
           <h2>Identidade dos e-mails</h2>
@@ -384,6 +402,14 @@
       if (eventPdfInput && removeEventPdf) {
         eventPdfInput.addEventListener('change', function() {
           if (eventPdfInput.files && eventPdfInput.files[0]) removeEventPdf.checked = false;
+        });
+      }
+
+      const subsidyEditalInput = document.getElementById('subsidy_edital');
+      const removeSubsidyEdital = document.getElementById('remove_subsidy_edital');
+      if (subsidyEditalInput && removeSubsidyEdital) {
+        subsidyEditalInput.addEventListener('change', function() {
+          if (subsidyEditalInput.files && subsidyEditalInput.files[0]) removeSubsidyEdital.checked = false;
         });
       }
 

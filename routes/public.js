@@ -1244,6 +1244,23 @@ router.get('/evento/:id/subsidy-template/:type', (req, res) => {
   res.sendFile(absolutePath);
 });
 
+// Edital do subsídio enviado pelo organizador, visível ao púbico para eventos publicados/encerrados.
+router.get('/evento/:id/subsidy-edital', (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event || !event.offers_subsidy || !event.subsidy_edital_path) {
+    return res.status(404).render('error', { title: 'Edital não encontrado', message: 'Este evento não possui um edital de subsídio publicado.' });
+  }
+  const editalDir = path.resolve(path.join(__dirname, '..', 'uploads', 'event-edital'));
+  const absolutePath = path.resolve(path.join(__dirname, '..'), event.subsidy_edital_path);
+  if (!absolutePath.startsWith(`${editalDir}${path.sep}`) || !fs.existsSync(absolutePath)) {
+    return res.status(404).render('error', { title: 'Edital não encontrado', message: 'O arquivo do edital não está disponível.' });
+  }
+  const displayName = String(event.subsidy_edital_original_name || `${event.name}-edital.pdf`).replace(/[\r\n"]/g, '');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(displayName)}`);
+  res.sendFile(absolutePath);
+});
+
 router.get('/evento/:id', (req, res) => {
   const event = withAreaMeta(db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published', 'encerrado')").bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não existe ou não está publicado.' });

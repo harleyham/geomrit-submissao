@@ -6,7 +6,8 @@ const bcrypt = require('bcryptjs');
 const DB_PATH = path.join(__dirname, '..', 'artigos.db');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 const ASSETS_FUNDOS_DIR = path.join(__dirname, '..', 'assets', 'Fundos');
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
+const SCHEMA_MIGRATION_NAME = 'superadmin-recovery-email';
 
 function assertStrongBootstrapPassword(password) {
   if (!password || password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
@@ -164,11 +165,15 @@ function migrateSchema(db) {
       approved_at DATETIME,
       approved_by INTEGER,
       password_changed INTEGER DEFAULT 0,
-      profile_completed INTEGER DEFAULT 1,
-      phone TEXT DEFAULT '',
-      created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
-      updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
-    );
+       profile_completed INTEGER DEFAULT 1,
+       phone TEXT DEFAULT '',
+       recovery_email TEXT,
+       recovery_email_hash TEXT,
+       recovery_email_expires_at DATETIME,
+       recovery_email_verified INTEGER DEFAULT 0,
+       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
+       updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
+     );
 
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -208,6 +213,8 @@ function migrateSchema(db) {
       subsidy_motivation_template_original_name TEXT,
       subsidy_recommendation_template_path TEXT,
       subsidy_recommendation_template_original_name TEXT,
+      subsidy_edital_path TEXT,
+      subsidy_edital_original_name TEXT,
       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
     );
@@ -595,6 +602,10 @@ function migrateSchema(db) {
 // abaixo nunca era executado, deixando colunas novas (ex.: system_settings.theme)
 // ausentes em bancos legados.
 function backfillColumnSteps(db) {
+  try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email')) db.exec('ALTER TABLE users ADD COLUMN recovery_email TEXT'); } catch(e){ throw e; }
+  try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_hash')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_hash TEXT'); } catch(e){ throw e; }
+  try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_expires_at')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_expires_at DATETIME'); } catch(e){ throw e; }
+  try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_verified')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_verified INTEGER DEFAULT 0'); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(system_settings)").all().map(c=>c.name); if(!cols.includes('theme')) db.exec("ALTER TABLE system_settings ADD COLUMN theme TEXT DEFAULT 'ligem'"); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){ throw e; }
   try {
@@ -1063,6 +1074,8 @@ function backfillColumnSteps(db) {
     if (!eventColumns.includes('subsidy_motivation_template_original_name')) db.exec('ALTER TABLE events ADD COLUMN subsidy_motivation_template_original_name TEXT');
     if (!eventColumns.includes('subsidy_recommendation_template_path')) db.exec('ALTER TABLE events ADD COLUMN subsidy_recommendation_template_path TEXT');
     if (!eventColumns.includes('subsidy_recommendation_template_original_name')) db.exec('ALTER TABLE events ADD COLUMN subsidy_recommendation_template_original_name TEXT');
+    if (!eventColumns.includes('subsidy_edital_path')) db.exec('ALTER TABLE events ADD COLUMN subsidy_edital_path TEXT');
+    if (!eventColumns.includes('subsidy_edital_original_name')) db.exec('ALTER TABLE events ADD COLUMN subsidy_edital_original_name TEXT');
     db.prepare(`
       UPDATE events
       SET has_article_submission = CASE
@@ -1276,6 +1289,18 @@ function backfillColumnSteps(db) {
     }
   } catch (e) { throw new Error(`Limpeza de integridade falhou: ${e.message}`); }
 
+  // Recuperação de senha do superadministrador: e-mail de destino do link de
+  // redefinição (opcional). As colunas são idempotentes; colunas de confirmação
+  // (hash/expiração/verificado) permitrem reemitir o link sem perder o estado.
+  try {
+    const userCols = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+    if (!userCols.includes('recovery_email')) db.exec('ALTER TABLE users ADD COLUMN recovery_email TEXT');
+    if (!userCols.includes('recovery_email_hash')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_hash TEXT');
+    if (!userCols.includes('recovery_email_expires_at')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_expires_at DATETIME');
+    if (!userCols.includes('recovery_email_verified')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_verified INTEGER DEFAULT 0');
+    console.log('[migração] users.recovery_email (canal de recuperação de senha do superadmin) garantido.');
+  } catch (e) { throw new Error(`Falha ao adicionar recovery_email: ${e.message}`); }
+
   // Seed admin
   const seedUser = db.prepare('SELECT id, password FROM users WHERE email = ?').bind('admin@admin.com').get();
   if (!seedUser) {
@@ -1295,7 +1320,7 @@ function backfillColumnSteps(db) {
     name TEXT NOT NULL,
     applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
-  db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)').run(SCHEMA_VERSION, 'adopt-v0.32-schema');
+  db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)').run(SCHEMA_VERSION, SCHEMA_MIGRATION_NAME);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
 }
 
@@ -1319,7 +1344,7 @@ function initializeDbSchema(db) {
     }
   } else {
     const recorded = db.prepare('SELECT name FROM schema_migrations WHERE version = ?').get(SCHEMA_VERSION);
-    if (!recorded || recorded.name !== 'adopt-v0.32-schema') {
+    if (!recorded || (recorded.name !== SCHEMA_MIGRATION_NAME && recorded.name !== 'adopt-v0.32-schema')) {
       throw new Error(`Registro da migração ${SCHEMA_VERSION} ausente ou incompatível.`);
     }
     // Schema já na versão final: repassa os passos idempotentes (colunas novas

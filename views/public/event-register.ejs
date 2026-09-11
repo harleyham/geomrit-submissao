@@ -167,8 +167,15 @@
 
         <% if (event.offers_subsidy) { %>
           <div class="subsidy-box">
-            <h2>Subsídio ao Participante</h2>
+            <h2>Subsúdio ao Participante</h2>
             <p>Este evento oferece subsídio. Se você quiser se habilitar, marque a opção abaixo e preencha os dados acadêmicos solicitados.</p>
+            <% if (event.subsidy_edital_path) { %>
+              <p style="margin-top:0.5rem;line-height:1.5;">
+                Para conhecer as regras do subsídio, consulte o
+                <a href="/evento/<%= event.id %>/subsidy-edital" target="_blank" rel="noopener noreferrer" style="color:var(--link);">Edital do subsídio</a>
+                (PDF, abre em nova aba).
+              </p>
+            <% } %>
 
             <div class="checkbox-inline">
               <input

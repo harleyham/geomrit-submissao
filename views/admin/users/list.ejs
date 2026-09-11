@@ -154,6 +154,45 @@
       </form>
     </div>
 
+    <!-- E-mail de recuperação de senha do superadmin -->
+    <div class="section" id="email-recuperacao">
+      <div class="section-title">E-mail de Recuperação</div>
+      <div class="section-desc">Endereço para receber o link de redefinição quando a senha foi perdida. Exige a senha atual e a confirmação por link (válido por 72 horas).</div>
+      <% if (currentUser.recovery_email) { %>
+        <div class="section-note" style="margin-bottom:1rem;">
+          <% if (currentUser.recovery_email_verified) { %>
+            <div><strong>E-mail de recuperação atual:</strong> <%= currentUser.recovery_email %></div>
+            <span style="color:var(--success); font-size:0.8125rem;">✓ Confirmado</span>
+          <% } else { %>
+            <div><strong>E-mail de recuperação pendente de confirmação:</strong> <%= currentUser.recovery_email %></div>
+            <span style="color:var(--warn); font-size:0.8125rem;">Pendente de confirmação por link enviado a esse endereço</span>
+          <% } %>
+          <% if (currentUser.recovery_email_expires_at) { %>
+            <div style="color:var(--text-faint); font-size:0.8125rem; margin-top:0.35rem;">Link de confirmação expira em <%= currentUser.recovery_email_expires_at %></div>
+          <% } %>
+        </div>
+      <% } else { %>
+        <div class="section-note" style="margin-bottom:1rem;">Nenhum e-mail de recuperação configurado.</div>
+      <% } %>
+      <form method="POST" action="/admin/users/me/recovery-email" style="max-width: 440px;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="current_password_rec">Senha Atual *</label>
+          <div class="password-field">
+            <input type="password" id="current_password_rec" name="current_password" required autocomplete="current-password">
+            <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="current_password_rec">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="recovery_email">E-mail de Recuperação *</label>
+          <input type="email" id="recovery_email" name="recovery_email" placeholder="seu-email-real@dominio.com" required>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Registrar e-mail</button>
+        </div>
+      </form>
+    </div>
+
     <% if (pendingList.length > 0) { %>
     <div class="section" id="cadastros-pendentes">
       <div class="section-title">Cadastros Pendentes de Aprovação</div>

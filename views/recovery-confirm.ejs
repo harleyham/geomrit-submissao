@@ -1,0 +1,20 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><%= title %></title>
+<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font-family:Arial,sans-serif;padding:1rem}.card{width:min(460px,100%);background:var(--surface-2);border:1px solid var(--border);border-radius:16px;padding:2rem}h1{margin-top:0}.field{margin:1rem 0}.field label{display:block;margin-bottom:.4rem;color:var(--text)}.field input{width:100%;padding:.8rem;border-radius:8px;border:1px solid var(--text-faint);background:var(--surface-input);color:var(--text-strong)}.btn{display:inline-block;border:0;border-radius:8px;padding:.8rem 1.2rem;background:var(--primary-hover);color:var(--on-primary);text-decoration:none;font-weight:700;cursor:pointer}.alert{padding:.8rem 1rem;border-radius:8px;margin-bottom:1rem}.error{background:var(--danger-subtle);color:var(--danger)}.success{background:var(--success-subtle);color:var(--success)}</style>
+<%- include('partials/theme') %>
+<%- include('partials/mobile-fixes') %>
+</head>
+<body><main class="card"><h1><%= title %></h1>
+<% if (error) { %><div class="alert error"><%= error %></div><% } %>
+<% if (success) { %><div class="alert success"><%= success %></div><a class="btn" href="/login">Ir para o login</a><% } else { %>
+<% if (valid) { %><div class="alert success">Confirmando seu e-mail de recuperação…</div>
+<form id="confirm-form" method="POST" action="/login/account/confirm-recovery" style="display:none;">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="token" value="<%= token %>">
+</form>
+<script>document.getElementById('confirm-form').submit();</script>
+<% } else { %>
+<p>Não foi possível confirmar o e-mail de recuperação. Verifique se o link é válido ou solicite um novo.</p>
+<a class="btn" href="/login/esqueci-senha">Solicitar link de redefinição</a><% } %>
+<% } %>
+<p style="margin-top:1rem;"><a href="/login" style="color:var(--link);">Voltar para o login</a></p>
+</main></body></html>
