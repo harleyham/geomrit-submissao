@@ -271,16 +271,18 @@ function queuePasswordReset({ user, deliverTo }) {
 // uso único (72h) para o endereço configurado; só após o clique a conta passa a
 // usar esse endereço como destino de redefinição. O token está vinculado ao
 // user_id do superadmin, então não há risco de resetar outra conta.
-function queueRecoveryEmailConfirmation({ user, deliverTo }) {
+function queueRecoveryEmailConfirmation({ user, deliverTo, confirmToken }) {
   const identity = getGlobalIdentity();
-  const token = createSetupToken(user.id);
-  const confirmUrl = `${appBaseUrl()}/login/account/confirm-recovery?token=${encodeURIComponent(token.raw)}`;
+  // O token confirmado no link é o mesmo cujo hash foi persistido em
+  // users.recovery_email_hash (rota /me/recovery-email), então o raw deve vir
+  // pronto via 'confirmToken'; gerar um novo aqui faria o link nunca validar.
+  const confirmUrl = `${appBaseUrl()}/login/account/confirm-recovery?token=${encodeURIComponent(confirmToken)}`;
   return enqueueEmail({
-    userId: user.id, setupTokenId: token.id,
+    userId: user.id,
     recipientEmail: String(deliverTo).trim().toLowerCase(), recipientName: user.name,
     messageType: 'recovery_email_confirmation', templateName: 'recovery-email-confirmation',
     subject: 'Confirme o e-mail de recuperação', identity,
-    dedupeKey: `recovery-email-confirmation:${token.id}`,
+    dedupeKey: `recovery-email-confirmation:${crypto.createHash('sha256').update(confirmToken).digest('hex')}`,
     payload: { name: user.name, confirmUrl, recoveryEmail: deliverTo, platformName: identity.platformName }
   });
 }

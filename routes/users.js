@@ -767,9 +767,9 @@ router.post('/me/recovery-email', requireAuth, strictLimiter, (req, res) => {
     return res.redirect('/admin/users?error=Senha atual incorreta');
   }
 
+  const raw = crypto.randomBytes(32).toString('hex');
+  const hash = crypto.createHash('sha256').update(raw).digest('hex');
   try {
-    const raw = crypto.randomBytes(32).toString('hex');
-    const hash = crypto.createHash('sha256').update(raw).digest('hex');
     db.prepare("UPDATE users SET recovery_email=?, recovery_email_hash=?, recovery_email_expires_at=datetime('now','-3 hours','+72 hours'), recovery_email_verified=0 WHERE id=?").run(recoveryEmail, hash, user.id);
   } catch (error) {
     console.error('[recovery-email] Falha ao persistir endereço:', error.message);
@@ -778,7 +778,7 @@ router.post('/me/recovery-email', requireAuth, strictLimiter, (req, res) => {
 
   if (canQueueEmail(null).allowed) {
     try {
-      queueRecoveryEmailConfirmation({ user: { id: user.id, name: user.name || 'Administrador', email: recoveryEmail }, deliverTo: recoveryEmail });
+      queueRecoveryEmailConfirmation({ user: { id: user.id, name: user.name || 'Administrador', email: recoveryEmail }, deliverTo: recoveryEmail, confirmToken: raw });
     } catch (error) {
       console.error('[recovery-email] Falha ao enfileirar confirmação:', error.message);
     }
