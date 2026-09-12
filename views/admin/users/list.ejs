@@ -163,16 +163,22 @@
           <% if (currentUser.recovery_email_verified) { %>
             <div><strong>E-mail de recuperação atual:</strong> <%= currentUser.recovery_email %></div>
             <span style="color:var(--success); font-size:0.8125rem;">✓ Confirmado</span>
-          <% } else { %>
+          <% } else if (!currentUser.pending_recovery_email) { %>
             <div><strong>E-mail de recuperação pendente de confirmação:</strong> <%= currentUser.recovery_email %></div>
             <span style="color:var(--warn); font-size:0.8125rem;">Pendente de confirmação por link enviado a esse endereço</span>
           <% } %>
-          <% if (currentUser.recovery_email_expires_at) { %>
+          <% if (currentUser.recovery_email_verified === 0 && currentUser.recovery_email_expires_at && !currentUser.pending_recovery_email) { %>
             <div style="color:var(--text-faint); font-size:0.8125rem; margin-top:0.35rem;">Link de confirmação expira em <%= currentUser.recovery_email_expires_at %></div>
           <% } %>
         </div>
       <% } else { %>
         <div class="section-note" style="margin-bottom:1rem;">Nenhum e-mail de recuperação configurado.</div>
+      <% } %>
+      <% if (currentUser.pending_recovery_email) { %>
+        <div class="section-note" style="margin-bottom:1rem; border-left:3px solid var(--warn); padding-left:0.75rem;">
+          <div><strong>Novo endereço aguardando confirmação:</strong> <%= currentUser.pending_recovery_email %></div>
+          <span style="color:var(--warn); font-size:0.8125rem;">O endereço atual continua válido até este novo e-mail ser confirmado no link enviado (expira em <%= currentUser.pending_recovery_email_expires_at %>).</span>
+        </div>
       <% } %>
       <form method="POST" action="/admin/users/me/recovery-email" style="max-width: 440px;">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">

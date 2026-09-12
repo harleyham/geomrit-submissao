@@ -320,7 +320,7 @@ router.get('/', requireAuth, (req, res) => {
     LIMIT ? OFFSET ?
   `).bind(...params, perPage, clampedOffset).all();
 
-  const currentUser = db.prepare('SELECT id, name, email, recovery_email, recovery_email_verified, recovery_email_expires_at FROM users WHERE id = ?').bind(req.session.userId).get();
+  const currentUser = db.prepare('SELECT id, name, email, recovery_email, recovery_email_verified, recovery_email_expires_at, pending_recovery_email, pending_recovery_email_expires_at FROM users WHERE id = ?').bind(req.session.userId).get();
   res.render('admin/users/list', {
     pendingUsers: allPending,
     approvedUsers: paginatedApproved,
@@ -752,7 +752,7 @@ router.post('/change-password', requireAuth, strictLimiter, (req, res, next) => 
 router.post('/me/recovery-email', requireAuth, strictLimiter, (req, res) => {
   const currentPassword = String(req.body.current_password || '').trim();
   const recoveryEmail = String(req.body.recovery_email || '').trim().toLowerCase();
-  const user = db.prepare('SELECT id, password FROM users WHERE id = ?').bind(req.session.userId).get();
+  const user = db.prepare('SELECT id, password, recovery_email, recovery_email_verified FROM users WHERE id = ?').bind(req.session.userId).get();
 
   if (!user) {
     return res.redirect('/admin/users?error=Conta não encontrada');
@@ -766,11 +766,18 @@ router.post('/me/recovery-email', requireAuth, strictLimiter, (req, res) => {
   if (!bcrypt.compareSync(currentPassword, user.password)) {
     return res.redirect('/admin/users?error=Senha atual incorreta');
   }
+  if (user.recovery_email && user.recovery_email_verified && user.recovery_email === recoveryEmail) {
+    return res.redirect('/admin/users?success=Este e-mail já está cadastrado e confirmado como e-mail de recuperação.');
+  }
 
   const raw = crypto.randomBytes(32).toString('hex');
   const hash = crypto.createHash('sha256').update(raw).digest('hex');
   try {
-    db.prepare("UPDATE users SET recovery_email=?, recovery_email_hash=?, recovery_email_expires_at=datetime('now','-3 hours','+72 hours'), recovery_email_verified=0 WHERE id=?").run(recoveryEmail, hash, user.id);
+    // O endereço confirmado (recovery_email) só é trocado no clique do link;
+    // enquanto pendente, o novo candidato fica em pending_recovery_email e o
+    // fallback de "esqueci a senha" continua usando o endereço já validado.
+    // verified nunca volta a 0 ao re-cadastrar.
+    db.prepare("UPDATE users SET pending_recovery_email=?, pending_recovery_email_hash=?, pending_recovery_email_expires_at=datetime('now','-3 hours','+72 hours'), recovery_email_hash=NULL, recovery_email_expires_at=NULL WHERE id=?").run(recoveryEmail, hash, user.id);
   } catch (error) {
     console.error('[recovery-email] Falha ao persistir endereço:', error.message);
     return res.redirect('/admin/users?error=Falha ao registrar o e-mail de recuperação');
@@ -784,7 +791,7 @@ router.post('/me/recovery-email', requireAuth, strictLimiter, (req, res) => {
     }
   }
 
-  return res.redirect('/admin/users?success=E-mail de recuperação atualizado. Verifique a caixa de e-mail (inclui spam) e confirme o link de uso único.');
+  return res.redirect('/admin/users?success=Link de confirmação enviado ao novo e-mail. O endereço atual continua válido até a confirmação (verifique spam).');
 });
 
 // Resetar senha de usuário (admin): gera senha temporária (invalida a antiga e

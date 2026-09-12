@@ -314,12 +314,21 @@ router.post('/esqueci-senha', strictLimiter, (req, res) => {
 
 // Confirmação do e-mail de recuperação do superadmin: link de uso único
 // (72h) enviado somente para o endereço que a conta configurou. O hash está
-// vinculado à conta (recovery_email_hash), portanto clicar no link confirma
-// exatamente a conta superadmin, independentemente do endereço de envio.
+// vinculado à conta (pending_recovery_email_hash / recovery_email_hash),
+// portanto clicar no link confirma exatamente a conta superadmin. O endereço
+// confirmado anteriormente permanece válido até o novo ser confirmado; no
+// clique, o candidato pendente é promovido e verified não volta a 0.
+// vinculado à conta. Prioriza o candidato pendente (pending_recovery_email*),
+// aceitando o formato legado (recovery_email_hash) para links antigos.
+function findPendingRecoveryTarget(tokenHash) {
+  const pending = db.prepare("SELECT id, pending_recovery_email FROM users WHERE pending_recovery_email_hash=? AND pending_recovery_email IS NOT NULL AND pending_recovery_email_expires_at>datetime('now','-3 hours')").get(tokenHash);
+  if (pending) return pending;
+  return db.prepare("SELECT id, NULL AS pending_recovery_email FROM users WHERE recovery_email_hash=? AND recovery_email_verified=0 AND recovery_email_expires_at>datetime('now','-3 hours')").get(tokenHash) || null;
+}
 router.get('/account/confirm-recovery', strictLimiter, (req, res) => {
   const token = String(req.query.token || '').trim();
   const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : '';
-  const target = tokenHash ? db.prepare("SELECT id, recovery_email, recovery_email_verified FROM users WHERE recovery_email_hash=? AND recovery_email_verified=0 AND recovery_email_expires_at>datetime('now','-3 hours')").get(tokenHash) : null;
+  const target = tokenHash ? findPendingRecoveryTarget(tokenHash) : null;
   if (!target) {
     return res.status(400).render('recovery-confirm', { title: 'Confirme o e-mail de recuperação', error: 'Este link é inválido, expirou ou já foi confirmado.', success: null, token: '', valid: false });
   }
@@ -329,11 +338,17 @@ router.get('/account/confirm-recovery', strictLimiter, (req, res) => {
 router.post('/account/confirm-recovery', strictLimiter, (req, res) => {
   const token = String(req.body.token || '').trim();
   const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : '';
-  const target = tokenHash ? db.prepare("SELECT id, recovery_email, recovery_email_verified FROM users WHERE recovery_email_hash=? AND recovery_email_verified=0 AND recovery_email_expires_at>datetime('now','-3 hours')").get(tokenHash) : null;
+  const target = tokenHash ? findPendingRecoveryTarget(tokenHash) : null;
   if (!target) {
     return res.status(400).render('recovery-confirm', { title: 'Confirme o e-mail de recuperação', error: 'Este link é inválido, expirou ou já foi confirmado.', success: null, token: '', valid: false });
   }
-  db.prepare("UPDATE users SET recovery_email_verified=1, recovery_email_hash=NULL, recovery_email_expires_at=NULL WHERE id=?").run(target.id);
+  if (target.pending_recovery_email) {
+    // Promove o candidato pendente; o endereço anterior era apenas sobrescrito
+    // agora, i.e., a troca ocorre somente após a confirmação pelo destinatário.
+    db.prepare("UPDATE users SET recovery_email=pending_recovery_email, recovery_email_verified=1, pending_recovery_email=NULL, pending_recovery_email_hash=NULL, pending_recovery_email_expires_at=NULL, recovery_email_hash=NULL, recovery_email_expires_at=NULL WHERE id=?").run(target.id);
+  } else {
+    db.prepare("UPDATE users SET recovery_email_verified=1, recovery_email_hash=NULL, recovery_email_expires_at=NULL WHERE id=?").run(target.id);
+  }
   return res.render('recovery-confirm', { title: 'Confirmed', error: null, success: 'E-mail de recuperação confirmado. Agora os links de redefinição serão enviados para esse endereço.', token: '' });
 });
 

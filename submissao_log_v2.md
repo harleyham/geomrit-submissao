@@ -18,6 +18,20 @@ Versão atual registrada: **V0.34**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-11
+
+### Troca do e-mail de recuperação do superadmin: endereço confirmado só é substituído após o clique no novo link
+
+- Relato: ao re-cadastrar o e-mail de recuperação em `/admin/users`, `POST /admin/users/me/recovery-email` gravava o novo endereço direto em `users.recovery_email` e voltava `recovery_email_verified` para 0. Se o e-mail de confirmação se perdesse ou o admin desistisse, a recuperação de senha ficava sem destino confirmado e o "Esqueci a senha" caía no fallback para `admin@admin.com` — também se perdem os links de redefinição já válidos no e-mail antigo.
+- Novas colunas em `users` (schema + backfill idempotente em `services/db-reset.js`): `pending_recovery_email`, `pending_recovery_email_hash` e `pending_recovery_email_expires_at`.
+- `routes/users.js` — o cadastro grava o candidato apenas nas colunas `pending_*` (token/hash de 72h) e limpa o legado (`recovery_email_hash/expiração`); `recovery_email` e `recovery_email_verified` ficam intocados e o endereço antigo permanece confirmado. Re-enviar o próprio endereço já confirmado apenas avisa "já está cadastrado e confirmado" (nada é reenviado). Mensagem de sucesso atualizada.
+- `routes/auth.js` (`/login/account/confirm-recovery`) — validação prioriza `pending_recovery_email_hash`; no POST, o candidato é promovido (`recovery_email = pending`, `verified=1`, pendente limpo) somente no clique. Links no formato antigo (`recovery_email_hash` + `verified=0`) continuam aceitos para compatibilidade.
+- `views/admin/users/list.ejs` — card passa a exibir, além do "E-mail de recuperação atual (✓ Confirmado)", o bloco "Novo endereço aguardando confirmação" com o candidato e o prazo do link.
+- Fallback de `POST /login/esqueci-senha` inalterado: enquanto a troca está pendente, os links de redefinição continuam indo para o endereço confirmado antigo.
+- Docs atualizadas: `manual.md` (seção "E-mail de recuperação de senha do superadministrador").
+- Verificação: E2E real em HTTPS (pm2 reiniciado) — pendente criado → antigo permanece confirmado; confirmar link → promoção no clique (`verified` nunca retorna a 0); estado final restaurado (`harley.ham@gmail.com` confirmado, sem pendências de teste).
+- Status: implementado em `db.js`/`services/db-reset.js` (migrações), `routes/users.js`, `routes/auth.js`, `views/admin/users/list.ejs`; validado.
+
 ## 2026-09-10
 
 ### Modelos de carta do subsídio: links da inscrição apontam somente para o arquivo enviado pelo organizador

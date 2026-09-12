@@ -114,13 +114,15 @@ Como funciona:
 2. Salve. O sistema valida o formato do endereço, **exige a senha atual** e enfileira um **link de confirmação de uso único (válido por 72 horas)** para esse endereço — que **ainda não está confirmado**.
 3. Para entrar em vigor, o endereço deve ser **confirmado**: acesse o link recebido no e-mail, o que marca o e-mail como confirmado (a página `/admin/users` passa a mostrar "✓ Confirmado").
 
+**Troca do endereço já confirmado**: informar um e-mail novo não desativa o endereço atual. O candidato fica registrado como "Novo endereço aguardando confirmação" e o **endereço antigo continua válido** como destino dos links de redefinição até que o novo seja confirmado no link recebido. Somente no clique a substituição ocorre; informar novamente o próprio endereço já confirmado apenas avisa que "já está cadastrado e confirmado" (nada é reenviado). Assim, perder o e-mail de confirmação ou desistir da troca nunca deixa a recuperação inacessível.
+
 Na listagem `/admin/users`, a caixa mostra o status atual:
 
 - **Sem e-mail configurado**: "Nenhum e-mail de recuperação configurado".
 - **Configurado mas não confirmado**: mostra o endereço, "Pendente de confirmação por link enviado a esse endereço" e a data de expiração do link.
-- **Confirmado**: mostra o endereço e "✓ Confirmado".
+- **Confirmado**: mostra o endereço e "✓ Confirmado"; se houver troca em andamento, também exibe "Novo endereço aguardando confirmação" com o candidato e o prazo do link (novo só substitui o atual após a confirmação).
 
-Quando o superadministrador esquecer a senha, o "Esqueci a senha" (`/login`) deixa de usar o e-mail principal da conta e envia o **link de redefinição para o e-mail de recuperação** — e **só depois que esse endereço está confirmado** na caixa acima. O token está vinculado **à conta** (não ao endereço de envio), portanto mesmo que o e-mail de recuperação seja igual ao de outra conta do sistema, o link **redefine exclusivamente a senha do `admin@admin.com`**. A redefinição é feita no passo seguinte em `/definir-senha`, como nas demais contas.
+Quando o superadministrador esquecer a senha, o "Esqueci a senha" (`/login`) deixa de usar o e-mail principal da conta e envia o **link de redefinição para o e-mail de recuperação** — e **só depois que esse endereço está confirmado** na caixa acima (enquanto houver troca pendente, o destino continua sendo o endereço confirmado antigo). O token está vinculado **à conta** (não ao endereço de envio), portanto mesmo que o e-mail de recuperação seja igual ao de outra conta do sistema, o link **redefine exclusivamente a senha do `admin@admin.com`**. A redefinição é feita no passo seguinte em `/definir-senha`, como nas demais contas.
 
 ### Cadastro público sem senha
 

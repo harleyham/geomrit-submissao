@@ -171,6 +171,9 @@ function migrateSchema(db) {
        recovery_email_hash TEXT,
        recovery_email_expires_at DATETIME,
        recovery_email_verified INTEGER DEFAULT 0,
+       pending_recovery_email TEXT,
+       pending_recovery_email_hash TEXT,
+       pending_recovery_email_expires_at DATETIME,
        created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
        updated_at DATETIME DEFAULT (datetime('now', '-3 hours'))
      );
@@ -606,6 +609,9 @@ function backfillColumnSteps(db) {
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_hash')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_hash TEXT'); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_expires_at')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_expires_at DATETIME'); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_verified')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_verified INTEGER DEFAULT 0'); } catch(e){ throw e; }
+  try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('pending_recovery_email')) db.exec('ALTER TABLE users ADD COLUMN pending_recovery_email TEXT'); } catch(e){ throw e; }
+  try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('pending_recovery_email_hash')) db.exec('ALTER TABLE users ADD COLUMN pending_recovery_email_hash TEXT'); } catch(e){ throw e; }
+  try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('pending_recovery_email_expires_at')) db.exec('ALTER TABLE users ADD COLUMN pending_recovery_email_expires_at DATETIME'); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(system_settings)").all().map(c=>c.name); if(!cols.includes('theme')) db.exec("ALTER TABLE system_settings ADD COLUMN theme TEXT DEFAULT 'ligem'"); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(certificate_emissions)").all().map(c=>c.name); if(!cols.includes('activity_id')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN activity_id INTEGER'); } catch(e){ throw e; }
   try {
@@ -1298,6 +1304,9 @@ function backfillColumnSteps(db) {
     if (!userCols.includes('recovery_email_hash')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_hash TEXT');
     if (!userCols.includes('recovery_email_expires_at')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_expires_at DATETIME');
     if (!userCols.includes('recovery_email_verified')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_verified INTEGER DEFAULT 0');
+    if (!userCols.includes('pending_recovery_email')) db.exec('ALTER TABLE users ADD COLUMN pending_recovery_email TEXT');
+    if (!userCols.includes('pending_recovery_email_hash')) db.exec('ALTER TABLE users ADD COLUMN pending_recovery_email_hash TEXT');
+    if (!userCols.includes('pending_recovery_email_expires_at')) db.exec('ALTER TABLE users ADD COLUMN pending_recovery_email_expires_at DATETIME');
     console.log('[migração] users.recovery_email (canal de recuperação de senha do superadmin) garantido.');
   } catch (e) { throw new Error(`Falha ao adicionar recovery_email: ${e.message}`); }
 
