@@ -2585,6 +2585,35 @@ router.post('/:id/rooms/:roomId/delete', strictLimiter, (req, res) => {
   return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Sala removida.')}`);
 });
 
+// Esvazia a sala: remove todas as alocações de agenda dela (atividades,
+// etapas e reserva do evento), permitindo depois excluir a sala.
+router.post('/:id/rooms/:roomId/clear', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const room = rooms.getRoom(event.id, req.params.roomId);
+  if (!room) return res.status(404).render('error', { title: 'S não encontrada' });
+  const removed = rooms.clearRoom(room.id);
+  return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent(`Conteúdo da sala "${room.name}" removido (${removed} alocação(ões)).`)}`);
+});
+
+// Move todo o conteúdo de uma sala para outra do mesmo evento, bloqueando se
+// qualquer alocação já estiver ocupada na sala de destino nesse horário.
+router.post('/:id/rooms/:roomId/move', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const room = rooms.getRoom(event.id, req.params.roomId);
+  if (!room) return res.status(404).render('error', { title: 'Sala não encontrada' });
+  const dest = rooms.getRoom(event.id, Number(req.body.dest_room_id) || null);
+  if (!dest) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Selecione uma sala de destino deste evento.')}`);
+  if (dest.id === room.id) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Sala de destino deve ser diferente da sala de origem.')}`);
+  try {
+    const moved = rooms.moveRoomContent(room.id, dest.id);
+    return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent(`Contéudo da sala "${room.name}" movido para "${dest.name}" (${moved} alocação(ões)).`)}`);
+  } catch (error) {
+    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent((error && error.message) || 'Não foi possível mover o conteúdo da sala.')}`);
+  }
+});
+
 router.get('/:id/rooms/availability', (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Evento não encontrado' });

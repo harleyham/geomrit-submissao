@@ -169,6 +169,32 @@ function clearEventReservations(eventId) {
   db.prepare('DELETE FROM room_assignments WHERE event_id=? AND is_event_reservation=1 AND activity_id IS NULL AND session_id IS NULL').run(eventId);
 }
 
+// Remove todas as alocações de agenda de uma sala (atividades, etapas e
+// reservas do evento), deixando-a vazia para exclusão subsequente.
+function clearRoom(roomId) {
+  const run = db.transaction(() => {
+    const info = db.prepare('DELETE FROM room_assignments WHERE room_id=?').run(roomId);
+    return info.changes;
+  });
+  return run();
+}
+
+// Move *todo* o conteúdo de uma sala para outra do mesmo evento. Antes de
+// mover, verifica se cada alocação colide com algo já existente na sala de
+// destino: em qualquer bloqueio a operação inteira é abortada.
+function moveRoomContent(sourceRoomId, destRoomId) {
+  const run = db.transaction(() => {
+    const rows = db.prepare('SELECT id,date,time_start,time_end FROM room_assignments WHERE room_id=?').all(sourceRoomId);
+    for (const row of rows) {
+      const conflict = findConflict({ roomId: destRoomId, date: row.date, timeStart: row.time_start, timeEnd: row.time_end, excludeAssignmentId: row.id });
+      if (conflict) throw new Error(describeConflict(conflict));
+    }
+    const info = db.prepare("UPDATE room_assignments SET room_id=?, updated_at=datetime('now','-3 hours') WHERE room_id=?").run(destRoomId, sourceRoomId);
+    return info.changes;
+  });
+  return run();
+}
+
 function roomAssignmentCount(roomId) {
   return db.prepare('SELECT COUNT(*) AS count FROM room_assignments WHERE room_id=?').get(roomId).count;
 }
@@ -259,7 +285,7 @@ module.exports = {
   normalizeTime, normalizeDate, daysBetween,
   getEventRooms, getRoom, availableRooms,
   findConflict, describeConflict, assignmentLabel,
-  syncTargetAssignments, createEventReservation, clearEventReservations,
+  syncTargetAssignments,   createEventReservation, clearEventReservations, clearRoom, moveRoomContent,
   roomAssignmentCount, targetAssignment, eventReservation, unallocatedTargets,
   eventAssignments, occupancyByDay, agendaByRoom
 };

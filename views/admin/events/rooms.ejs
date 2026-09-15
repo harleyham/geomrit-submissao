@@ -52,6 +52,22 @@
                 <td><%= room.assignment_count %></td>
                 <td style="white-space:nowrap">
                   <a href="/admin/events/<%= event.id %>/rooms?edit_room_id=<%= room.id %>" class="btn btn-secondary" style="font-size:.75rem;padding:.25rem .5rem">Editar</a>
+                  <% if (room.assignment_count > 0) { %>
+                    <form method="post" action="/admin/events/<%= event.id %>/rooms/<%= room.id %>/clear" style="display:inline" onsubmit="return confirm('Remover TODAS as <%= room.assignment_count %> alocação(ões) desta sala?')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="btn btn-danger" style="font-size:.75rem;padding:.25rem .5rem" nonce="<%= cspNonce %>">Esvaziar</button>
+                    </form>
+                    <form method="post" action="/admin/events/<%= event.id %>/rooms/<%= room.id %>/move" style="display:inline">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <select id="move-<%= room.id %>" name="dest_room_id" style="font-size:.75rem;padding:.2rem">
+                        <option value="">— selecione —</option>
+                        <% roomsList.filter(function (r) { return Number(r.id) !== Number(room.id); }).forEach(function (other) { %>
+                          <option value="<%= other.id %>"><%= other.name %></option>
+                        <% }) %>
+                      </select>
+                      <button type="submit" class="btn btn-secondary" style="font-size:.75rem;padding:.25rem .5rem" onclick="var s=document.getElementById('move-<%= room.id %>'); if(!s.value){return false;} return confirm('Mover TODAS as <%= room.assignment_count %> alocação(ões) da sala \""+room.name+'\" para \""+s.options[s.selectedIndex].text+'\"?')">Mover</button>
+                    </form>
+                  <% } %>
                   <form method="post" action="/admin/events/<%= event.id %>/rooms/<%= room.id %>/delete" style="display:inline">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="btn btn-danger" style="font-size:.75rem;padding:.25rem .5rem" nonce="<%= cspNonce %>" onclick="return confirm('Remover esta sala?')">Remover</button>
