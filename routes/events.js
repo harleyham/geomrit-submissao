@@ -20,6 +20,7 @@ const { strictLimiter } = require('../security/rate-limits');
 const { isSuperAdminUser } = require('./auth');
 const { validateAndHandle, validators: v } = require('../security/validation');
 const rooms = require('../services/rooms');
+const { diffDays, shiftEventContent, shiftEventWindows, shiftActivityDates } = require('../services/date-shift');
 
 function safeArchiveFileName(value, fallback) {
   const normalized = String(value || fallback)
@@ -1245,6 +1246,12 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
     try { fs.unlinkSync(editalFile.path); } catch (_) {}
   }
 
+  const dateSnapshot = db.prepare(`
+    SELECT date_start, date_end, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end
+    FROM events WHERE id=?
+  `).get(req.params.id) || {};
+  const dateShiftDays = diffDays(dateSnapshot.date_start, dateStart || null);
+
   db.prepare(`
     UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, registration_approval_mode=?,
       email_enabled=?,email_platform_name=?,email_sender_name=?,email_signature=?,email_contact=?,status=?, institution=?, language=?, registration_start=?, registration_end=?,
@@ -1261,12 +1268,21 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
     motivationTemplatePath, motivationTemplateName,
     recommendationTemplatePath, recommendationTemplateName,
     editalPath, editalName, req.params.id).run();
+  if (dateShiftDays) {
+    db.transaction(() => {
+      shiftEventContent(req.params.id, dateShiftDays);
+      shiftEventWindows(req.params.id, dateShiftDays, dateSnapshot);
+    })();
+  }
   if (Number(currentAssets.email_enabled || 0) !== emailSettings.email_enabled) {
     const cancelled = setEventEmailEnabled(req.params.id, emailSettings.email_enabled, req.session.userId);
     recordParticipantAudit({ eventId: Number(req.params.id), actorUserId: req.session.userId,
       action: emailSettings.email_enabled ? 'event_email_enabled' : 'event_email_disabled', details: { cancelled_count: cancelled, source: 'event_form' } });
   }
-  res.redirect('/admin/events');
+  const successMessage = dateShiftDays
+    ? `Data do evento atualizada. Conteúdo deslocado em ${dateShiftDays > 0 ? '+' : ''}${dateShiftDays} dia(s).`
+    : 'Evento atualizado.';
+  res.redirect(`/admin/events?message=${encodeURIComponent(successMessage)}`);
 });
 
 // Deletar evento
@@ -2250,6 +2266,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const parentEvent = db.prepare('SELECT registration_approval_mode FROM events WHERE id=?').get(activity.event_id);
   const requiresApproval = parentEvent && parentEvent.registration_approval_mode === 'review' ? 1 : (req.body.requires_approval === '1' ? 1 : 0);
   const requiresJustification = requiresApproval === 1 && req.body.requires_justification === '1' ? 1 : 0;
+  const dateShiftDays = diffDays(activity.date_start, dateStart || null);
   try {
     db.transaction(() => {
       db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,time_start=?,time_end=?,workload_hours=?,
@@ -2257,6 +2274,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
         name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
         eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, requiresJustification, activity.id
       );
+      if (dateShiftDays) shiftActivityDates(activity.id, dateShiftDays);
       syncSessionWorkloadLock(activity.id, workloadHours);
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
     })();
@@ -2266,7 +2284,8 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity: { ...activity, name }, oldUrl: activity.video_url, newUrl: videoUrl });
   const backfillResult = applyAutomaticActivityEnrollments(db.prepare('SELECT * FROM event_activities WHERE id=?').get(activity.id), req.session.userId);
-  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(automaticEnrollmentMessage(backfillResult, 'Atividade atualizada.'))}`);
+  const baseMessage = dateShiftDays ? `Data da atividade deslocada em ${dateShiftDays > 0 ? '+' : ''}${dateShiftDays} dia(s). ` : '';
+  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(baseMessage + automaticEnrollmentMessage(backfillResult, 'Atividade atualizada.'))}`);
 });
 router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
   const activity = db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
