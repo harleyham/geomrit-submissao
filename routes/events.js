@@ -912,7 +912,7 @@ router.post('/', requireSignedUser, strictLimiter, runEventAssetUpload, (req, re
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
   const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
-  const offersSubsidy = offers_subsidy ? 1 : 0;
+  const offersSubsidy = Number(offers_subsidy) === 1 ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
   const publicRegistration = public_registration ? 1 : 0;
   const registrationApprovalMode = registration_approval_mode === 'review' ? 'review' : 'automatic';
@@ -1060,7 +1060,7 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
   const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
-  const offersSubsidy = offers_subsidy ? 1 : 0;
+  const offersSubsidy = Number(offers_subsidy) === 1 ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
   const publicRegistration = public_registration ? 1 : 0;
   const registrationApprovalMode = registration_approval_mode === 'review' ? 'review' : 'automatic';
