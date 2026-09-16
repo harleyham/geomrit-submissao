@@ -20,6 +20,24 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-16 — Papéis: atribuição a contas não inscritas (ex.: staff)
+
+### Contexto
+- Usuários que atuarão em eventos exclusivamente como staff **nunca estarão inscritos** — a exigência de inscrição aprovada na página de Papéis os tornava inalcançáveis no combobox e o POST os recusava ("Somente pessoas inscritas neste evento podem receber papéis.").
+- Decisões do usuário: (a) **todos os papéis** podem ser atribuídos a não inscritos (não só staff); (b) **sem auto-inscrição** — papel fica apenas em `event_user_roles`; (c) combobox com inscritos primeiro e sufixo "(não inscrito)" nos demais.
+
+### Mudanças
+- `routes/events.js` `GET /:id/roles`: a lista do combobox deixou de filtrar por inscrição — qualquer conta `is_public=1 AND approval_status='approved'` é listável (exceto o superadmin, já fora por `eventRolesProtected`); coluna `enrolled` (inscrição aprovada OU papel existente) e ordenação `enrolled DESC, name COLLATE NOCASE`; os filtros de busca (nome, e-mail, instituição, CPF) e titulação continuam aplicados.
+- `routes/events.js` `POST /:id/roles`: a exigência de inscrição aprovada foi substituída por "conta ativa e aprovada" (`is_public=1 AND approval_status='approved'`); a atribuição a não inscrito grava apenas em `event_user_roles` (sem criar `event_registrations`); mensagem de sucesso indica "(pessoa não inscrita no evento — papel gravado apenas aqui, sem inscrição)" quando o alvo não estava inscrito (estado capturado antes do INSERT — reavaliar depois do papel gravado sempre diria "inscrita"). Mantidos: substituição atômica do conjunto, artigos obrigatórios de oral/pôster, proteção do superadmin e bloqueio de remoção do último administrador.
+- `views/admin/events/roles.ejs`: options dos não inscritos com sufixo "(não inscrito)"; texto de ajuda do formulário atualizado ("Papéis podem ser atribuídos a qualquer conta ativa e aprovada — a inscrição não é exigida (ex.: staff)").
+- `views/admin/users/list.ejs`: nota da listagem atualizada (a inscrição não é mais exigida para papéis).
+- Sem alterar: guard de rotas de staff (routes/events.js:254-267 — já só checa o papel), chamada de atividade (já une detentores de papel por `UNION`), contadores de inscritos, subsídio e certificados de participante (que continuam exigindo inscrição).
+
+### Verificação (E2E, sandbox com admin de evento não-super)
+- `GET /admin/events/:id/roles?q=…` encontra a pessoa **não inscrita** no combobox com o badge "(não inscrito)".
+- `POST /admin/events/:id/roles` (staff) para não inscrito: 302, papel gravado em `event_user_roles`, **nenhuma** `event_registrations` criada, mensagem de sucesso com o sufixo.
+- `node --check` e EJS OK. Docs: `submissao.md` (dois blocos), `README.md` (tabela Segurança), `manual.md` (seção Papéis), este log.
+
 ## 2026-09-11
 
 ### Troca do e-mail de recuperação do superadmin: endereço confirmado só é substituído após o clique no novo link

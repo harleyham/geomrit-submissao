@@ -150,7 +150,7 @@ Flags legadas de permissão no cadastro global:
 - `approved_at`
 - `approved_by`
 
-O usuário possui um único cadastro e login. **Todos os papéis de atuação são exclusivamente por evento**, em `event_user_roles`: `admin`, `staff`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter` — atribuídos apenas a inscritos no evento, **somente** na página de Papéis do evento (`/admin/events/:id/roles`) ou na edição do participante do evento (substituição atômica do conjunto, um participante pode acumular vários papéis) e **sem alterar o cadastro global**; os papéis do superadmin (`admin@admin.com`) são imutáveis. Administradores consultam e administram artigos, pareceres e relatórios somente nos eventos em que possuem papel `admin`; `staff` permanece restrito à operação de participantes, presença, listas, QR e certificados. As flags `is_*` são legadas, não autorizam ações, e `is_admin` sobrevive apenas na linha do superadmin (`admin@admin.com`).
+O usuário possui um único cadastro e login. **Todos os papéis de atuação são exclusivamente por evento**, em `event_user_roles`: `admin`, `staff`, `participant`, `reviewer`, `speaker`, `teacher`, `oral_presenter` e `poster_presenter` — atribuídos a contas ativas e aprovadas **inscritas ou não no evento** (desde 16/09/2026), **somente** na página de Papéis do evento (`/admin/events/:id/roles`) ou na edição do participante do evento (substituição atômica do conjunto, um participante pode acumular vários papéis) e **sem alterar o cadastro global** (a atribuição a não inscrito não cria inscrição); os papéis do superadmin (`admin@admin.com`) são imutáveis. Administradores consultam e administram artigos, pareceres e relatórios somente nos eventos em que possuem papel `admin`; `staff` permanece restrito à operação de participantes, presença, listas, QR e certificados. As flags `is_*` são legadas, não autorizam ações, e `is_admin` sobrevive apenas na linha do superadmin (`admin@admin.com`).
 
 ### Regras de acesso
 
@@ -465,7 +465,7 @@ Registra os papéis de administrador, participante, revisor, palestrante, profes
 
 Regras de atribuição/remoção:
 - Um evento deve manter ao menos um papel `admin`: a remoção do último administrador é bloqueada em qualquer usuário que a tente, inclusive o superadmin (mensagem orienta atribuir o papel a outra pessoa antes de remover). Vale para a página de papéis do evento e para a edição de perfis por evento em `/admin/users`.
-- Na página de papéis, o combobox "Pessoa" possui filtros de busca (nome, e-mail, instituição ou CPF) e titulação (Graduado/Mestre/Doutor/Não especificado), com contador de pessoas na lista; a lista continua restrita a inscritos aprovados no evento (o superadmin vê todas as contas ativas).
+- Na página de papéis, o combobox "Pessoa" possui filtros de busca (nome, e-mail, instituição ou CPF) e titulação (Graduado/Mestre/Doutor/Não especificado), com contador de pessoas na lista. **A partir de 16/09/2026, qualquer conta ativa e aprovada pode receber papéis, inscrita ou não** (ex.: staff que atua no evento sem inscrição); inscritos aparecem primeiro no combobox e os não inscritos vão com o sufixo "(não inscrito)". Atribuir papel a não inscrito grava apenas `event_user_roles`, sem criar inscrição — a pessoa não entra nos contadores de inscritos, subsídio, elegibilidade de certificados como participante nem no restante do fluxo de inscrição. Na chamada de atividade e nos relatórios, a pessoa aparece pelos papéis que possui (`UNION` com `event_user_roles`).
 
 ### `event_certificate_rules`
 

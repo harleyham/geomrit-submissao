@@ -90,7 +90,7 @@
 
     <section class="section">
       <h2 class="section-title">Atribuir papéis</h2>
-      <p class="hint">Selecione uma pessoa inscrita no evento, marque os papéis que ela exerce <strong>neste evento</strong> e salve: o conjunto salvo substitui os papéis anteriores da pessoa. Um participante pode acumular vários papéis; o mesmo papel não é duplicado. Papéis só podem ser atribuídos a quem está inscrito neste evento, e o participante comum não precisa de papel — a inscrição basta.</p>
+      <p class="hint">Selecione uma pessoa, marque os papéis que ela exerce <strong>neste evento</strong> e salve: o conjunto salvo substitui os papéis anteriores da pessoa. Um participante pode acumular vários papéis; o mesmo papel não é duplicado. Papéis podem ser atribuídos a qualquer conta ativa e aprovada — a inscrição não é exigida (ex.: staff); pessoas não inscritas aparecem marcadas com "(não inscrito)". O participante comum não precisa de papel — a inscrição basta.</p>
       <form method="GET" action="/admin/events/<%= event.id %>/roles" class="role-filters" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;border:1px solid var(--border);border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.25rem;background:var(--surface-input);">
         <div style="flex:1 1 260px;">
           <label for="q" style="display:block;color:var(--text-muted);font-size:0.8125rem;font-weight:500;margin-bottom:0.375rem;">Buscar pessoa</label>
@@ -126,7 +126,7 @@
           <label for="user_id">Pessoa <span style="color:var(--text-faint);font-size:0.75rem;font-weight:400">(<%= users.length %> pessoa<%= users.length === 1 ? '' : 's' %> na lista<%= (filters.query || filters.titulation !== 'all') ? ' — com filtros ativos' : '' %>)</span></label>
           <select name="user_id" id="user_id" required>
             <option value="">Selecione</option>
-            <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.name %> — <%= u.email %></option><% }) %>
+            <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.name %> — <%= u.email %><%= u.enrolled ? '' : ' (não inscrito)' %></option><% }) %>
           </select>
         </div>
         <div class="form-group">

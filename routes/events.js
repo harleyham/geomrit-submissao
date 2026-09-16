@@ -3437,13 +3437,12 @@ router.get('/:id/roles', (req, res) => {
   }
   const userConditions = [];
   const userParams = [];
-  // Papéis só podem ser atribuídos a quem está inscrito no evento; quem já
-  // possui papel nele permanece listado para permitir ajustes (inclusive
-  // remoção, respeitando a proteção do último administrador).
-  userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'
-    AND (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
-      OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id))`);
-  userParams.push(event.id, event.id);
+  // Papéis podem ser atribuídos a qualquer conta ativa e aprovada — a inscrição
+  // não é exigida (ex.: staff). Inscritos aparecem primeiro, com badge "(não
+  // inscrito)" nos demais; quem já possui papel permanece listado para
+  // permitir ajustes (inclusive remoção, respeitando a proteção do último
+  // administrador).
+  userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'`);
   if (filters.titulation.toLowerCase() === 'n\u00e3o especificado') {
     userConditions.push("(u.formacao_titulacao IS NULL OR u.formacao_titulacao = '')");
   } else if (filters.titulation !== 'all') {
@@ -3460,13 +3459,13 @@ router.get('/:id/roles', (req, res) => {
     const term = `%${filters.query.toLowerCase()}%`;
     userParams.push(term, term, term, term);
   }
-  // Papéis só podem ser atribuídos a pessoas inscritas no evento (ou que já
-  // possuem papel nele), independentemente do nível de acesso do operador.
-  const users = db.prepare(`SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter
+  const users = db.prepare(`SELECT u.id,u.name,u.email,u.is_staff,u.is_speaker,u.is_teacher,u.is_oral_presenter,u.is_poster_presenter,
+      (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
+        OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id)) AS enrolled
     FROM users u
     WHERE ${userConditions.join(' AND ')}
-    ORDER BY u.name COLLATE NOCASE
-  `).all(...userParams);
+    ORDER BY enrolled DESC, u.name COLLATE NOCASE
+  `).all(event.id, event.id, ...userParams);
   // O superadministrador do sistema não pode receber/editar papéis; ele sai do
   // combobox e a linha dele aparece protegida na lista abaixo.
   const assignableUsers = users.filter((user) => !eventRolesProtected(user.id));
@@ -3483,14 +3482,13 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
   const selected = EVENT_ASSIGNABLE_ROLES.filter((role) => list.includes(role));
   const backWithError = (message) => res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent(message)}`);
   if (!event || !Number.isInteger(userId)) return backWithError('Informe uma pessoa válida.');
-  const user = db.prepare('SELECT id FROM users WHERE id=?').get(userId);
+  const user = db.prepare("SELECT id, is_public, approval_status FROM users WHERE id=?").get(userId);
   if (!user) return backWithError('Informe uma pessoa válida.');
+  if (user.is_public !== 1 || user.approval_status !== 'approved') return backWithError('Somente contas ativas e aprovadas podem receber papéis.');
   if (eventRolesProtected(userId)) return backWithError(SUPERADMIN_ROLES_MESSAGE);
-  // Papéis podem ser atribuídos exclusivamente a quem está inscrito no evento
-  // (ou a quem já tenha papel nele, para permitir ajustes) — sem exceções.
-  const inscrita = db.prepare("SELECT 1 FROM event_registrations WHERE event_id=? AND user_id=? AND registration_status='approved'").get(event.id, userId)
-    || db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=?').get(event.id, userId);
-  if (!inscrita) return backWithError('Somente pessoas inscritas neste evento podem receber papéis.');
+  // A inscrição não é exigida: qualquer conta ativa e aprovada pode receber
+  // papéis (ex.: staff que atua no evento sem estar inscrito). O papel fica
+  // apenas em event_user_roles, sem criar inscrição.
   const articleByRole = {};
   for (const role of ['oral_presenter', 'poster_presenter']) {
     if (selected.includes(role)) {
@@ -3505,12 +3503,16 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
   if (hadAdmin && !selected.includes('admin') && currentAdmins <= 1) {
     return backWithError('O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.');
   }
+  // Capturado antes da gravação: depois do INSERT o papel existiria e a
+  // checagem por event_user_roles sempre diria "inscrita".
+  const estavaInscritaAntes = db.prepare("SELECT 1 FROM event_registrations WHERE event_id=? AND user_id=? AND registration_status='approved'").get(event.id, userId);
   db.transaction(() => {
     db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=?').run(event.id, userId);
     const insert = db.prepare('INSERT INTO event_user_roles (event_id,user_id,role,article_id,assigned_by) VALUES (?,?,?,?,?)');
     selected.forEach((role) => insert.run(event.id, userId, role, articleByRole[role] || null, req.session.userId));
   })();
-  res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent(selected.length ? 'Papéis atualizados com sucesso.' : 'Papéis removidos.')}`);
+  const suffix = selected.length && !estavaInscritaAntes ? ' (pessoa não inscrita no evento — papel gravado apenas aqui, sem inscrição).' : '';
+  res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent(selected.length ? 'Papéis atualizados com sucesso.' + suffix : 'Papéis removidos.')}`);
 });
 
 router.post('/:id/roles/:role/:userId/delete', strictLimiter, (req, res) => {
