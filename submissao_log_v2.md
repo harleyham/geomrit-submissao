@@ -20,6 +20,27 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-16 — Staff: "Meu painel" no /admin/dashboard
+
+### Contexto
+- Quem detém apenas o papel `staff` era barrado no `/admin/dashboard` (o `requireAuth` do painel exigia superadmin ou papel `admin`) e caía no escopo vazio ("Você ainda não administra nenhum evento"); o login mandava o staff para `/admin/events`. Decisão do usuário: staff deve ter o mesmo "Meu painel" que o admin de evento, escopado aos eventos em que é staff e dentro das permissões do papel. Exclusivos do super permanecem imutáveis.
+
+### Mudanças
+- `routes/auth.js`:
+  - `GET /admin/dashboard`: guarda dedicada (superadmin OU papel `admin` OU papel `staff` — sem tocar no `requireAuth` global, que continua exigindo para as demais áreas); escopo = união distinta dos eventos com papel `admin` e `staff`; flags `canAdminArticles` (super ou papel `admin` — o staff é bloqueado por `staffDeny` em `articles.js`/`reports.js`) e `isStaffDashboard`; métricas/pendências de artigos e revisores só computadas quando `canAdminArticles`; `managedEvents` traz `manage_role` por evento (admin / staff / admin+staff).
+  - `authenticatedDestination`: staff passa a aterrissar em `/admin/dashboard` (antes `/admin/events`).
+- `views/admin/dashboard.ejs`:
+  - Card "Eventos que administro" exibe badge do papel (Administrador / Staff / Administrador · Staff) e omite o link "Papéis" em eventos onde a pessoa é só staff.
+  - Título/nota: "Meu painel — dados referentes apenas aos eventos em que você é administrador ou staff"; estado vazio reescrito.
+  - Grupo novo "Participação" (Inscritos em Eventos Futuros, Inscritos (escopo), Autores, Participantes) visível a admin e staff; grupo "Usuários" (Total/Pendentes) segue exclusivo do super; grupos Revisores e Artigos e as três seções de pendências de artigos agora com gating por `canAdminArticles` (ocultos para staff).
+  - Seções "Solicitações de subsídio não analisadas" e "Pedidos de inclusão em atividades não analisados" visíveis a staff (operáveis via STAFF_ROUTES).
+- Sem alterar `STAFF_ROUTES` (o painel é agregador somente leitura).
+
+### Verificação (E2E, QA com três contas temporárias — staff puro, admin de evento, admin+staff)
+- Staff: destino pós-login `/admin/dashboard`; "Meu painel" com o evento e badge "Staff"; sem link "Papéis", sem Usuários/Revisores/Artigos/Paleta; com Participação ("Inscritos (escopo)"), Subsídio e Pedidos de inclusão.
+- admin de evento: "Meu painel" com badge "Administrador", link "Papéis", Revisores e Artigos; super: global inalterado; admin+staff: badge duplo e grupos de admin.
+- `node --check` + EJS OK. Docs: `submissao.md` (Regras de acesso), `manual.md` (login, Staff, dashboard), `README.md` (Segurança), este log.
+
 ## 2026-09-16 — Papéis: atribuição a contas não inscritas (ex.: staff)
 
 ### Contexto

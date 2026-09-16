@@ -156,11 +156,11 @@ O usuário possui um único cadastro e login. **Todos os papéis de atuação s�
 
 - Superadmin (`admin@admin.com` com `is_admin = 1` confirmado no banco): acesso total, incluídos `/admin/users` (exclusivo) e `/admin/dashboard` global (os cards "Paleta do sistema", "Envio global de e-mails" e "Backup e Restauração" são exclusivos dele); os papéis dessa conta em `event_user_roles` não podem ser atribuídos, alterados ou removidos por ninguém.
 - Papel `admin` em algum evento: gestão do evento, incluídos artigos, pareceres, atribuições, decisões e relatórios daquele evento; dashboard personalizado em `/admin/dashboard` com métricas e pendências apenas dos eventos que administra.
-- Papel `staff` em algum evento: operação de participantes, presença, listas, QR e certificados; sem acesso administrativo a artigos ou relatórios; aterrissa em `/admin/events`.
+- Papel `staff` em algum evento: operação de participantes, presença, listas, QR e certificados; sem acesso administrativo a artigos ou relatórios; "Meu painel" em `/admin/dashboard` escopado aos eventos em que é staff (desde 16/09/2026), com os cards e seções compatíveis com as permissões do papel — sem os grupos de Revisores e Artigos, mantendo Participação e as pendências de Solicitações de subsídio e Pedidos de inclusão em atividades (ambas operáveis por staff).
 - Papel `reviewer` em algum evento: acesso ao painel `/reviewer`; cada artigo exige também atribuição ativa no mesmo evento.
 - Demais contas aprovadas e ativas: Área do Participante (`/author`), incluindo troca da própria senha.
 - `is_public = 1`: conta habilitada para autenticação (status de conta, não papel).
-- Redirecionamento pós-login: super e admin de evento → `/admin/dashboard` (admin de evento vê "Meu painel" escopado); staff → `/admin/events`; revisor → `/reviewer`; demais → `/author`.
+- Redirecionamento pós-login: super e admin de evento → `/admin/dashboard` (admin de evento vê "Meu painel" escopado); staff → `/admin/dashboard` ("Meu painel" dos eventos em que é staff); revisor → `/reviewer`; demais → `/author`.
 - `/login?switch=1` (usado pelos links de e-mails da organização) exibe a tela de login mesmo com sessão ativa, com aviso "Você está logado como X" e opções de manter a sessão (ir à área do usuário) ou sair e entrar com outra conta; a troca de conta regenera a sessão. Sem o parâmetro, sessão ativa continua redirecionando direto para a área do usuário.
 - `/author` bloqueia a conta superadmin (fora da prévia "como participante"), redirecionando para `/admin/dashboard`.
 

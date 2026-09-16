@@ -77,7 +77,7 @@ Use uma senha inicial forte e troque-a no primeiro acesso. Sem `SUPER_ADMIN_INIT
 
 ## 3. Navegação e perfis
 
-Após o login, o usuário é encaminhado conforme seus papéis, consultados no banco a cada acesso: `admin@admin.com` vai para `/admin/dashboard` (Dashboard global); quem é **administrador** de algum evento vai para o próprio `/admin/dashboard` ("Meu painel", personalizado com os eventos que administra); staff vai para `/admin/events`; quem tem papel **Revisor** em pelo menos um evento pode alternar com `/reviewer`; as demais contas aprovadas vão para `/author` (Área do Participante). Não existem mais papéis globais: participante, revisor, palestrante, professor, apresentador e staff são exercidos **por evento**.
+Após o login, o usuário é encaminhado conforme seus papéis, consultados no banco a cada acesso: `admin@admin.com` vai para `/admin/dashboard` (Dashboard global); quem é **administrador** de algum evento vai para o próprio `/admin/dashboard` ("Meu painel", personalizado com os eventos que administra); quem é **staff** de algum evento também vai para `/admin/dashboard` ("Meu painel" com os eventos em que atua como staff — participacao, presença, subsídios e pedidos de atividade; sem os módulos de artigos/revisão); quem tem papel **Revisor** em pelo menos um evento pode alternar com `/reviewer`; as demais contas aprovadas vão para `/author` (Área do Participante). Não existem mais papéis globais: participante, revisor, palestrante, professor, apresentador e staff são exercidos **por evento**.
 
 O administrador de evento administra apenas os eventos nos quais possui o papel `admin` (e, nos artigos e relatórios, enxerga só os seus eventos). O papel atribuído em um evento não altera os demais eventos nem o cadastro global da pessoa.
 
@@ -190,9 +190,9 @@ O papel **Staff** é uma designação **exclusivamente por evento**, atribuída 
 Dentro dos seus eventos, o Staff concentra a operação, sem ser administrador:
 
 - **pode**: gerenciar participantes (adicionar, editar, importar, analisar inscrições, remover a inscrição), abrir a chamada e marcar/atualizar/desfazer presença (manual, em lote e por QR), imprimir listas de presença, folhas de QR de check-in e crachás, **editar** atividades e etapas existentes, gerenciar **certificados**, e consultar **artigos/revisões** e **relatórios** daquele evento;
-- **não pode**: criar ou **apagar evento**, **apagar usuário**, **criar ou apagar atividades e etapas**, gerenciar papéis, salas, publicar/encerrar ou editar o evento, e acessar os demais módulos administrativos (dashboard, usuários, outros eventos).
+- **não pode**: criar ou **apagar evento**, **apagar usuário**, **criar ou apagar atividades e etapas**, gerenciar papéis, salas, publicar/encerrar ou editar o evento, e acessar os demais módulos administrativos (usuários, outros eventos, artigos e relatórios — os cards/seções desses temas não aparecem no painel).
 
-O Staff entra pelo menu **Eventos**, que lista apenas os seus eventos, com as entradas de participação, presença, certificados, artigos e relatórios. Rotas administrativas fora dessa alçada retornam **Acesso negado**. O Staff não é promovido a administrador de sessão.
+O Staff entra pelo menu **Eventos**, que lista apenas os seus eventos, com as entradas de participação, presença, certificados, artigos e relatórios; ou pelo próprio **"Meu painel"** (`/admin/dashboard`), que traz os cards e pendências dos eventos em que é staff (eventos, participação, subsídios e pedidos de inclusão em atividades — sem os grupos de Usuários, Revisores e Artigos, reservados a administradores). Rotas administrativas fora dessa alçada retornam **Acesso negado**. O Staff não é promovido a administrador de sessão.
 
 ### Análise de solicitações de inscrição
 
@@ -317,7 +317,7 @@ O certificado pode ser baixado pelo participante e verificado publicamente pelo 
 
 ## 12. Dashboard administrativo
 
-Após o login, todo administrador de evento aterrissa no **"Meu painel"** (`/admin/dashboard`), com dados exclusivos dos eventos que administra. O superadministrador (`admin@admin.com`) vê o **Dashboard** global do sistema.
+Após o login, todo administrador de evento aterrissa no **"Meu painel"** (`/admin/dashboard`), com dados exclusivos dos eventos que administra; o **staff** aterrissa no mesmo painel, escopado aos eventos em que atua (com os cards do seu escopo de permissões). O superadministrador (`admin@admin.com`) vê o **Dashboard** global do sistema.
 
 **Meu painel (administrador de evento)**:
 
