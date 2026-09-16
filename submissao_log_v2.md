@@ -762,7 +762,21 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Número de participantes de uma Atividade
 
 
-## 2026-09-09 — Papéis exclusivamente na página de Papéis + proteção do superadmin + dashboard personalizado por admin
+## 2026-09-16 — Correção da propagação de datas do evento (ReferenceError: dateStart is not defined)
+
+### Correção crítica: edição do evento crashava antes de salvar
+
+- Erro reportado pelo usuário ao mudar a data de um evento em `/admin/events/3/edit`: `ReferenceError: dateStart is not defined` em `routes/events.js:1253` (dentro do handler de `POST /admin/events/:id`) — crash de runtime antes de qualquer gravação; nada era salvo.
+- Causa: o cálculo do deslocamento `diffDays(dateSnapshot.date_start, dateStart || null)` usava a variável `dateStart` (padrão dos handlers de atividade, onde vem de `req.body.date_start`), mas o handler de edição do evento destrutura `date_start` de `req.body` em `routes/events.js:1060`. A variável errada não existia naquele escopo.
+- Correção: `routes/events.js:1253` passa a usar `date_start` — a mesma variável já vinculada no `UPDATE` da linha seguinte. `node --check` OK.
+- Verificação da lógica de cascade (`services/date-shift.js`): `diffDays` retorna 0 com qualquer ponta nula (sem shift); `modifierFor` gera `'+'+N days`/`-N days` com sinal explícito (deslocamento negativo válido); `shiftEventWindows` desloca cada janela do cronograma apenas enquanto ela ainda guarda o valor do snapshot (`AND col = snapshot[col]`) — edições manuais são preservadas; janelas nulas permanecem nulas. Todo o deslocamento (`shiftEventContent`: etapas, atividades incl. `activity_date` legada, salas; `shiftEventWindows`) roda em transação após o `UPDATE` do evento.
+- Verificação funcional pendente: salvar o evento com ±7 dias na Data Início e conferir que atividades, etapas, salas e janelas deslocaram juntas e que janela editada manualmente não foi mexida.
+
+### Formulário do evento: aviso de propagação de datas
+
+- `views/admin/events/form.ejs`: novo `<small>` logo abaixo da linha "Data Início / Data Fim" (no mesmo estilo do aviso de status): "**As datas de Início e Fim, se forem alteradas, propagarão as alterações para todas as Atividades.**" — exibido na criação e na edição. Compilação EJS OK.
+
+
 
 ### Papéis: atribuição multi-papel e lista agrupada em `/admin/events/:id/roles`
 

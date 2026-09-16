@@ -6,7 +6,7 @@ Aplicação web para gestão de eventos acadêmicos e científicos, com inscriç
 
 Versão atual do projeto: **V0.35**.
 
-Data de referência desta especificação: **01/09/2026**.
+Data de referência desta especificação: **16/09/2026**.
 
 ## Objetivo do Produto
 
@@ -571,6 +571,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - O envio de novo logo na edição substitui o atual e remove o arquivo anterior do disco; o checkbox "Remover logo atual" remove o arquivo e zera as colunas.
 - A exclusão do evento remove o arquivo do logo, se existir.
 - Nos PDFs (crachá, lista de presença e folha com QR Code), o logo só é renderizado quando existe; sem ele, o layout original é preservado (no crachá, o QR é reduzido de 240 para 216pt quando o logo está presente).
+- **Alteração da data de início com propagação (cascade-on-save)**: ao salvar a edição do evento, se `date_start` mudou em relação ao banco, todo o conteúdo agendado é deslocado pelo mesmo número de dias em transação (`services/date-shift.js`, chamado por `routes/events.js`): etapas (`activity_sessions.session_date`), atividades (`event_activities.activity_date`, `date_start`, `date_end` — inclui a coluna legada `activity_date`) e alocações de salas (`room_assignments.date`). As janelas do cronograma (`registration_*`, `submission_*`, `review_*`, `certificates_*`) também são deslocadas quando **ainda guardam o valor do snapshot anterior** — uma janela editada manualmente no mesmo save é preservada (comparação com snapshot); janelas nulas permanecem nulas. Nova `date_start` vazia ou deslocamento zero não propagam nada. O formulário do evento exibe o aviso "As datas de Início e Fim, se forem alteradas, propagarão as alterações para todas as Atividades." abaixo dos campos.
 
 ### Usuários
 

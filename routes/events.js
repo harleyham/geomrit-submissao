@@ -1250,7 +1250,7 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
     SELECT date_start, date_end, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end
     FROM events WHERE id=?
   `).get(req.params.id) || {};
-  const dateShiftDays = diffDays(dateSnapshot.date_start, dateStart || null);
+  const dateShiftDays = diffDays(dateSnapshot.date_start, date_start || null);
 
   db.prepare(`
     UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, registration_approval_mode=?,
