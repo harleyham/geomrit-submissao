@@ -20,6 +20,10 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-16 — Badge do papel staff nas listas de participantes
+
+- A coluna "Tipo" de `/admin/events/:id/participants` (e badges equivalentes em presença por atividade e relatórios) não tinha rótulo/estilo para o papel `staff` — o texto aparecia cru, sem badge, dando a impressão de papel faltando. Agora mapeado como "Staff" (com badge esmeralda) nas três telas; "Administrador" também ganhou classe própria na presença por atividade. Verificação por E2E (participantes: Administrador · Revisor · Palestrante · Staff, nenhum texto cru pendente).
+
 ## 2026-09-16 — Staff: "Meu painel" no /admin/dashboard
 
 ### Contexto
