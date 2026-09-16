@@ -182,40 +182,6 @@
       </div>
     </div>
 
-    <div class="stats-group">
-      <div class="stats-group-title">Participação</div>
-      <div class="stats-grid">
-        <div class="stat-card future-registrations">
-          <div class="stat-label">Inscritos em Eventos Futuros</div>
-          <div class="stat-value"><%= futureRegistrations %></div>
-        </div>
-        <% if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) { %>
-        <div class="stat-card articles">
-          <div class="stat-label">Inscritos</div>
-          <div class="stat-value"><%= totalRegisteredParticipants %></div>
-        </div>
-        <% } else { %>
-        <div class="stat-card articles">
-          <div class="stat-label">Inscritos (escopo)</div>
-          <div class="stat-value"><%= totalRegisteredParticipants %></div>
-        </div>
-        <% } %>
-        <div class="stat-card articles">
-          <div class="stat-label">Inscritos Autores</div>
-          <div class="stat-value"><%= authorRegistrations %></div>
-        </div>
-        <div class="stat-card articles">
-          <div class="stat-label">Inscritos Participantes</div>
-          <div class="stat-value"><%= listenerRegistrations %></div>
-        </div>
-      </div>
-      <% if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) { %>
-      <p style="color:var(--text-faint);font-size:0.78rem;margin-top:0.5rem;">Inscritos, usuários e cadastros consideram todas as contas do sistema (visão global).</p>
-      <% } else { %>
-      <p style="color:var(--text-faint);font-size:0.78rem;margin-top:0.5rem;">Inscritos consideram apenas os eventos em que você é administrador ou staff.</p>
-      <% } %>
-    </div>
-
     <% if (typeof canAdminArticles !== 'undefined' && canAdminArticles) { %>
     <div class="stats-group">
       <div class="stats-group-title">Revisores</div>
