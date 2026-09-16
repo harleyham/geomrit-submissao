@@ -3965,6 +3965,8 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
   const rejectedIds = parseRequestedActivityIds(registration.rejected_activity_ids);
   const newRequested = JSON.stringify(requestedIds.filter((id) => id !== activityId));
 
+  const wasPending = registration.registration_status === 'pending';
+
   if (decision === 'approve') {
     if (!registration.user_id) {
       return back(`error=${encodeURIComponent('Vincule uma conta a este participante antes de aprovar pedidos de atividade.')}`);
@@ -3975,17 +3977,36 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
         db.prepare(`INSERT INTO participant_activity_enrollments (activity_id,registration_id,user_id,enrolled_by,created_at,updated_at)
           VALUES (?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`).run(activityId, registration.id, registration.user_id, req.session.userId);
       }
-      db.prepare("UPDATE event_registrations SET requested_activity_ids=?, rejected_activity_ids=?, updated_at=datetime('now','-3 hours') WHERE id=?")
-        .run(newRequested, JSON.stringify(rejectedIds.filter((id) => id !== activityId)), registration.id);
+      if (wasPending) {
+        db.prepare("UPDATE event_registrations SET registration_status='approved', registration_reviewed_at=datetime('now','-3 hours'), registration_reviewed_by=?, requested_activity_ids=?, rejected_activity_ids=?, updated_at=datetime('now','-3 hours') WHERE id=?")
+          .run(req.session.userId, newRequested, JSON.stringify(rejectedIds.filter((id) => id !== activityId)), registration.id);
+      } else {
+        db.prepare("UPDATE event_registrations SET requested_activity_ids=?, rejected_activity_ids=?, updated_at=datetime('now','-3 hours') WHERE id=?")
+          .run(newRequested, JSON.stringify(rejectedIds.filter((id) => id !== activityId)), registration.id);
+      }
       recordParticipantAudit({
         eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
         action: 'participant_activity_request_approved', details: { activity_id: activityId }
       });
+      if (wasPending) {
+        recordParticipantAudit({
+          eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+          action: 'registration_request_reviewed', details: { decision: 'approved', notes: '', implicit_by_activity: true, approved_activity_ids: [activityId] }
+        });
+      }
     })();
     try {
       queueActivityRequestDecision({ event, registration, decision: 'approve', activity });
     } catch (error) {
       console.error('[email] Falha ao enfileirar decisão de pedido de atividade:', error.message);
+    }
+    if (wasPending) {
+      try {
+        queueRegistrationReviewDecision({ event, registration: { ...registration, registration_status: 'approved', registration_review_notes: '' }, decision: 'approved', approvedActivities: [activity], approvedAll: true });
+      } catch (error) {
+        console.error('[email] Falha ao enfileirar aprovação implícita de inscrição:', error.message);
+      }
+      return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" aprovado. A inscrição no evento foi aprovada implicitamente.`)}`);
     }
     return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" aprovado.`)}`);
   }

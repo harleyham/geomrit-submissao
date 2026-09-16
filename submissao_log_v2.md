@@ -20,6 +20,17 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-16 — Pedidos de atividade: bloqueio para inscrição pendente
+
+- A tela de edição de participante permitia aprovar/negar pedidos de atividade mesmo com a inscrição em análise (`pending`), e nenhum desses caminhos muda `registration_status` — os pedidos eram resolvidos, mas a inscrição continuava "pendente", parecendo inconsistente (caso josecarv@ufc.br, evento 2, resolvido com a aprovação explícita pela tela de análise).
+
+## 2026-09-16 — Pedido de atividade aprovado aprova implicitamente a inscrição (revoga decisão da tarde)
+
+- Decisão do usuário: ao aprovar um pedido de atividade, o admin está implicitamente aprovando a inscrição no evento — o bloqueio implementado antes (exigir análise da inscrição antes da decisão de pedidos) foi **desfeito**.
+- `POST /:id/participants/:registrationId/activities/decide` (`routes/events.js`), decisão `approve` com inscrição `pending`: status → `approved` com `registration_reviewed_at=datetime('now','-3 hours')` e `registration_reviewed_by` (mesma transação da matrícula e do consumo do pedido); auditoria adicional `registration_request_reviewed` com `decision:'approved'`, `notes:''` e `implicit_by_activity:true`; e-mail do resultado da inscrição enfileirado (`queueRegistrationReviewDecision` com a atividade aprovada) além do e-mail próprio da decisão do pedido; redirect "Pedido de inscrição em \"X\" aprovado. A inscrição no evento foi aprovada implicitamente.".
+- Decisão `reject` com inscrição `pending`: **não altera a inscrição** (permanece pendente para a análise normal em "Analisar inscrição"), conforme decisão do usuário.
+- `views/admin/events/participant-form.ejs`: com inscrição pendente, o aviso passa a ser informativo (aprovar pedido aprova implicitamente, com e-mail; negar mantém pendente, com link para a análise). O fluxo explícito de `GET/POST .../review` fica intacto; inscritos já aprovados seguem com o comportamento anterior.
+
 ## 2026-09-16 — Badge do papel staff nas listas de participantes
 
 - A coluna "Tipo" de `/admin/events/:id/participants` (e badges equivalentes em presença por atividade e relatórios) não tinha rótulo/estilo para o papel `staff` — o texto aparecia cru, sem badge, dando a impressão de papel faltando. Agora mapeado como "Staff" (com badge esmeralda) nas três telas; "Administrador" também ganhou classe própria na presença por atividade. Verificação por E2E (participantes: Administrador · Revisor · Palestrante · Staff, nenhum texto cru pendente).

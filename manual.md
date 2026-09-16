@@ -200,6 +200,8 @@ Quando o evento está configurado como **Sujeita à análise**, uma inscrição 
 
 Abra a listagem de participantes e use **Analisar** para aprovar ou recusar a solicitação. É possível aprovar todas as atividades solicitadas, somente algumas delas ou nenhuma. A aprovação parcial informa ao participante exatamente quais atividades foram confirmadas. Após a decisão, a seleção de atividades fica somente para leitura para o participante; alterações posteriores devem ser feitas pela administração.
 
+Diante de **pedidos de inclusão em atividades** de uma inscrição ainda pendente, a edição do participante pode decidir cada pedido por **"Sim (aprovar)" / "Não (negar)"**: aprovar o pedido **aprova implicitamente a inscrição no evento** (status passa a aprovado, com e-mail do resultado da inscrição ao participante); negar o pedido deixa a inscrição **pendente para análise pelo fluxo normal** ("Analisar inscrição"). Para inscrições já aprovadas, aprovar/negar afeta apenas o pedido.
+
 ## 7. Criação de atividades
 
 1. Acesse `/admin/events/:id/activities`.
