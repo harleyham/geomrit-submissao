@@ -373,16 +373,27 @@ function createImportBatch({ batchType, eventId = null, importedBy = null, repor
     (batch_id,user_id,registration_id,recipient_name,recipient_email,outcome,email_kind,email_status,created_at)
     VALUES (?,?,?,?,?,?,?,?,datetime('now','-3 hours'))`);
   const findUser = db.prepare('SELECT id,name,email FROM users WHERE LOWER(TRIM(email))=LOWER(TRIM(?))');
+  const findUserById = db.prepare('SELECT id,name,email FROM users WHERE id=?');
   const findRegistration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?');
+  const findRegistrationById = db.prepare('SELECT id FROM event_registrations WHERE id=? AND event_id=?');
   db.transaction(() => {
     (report || []).forEach((item) => {
-      const user = item.email && item.email !== '(não informado)' ? findUser.get(item.email) : null;
+      // O relatório carrega os ids conhecidos na própria transação de importação
+      // (mais confiáveis que o match por e-mail, que falha silentemente se o
+      // e-mail difere em case/espaço ou a conta foi deletada e recriada).
+      const user = item.userId != null
+        ? (findUserById.get(item.userId) || (item.email && item.email !== '(não informado)' ? findUser.get(item.email) : null))
+        : (item.email && item.email !== '(não informado)' ? findUser.get(item.email) : null);
       let emailKind = null;
       if (batchType === 'users' && item.detail === 'Usuário criado') emailKind = 'account';
       if (batchType === 'event_registrations' && item.detail === 'Usuário criado e inscrito no evento') emailKind = 'account_registration';
       if (batchType === 'event_registrations' && item.detail === 'Usuário existente — inscrito no evento') emailKind = 'registration';
-      const registration = eventId && user ? findRegistration.get(eventId, user.id) : null;
-      insert.run(batch.lastInsertRowid, user && user.id, registration && registration.id,
+      const registrationId = item.registrationId != null
+        ? (eventId ? (findRegistrationById.get(item.registrationId, eventId) || {}).id || null : null)
+        : null;
+      const registration = eventId && user ? (findRegistration.get(eventId, user.id) || registrationId) : registrationId;
+      insert.run(batch.lastInsertRowid, (user && user.id) || null,
+        (user && user.id ? (typeof registration === 'number' ? registration : registration && registration.id) : registrationId) || null,
         (user && user.name) || item.name, (user && user.email) || item.email,
         item.status, emailKind, emailKind ? 'awaiting_authorization' : 'not_applicable');
     });
@@ -410,25 +421,45 @@ function authorizeImportBatch(batchId, actorUserId) {
   const entries = db.prepare(`SELECT * FROM import_batch_entries WHERE batch_id=? AND email_kind IS NOT NULL
     AND email_status='awaiting_authorization' ORDER BY id`).all(batch.id);
   let queued = 0;
+  let skippedNoAccount = 0;
   db.transaction(() => {
     entries.forEach((entry) => {
       const user = entry.user_id ? db.prepare('SELECT id,name,email FROM users WHERE id=?').get(entry.user_id) : null;
-      if (!user || !user.email) {
-        db.prepare("UPDATE import_batch_entries SET email_status='not_applicable' WHERE id=?").run(entry.id);
-        return;
-      }
       const dedupeKey = `import:${batch.id}:${entry.id}`;
       let result;
-      if (entry.email_kind === 'account') result = queueImportedAccount({ user, dedupeKey });
-      else if (entry.email_kind === 'account_registration') result = queueImportedAccount({ user, event, registration: true, dedupeKey });
-      else result = queueImportedRegistration({ user, event, dedupeKey });
+      if ((!user || !user.email) && entry.email_kind === 'registration' && entry.recipient_email) {
+        // Conta existente recém-inscrita sem vínculo de usuário resolvível: o
+        // template de inscrição não precisa de token de setup, então envia
+        // direto para os dados de destinatário do lote (nada descartado em silêncio).
+        result = enqueueEmail({
+          eventId: event && event.id, userId: null,
+          recipientEmail: entry.recipient_email, recipientName: entry.recipient_name,
+          messageType: 'imported_registration', templateName: 'imported-registration',
+          subject: `Sua inscrição em ${event.name} foi confirmada`,
+          identity: getEventIdentity(event), dedupeKey,
+          payload: { name: entry.recipient_name, eventName: event.name,
+            authorUrl: `${appBaseUrl()}/author`, platformName: getEventIdentity(event).platformName }
+        });
+      } else if (!user || !user.email) {
+        // Conta nova sem conta resolvível: o e-mail exige token de setup
+        // (/definir-senha), então não há como enviar — marcado para feedback.
+        db.prepare("UPDATE import_batch_entries SET email_status='blocked_no_account' WHERE id=?").run(entry.id);
+        skippedNoAccount += 1;
+        return;
+      } else if (entry.email_kind === 'account') {
+        result = queueImportedAccount({ user, dedupeKey });
+      } else if (entry.email_kind === 'account_registration') {
+        result = queueImportedAccount({ user, event, registration: true, dedupeKey });
+      } else {
+        result = queueImportedRegistration({ user, event, dedupeKey });
+      }
       db.prepare('UPDATE import_batch_entries SET email_status=? WHERE id=?').run(result.status, entry.id);
       if (result.inserted) queued += 1;
     });
     db.prepare("UPDATE import_batches SET email_authorized_at=datetime('now','-3 hours'),email_authorized_by=? WHERE id=?")
       .run(actorUserId || null, batch.id);
   })();
-  return queued;
+  return { queued, skippedNoAccount };
 }
 
 function queueCertificateIssued(event, emissionId) {

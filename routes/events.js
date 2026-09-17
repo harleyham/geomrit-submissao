@@ -1605,7 +1605,7 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
             if (!registrationResult.changes) throw new Error('A inscrição já existe para outro identificador deste evento.');
             enrollImportedInAutomaticActivities(registrationResult.lastInsertRowid, existing.id);
             registered += 1;
-            report.push({ name: existing.name, email: canonicalEmail, status: 'success', detail: 'Usuário existente — inscrito no evento' });
+            report.push({ name: existing.name, email: canonicalEmail, status: 'success', detail: 'Usuário existente — inscrito no evento', userId: existing.id, registrationId: registrationResult.lastInsertRowid });
           } catch (dbErr) {
             console.error('[import-users] registration error for', email || cpf || passport, ':', dbErr.message);
             report.push({ name: existing.name, email: canonicalEmail, status: 'error', detail: 'Erro ao inscrever: ' + dbErr.message });
@@ -1636,12 +1636,12 @@ router.post('/:id/import-users', strictLimiter, importUpload.single('import_file
             nameToUse, email || null, defaultPassword, institution || null,
             cpf || null, passport || null, phone || null
           ).lastInsertRowid;
-          insertRegistration.run(event.id, userId, nameToUse, email || null, institution || null, phone || null);
+          const newRegResult = insertRegistration.run(event.id, userId, nameToUse, email || null, institution || null, phone || null);
           const newReg = findRegistration.get(event.id, userId);
           if (newReg) enrollImportedInAutomaticActivities(newReg.id, userId);
           imported += 1;
           registered += 1;
-          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado e inscrito no evento' });
+          report.push({ name: nameToUse, email: personEmail || email, status: 'success', detail: 'Usuário criado e inscrito no evento', userId, registrationId: (newReg && newReg.id) || newRegResult.lastInsertRowid });
         } catch (dbErr) {
           console.error('[import-users] DB insert error for', email || cpf || passport, ':', dbErr.message);
           skipped += 1;
@@ -1716,8 +1716,10 @@ router.post('/:id/import-authorize-emails', strictLimiter, (req, res) => {
     return res.redirect(`/admin/events/${req.params.id}/import-users?error=${encodeURIComponent('Nenhum lote disponível para autorização.')}`);
   }
   try {
-    const queued = authorizeImportBatch(data.batchId, req.session.userId);
-    return res.redirect(`/admin/events/${req.params.id}/import-result?email_message=${encodeURIComponent(`${queued} e-mail(s) enfileirado(s).`)}`);
+    const result = authorizeImportBatch(data.batchId, req.session.userId);
+    const message = `${result.queued} e-mail(s) enfileirado(s).`
+      + (result.skippedNoAccount ? ` ${result.skippedNoAccount} destinatário(s) sem conta vinculada não receberam e-mail.` : '');
+    return res.redirect(`/admin/events/${req.params.id}/import-result?email_message=${encodeURIComponent(message)}`);
   } catch (error) {
     return res.redirect(`/admin/events/${req.params.id}/import-result?email_error=${encodeURIComponent(error.message)}`);
   }

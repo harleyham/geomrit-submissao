@@ -1076,7 +1076,7 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
             cpf || null, passport || null, phone || null
           ).lastInsertRowid;
           imported += 1;
-          report.push({ name: nameToUse, email: personEmail, status: 'success', detail: 'Usuário criado' });
+          report.push({ name: nameToUse, email: personEmail && personEmail !== '(não informado)' ? personEmail : email, status: 'success', detail: 'Usuário criado', userId, registrationId: null });
         } catch (dbErr) {
           console.error('[users-import] DB insert error for', email || cpf || passport, ':', dbErr.message);
           skipped += 1;
@@ -1105,9 +1105,10 @@ router.post('/import', requireAuth, strictLimiter, importUpload.single('import_f
   let emailMessage = null;
   try {
     if (canQueueEmail(null).allowed) {
-      const queued = authorizeImportBatch(batchId, req.session.userId);
-      emailMessage = queued > 0
-        ? `${queued} e-mail(ns) de criação de conta enfileirado(ns) automaticamente.`
+      const result = authorizeImportBatch(batchId, req.session.userId);
+      emailMessage = result.queued > 0
+        ? `${result.queued} e-mail(ns) de criação de conta enfileirado(ns) automaticamente.`
+          + (result.skippedNoAccount ? ` ${result.skippedNoAccount} destinatário(s) sem conta vinculada não receberam e-mail.` : '')
         : 'Nenhum e-mail de conta nova a enfileirar neste lote.';
     } else {
       emailMessage = 'Master switch global de e-mails desativado. Os e-mails não foram enfileirados.';
@@ -1155,8 +1156,10 @@ router.post('/import/authorize-emails', requireAuth, strictLimiter, (req, res) =
   const data = req.session.importResult;
   if (!data || !data.batchId) return res.redirect('/admin/users/import?error=' + encodeURIComponent('Nenhum lote disponível para autorização.'));
   try {
-    const queued = authorizeImportBatch(data.batchId, req.session.userId);
-    return res.redirect('/admin/users/import/result?email_message=' + encodeURIComponent(`${queued} e-mail(s) enfileirado(s).`));
+    const result = authorizeImportBatch(data.batchId, req.session.userId);
+    const message = `${result.queued} e-mail(s) enfileirado(s).`
+      + (result.skippedNoAccount ? ` ${result.skippedNoAccount} destinatário(s) sem conta vinculada não receberam e-mail.` : '');
+    return res.redirect('/admin/users/import/result?email_message=' + encodeURIComponent(message));
   } catch (error) {
     return res.redirect('/admin/users/import/result?email_error=' + encodeURIComponent(error.message));
   }
