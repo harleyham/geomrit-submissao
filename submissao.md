@@ -4,7 +4,7 @@
 
 Aplicação web para gestão de eventos acadêmicos e científicos, com inscrição de participantes, submissão de artigos, revisão, controle de presença e emissão de certificados de participação.
 
-Versão atual do projeto: **V0.35**.
+Versão atual do projeto: **V0.36**.
 
 Data de referência desta especificação: **16/09/2026**.
 

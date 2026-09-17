@@ -1,6 +1,6 @@
 {
   "name": "gerencia-de-eventos",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "description": "Gerência de Eventos - sistema de gestão de eventos acadêmicos e científicos",
   "main": "server.js",
   "scripts": {
