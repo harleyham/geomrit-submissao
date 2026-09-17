@@ -20,7 +20,6 @@ const { strictLimiter } = require('../security/rate-limits');
 const { isSuperAdminUser } = require('./auth');
 const { validateAndHandle, validators: v } = require('../security/validation');
 const rooms = require('../services/rooms');
-const { diffDays, shiftEventContent, shiftEventWindows, shiftActivityDates } = require('../services/date-shift');
 
 function safeArchiveFileName(value, fallback) {
   const normalized = String(value || fallback)
@@ -912,7 +911,7 @@ router.post('/', requireSignedUser, strictLimiter, runEventAssetUpload, (req, re
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
   const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
-  const offersSubsidy = Number(offers_subsidy) === 1 ? 1 : 0;
+  const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
   const publicRegistration = public_registration ? 1 : 0;
   const registrationApprovalMode = registration_approval_mode === 'review' ? 'review' : 'automatic';
@@ -1060,7 +1059,7 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
   const { name, short_name, description, date_start, date_end, location, url, area, status, institution, language, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end, offers_subsidy, has_article_submission, public_registration, registration_approval_mode } = req.body;
   const normalizedStatus = normalizeEventStatus(status);
   const normalizedArea = normalizeAreaList(area);
-  const offersSubsidy = Number(offers_subsidy) === 1 ? 1 : 0;
+  const offersSubsidy = offers_subsidy ? 1 : 0;
   const hasArticleSubmission = has_article_submission ? 1 : 0;
   const publicRegistration = public_registration ? 1 : 0;
   const registrationApprovalMode = registration_approval_mode === 'review' ? 'review' : 'automatic';
@@ -1246,12 +1245,6 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
     try { fs.unlinkSync(editalFile.path); } catch (_) {}
   }
 
-  const dateSnapshot = db.prepare(`
-    SELECT date_start, date_end, registration_start, registration_end, submission_start, submission_end, review_start, review_end, certificates_start, certificates_end
-    FROM events WHERE id=?
-  `).get(req.params.id) || {};
-  const dateShiftDays = diffDays(dateSnapshot.date_start, date_start || null);
-
   db.prepare(`
     UPDATE events SET name=?, short_name=?, description=?, date_start=?, date_end=?, location=?, url=?, area=?, has_article_submission=?, offers_subsidy=?, public_registration=?, registration_approval_mode=?,
       email_enabled=?,email_platform_name=?,email_sender_name=?,email_signature=?,email_contact=?,status=?, institution=?, language=?, registration_start=?, registration_end=?,
@@ -1268,21 +1261,12 @@ router.post('/:id', strictLimiter, runEventAssetUpload, (req, res, next) => {
     motivationTemplatePath, motivationTemplateName,
     recommendationTemplatePath, recommendationTemplateName,
     editalPath, editalName, req.params.id).run();
-  if (dateShiftDays) {
-    db.transaction(() => {
-      shiftEventContent(req.params.id, dateShiftDays);
-      shiftEventWindows(req.params.id, dateShiftDays, dateSnapshot);
-    })();
-  }
   if (Number(currentAssets.email_enabled || 0) !== emailSettings.email_enabled) {
     const cancelled = setEventEmailEnabled(req.params.id, emailSettings.email_enabled, req.session.userId);
     recordParticipantAudit({ eventId: Number(req.params.id), actorUserId: req.session.userId,
       action: emailSettings.email_enabled ? 'event_email_enabled' : 'event_email_disabled', details: { cancelled_count: cancelled, source: 'event_form' } });
   }
-  const successMessage = dateShiftDays
-    ? `Data do evento atualizada. Conteúdo deslocado em ${dateShiftDays > 0 ? '+' : ''}${dateShiftDays} dia(s).`
-    : 'Evento atualizado.';
-  res.redirect(`/admin/events?message=${encodeURIComponent(successMessage)}`);
+  res.redirect('/admin/events');
 });
 
 // Deletar evento
@@ -2266,7 +2250,6 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const parentEvent = db.prepare('SELECT registration_approval_mode FROM events WHERE id=?').get(activity.event_id);
   const requiresApproval = parentEvent && parentEvent.registration_approval_mode === 'review' ? 1 : (req.body.requires_approval === '1' ? 1 : 0);
   const requiresJustification = requiresApproval === 1 && req.body.requires_justification === '1' ? 1 : 0;
-  const dateShiftDays = diffDays(activity.date_start, dateStart || null);
   try {
     db.transaction(() => {
       db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,time_start=?,time_end=?,workload_hours=?,
@@ -2274,7 +2257,6 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
         name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
         eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, requiresJustification, activity.id
       );
-      if (dateShiftDays) shiftActivityDates(activity.id, dateShiftDays);
       syncSessionWorkloadLock(activity.id, workloadHours);
       rooms.syncTargetAssignments({ eventId: activity.event_id, activityId: activity.id, roomId: allocation.roomId, date: allocationDate, timeStart: timeStartParsed.value, timeEnd: timeEndParsed.value, assignedBy: req.session.userId });
     })();
@@ -2284,8 +2266,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity: { ...activity, name }, oldUrl: activity.video_url, newUrl: videoUrl });
   const backfillResult = applyAutomaticActivityEnrollments(db.prepare('SELECT * FROM event_activities WHERE id=?').get(activity.id), req.session.userId);
-  const baseMessage = dateShiftDays ? `Data da atividade deslocada em ${dateShiftDays > 0 ? '+' : ''}${dateShiftDays} dia(s). ` : '';
-  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(baseMessage + automaticEnrollmentMessage(backfillResult, 'Atividade atualizada.'))}`);
+  return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(automaticEnrollmentMessage(backfillResult, 'Atividade atualizada.'))}`);
 });
 router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
   const activity = db.prepare('SELECT id,event_id FROM event_activities WHERE id=? AND event_id=?').get(req.params.activityId, req.params.id);
@@ -2602,35 +2583,6 @@ router.post('/:id/rooms/:roomId/delete', strictLimiter, (req, res) => {
   }
   db.prepare('DELETE FROM event_rooms WHERE id=?').run(room.id);
   return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent('Sala removida.')}`);
-});
-
-// Esvazia a sala: remove todas as alocações de agenda dela (atividades,
-// etapas e reserva do evento), permitindo depois excluir a sala.
-router.post('/:id/rooms/:roomId/clear', strictLimiter, (req, res) => {
-  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const room = rooms.getRoom(event.id, req.params.roomId);
-  if (!room) return res.status(404).render('error', { title: 'S não encontrada' });
-  const removed = rooms.clearRoom(room.id);
-  return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent(`Conteúdo da sala "${room.name}" removido (${removed} alocação(ões)).`)}`);
-});
-
-// Move todo o conteúdo de uma sala para outra do mesmo evento, bloqueando se
-// qualquer alocação já estiver ocupada na sala de destino nesse horário.
-router.post('/:id/rooms/:roomId/move', strictLimiter, (req, res) => {
-  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
-  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const room = rooms.getRoom(event.id, req.params.roomId);
-  if (!room) return res.status(404).render('error', { title: 'Sala não encontrada' });
-  const dest = rooms.getRoom(event.id, Number(req.body.dest_room_id) || null);
-  if (!dest) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Selecione uma sala de destino deste evento.')}`);
-  if (dest.id === room.id) return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent('Sala de destino deve ser diferente da sala de origem.')}`);
-  try {
-    const moved = rooms.moveRoomContent(room.id, dest.id);
-    return res.redirect(`/admin/events/${event.id}/rooms?success=${encodeURIComponent(`Contéudo da sala "${room.name}" movido para "${dest.name}" (${moved} alocação(ões)).`)}`);
-  } catch (error) {
-    return res.redirect(`/admin/events/${event.id}/rooms?error=${encodeURIComponent((error && error.message) || 'Não foi possível mover o conteúdo da sala.')}`);
-  }
 });
 
 router.get('/:id/rooms/availability', (req, res) => {
@@ -3437,12 +3389,13 @@ router.get('/:id/roles', (req, res) => {
   }
   const userConditions = [];
   const userParams = [];
-  // Papéis podem ser atribuídos a qualquer conta ativa e aprovada — a inscrição
-  // não é exigida (ex.: staff). Inscritos aparecem primeiro, com badge "(não
-  // inscrito)" nos demais; quem já possui papel permanece listado para
-  // permitir ajustes (inclusive remoção, respeitando a proteção do último
-  // administrador).
-  userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'`);
+  // Papéis só podem ser atribuídos a quem está inscrito no evento; quem já
+  // possui papel nele permanece listado para permitir ajustes (inclusive
+  // remoção, respeitando a proteção do último administrador).
+  userConditions.push(`u.is_public = 1 AND u.approval_status = 'approved'
+    AND (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
+      OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id))`);
+  userParams.push(event.id, event.id);
   if (filters.titulation.toLowerCase() === 'n\u00e3o especificado') {
     userConditions.push("(u.formacao_titulacao IS NULL OR u.formacao_titulacao = '')");
   } else if (filters.titulation !== 'all') {
@@ -3459,13 +3412,13 @@ router.get('/:id/roles', (req, res) => {
     const term = `%${filters.query.toLowerCase()}%`;
     userParams.push(term, term, term, term);
   }
-  const users = db.prepare(`SELECT u.id,u.name,u.email,u.is_staff,u.is_speaker,u.is_teacher,u.is_oral_presenter,u.is_poster_presenter,
-      (EXISTS (SELECT 1 FROM event_registrations er WHERE er.event_id = ? AND er.user_id = u.id AND er.registration_status = 'approved')
-        OR EXISTS (SELECT 1 FROM event_user_roles eur2 WHERE eur2.event_id = ? AND eur2.user_id = u.id)) AS enrolled
+  // Papéis só podem ser atribuídos a pessoas inscritas no evento (ou que já
+  // possuem papel nele), independentemente do nível de acesso do operador.
+  const users = db.prepare(`SELECT id,name,email,is_staff,is_speaker,is_teacher,is_oral_presenter,is_poster_presenter
     FROM users u
     WHERE ${userConditions.join(' AND ')}
-    ORDER BY enrolled DESC, u.name COLLATE NOCASE
-  `).all(event.id, event.id, ...userParams);
+    ORDER BY u.name COLLATE NOCASE
+  `).all(...userParams);
   // O superadministrador do sistema não pode receber/editar papéis; ele sai do
   // combobox e a linha dele aparece protegida na lista abaixo.
   const assignableUsers = users.filter((user) => !eventRolesProtected(user.id));
@@ -3482,13 +3435,14 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
   const selected = EVENT_ASSIGNABLE_ROLES.filter((role) => list.includes(role));
   const backWithError = (message) => res.redirect(`/admin/events/${req.params.id}/roles?error=${encodeURIComponent(message)}`);
   if (!event || !Number.isInteger(userId)) return backWithError('Informe uma pessoa válida.');
-  const user = db.prepare("SELECT id, is_public, approval_status FROM users WHERE id=?").get(userId);
+  const user = db.prepare('SELECT id FROM users WHERE id=?').get(userId);
   if (!user) return backWithError('Informe uma pessoa válida.');
-  if (user.is_public !== 1 || user.approval_status !== 'approved') return backWithError('Somente contas ativas e aprovadas podem receber papéis.');
   if (eventRolesProtected(userId)) return backWithError(SUPERADMIN_ROLES_MESSAGE);
-  // A inscrição não é exigida: qualquer conta ativa e aprovada pode receber
-  // papéis (ex.: staff que atua no evento sem estar inscrito). O papel fica
-  // apenas em event_user_roles, sem criar inscrição.
+  // Papéis podem ser atribuídos exclusivamente a quem está inscrito no evento
+  // (ou a quem já tenha papel nele, para permitir ajustes) — sem exceções.
+  const inscrita = db.prepare("SELECT 1 FROM event_registrations WHERE event_id=? AND user_id=? AND registration_status='approved'").get(event.id, userId)
+    || db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=?').get(event.id, userId);
+  if (!inscrita) return backWithError('Somente pessoas inscritas neste evento podem receber papéis.');
   const articleByRole = {};
   for (const role of ['oral_presenter', 'poster_presenter']) {
     if (selected.includes(role)) {
@@ -3503,16 +3457,12 @@ router.post('/:id/roles', strictLimiter, (req, res, next) => {
   if (hadAdmin && !selected.includes('admin') && currentAdmins <= 1) {
     return backWithError('O evento precisa manter ao menos um administrador. Atribua o papel a outra pessoa antes de remover este.');
   }
-  // Capturado antes da gravação: depois do INSERT o papel existiria e a
-  // checagem por event_user_roles sempre diria "inscrita".
-  const estavaInscritaAntes = db.prepare("SELECT 1 FROM event_registrations WHERE event_id=? AND user_id=? AND registration_status='approved'").get(event.id, userId);
   db.transaction(() => {
     db.prepare('DELETE FROM event_user_roles WHERE event_id=? AND user_id=?').run(event.id, userId);
     const insert = db.prepare('INSERT INTO event_user_roles (event_id,user_id,role,article_id,assigned_by) VALUES (?,?,?,?,?)');
     selected.forEach((role) => insert.run(event.id, userId, role, articleByRole[role] || null, req.session.userId));
   })();
-  const suffix = selected.length && !estavaInscritaAntes ? ' (pessoa não inscrita no evento — papel gravado apenas aqui, sem inscrição).' : '';
-  res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent(selected.length ? 'Papéis atualizados com sucesso.' + suffix : 'Papéis removidos.')}`);
+  res.redirect(`/admin/events/${event.id}/roles?success=${encodeURIComponent(selected.length ? 'Papéis atualizados com sucesso.' : 'Papéis removidos.')}`);
 });
 
 router.post('/:id/roles/:role/:userId/delete', strictLimiter, (req, res) => {
@@ -3965,8 +3915,6 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
   const rejectedIds = parseRequestedActivityIds(registration.rejected_activity_ids);
   const newRequested = JSON.stringify(requestedIds.filter((id) => id !== activityId));
 
-  const wasPending = registration.registration_status === 'pending';
-
   if (decision === 'approve') {
     if (!registration.user_id) {
       return back(`error=${encodeURIComponent('Vincule uma conta a este participante antes de aprovar pedidos de atividade.')}`);
@@ -3977,36 +3925,17 @@ router.post('/:id/participants/:registrationId/activities/decide', strictLimiter
         db.prepare(`INSERT INTO participant_activity_enrollments (activity_id,registration_id,user_id,enrolled_by,created_at,updated_at)
           VALUES (?,?,?,?,datetime('now','-3 hours'),datetime('now','-3 hours'))`).run(activityId, registration.id, registration.user_id, req.session.userId);
       }
-      if (wasPending) {
-        db.prepare("UPDATE event_registrations SET registration_status='approved', registration_reviewed_at=datetime('now','-3 hours'), registration_reviewed_by=?, requested_activity_ids=?, rejected_activity_ids=?, updated_at=datetime('now','-3 hours') WHERE id=?")
-          .run(req.session.userId, newRequested, JSON.stringify(rejectedIds.filter((id) => id !== activityId)), registration.id);
-      } else {
-        db.prepare("UPDATE event_registrations SET requested_activity_ids=?, rejected_activity_ids=?, updated_at=datetime('now','-3 hours') WHERE id=?")
-          .run(newRequested, JSON.stringify(rejectedIds.filter((id) => id !== activityId)), registration.id);
-      }
+      db.prepare("UPDATE event_registrations SET requested_activity_ids=?, rejected_activity_ids=?, updated_at=datetime('now','-3 hours') WHERE id=?")
+        .run(newRequested, JSON.stringify(rejectedIds.filter((id) => id !== activityId)), registration.id);
       recordParticipantAudit({
         eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
         action: 'participant_activity_request_approved', details: { activity_id: activityId }
       });
-      if (wasPending) {
-        recordParticipantAudit({
-          eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
-          action: 'registration_request_reviewed', details: { decision: 'approved', notes: '', implicit_by_activity: true, approved_activity_ids: [activityId] }
-        });
-      }
     })();
     try {
       queueActivityRequestDecision({ event, registration, decision: 'approve', activity });
     } catch (error) {
       console.error('[email] Falha ao enfileirar decisão de pedido de atividade:', error.message);
-    }
-    if (wasPending) {
-      try {
-        queueRegistrationReviewDecision({ event, registration: { ...registration, registration_status: 'approved', registration_review_notes: '' }, decision: 'approved', approvedActivities: [activity], approvedAll: true });
-      } catch (error) {
-        console.error('[email] Falha ao enfileirar aprovação implícita de inscrição:', error.message);
-      }
-      return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" aprovado. A inscrição no evento foi aprovada implicitamente.`)}`);
     }
     return back(`success=${encodeURIComponent(`Pedido de inscrição em "${activity.name}" aprovado.`)}`);
   }

@@ -65,8 +65,6 @@
     .badge-role-speaker { background: rgba(251,146,60,0.15); color: #fdba74; border: 1px solid rgba(251,146,60,0.25); }
     .badge-role-oral { background: rgba(56,189,248,0.15); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.25); }
     .badge-role-poster { background: rgba(192,132,252,0.15); color: #d8b4fe; border: 1px solid rgba(192,132,252,0.25); }
-    .badge-role-staff { background: rgba(52,211,153,0.18); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.25); }
-    .badge-role-admin { background: var(--surface-selected); color: var(--link); border: 1px solid var(--primary-border); }
     .form-inline { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
     .form-inline input[type="number"] { width: 90px; }
     .person-name { font-weight: 600; color: var(--text-strong); }
@@ -216,9 +214,8 @@
                         else if (role === 'speaker') cls = 'badge-role-speaker';
                         else if (role === 'oral_presenter') cls = 'badge-role-oral';
                         else if (role === 'poster_presenter') cls = 'badge-role-poster';
-                        else if (role === 'staff') cls = 'badge-role-staff';
-                        else if (role === 'admin') cls = 'badge-role-admin';
-                        const labels = {participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresent. Oral',poster_presenter:'Apresent. Pôster',staff:'Staff',admin:'Administrador'};
+                        else if (role === 'participant') cls = 'badge-role';
+                        const labels = {participant:'Participante',reviewer:'Revisor',speaker:'Palestrante',teacher:'Professor',oral_presenter:'Apresent. Oral',poster_presenter:'Apresent. Pôster'};
                       %><span class="badge <%= cls %>"><%= labels[role] || role %></span>
                       <% }); %>
                     </div>

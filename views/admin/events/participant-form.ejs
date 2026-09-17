@@ -137,9 +137,6 @@
             <% }) %>
           </ul>
           <span style="color:var(--text-muted)">Ao negar, a pessoa não pode solicitar novamente (o checkbox dela na página do evento fica travado em não inscrita). Para reverter uma recusa, inscreva-a manualmente marcando a atividade abaixo e salvando.</span>
-          <% if (registration.registration_status === 'pending') { %>
-          <div style="margin-top:6px;color:var(--warn);font-weight:600">A inscrição desta pessoa ainda está em análise. Ao aprovar (Sim) um pedido, a inscrição no evento é aprovada implicitamente (com e-mail ao participante); ao negar, a inscrição permanece pendente para análise em <a href="/admin/events/<%= event.id %>/participants/<%= registration.id %>/review" style="color:var(--warn)">Analisar inscrição</a>.</div>
-          <% } %>
         </div>
       <% } %>
       <form method="POST" action="<%= registration ? `/admin/events/${event.id}/participants/${registration.id}` : `/admin/events/${event.id}/participants` %>">

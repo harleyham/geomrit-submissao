@@ -45,7 +45,6 @@
     .badge-role-speaker { background: rgba(251,146,60,0.15); color: #fdba74; }
     .badge-role-oral { background: rgba(56,189,248,0.15); color: #7dd3fc; }
     .badge-role-poster { background: rgba(192,132,252,0.15); color: #d8b4fe; }
-    .badge-role-staff { background: rgba(52,211,153,0.18); color: #6ee7b7; }
     .badge-approved { background:var(--success-subtle); color:var(--success); }
     .badge-subsidy { background:var(--warn-subtle); color:var(--warn); }
     .badge-rejected { background:var(--danger-subtle); color:var(--danger); }
@@ -215,7 +214,6 @@
                     var roleNames = {
                       'participant': 'Participante',
                       'admin': 'Administrador',
-                      'staff': 'Staff',
                       'reviewer': 'Revisor',
                       'speaker': 'Palestrante',
                       'teacher': 'Professor',
@@ -234,7 +232,6 @@
                       else if (r === 'speaker') cls = 'badge-role-speaker';
                       else if (r === 'oral_presenter') cls = 'badge-role-oral';
                       else if (r === 'poster_presenter') cls = 'badge-role-poster';
-                      else if (r === 'staff') cls = 'badge-role-staff';
                       var label = roleNames[r] || r;
                   %>
                         <span class="badge <%= cls %>"><%= label %></span>

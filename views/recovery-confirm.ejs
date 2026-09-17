@@ -6,13 +6,12 @@
 <body><main class="card"><h1><%= title %></h1>
 <% if (error) { %><div class="alert error"><%= error %></div><% } %>
 <% if (success) { %><div class="alert success"><%= success %></div><a class="btn" href="/login">Ir para o login</a><% } else { %>
-<% if (valid) { %><div class="alert success">Confirme o e-mail de recuperação clicando no botão abaixo.</div>
-<form id="confirm-form" method="POST" action="/login/account/confirm-recovery">
+<% if (valid) { %><div class="alert success">Confirmando seu e-mail de recuperação…</div>
+<form id="confirm-form" method="POST" action="/login/account/confirm-recovery" style="display:none;">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="token" value="<%= token %>">
-  <button class="btn" type="submit">Confirmar e-mail de recuperação</button>
 </form>
-<script nonce="<%= cspNonce %>">document.getElementById('confirm-form').submit();</script>
+<script>document.getElementById('confirm-form').submit();</script>
 <% } else { %>
 <p>Não foi possível confirmar o e-mail de recuperação. Verifique se o link é válido ou solicite um novo.</p>
 <a class="btn" href="/login/esqueci-senha">Solicitar link de redefinição</a><% } %>

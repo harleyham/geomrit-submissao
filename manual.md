@@ -1,6 +1,6 @@
 # Manual do Sistema — Gerência de Eventos
 
-> Guia operacional inicial. Este documento acompanha a versão V0.36 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
+> Guia operacional inicial. Este documento acompanha a versão V0.35 e será ampliado com capturas de tela, exemplos e procedimentos administrativos específicos.
 
 ## 1. Introdução
 
@@ -77,7 +77,7 @@ Use uma senha inicial forte e troque-a no primeiro acesso. Sem `SUPER_ADMIN_INIT
 
 ## 3. Navegação e perfis
 
-Após o login, o usuário é encaminhado conforme seus papéis, consultados no banco a cada acesso: `admin@admin.com` vai para `/admin/dashboard` (Dashboard global); quem é **administrador** de algum evento vai para o próprio `/admin/dashboard` ("Meu painel", personalizado com os eventos que administra); quem é **staff** de algum evento também vai para `/admin/dashboard` ("Meu painel" com os eventos em que atua como staff — participacao, presença, subsídios e pedidos de atividade; sem os módulos de artigos/revisão); quem tem papel **Revisor** em pelo menos um evento pode alternar com `/reviewer`; as demais contas aprovadas vão para `/author` (Área do Participante). Não existem mais papéis globais: participante, revisor, palestrante, professor, apresentador e staff são exercidos **por evento**.
+Após o login, o usuário é encaminhado conforme seus papéis, consultados no banco a cada acesso: `admin@admin.com` vai para `/admin/dashboard` (Dashboard global); quem é **administrador** de algum evento vai para o próprio `/admin/dashboard` ("Meu painel", personalizado com os eventos que administra); staff vai para `/admin/events`; quem tem papel **Revisor** em pelo menos um evento pode alternar com `/reviewer`; as demais contas aprovadas vão para `/author` (Área do Participante). Não existem mais papéis globais: participante, revisor, palestrante, professor, apresentador e staff são exercidos **por evento**.
 
 O administrador de evento administra apenas os eventos nos quais possui o papel `admin` (e, nos artigos e relatórios, enxerga só os seus eventos). O papel atribuído em um evento não altera os demais eventos nem o cadastro global da pessoa.
 
@@ -177,7 +177,7 @@ Durante a inclusão ou edição:
 4. informe as atividades nas quais a pessoa participará, quando aplicável;
 5. salve.
 
-Os papéis disponíveis no evento incluem administrador, staff, **revisor**, palestrante, professor, apresentador oral e apresentador pôster — todos **exclusivamente por evento**. A atribuição é feita **somente** na página de Papéis (`/admin/events/:id/roles`) ou na edição do participante do evento (as duas páginas gravam no mesmo registro e ficam sincronizadas): seleciona-se a pessoa (qualquer conta ativa e aprovada, inscrita ou não no evento — não inscritos aparecem marcados com "(não inscrito)" e não recebem inscrição), marcam-se os papéis desejados (checkboxes) e salvar **substitui o conjunto anterior** — o mesmo papel nunca é duplicado. Inscritos aparecem primeiro no combobox. Papéis de apresentador exigem artigo aprovado na modalidade correspondente. Atribuir um papel **não altera nenhum dado do cadastro global** da pessoa. O participante comum não precisa de papel: a inscrição basta. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento. A lista "Papéis atribuídos" mostra uma linha por pessoa com **todos os papéis simultaneamente** (badges + artigos), e permite editar ou remover o conjunto. A proteção do último administrador impede remover o papel `admin` quando ele é o único. os papéis do superadministrador do sistema (`admin@admin.com`) são **imutáveis**: ninguém pode atribuir, alterar ou remover papéis dessa conta. O painel de revisão (`/reviewer`) fica disponível a quem tem papel `reviewer` em pelo menos um evento; o administrador só pode atribuir revisores entre os detentores do papel no seu evento.
+Os papéis disponíveis no evento incluem administrador, staff, **revisor**, palestrante, professor, apresentador oral e apresentador pôster — todos **exclusivamente por evento**. A atribuição é feita **somente** na página de Papéis (`/admin/events/:id/roles`) ou na edição do participante do evento (as duas páginas gravam no mesmo registro e ficam sincronizadas): seleciona-se a pessoa **inscrita no evento**, marcam-se os papéis desejados (checkboxes) e salvar **substitui o conjunto anterior** — o mesmo papel nunca é duplicado. Papéis de apresentador exigem artigo aprovado na modalidade correspondente. Atribuir um papel **não altera nenhum dado do cadastro global** da pessoa. O participante comum não precisa de papel: a inscrição basta. O papel por atividade é escolhido na chamada e não altera os papéis gerais do evento. A lista "Papéis atribuídos" mostra uma linha por pessoa com **todos os papéis simultaneamente** (badges + artigos), e permite editar ou remover o conjunto. A proteção do último administrador impede remover o papel `admin` quando ele é o único. Os papéis do superadministrador do sistema (`admin@admin.com`) são **imutáveis**: ninguém pode atribuir, alterar ou remover papéis dessa conta. O painel de revisão (`/reviewer`) fica disponível a quem tem papel `reviewer` em pelo menos um evento; o administrador só pode atribuir revisores entre os inscritos do seu evento.
 
 **Toda inscrição possui conta vinculada** (garantia imposta pelo banco de dados). Registros históricos sem vínculo são corrigidos automaticamente na inicialização do sistema: a inscrição é ligada à conta com o mesmo e-mail ou, se não existir conta, uma nova é criada (aprovada, com senha desconhecida — use **Resetar Senha** na listagem de usuários para enviar o link de definição por e-mail). Por isso a coluna "Conta" nunca mais exibe "Sem vínculo de conta".
 
@@ -190,17 +190,15 @@ O papel **Staff** é uma designação **exclusivamente por evento**, atribuída 
 Dentro dos seus eventos, o Staff concentra a operação, sem ser administrador:
 
 - **pode**: gerenciar participantes (adicionar, editar, importar, analisar inscrições, remover a inscrição), abrir a chamada e marcar/atualizar/desfazer presença (manual, em lote e por QR), imprimir listas de presença, folhas de QR de check-in e crachás, **editar** atividades e etapas existentes, gerenciar **certificados**, e consultar **artigos/revisões** e **relatórios** daquele evento;
-- **não pode**: criar ou **apagar evento**, **apagar usuário**, **criar ou apagar atividades e etapas**, gerenciar papéis, salas, publicar/encerrar ou editar o evento, e acessar os demais módulos administrativos (usuários, outros eventos, artigos e relatórios — os cards/seções desses temas não aparecem no painel).
+- **não pode**: criar ou **apagar evento**, **apagar usuário**, **criar ou apagar atividades e etapas**, gerenciar papéis, salas, publicar/encerrar ou editar o evento, e acessar os demais módulos administrativos (dashboard, usuários, outros eventos).
 
-O Staff entra pelo menu **Eventos**, que lista apenas os seus eventos, com as entradas de participação, presença, certificados, artigos e relatórios; ou pelo próprio **"Meu painel"** (`/admin/dashboard`), que traz os cards e pendências dos eventos em que é staff (eventos, participação, subsídios e pedidos de inclusão em atividades — sem os grupos de Usuários, Revisores e Artigos, reservados a administradores). Rotas administrativas fora dessa alçada retornam **Acesso negado**. O Staff não é promovido a administrador de sessão.
+O Staff entra pelo menu **Eventos**, que lista apenas os seus eventos, com as entradas de participação, presença, certificados, artigos e relatórios. Rotas administrativas fora dessa alçada retornam **Acesso negado**. O Staff não é promovido a administrador de sessão.
 
 ### Análise de solicitações de inscrição
 
 Quando o evento está configurado como **Sujeita à análise**, uma inscrição pública fica com o status **Aguardando análise** e ainda não integra o total de inscritos. Na listagem de eventos, a coluna **Em análise** mostra essas solicitações em laranja quando houver pendências.
 
 Abra a listagem de participantes e use **Analisar** para aprovar ou recusar a solicitação. É possível aprovar todas as atividades solicitadas, somente algumas delas ou nenhuma. A aprovação parcial informa ao participante exatamente quais atividades foram confirmadas. Após a decisão, a seleção de atividades fica somente para leitura para o participante; alterações posteriores devem ser feitas pela administração.
-
-Diante de **pedidos de inclusão em atividades** de uma inscrição ainda pendente, a edição do participante pode decidir cada pedido por **"Sim (aprovar)" / "Não (negar)"**: aprovar o pedido **aprova implicitamente a inscrição no evento** (status passa a aprovado, com e-mail do resultado da inscrição ao participante); negar o pedido deixa a inscrição **pendente para análise pelo fluxo normal** ("Analisar inscrição"). Para inscrições já aprovadas, aprovar/negar afeta apenas o pedido.
 
 ## 7. Criação de atividades
 
@@ -319,7 +317,7 @@ O certificado pode ser baixado pelo participante e verificado publicamente pelo 
 
 ## 12. Dashboard administrativo
 
-Após o login, todo administrador de evento aterrissa no **"Meu painel"** (`/admin/dashboard`), com dados exclusivos dos eventos que administra; o **staff** aterrissa no mesmo painel, escopado aos eventos em que atua (com os cards do seu escopo de permissões). O superadministrador (`admin@admin.com`) vê o **Dashboard** global do sistema.
+Após o login, todo administrador de evento aterrissa no **"Meu painel"** (`/admin/dashboard`), com dados exclusivos dos eventos que administra. O superadministrador (`admin@admin.com`) vê o **Dashboard** global do sistema.
 
 **Meu painel (administrador de evento)**:
 

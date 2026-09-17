@@ -127,7 +127,7 @@
       <div>
         <h1><%= (typeof dashboardScoped !== 'undefined' && dashboardScoped) ? 'Meu painel' : 'Dashboard' %></h1>
         <% if (typeof dashboardScoped !== 'undefined' && dashboardScoped) { %>
-          <p style="color:var(--text-muted);margin-top:0.35rem;">Dados referentes apenas aos eventos em que você é administrador ou staff.</p>
+          <p style="color:var(--text-muted);margin-top:0.35rem;">Dados referentes apenas aos eventos em que você é administrador.</p>
         <% } %>
       </div>
       <% if (isReviewer) { %>
@@ -138,7 +138,7 @@
     <% if (typeof dashboardScoped !== 'undefined' && dashboardScoped && (!managedEvents || !managedEvents.length)) { %>
       <div class="section">
         <div class="empty">
-          <p>Você ainda não administra nem participa da equipe de nenhum evento.</p>
+          <p>Você ainda não administra nenhum evento.</p>
           <p>Crie um evento em <a href="/admin/events">Meus Eventos</a> e você passará a administrá-lo automaticamente.</p>
         </div>
       </div>
@@ -148,14 +148,14 @@
     <div class="stats-group">
       <div class="stats-group-title">Eventos que administro</div>
       <div class="stats-grid">
-        <% managedEvents.forEach(function (me) { const st = { published: 'Publicado', draft: 'Rascunho', encerrado: 'Encerrado' }[me.status] || (me.status || '-') ; const d = (v) => { if (!v) return '-'; const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : v; }; const roleBadge = me.manage_role === 'staff' ? 'Staff' : me.manage_role === 'admin+staff' ? 'Administrador · Staff' : 'Administrador'; %>
+        <% managedEvents.forEach(function (me) { const st = { published: 'Publicado', draft: 'Rascunho', encerrado: 'Encerrado' }[me.status] || (me.status || '-') ; const d = (v) => { if (!v) return '-'; const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : v; }; %>
           <div class="stat-card" style="text-align:left">
-            <div class="stat-label" style="margin-bottom:0.35rem"><%= st %> <% if (me.date_start) { %>· <%= d(me.date_start) %><% } %> · <%= roleBadge %></div>
+            <div class="stat-label" style="margin-bottom:0.35rem"><%= st %> <% if (me.date_start) { %>· <%= d(me.date_start) %><% } %></div>
             <div style="font-size:1.05rem;font-weight:700;color:var(--text-strong);margin-bottom:0.6rem;"><%= me.name %></div>
             <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
               <a href="/admin/events/<%= me.id %>/participants" class="btn btn-ghost btn-sm">Participantes</a>
               <a href="/admin/events/<%= me.id %>/activities" class="btn btn-ghost btn-sm">Atividades</a>
-              <% if (me.manage_role !== 'staff') { %><a href="/admin/events/<%= me.id %>/roles" class="btn btn-ghost btn-sm">Papéis</a><% } %>
+              <a href="/admin/events/<%= me.id %>/roles" class="btn btn-ghost btn-sm">Papéis</a>
               <a href="/admin/events/<%= me.id %>/certificates" class="btn btn-ghost btn-sm">Certificados</a>
             </div>
           </div>
@@ -182,7 +182,6 @@
       </div>
     </div>
 
-    <% if (typeof canAdminArticles !== 'undefined' && canAdminArticles) { %>
     <div class="stats-group">
       <div class="stats-group-title">Revisores</div>
       <div class="stats-grid">
@@ -209,8 +208,24 @@
           <div class="stat-label">Usuários Pendentes</div>
           <div class="stat-value"><%= pendingUsers %></div>
         </div>
+        <div class="stat-card articles">
+          <div class="stat-label">Inscritos</div>
+          <div class="stat-value"><%= totalRegisteredParticipants %></div>
+        </div>
+        <div class="stat-card future-registrations">
+          <div class="stat-label">Inscritos em Eventos Futuros</div>
+          <div class="stat-value"><%= futureRegistrations %></div>
+        </div>
+        <div class="stat-card articles">
+          <div class="stat-label">Inscritos Autores</div>
+          <div class="stat-value"><%= authorRegistrations %></div>
+        </div>
+        <div class="stat-card articles">
+          <div class="stat-label">Inscritos Participantes</div>
+          <div class="stat-value"><%= listenerRegistrations %></div>
+        </div>
       </div>
-      <p style="color:var(--text-faint);font-size:0.78rem;margin-top:0.5rem;">Usuários e cadastros consideram todas as contas do sistema (visão global).</p>
+      <p style="color:var(--text-faint);font-size:0.78rem;margin-top:0.5rem;">Inscritos, usuários e cadastros consideram todas as contas do sistema (visão global).</p>
     </div>
     <% } %>
 
@@ -239,9 +254,7 @@
         </div>
       </div>
     </div>
-    <% } %>
 
-    <% if (typeof canAdminArticles !== 'undefined' && canAdminArticles) { %>
     <div class="section">
       <div class="section-header">
         <h2>Artigos sem revisor atribuído</h2>
@@ -332,7 +345,6 @@
         <% } %>
       </div>
     </div>
-    <% } %>
 
     <div class="section" style="margin-top:1.5rem;">
       <div class="section-header">

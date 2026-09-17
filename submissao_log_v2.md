@@ -4,9 +4,7 @@ Registro cronológico das principais alterações no sistema de gestão de event
 
 Este arquivo é a continuação de `submissao_log.md`, que registra o histórico até **2026-08-23**. A partir de agora, as novas entradas devem ser registradas **aqui**, mantendo o mesmo formato: seções `## YYYY-MM-DD` com subtítulos `### <título da alteração>` e, ao final de cada item, a linha `Status: ...`.
 
-Versão atual registrada: **V0.36**.
-
-> **Sobre a V0.36**: versão consolidada em 17/09/2026. Reúne a movimentação e o esvaziamento do conteúdo de salas com bloqueio de conflitos; o deslocamento em cascata de atividades, etapas, salas e janelas ao alterar datas; correções nos formulários de eventos, recuperação de conta e subsídio; atribuição de papéis a contas ativas não inscritas; painel administrativo escopado para staff; identificação de staff nas listas e relatórios; aprovação implícita da inscrição pendente ao aprovar pedido de atividade; e o planejamento revisado para cadastro e inscrição exclusivamente pelo card do evento, com autorização específica para novos organizadores. Branch de release: `V0.36`.
+Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.35**: versão em desenvolvimento desde 08/09/2026. Consolidando: **papeis** — atribuição multi-papel substitutiva apenas em `/admin/events/:id/roles` (lista agrupada por pessoa, inscritos-only para todos, editar/remover conjunto, `admin@admin.com` imutável); `users/edit` somente leitura; `participant-form` gerencia os 7 papéis; dashboard personalizado "Meu painel" para admins de evento (cards de eventos, escopo por evento) com Paleta/Envio global/Backup exclusivos do superadmin; **manual** — vistas Barras com 67,2px/hora e divisão por clusters (antes 56px), card de pedidos inclui inscrições pendentes e correção de typos; **subsídio** — modelos de carta de motivação/recomendação enviados pelo organizador, upload na edição do evento (`uploads/event-templates`, substituir/remover), rota `GET /evento/:id/subsidy-template/:type` e inscrição com links condicionais somente ao arquivo enviado; **presença por atividade** — botão 'Imprimir QR code' (`checkin-print`) ao lado de 'Imprimir lista de presença'; **superadmin + sudião** — canal de recuperação da senha do superadmin e edital de sudião como upload PDF no evento; **recovery-email** — troca de e-mail confirmado apenas após o clique (candidato fica em `users.pending_recovery_email{,_hash,_expires_at}`, `recovery_email`/`verified` intactos até a confirmação, fallback do esqueci-senha segue no Endereço antigo, card com novo endereço aguardando confirmação) e uso do mesmo token do link de confirmação persistido em `users.recovery_email_hash` (dedupe pelo hash do token). Branch de release: `V0.35` (master acompanha a versão).
 
@@ -21,60 +19,6 @@ Versão atual registrada: **V0.36**.
 > **Sobre a V0.3**: versão de consolidação das correções e refinamentos de 24–26/08/2026 registrados neste arquivo: hardening remanescente do Ciclo 6 (ZIP-bomb no restore, CSRF em uploads multipart, rate limiting imune a spoof de IP, política de senha unificada, `SESSION_SECRET` obrigatória, rollback de uploads no restore, janelas de data no fuso America/Sao_Paulo, XLSX sem corromper dados, operações multi-tabela atômicas e escape de dados), correções críticas (login bloqueado por 403 e restore de backup), refinamentos de usabilidade (datas em `dd/mm/yyyy` via flatpickr em evento/atividades/etapas com correção da conversão dia/mês, descrição breve das etapas, cor uniforme na linha de sessão) e a documentação do plano de administração por evento (`Plano_admin.md`).
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
-
-## 2026-09-16 — Pedidos de atividade: bloqueio para inscrição pendente
-
-- A tela de edição de participante permitia aprovar/negar pedidos de atividade mesmo com a inscrição em análise (`pending`), e nenhum desses caminhos muda `registration_status` — os pedidos eram resolvidos, mas a inscrição continuava "pendente", parecendo inconsistente (caso josecarv@ufc.br, evento 2, resolvido com a aprovação explícita pela tela de análise).
-
-## 2026-09-16 — Pedido de atividade aprovado aprova implicitamente a inscrição (revoga decisão da tarde)
-
-- Decisão do usuário: ao aprovar um pedido de atividade, o admin está implicitamente aprovando a inscrição no evento — o bloqueio implementado antes (exigir análise da inscrição antes da decisão de pedidos) foi **desfeito**.
-- `POST /:id/participants/:registrationId/activities/decide` (`routes/events.js`), decisão `approve` com inscrição `pending`: status → `approved` com `registration_reviewed_at=datetime('now','-3 hours')` e `registration_reviewed_by` (mesma transação da matrícula e do consumo do pedido); auditoria adicional `registration_request_reviewed` com `decision:'approved'`, `notes:''` e `implicit_by_activity:true`; e-mail do resultado da inscrição enfileirado (`queueRegistrationReviewDecision` com a atividade aprovada) além do e-mail próprio da decisão do pedido; redirect "Pedido de inscrição em \"X\" aprovado. A inscrição no evento foi aprovada implicitamente.".
-- Decisão `reject` com inscrição `pending`: **não altera a inscrição** (permanece pendente para a análise normal em "Analisar inscrição"), conforme decisão do usuário.
-- `views/admin/events/participant-form.ejs`: com inscrição pendente, o aviso passa a ser informativo (aprovar pedido aprova implicitamente, com e-mail; negar mantém pendente, com link para a análise). O fluxo explícito de `GET/POST .../review` fica intacto; inscritos já aprovados seguem com o comportamento anterior.
-
-## 2026-09-16 — Badge do papel staff nas listas de participantes
-
-- A coluna "Tipo" de `/admin/events/:id/participants` (e badges equivalentes em presença por atividade e relatórios) não tinha rótulo/estilo para o papel `staff` — o texto aparecia cru, sem badge, dando a impressão de papel faltando. Agora mapeado como "Staff" (com badge esmeralda) nas três telas; "Administrador" também ganhou classe própria na presença por atividade. Verificação por E2E (participantes: Administrador · Revisor · Palestrante · Staff, nenhum texto cru pendente).
-
-## 2026-09-16 — Staff: "Meu painel" no /admin/dashboard
-
-### Contexto
-- Quem detém apenas o papel `staff` era barrado no `/admin/dashboard` (o `requireAuth` do painel exigia superadmin ou papel `admin`) e caía no escopo vazio ("Você ainda não administra nenhum evento"); o login mandava o staff para `/admin/events`. Decisão do usuário: staff deve ter o mesmo "Meu painel" que o admin de evento, escopado aos eventos em que é staff e dentro das permissões do papel. Exclusivos do super permanecem imutáveis.
-
-### Mudanças
-- `routes/auth.js`:
-  - `GET /admin/dashboard`: guarda dedicada (superadmin OU papel `admin` OU papel `staff` — sem tocar no `requireAuth` global, que continua exigindo para as demais áreas); escopo = união distinta dos eventos com papel `admin` e `staff`; flags `canAdminArticles` (super ou papel `admin` — o staff é bloqueado por `staffDeny` em `articles.js`/`reports.js`) e `isStaffDashboard`; métricas/pendências de artigos e revisores só computadas quando `canAdminArticles`; `managedEvents` traz `manage_role` por evento (admin / staff / admin+staff).
-  - `authenticatedDestination`: staff passa a aterrissar em `/admin/dashboard` (antes `/admin/events`).
-- `views/admin/dashboard.ejs`:
-  - Card "Eventos que administro" exibe badge do papel (Administrador / Staff / Administrador · Staff) e omite o link "Papéis" em eventos onde a pessoa é só staff.
-  - Título/nota: "Meu painel — dados referentes apenas aos eventos em que você é administrador ou staff"; estado vazio reescrito.
-  - Grupo novo "Participação" (Inscritos em Eventos Futuros, Inscritos (escopo), Autores, Participantes) visível a admin e staff; grupo "Usuários" (Total/Pendentes) segue exclusivo do super; grupos Revisores e Artigos e as três seções de pendências de artigos agora com gating por `canAdminArticles` (ocultos para staff).
-  - Seções "Solicitações de subsídio não analisadas" e "Pedidos de inclusão em atividades não analisados" visíveis a staff (operáveis via STAFF_ROUTES).
-- Sem alterar `STAFF_ROUTES` (o painel é agregador somente leitura).
-
-### Verificação (E2E, QA com três contas temporárias — staff puro, admin de evento, admin+staff)
-- Staff: destino pós-login `/admin/dashboard`; "Meu painel" com o evento e badge "Staff"; sem link "Papéis", sem Usuários/Revisores/Artigos/Paleta; com Participação ("Inscritos (escopo)"), Subsídio e Pedidos de inclusão.
-- admin de evento: "Meu painel" com badge "Administrador", link "Papéis", Revisores e Artigos; super: global inalterado; admin+staff: badge duplo e grupos de admin.
-- `node --check` + EJS OK. Docs: `submissao.md` (Regras de acesso), `manual.md` (login, Staff, dashboard), `README.md` (Segurança), este log.
-
-## 2026-09-16 — Papéis: atribuição a contas não inscritas (ex.: staff)
-
-### Contexto
-- Usuários que atuarão em eventos exclusivamente como staff **nunca estarão inscritos** — a exigência de inscrição aprovada na página de Papéis os tornava inalcançáveis no combobox e o POST os recusava ("Somente pessoas inscritas neste evento podem receber papéis.").
-- Decisões do usuário: (a) **todos os papéis** podem ser atribuídos a não inscritos (não só staff); (b) **sem auto-inscrição** — papel fica apenas em `event_user_roles`; (c) combobox com inscritos primeiro e sufixo "(não inscrito)" nos demais.
-
-### Mudanças
-- `routes/events.js` `GET /:id/roles`: a lista do combobox deixou de filtrar por inscrição — qualquer conta `is_public=1 AND approval_status='approved'` é listável (exceto o superadmin, já fora por `eventRolesProtected`); coluna `enrolled` (inscrição aprovada OU papel existente) e ordenação `enrolled DESC, name COLLATE NOCASE`; os filtros de busca (nome, e-mail, instituição, CPF) e titulação continuam aplicados.
-- `routes/events.js` `POST /:id/roles`: a exigência de inscrição aprovada foi substituída por "conta ativa e aprovada" (`is_public=1 AND approval_status='approved'`); a atribuição a não inscrito grava apenas em `event_user_roles` (sem criar `event_registrations`); mensagem de sucesso indica "(pessoa não inscrita no evento — papel gravado apenas aqui, sem inscrição)" quando o alvo não estava inscrito (estado capturado antes do INSERT — reavaliar depois do papel gravado sempre diria "inscrita"). Mantidos: substituição atômica do conjunto, artigos obrigatórios de oral/pôster, proteção do superadmin e bloqueio de remoção do último administrador.
-- `views/admin/events/roles.ejs`: options dos não inscritos com sufixo "(não inscrito)"; texto de ajuda do formulário atualizado ("Papéis podem ser atribuídos a qualquer conta ativa e aprovada — a inscrição não é exigida (ex.: staff)").
-- `views/admin/users/list.ejs`: nota da listagem atualizada (a inscrição não é mais exigida para papéis).
-- Sem alterar: guard de rotas de staff (routes/events.js:254-267 — já só checa o papel), chamada de atividade (já une detentores de papel por `UNION`), contadores de inscritos, subsídio e certificados de participante (que continuam exigindo inscrição).
-
-### Verificação (E2E, sandbox com admin de evento não-super)
-- `GET /admin/events/:id/roles?q=…` encontra a pessoa **não inscrita** no combobox com o badge "(não inscrito)".
-- `POST /admin/events/:id/roles` (staff) para não inscrito: 302, papel gravado em `event_user_roles`, **nenhuma** `event_registrations` criada, mensagem de sucesso com o sufixo.
-- `node --check` e EJS OK. Docs: `submissao.md` (dois blocos), `README.md` (tabela Segurança), `manual.md` (seção Papéis), este log.
 
 ## 2026-09-11
 
@@ -818,21 +762,7 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Número de participantes de uma Atividade
 
 
-## 2026-09-16 — Correção da propagação de datas do evento (ReferenceError: dateStart is not defined)
-
-### Correção crítica: edição do evento crashava antes de salvar
-
-- Erro reportado pelo usuário ao mudar a data de um evento em `/admin/events/3/edit`: `ReferenceError: dateStart is not defined` em `routes/events.js:1253` (dentro do handler de `POST /admin/events/:id`) — crash de runtime antes de qualquer gravação; nada era salvo.
-- Causa: o cálculo do deslocamento `diffDays(dateSnapshot.date_start, dateStart || null)` usava a variável `dateStart` (padrão dos handlers de atividade, onde vem de `req.body.date_start`), mas o handler de edição do evento destrutura `date_start` de `req.body` em `routes/events.js:1060`. A variável errada não existia naquele escopo.
-- Correção: `routes/events.js:1253` passa a usar `date_start` — a mesma variável já vinculada no `UPDATE` da linha seguinte. `node --check` OK.
-- Verificação da lógica de cascade (`services/date-shift.js`): `diffDays` retorna 0 com qualquer ponta nula (sem shift); `modifierFor` gera `'+'+N days`/`-N days` com sinal explícito (deslocamento negativo válido); `shiftEventWindows` desloca cada janela do cronograma apenas enquanto ela ainda guarda o valor do snapshot (`AND col = snapshot[col]`) — edições manuais são preservadas; janelas nulas permanecem nulas. Todo o deslocamento (`shiftEventContent`: etapas, atividades incl. `activity_date` legada, salas; `shiftEventWindows`) roda em transação após o `UPDATE` do evento.
-- Verificação funcional pendente: salvar o evento com ±7 dias na Data Início e conferir que atividades, etapas, salas e janelas deslocaram juntas e que janela editada manualmente não foi mexida.
-
-### Formulário do evento: aviso de propagação de datas
-
-- `views/admin/events/form.ejs`: novo `<small>` logo abaixo da linha "Data Início / Data Fim" (no mesmo estilo do aviso de status): "**As datas de Início e Fim, se forem alteradas, propagarão as alterações para todas as Atividades.**" — exibido na criação e na edição. Compilação EJS OK.
-
-
+## 2026-09-09 — Papéis exclusivamente na página de Papéis + proteção do superadmin + dashboard personalizado por admin
 
 ### Papéis: atribuição multi-papel e lista agrupada em `/admin/events/:id/roles`
 
