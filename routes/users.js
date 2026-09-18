@@ -12,7 +12,7 @@ const { strictLimiter } = require('../security/rate-limits');
 const { validateCsrfToken } = require('../security/csrf');
 const { validators: v, validateAndHandle, sanitizeHtml } = require('../security/validation');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
-const { queueAccountApproved, queuePasswordReset, queueRecoveryEmailConfirmation, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
+const { queueAccountApproved, queueImportedAccount, queuePasswordReset, queueRecoveryEmailConfirmation, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
    canQueueEmail, getSystemEmailSettings } = require('../services/email');
 const { brDate, brToday } = require('../services/datetime');
 const { isSuperAdminUser } = require('./auth');
@@ -363,7 +363,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
   const areas = getAreas();
   const cursosMap = getCursosMap();
 
-  if (!email || !password) {
+  if (!name || !String(name).trim()) {
     return res.render('admin/users/form', {
       user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Novo Usuário',
@@ -372,7 +372,20 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
       formacaoAreas: areas,
       cursosMap: cursosMap,
       noDegreeCourse: NO_DEGREE_COURSE,
-      error: 'E-mail e senha são obrigatórios.'
+      error: 'Nome e e-mail são obrigatórios.'
+    });
+  }
+
+  if (!email || password) {
+    return res.render('admin/users/form', {
+      user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
+      title: 'Novo Usuário',
+      year: new Date().getFullYear(),
+      areas: areas,
+      formacaoAreas: areas,
+      cursosMap: cursosMap,
+      noDegreeCourse: NO_DEGREE_COURSE,
+      error: 'Informe apenas nome e e-mail: a senha é definida pelo usuário via link enviado por e-mail.'
     });
   }
 
@@ -390,7 +403,7 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
     });
   }
 
-  if (!isValidCPF(cpf)) {
+  if (cpf && !isValidCPF(cpf)) {
     return res.render('admin/users/form', {
       user: { name, email, cpf, passport, country, institution, phone: phone || '', reviewer_areas: normalizedReviewerAreas, formacao_area, formacao_curso, formacao_titulacao, formacao_status },
       title: 'Novo Usuário',
@@ -403,7 +416,10 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
     });
   }
 
-  const hash = bcrypt.hashSync(password, 10);
+  // Conta criada no mesmo padrão da importação ("arquivo de uma linha"):
+  // senha inutilizável — o próprio usuário define a senha e completa o perfil
+  // via link de uso único enviado por e-mail.
+  const hash = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   // Papéis são exclusivamente por evento (event_user_roles); as colunas globais
   // is_* permanecem no banco por compatibilidade e são gravadas como 0.
   const createdUser = db.prepare(`
@@ -428,13 +444,29 @@ router.post('/', requireAuth, strictLimiter, (req, res, next) => {
     formacao_curso === NO_DEGREE_COURSE ? null : (formacao_status || null)
   ).run();
 
+  const createdUserName = name || email;
+  let emailMessage = '';
   try {
-    queueAccountApproved({ id: createdUser.lastInsertRowid, name: name || email, email });
+    const perm = canQueueEmail(null);
+    if (perm.allowed) {
+      const queued = queueImportedAccount({
+        user: { id: createdUser.lastInsertRowid, name: createdUserName, email },
+        event: null,
+        registration: false,
+        dedupeKey: `imported-account:${createdUser.lastInsertRowid}:${Date.now()}`
+      });
+      emailMessage = queued && queued.status === 'suppressed'
+        ? ' O e-mail com o link de definição de senha foi suspenso (envio desativado no momento do envio).'
+        : ' E-mail com link de definição de senha enviado para ' + email + '.';
+    } else {
+      emailMessage = ' Master switch global de e-mails desativado: o e-mail com o link de definição de senha não foi enfileirado.';
+    }
   } catch (emailErr) {
-    console.error('Falha ao enfileirar e-mail de conta aprovada:', emailErr.message);
+    console.error('Falha ao enfileirar e-mail de criação de conta:', emailErr.message);
+    emailMessage = ' Não foi possível enfileirar o e-mail com o link de definição de senha.';
   }
 
-  res.redirect('/admin/users?success=Usuário criado com sucesso');
+  res.redirect('/admin/users?success=' + encodeURIComponent('Usuário criado com sucesso. A conta foi criada sem senha.' + emailMessage));
 });
 
 router.get('/:id/edit', requireAuth, (req, res) => {

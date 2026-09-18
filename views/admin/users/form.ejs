@@ -88,20 +88,27 @@
           <label for="email">E-mail *</label>
           <input type="email" id="email" name="email" required value="<%= user ? user.email : '' %>" autocomplete="username">
         </div>
+        <% if (user) { %>
         <div class="form-group">
-          <label for="password"><%= user ? 'Nova Senha (deixe vazio para manter a atual)' : 'Senha *' %></label>
+          <label for="password">Nova Senha (deixe vazio para manter a atual)</label>
           <div class="password-field">
-            <input type="password" id="password" name="password" <%= user ? '' : 'required' %> autocomplete="new-password" minlength="6">
+            <input type="password" id="password" name="password" autocomplete="new-password" minlength="6">
             <button type="button" class="toggle-password" aria-label="Mostrar senha" data-target="password">👁</button>
           </div>
         </div>
+        <% } %>
       </div>
+      <% if (!user) { %>
+      <div style="background:var(--surface-elevated);border:1px solid var(--border-strong);border-radius:8px;padding:0.75rem 1rem;color:var(--text-muted);margin-bottom:1.25rem;font-size:0.875rem;">
+        A conta é criada sem senha. O usuário receberá um e-mail com um link para definir a própria senha e completar os dados pessoais no primeiro acesso.
+      </div>
+      <% } %>
 
       <div class="section" style="margin-bottom: 1.5rem;">
         <div class="section-title">Dados Pessoais</div>
         <div class="form-group">
-          <label for="name">Nome</label>
-          <input type="text" id="name" name="name" value="<%= user ? user.name : '' %>">
+          <label for="name">Nome *</label>
+          <input type="text" id="name" name="name" required value="<%= user ? user.name : '' %>">
         </div>
         <div class="form-row">
           <div class="form-group">

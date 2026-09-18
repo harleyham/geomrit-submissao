@@ -101,9 +101,8 @@ const validators = {
     body('publication_authorized').isIn(['on', '1']).withMessage('É necessário autorizar a publicação.')
   ],
   userForm: [
+    body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
     body('email').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
-    body('password').optional({ values: 'falsy' }).isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
-    body('name').optional().trim().isLength({ max: 200 }),
     body('cpf').optional().trim(),
     body('formacao_area').optional().trim().isLength({ max: 10 }),
     body('formacao_curso').optional().trim().isLength({ max: 200 }),

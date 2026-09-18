@@ -92,9 +92,10 @@ Ao usar a prévia "Área do Participante" de um usuário, a sessão passa a nave
 ### Cadastro individual
 
 1. Acesse **Administração → Usuários → Novo usuário** (`/admin/users/new`).
-2. Informe nome, e-mail, instituição, documentos, telefone e formação acadêmica.
-3. Para quem fará revisão, informe as áreas de atuação (usadas na sugestão de revisores). O papel de revisor em si é atribuído **por evento**, na página de Papéis.
-4. Salve o cadastro e comunique a senha temporária ao usuário por canal seguro.
+2. Informe **nome e e-mail** — são os únicos campos obrigatórios. Demais dados pessoais (documentos, país, instituição, telefone e formação) são opcionais e podem ser preenchidos administrativamente ou pelo próprio usuário depois.
+3. Ao salvar, a conta é criada **sem senha** e o sistema envia ao usuário um **e-mail com link de uso único (72 horas)** para ele **definir a própria senha** e, no primeiro acesso, completar os dados pessoais — o mesmo fluxo da importação de listas. A pessoa não consegue entrar antes de usar o link.
+4. Com o envio global de e-mails desativado, o sistema informa que o e-mail não foi enfileirado; nesse caso comunique o usuário e use **Resetar Senha** na listagem (ou aguarde a reativação do envio).
+5. Para quem fará revisão, informe as áreas de atuação (usadas na sugestão de revisores). O papel de revisor em si é atribuído **por evento**, na página de Papéis.
 
 > As antigas chaves globais (**Administrador**, **Revisor**, **Staff**, **Participante**, **Palestrante**, **Professor**, **Apresentador**) foram removidas da criação/edição e da listagem de usuários: todos os papéis são **por evento**, atribuídos em `/admin/events/:id/roles`. As colunas `is_*` permanecem no banco por compatibilidade, mas não autorizam mais nada. A flag `is_admin` sobrevive apenas no seed do superadministrador (`admin@admin.com`). A listagem de usuários agora mostra quantos papéis a pessoa exerce, por resumo.
 
