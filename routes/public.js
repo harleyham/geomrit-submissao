@@ -2744,7 +2744,8 @@ router.post('/consultar-certificado', (req, res, next) => {
       e.date_start as event_date_start,
       e.date_end as event_date_end,
       cb.file_path AS background_path,
-      u.name as user_name
+      u.name as user_name,
+      (SELECT ea.name FROM event_activities ea WHERE ea.id = ce.activity_id) AS activity_name
     FROM certificate_emissions ce
     JOIN events e ON e.id = ce.event_id
     LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
@@ -2758,6 +2759,7 @@ router.post('/consultar-certificado', (req, res, next) => {
 
   const roleLabels = { participant: 'Participante', reviewer: 'Revisor', speaker: 'Palestrante', teacher: 'Professor', oral_presenter: 'Apresentador Oral', poster_presenter: 'Apresentador Pôster' };
   certificate.role_label = roleLabels[certificate.certificate_role] || 'Participante';
+  if (certificate.activity_name) certificate.role_label = `${certificate.role_label} — ${certificate.activity_name}`;
 
   res.render('public/certificado-consulta', { certificate, error: null, codePrefill: certificate_code, title: 'Certificado Verificado' });
 });

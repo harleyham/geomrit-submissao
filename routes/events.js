@@ -1737,6 +1737,7 @@ function getRoleActivityAttendance(eventId, userId, role) {
     JOIN event_activities ea ON ea.id = aar.activity_id
     WHERE ea.event_id = ? AND aar.user_id = ? AND aar.role = ?
       AND ea.certificate_enabled = 1
+      AND COALESCE(ea.own_certificate, 0) = 0
       AND (? <> 'participant' OR EXISTS (
         SELECT 1
         FROM participant_activity_enrollments pae
@@ -1749,7 +1750,7 @@ function getRoleActivityAttendance(eventId, userId, role) {
     SELECT aar.activity_id, aar.session_id
     FROM activity_attendance_records aar
     JOIN event_activities ea ON ea.id = aar.activity_id
-    WHERE ea.event_id = ? AND aar.user_id = ? AND aar.role = ? AND ea.certificate_enabled = 1
+    WHERE ea.event_id = ? AND aar.user_id = ? AND aar.role = ? AND ea.certificate_enabled = 1 AND COALESCE(ea.own_certificate, 0) = 0
   `).all(eventId, userId, role);
   const presentSessionsByActivity = {};
   records.forEach((record) => {
@@ -1801,10 +1802,100 @@ function certificateActivityQualifies(activity, minPercent) {
 
 function enrichCertificateCandidate(eventId, role, candidate) {
   const emission = db.prepare(`SELECT id, version FROM certificate_emissions
-    WHERE event_id=? AND user_id=? AND certificate_role=? AND status='issued' ORDER BY version DESC LIMIT 1`).get(eventId, candidate.user_id, role);
+    WHERE event_id=? AND user_id=? AND certificate_role=? AND is_activity_certificate=0 AND status='issued' ORDER BY version DESC LIMIT 1`).get(eventId, candidate.user_id, role);
   const latest = db.prepare(`SELECT MAX(version) AS version FROM certificate_emissions
-    WHERE event_id=? AND user_id=? AND certificate_role=?`).get(eventId, candidate.user_id, role);
+    WHERE event_id=? AND user_id=? AND certificate_role=? AND is_activity_certificate=0`).get(eventId, candidate.user_id, role);
   return { ...candidate, role, role_label: certificateRoleMeta(role).label, active_emission_id: emission && emission.id, latest_version: latest && latest.version || 0 };
+}
+
+// ===== Certificados próprios por atividade =====
+// Atividades marcadas com own_certificate=1: horas contam apenas no certificado
+// próprio da atividade (ex.: minicursos), nunca nos certificados por papel.
+function getOwnCertificateActivities(eventId) {
+  return db.prepare(`
+    SELECT ea.*, COALESCE(ea.workload_hours, 0) AS activity_workload,
+      (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id = ea.id) AS sessions_total,
+      (SELECT COALESCE(SUM(COALESCE(s.workload_hours, 0)), 0) FROM activity_sessions s WHERE s.activity_id = ea.id) AS sessions_workload
+    FROM event_activities ea
+    WHERE ea.event_id = ? AND ea.own_certificate = 1
+    ORDER BY ea.date_start, ea.name
+  `).all(eventId);
+}
+
+function effectiveActivityWorkload(activity) {
+  const activityWorkload = Number(activity.activity_workload != null ? activity.activity_workload : activity.workload_hours) || 0;
+  return activityWorkload > 0 ? activityWorkload : (Number(activity.sessions_workload) || 0);
+}
+
+function enrichActivityCertificateCandidate(eventId, activity, candidate) {
+  const emission = db.prepare(`SELECT id, version FROM certificate_emissions
+    WHERE event_id=? AND user_id=? AND certificate_role='participant' AND is_activity_certificate=1 AND activity_id=? AND status='issued'
+    ORDER BY version DESC LIMIT 1`).get(eventId, candidate.user_id, activity.id);
+  const latest = db.prepare(`SELECT MAX(version) AS version FROM certificate_emissions
+    WHERE event_id=? AND user_id=? AND certificate_role='participant' AND is_activity_certificate=1 AND activity_id=?`).get(eventId, candidate.user_id, activity.id);
+  return { ...candidate, role: 'participant', role_label: certificateRoleMeta('participant').label, activity_id: activity.id, active_emission_id: emission && emission.id, latest_version: (latest && latest.version) || 0 };
+}
+
+function getActivityCertificateCandidates(eventId, activity) {
+  const rule = getCertificateRule(eventId, 'participant');
+  const minPercent = Math.min(100, Math.max(0, Number(activity.own_certificate_min_attendance) || 0));
+  const totalSessions = Number(activity.sessions_total) || 0;
+  const workload = effectiveActivityWorkload(activity);
+  return db.prepare(`
+    SELECT pae.user_id,
+      (SELECT er.id FROM event_registrations er WHERE er.event_id=? AND er.user_id=pae.user_id LIMIT 1) AS registration_id,
+      (SELECT er.name FROM event_registrations er WHERE er.event_id=? AND er.user_id=pae.user_id LIMIT 1) AS name,
+      (SELECT er.email FROM event_registrations er WHERE er.event_id=? AND er.user_id=pae.user_id LIMIT 1) AS email
+    FROM participant_activity_enrollments pae
+    WHERE pae.activity_id=? AND pae.user_id IS NOT NULL
+    ORDER BY name COLLATE NOCASE
+  `).all(eventId, eventId, eventId, activity.id).map((item) => {
+    const presentSessions = db.prepare(`SELECT COUNT(DISTINCT aar.session_id) AS n
+      FROM activity_attendance_records aar WHERE aar.activity_id=? AND aar.user_id=? AND aar.role='participant'`).get(activity.id, item.user_id).n;
+    const anyPresence = db.prepare(`SELECT 1 AS x FROM activity_attendance_records aar
+      WHERE aar.activity_id=? AND aar.user_id=? LIMIT 1`).get(activity.id, item.user_id);
+    return enrichActivityCertificateCandidate(eventId, activity, {
+      ...item,
+      sessions_total: totalSessions,
+      sessions_present: presentSessions,
+      workload_hours: workload,
+      min_attendance: minPercent,
+      text_color: rule.text_color,
+      eligible: Boolean(anyPresence) && certificateActivityQualifies({ activity_type: activity.activity_type, sessions_total: totalSessions, sessions_present: presentSessions }, minPercent)
+    });
+  });
+}
+
+function issueActivityCertificate(event, activity, userId, actorUserId, reissuedFromId = null) {
+  const rule = getCertificateRule(event.id, 'participant');
+  const ruleTitle = rule.title || certificateRoleMeta('participant').title;
+  const ruleBody = rule.body_text || certificateRoleMeta('participant').body;
+  if (!rule.background_id) throw new Error('Configure o fundo do certificado de Participante antes da emissão (usado como padrão dos certificados por atividade).');
+  const candidate = getActivityCertificateCandidates(event.id, activity).find((item) => Number(item.user_id) === Number(userId));
+  if (!candidate || !candidate.eligible) throw new Error('Pessoa não elegível ao certificado desta atividade (exige inscrição e a presença mínima configurada).');
+
+  const workload = Number(candidate.workload_hours) || 0;
+  const title = certificateText(rule.title || ruleTitle, event.name, activity.name)
+    + ((rule.title || ruleTitle).includes('{atividade}') ? '' : ` — ${activity.name}`);
+  const body = certificateText(rule.body_text || ruleBody, event.name, activity.name)
+    + ((rule.body_text || ruleBody).includes('{atividade}') ? '' : ` Atividade: ${activity.name} (${workload} hora(s)-aula).`);
+  // Versão monotônica por pessoa+papel: emissoes legadas de papel também
+  // gravam activity_id (principal atividade do certificado), então um escopo
+  // estritamente por atividade poderia colidir no índice único. Usar o maior
+  // número de versão já gravado para esta pessoa neste evento/papel garante
+  // unicidade entre certificados por papel e por atividade.
+  candidate.latest_version = db.prepare(`SELECT MAX(version) AS max FROM certificate_emissions
+    WHERE event_id=? AND user_id=? AND certificate_role=?`).get(event.id, userId, 'participant').max || 0;
+  const version = candidate.latest_version + 1;
+  const code = generateCertificateCode();
+  const issuedAt = new Date(Date.now() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+  const textColor = candidate.text_color || rule.text_color || '#0f172a';
+  return db.prepare(`INSERT INTO certificate_emissions (event_id,registration_id,user_id,certificate_role,is_activity_certificate,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,issued_by,reissued_from_id,issued_at,activity_id,activities_attended,total_workload_hours,activities_summary,text_color,certificate_title,certificate_body)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      event.id, candidate.registration_id || null, userId, 'participant', 1, rule.background_id, code, version,
+      1, candidate.name, event.name, event.date_start, event.date_end, actorUserId, reissuedFromId, issuedAt,
+      activity.id, 1, workload, activity.name, textColor, title, body
+    ).lastInsertRowid;
 }
 
 function qualifyCertificateAttendance(attendance, minPercent) {
@@ -1891,6 +1982,14 @@ router.get('/:id/certificates', (req, res) => {
     ORDER BY ea.date_start, ea.name
   `).bind(event.id).all();
 
+  // Certificados próprios por atividade (ex.: minicursos com horas isoladas).
+  const ownCertificateActivities = getOwnCertificateActivities(event.id).map((activity) => ({
+    ...activity,
+    workload_hours_effective: effectiveActivityWorkload(activity),
+    candidates: getActivityCertificateCandidates(event.id, activity)
+  }));
+  const participantRuleForOwn = rules.find((rule) => rule.certificate_role === 'participant');
+
   res.render('admin/events/certificates', {
     title: `Certificados - ${event.name}`,
     event,
@@ -1898,6 +1997,8 @@ router.get('/:id/certificates', (req, res) => {
     certificatesByRole,
     backgrounds,
     activities,
+    ownCertificateActivities,
+    participantRuleForOwn,
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -2089,6 +2190,8 @@ function buildActivityDraft(req, existing) {
     requires_approval: req.body.requires_approval === '1' ? 1 : 0,
     requires_justification: req.body.requires_justification === '1' ? 1 : 0,
     certificate_enabled: req.body.certificate_enabled === '1' ? 1 : 0,
+    own_certificate: req.body.own_certificate === '1' ? 1 : 0,
+    own_certificate_min_attendance: Math.min(100, Math.max(0, parseInt(req.body.own_certificate_min_attendance, 10) || 0)),
     eligible_roles: submittedRoles.join(','),
     session_count: existing ? (existing.session_count != null ? existing.session_count : db.prepare('SELECT COUNT(*) AS count FROM activity_sessions WHERE activity_id=?').get(existing.id).count) : 0,
     room_allocation: roomId ? { room_id: roomId } : null
@@ -2162,6 +2265,9 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   const description = ['lecture', 'course'].includes(activityType) ? String(req.body.description || '').trim() : '';
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
+  const ownCertificate = req.body.own_certificate === '1' ? 1 : 0;
+  const ownCertificateMin = Math.min(100, Math.max(0, parseInt(req.body.own_certificate_min_attendance, 10) || 0));
+  const effectiveCertEnabled = ownCertificate ? 1 : certificateEnabled;
   const dateStart = req.body.date_start || null;
   const dateEnd = req.body.date_end || null;
   const timeStartParsed = parseTimeInput(req, 'time_start');
@@ -2198,10 +2304,10 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   try {
     db.transaction(() => {
       const created = db.prepare(`INSERT INTO event_activities
-        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval,required_for_participants,default_for_participants,requires_justification)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        (event_id,name,activity_type,description,date_start,date_end,time_start,time_end,workload_hours,certificate_enabled,own_certificate,own_certificate_min_attendance,eligible_roles,certificate_role,video_url,has_video,max_participants,requires_approval,required_for_participants,default_for_participants,requires_justification)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         event.id, name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours,
-        certificateEnabled, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, requiresJustification
+        effectiveCertEnabled, ownCertificate, ownCertificateMin, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, requiresJustification
       );
       createdActivityId = created.lastInsertRowid;
       if (allocation.roomId) {
@@ -2236,6 +2342,9 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const description = ['lecture', 'course'].includes(activityType) ? String(req.body.description || '').trim() : '';
   const workloadHours = Math.max(0, Number(req.body.workload_hours) || 0);
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
+  const ownCertificate = req.body.own_certificate === '1' ? 1 : 0;
+  const ownCertificateMin = Math.min(100, Math.max(0, parseInt(req.body.own_certificate_min_attendance, 10) || 0));
+  const effectiveCertEnabled = ownCertificate ? 1 : certificateEnabled;
   const dateStart = req.body.date_start || null;
   const dateEnd = req.body.date_end || null;
   const timeStartParsed = parseTimeInput(req, 'time_start');
@@ -2274,9 +2383,9 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   try {
     db.transaction(() => {
       db.prepare(`UPDATE event_activities SET name=?,activity_type=?,description=?,date_start=?,date_end=?,time_start=?,time_end=?,workload_hours=?,
-        certificate_enabled=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=?,required_for_participants=?,default_for_participants=?,requires_justification=? WHERE id=?`).run(
-        name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, certificateEnabled,
-        eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, requiresJustification, activity.id
+        certificate_enabled=?,own_certificate=?,own_certificate_min_attendance=?,eligible_roles=?,certificate_role=?,video_url=?,has_video=?,max_participants=?,requires_approval=?,required_for_participants=?,default_for_participants=?,requires_justification=? WHERE id=?`).run(
+        name, activityType, description, dateStart, dateEnd, timeStartParsed.value, timeEndParsed.value, workloadHours, effectiveCertEnabled,
+        ownCertificate, ownCertificateMin, eligibleRoles.join(','), eligibleRoles[0], videoUrl, hasVideo, seatSettings.maxParticipants, requiresApproval, draft.required_for_participants, draft.default_for_participants, requiresJustification, activity.id
       );
       if (dateShiftDays) shiftActivityDates(activity.id, dateShiftDays);
       syncSessionWorkloadLock(activity.id, workloadHours);
@@ -2304,6 +2413,10 @@ router.post('/:id/activities/:activityId/delete', strictLimiter, (req, res) => {
   const attendanceCount = db.prepare('SELECT COUNT(*) AS count FROM activity_attendance_records WHERE activity_id=?').get(activity.id).count;
   if (attendanceCount > 0) {
     return res.redirect(`/admin/events/${activity.event_id}/activities?error=${encodeURIComponent('Não é possível excluir uma atividade que já possui presença registrada.')}`);
+  }
+  const ownCertCount = db.prepare("SELECT COUNT(*) AS count FROM certificate_emissions WHERE activity_id=? AND is_activity_certificate=1").get(activity.id).count;
+  if (ownCertCount > 0) {
+    return res.redirect(`/admin/events/${activity.event_id}/activities?error=${encodeURIComponent(`Não é possível excluir: a atividade possui ${ownCertCount} certificado(s) próprio(s) emitido(s).`)}`);
   }
   db.prepare('DELETE FROM event_activities WHERE id=?').run(activity.id);
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent('Atividade removida.')}`);
@@ -3297,6 +3410,75 @@ router.post('/:id/certificates/:role/:userId/issue', strictLimiter, (req, res) =
   res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Certificado emitido com sucesso.')}`);
 });
 
+// ===== Emissão de certificados próprios por atividade =====
+function loadOwnCertificateActivity(req) {
+  const activities = getOwnCertificateActivities(Number(req.params.id));
+  return activities.find((item) => Number(item.id) === Number(req.params.activityId)) || null;
+}
+
+router.post('/:id/certificates/activities/:activityId/:userId/issue', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Certificado não encontrado' });
+  const activity = loadOwnCertificateActivity(req);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  try {
+    const emissionId = issueActivityCertificate(event, activity, req.params.userId, req.session.userId);
+    recordParticipantAudit({ eventId: event.id, actorUserId: req.session.userId, action: 'certificate_issued', details: { emission_id: emissionId, role: 'participant', user_id: req.params.userId, activity_id: activity.id, activity_certificate: true } });
+    queueCertificateIssued(event, emissionId);
+  } catch (error) {
+    return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent(error.message)}`);
+  }
+  res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Certificado próprio da atividade emitido com sucesso.')}`);
+});
+
+router.post('/:id/certificates/activities/:activityId/:userId/reissue', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Certificado não encontrado' });
+  const activity = loadOwnCertificateActivity(req);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const previous = db.prepare(`SELECT id FROM certificate_emissions WHERE event_id=? AND user_id=? AND certificate_role='participant' AND is_activity_certificate=1 AND activity_id=? AND status='issued' ORDER BY version DESC LIMIT 1`).get(event.id, req.params.userId, activity.id);
+  if (!previous) return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent('Não há certificado ativo desta atividade para reemitir.')}`);
+  try {
+    const emissionId = issueActivityCertificate(event, activity, req.params.userId, req.session.userId, previous.id);
+    db.prepare("UPDATE certificate_emissions SET status='reissued' WHERE id=?").run(previous.id);
+    recordParticipantAudit({ eventId: event.id, actorUserId: req.session.userId, action: 'certificate_reissued', details: { previous_emission_id: previous.id, emission_id: emissionId, role: 'participant', user_id: req.params.userId, activity_id: activity.id, activity_certificate: true } });
+    queueCertificateIssued(event, emissionId);
+  } catch (error) {
+    return res.redirect(`/admin/events/${req.params.id}/certificates?error=${encodeURIComponent(error.message)}`);
+  }
+  res.redirect(`/admin/events/${req.params.id}/certificates?success=${encodeURIComponent('Certificado próprio da atividade reemitido com nova versão.')}`);
+});
+
+router.post('/:id/certificates/activities/:activityId/issue-all', strictLimiter, (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Certificado não encontrado' });
+  const activity = loadOwnCertificateActivity(req);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  let issued = 0;
+  let skipped = 0;
+  const pendingEmails = [];
+  db.transaction(() => {
+    getActivityCertificateCandidates(event.id, activity).forEach((candidate) => {
+      if (!candidate.eligible || candidate.active_emission_id) return;
+      try {
+        const emissionId = issueActivityCertificate(event, activity, candidate.user_id, req.session.userId);
+        recordParticipantAudit({ eventId: event.id, registrationId: candidate.registration_id || null, actorUserId: req.session.userId, action: 'certificate_issued_batch', details: { emission_id: emissionId, role: 'participant', user_id: candidate.user_id, activity_id: activity.id, activity_certificate: true } });
+        pendingEmails.push(emissionId);
+        issued += 1;
+      } catch (_) {
+        skipped += 1;
+      }
+    });
+  })();
+  pendingEmails.forEach((emissionId) => {
+    try { queueCertificateIssued(event, emissionId); } catch (emailErr) { console.error('Falha ao enfileirar e-mail de certificado por atividade:', emailErr.message); }
+  });
+  const message = issued
+    ? `${issued} certificado(s) da atividade "${activity.name}" emitido(s)${skipped ? `; ${skipped} não puderam ser emitidos (configuração incompleta).` : '.'}`
+    : `Certificados da atividade "${activity.name}" em dia.`;
+  res.redirect(`/admin/events/${event.id}/certificates?success=${encodeURIComponent(message)}`);
+});
+
 router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado', message: 'O evento solicitado não foi encontrado.' });
@@ -3326,6 +3508,27 @@ router.post('/:id/certificates/issue-all', strictLimiter, (req, res) => {
         }
       });
     });
+    // Certificados próprios por atividade (ex.: minicursos com horas isoladas).
+    getOwnCertificateActivities(event.id).forEach((activity) => {
+      const candidates = getActivityCertificateCandidates(event.id, activity);
+      candidates.forEach((candidate) => {
+        if (!candidate.eligible || candidate.active_emission_id) return;
+        try {
+          const emissionId = issueActivityCertificate(event, activity, candidate.user_id, req.session.userId);
+          recordParticipantAudit({
+            eventId: event.id,
+            registrationId: candidate.registration_id || null,
+            actorUserId: req.session.userId,
+            action: 'certificate_issued_batch',
+            details: { emission_id: emissionId, role: 'participant', user_id: candidate.user_id, activity_id: activity.id, activity_certificate: true }
+          });
+          pendingEmails.push(emissionId);
+          issued += 1;
+        } catch (_) {
+          skipped += 1;
+        }
+      });
+    });
   })();
   // Os e-mails são enfileirados fora da transação para que uma falha de SMTP
   // não reverta a emissão dos certificados já gravados.
@@ -3344,7 +3547,7 @@ router.post('/:id/certificates/:role/:userId/reissue', strictLimiter, (req, res)
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   const role = CERTIFICATE_ROLES[req.params.role] ? req.params.role : null;
   if (!event || !role) return res.status(404).render('error', { title: 'Certificado não encontrado' });
-  const previous = db.prepare(`SELECT id FROM certificate_emissions WHERE event_id=? AND user_id=? AND certificate_role=? AND status='issued' ORDER BY version DESC LIMIT 1`).get(event.id, req.params.userId, role);
+  const previous = db.prepare(`SELECT id FROM certificate_emissions WHERE event_id=? AND user_id=? AND certificate_role=? AND is_activity_certificate=0 AND status='issued' ORDER BY version DESC LIMIT 1`).get(event.id, req.params.userId, role);
   if (!previous) return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent('Não há certificado ativo para reemitir.')}`);
   try { const emissionId = issueCertificate(event, role, req.params.userId, req.session.userId, previous.id); db.prepare("UPDATE certificate_emissions SET status='reissued' WHERE id=?").run(previous.id); recordParticipantAudit({ eventId:event.id, actorUserId:req.session.userId, action:'certificate_reissued', details:{ previous_emission_id:previous.id, emission_id:emissionId, role, user_id:req.params.userId } }); queueCertificateIssued(event, emissionId); }
   catch (error) { return res.redirect(`/admin/events/${event.id}/certificates?error=${encodeURIComponent(error.message)}`); }

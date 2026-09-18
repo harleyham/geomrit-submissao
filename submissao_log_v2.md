@@ -884,3 +884,20 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Verificação: `node --check` OK; renderização EJS nos 3 perfis (admin de evento com/sem eventos, superadmin) com asserts de presença/ausência das seções; SQL do escopo validado no `artigos.db` para o admin dos eventos 2 e 3 (subsídio pendente do evento 2 visível); servidor sobe e `/admin/dashboard` sem sessão → 302 `/login`.
 - Docs: `manual.md`, `README.md`, `submissao.md`, este log.
 - Status: **implementado e verificado localmente**; validação funcional pelo usuário pendente.
+
+## 2026-09-18 — Certificado próprio por atividade (ex.: minicursos com horas isoladas)
+
+- Pedido: atividades marcadas como "Certificado próprio" (ex.: minicursos) devem gerar certificado próprio com as horas-aula da atividade, e essas horas devem ser **excluídas da consolidação de todos os certificados por papel** (não apenas participantes), para não serem cobradas duas vezes.
+- `services/db-reset.js`: `event_activities` ganha `own_certificate` (0/1) e `own_certificate_min_attendance` (0–100, padrão 75); `certificate_emissions` ganha `is_activity_certificate`; a UNIQUE de versão foi substituída por índice de expressão único `uq_certificate_emission_version(event_id, user_id, COALESCE(activity_id,0), certificate_role, version)` (migração idempotente em `backfillColumnSteps` detecta a UNIQUE antiga via `sqlite_master` e faz rebuild da tabela; testado em banco novo e em banco legado simulado, com preservação de dados). Emissoes legadas por papel também gravam `activity_id` (atividade principal), então a versão dos certificados próprios é monotônica por pessoa+papel no evento — evita colisão no índice entre os dois escopos.
+- `routes/events.js`:
+  - formulário de atividade persiste os dois campos; `certificate_enabled` é forçado quando "Certificado próprio" está marcado; exclusão de atividade bloqueada quando há certificados próprios emitidos;
+  - consolidação por papel (`getRoleActivityAttendance`) exclui atividades com `own_certificate=1` em ambas as consultas;
+  - helpers `getOwnCertificateActivities`, `effectiveActivityWorkload`, `enrichActivityCertificateCandidate`, `getActivityCertificateCandidates` (elegibilidade = inscrição + presença: tipos oral/pôster/mesa-redonda com qualquer presença; demais exigem % de etapas) e `issueActivityCertificate` (herda a regra do papel `participant`; título/corpo com nome da atividade e adendo "Atividade: X (N hora(s)-aula)." quando o modelo não usa `{atividade}`);
+  - rotas `POST /:id/certificates/activities/:activityId/:userId/issue|reissue` e `.../activityId/issue-all`; o botão global "Emitir todos" agora inclui as atividades com certificado próprio;
+  - correção lateral: reemissão por papel não considera mais certificados de atividade como cópia anterior (`is_activity_certificate=0` no filtro).
+- `views/admin/events/activities.ejs`: checkbox "Certificado próprio" + campo "Presença mínima (%)" com exibição condicional; badge "Cert. própria · N%" na listagem.
+- `views/admin/events/certificates.ejs`: nova seção "Certificados por atividade (próprios)" por atividade (elegibilidade, Emitir/Baixar/Reemitir, "Emitir (todos)"; aviso quando a regra Participante ainda não tem fundo).
+- `routes/public.js` + `views/public/certificado-consulta.ejs`: verificação pública exibe "Participante — Nome da Atividade" quando a emissão é de atividade.
+- Docs: `manual.md` (seções 7 e 11), `README.md`, `submissao.md`, este log.
+- Verificação: `node --check` em rotas alteradas; renderização EJS simulada; migração em banco novo e legado; E2E em sandbox isolada (minicurso 2h com 2 etapas + palestra 4h: certificado de participante = 4h, certificado próprio do minicurso = 2h; % por etapa — 1/2 etapas ineligível com 75%, elegível com 50%; emissão individual/lote/global; reemissão versionada; verificação pública mostra atividade; desmarcar a flag devolve as horas à consolidação).
+- Status: **implementado e verificado localmente**; validação funcional pelo usuário pendente.

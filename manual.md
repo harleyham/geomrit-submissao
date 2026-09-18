@@ -209,9 +209,10 @@ Diante de **pedidos de inclusão em atividades** de uma inscrição ainda penden
 2. Clique em **Nova atividade**.
 3. Informe nome, tipo, intervalo/data, **hora de início e hora de término**, carga horária e se a atividade emite certificado. Para **Palestra** e **Minicurso**, preencha também uma descrição breve ou ementa, com até 2000 caracteres. **Carga horária**: se informada (> 0), é a carga total da atividade e **prevalece sobre as etapas** — as etapas ficam sem carga própria (zeradas e bloqueadas na edição); se deixada vazia, a carga da atividade é a **soma das cargas das etapas**.
 4. Defina os papéis elegíveis.
-5. (Opcional) Selecione a **sala** da atividade — disponível quando a atividade não possui etapas (veja a Seção 9).
-6. (Opcional) Informe o **link da transmissão de vídeo** (ex.: YouTube). Ele aparece ao lado do nome da atividade na página pública do evento; deixe vazio para remover.
-7. Salve.
+5. Marque **"Certificado próprio"** (opcional, ex.: minicursos) para que a atividade emita um **certificado isolado** com a carga horária dela, e defina a **presença mínima (%)** para elegibilidade (padrão 75%). As horas da atividade ficam **excluídas** da consolidação dos certificados por papel (participante, revisor etc.) e não são cobradas duas vezes. O certificado herda fundo, cor, título e texto da regra do papel **Participante** e o nome da atividade entra no título/texto (com o adendo "Atividade: nome (N hora(s)-aula)." quando o modelo não usa o marcador de atividade).
+6. (Opcional) Selecione a **sala** da atividade — disponível quando a atividade não possui etapas (veja a Seção 9).
+7. (Opcional) Informe o **link da transmissão de vídeo** (ex.: YouTube). Ele aparece ao lado do nome da atividade na página pública do evento; deixe vazio para remover.
+8. Salve.
 
 Tipos comuns: palestra, seminário, mesa-redonda, minicurso, apresentação oral ou pôster e **atividades extras** (café da manhã, coffee break, brunch, almoço e jantar). As atividades extras funcionam como quaisquer outras (etapas, salas, chamada, certificados), a diferença é que **não podem ser marcadas como interesse nem escolhidas para participação** pelo participante (não aparecem na lista de escolha de atividades da inscrição pública nem no formulário administrativo do participante). O formulário de atividade também permite definir o **número máximo de participantes** (vazio = sem limite), se a **inscrição exige aprovação** da organização e se a atividade é **automática para todos os participantes** — dois checkboxes com a mesma mecânica e rótulos diferentes: **"Obrigatória para participantes"** (badge "Obrigatória"; ex.: credenciamento) e **"Padrão para todos os participantes"** (badge "Padrão"; ex.: sessões oferecidas pela organização). Com qualquer um deles, **todos os participantes do evento são inscritos automaticamente** — inclusive **retroativamente**: ao marcar a flag, quem já está inscrito no evento entra na atividade na hora (o sistema informa quantos foram incluídos); **desmarcar não remove** as inscrições existentes. A atividade automática **não aparece como escolha na inscrição** — a página de inscrição informa que as obrigatórias/padrão já estão incluídas. Um **minicurso automático** respeita vagas: inscreve até esgotar e o sistema avisa quantos ficaram de fora (a organização decide). Os dois checkboxes só são oferecidos quando o papel "Participante" está elegível e o tipo não é logístico. Em eventos com inscrição sujeita a análise, a automática entra no pedido e é **aprovada automaticamente** na análise; na **importação por evento**, as pessoas inscritas pela planilha já entram nas atividades automáticas. — a listagem administrativa mostra "Inscritos: N/M", com destaque "Vagas esgotadas" quando o limite é atingido (o administrador pode inscrever além do limite; o contador fica vermelho).
 
@@ -306,6 +307,8 @@ O auto-check-in é feito pela URL `/presenca/:eventId/:activityId(/:sessionId)`.
 5. Emita os certificados elegíveis.
 6. Reemita quando necessário; cada emissão mantém sua versão.
 
+Na página de Certificados (`/admin/events/:id/certificates`), atividades com **"Certificado próprio"** aparecem na seção **"Certificados por atividade (próprios)"**: cada uma mostra os inscritos, o percentual de etapas presente, a elegibilidade (inscrição + presença mínima da atividade) e botões **Emitir**, **Baixar/Reemitir** (individual) e **Emitir (todos)**; essas emissões também entram no botão global **"Emitir todos"**. O visual é herdado da regra do papel **Participante** — se ainda não houver fundo configurado nela, o painel avisa.
+
 Regras principais:
 
 - participante precisa estar inscrito na atividade e ter presença;
@@ -316,7 +319,7 @@ Regras principais:
 - fundos enviados na **Biblioteca de fundos** pertencem ao evento onde foram enviados: os demais eventos não os veem nem podem usá-los; os fundos padrão são compartilhados por todos os eventos.
 - o card **Biblioteca de fundos** mostra as miniaturas dos fundos do evento com **Renomear** e **Excluir**; a exclusão é bloqueada enquanto houver certificados emitidos usando o fundo, e as regras que o utilizavam ficam sem fundo até você selecionar outro.
 
-O certificado pode ser baixado pelo participante e verificado publicamente pelo código de autenticidade.
+O certificado pode ser baixado pelo participante e verificado publicamente pelo código de autenticidade — nos **certificados próprios de atividade**, a verificação pública exibe o papel com o nome da atividade (ex.: "Participante — Minicurso X") e a carga horária da atividade.
 
 ## 12. Dashboard administrativo
 

@@ -92,7 +92,22 @@
         <% const roles=[['participant','Participante'],['reviewer','Revisor'],['speaker','Palestrante'],['teacher','Professor'],['oral_presenter','Apresentador Oral'],['poster_presenter','Apresentador Pôster']]; roles.forEach((role) => { %>
           <label><input type="checkbox" name="eligible_roles" value="<%= role[0] %>" <%= selectedRoles.includes(role[0]) ? 'checked' : '' %>> <%= role[1] %></label>
         <% }) %>
-        <p><label><input type="checkbox" name="certificate_enabled" value="1" <%= (((typeof formDraft !== 'undefined' && formDraft) ? formDraft.certificate_enabled : (editingActivity ? editingActivity.certificate_enabled : true)) ? 'checked' : '') %>> Contabilizar esta atividade para certificados e carga horária</label></p>
+        <p><label><input type="checkbox" name="certificate_enabled" value="1" id="certificate_enabled" <%= (((typeof formDraft !== 'undefined' && formDraft) ? formDraft.certificate_enabled : (editingActivity ? editingActivity.certificate_enabled : true)) ? 'checked' : '') %>> Contabilizar esta atividade para certificados e carga horária</label></p>
+        <label style="display:block;margin:6px 0;font-size:13px;color:var(--text-muted)"><input type="checkbox" name="own_certificate" value="1" id="own_certificate" style="margin:0 6px 0 0" <%= (Number(((typeof formDraft !== 'undefined' && formDraft) ? formDraft.own_certificate : (editingActivity ? editingActivity.own_certificate : 0))) === 1 ? 'checked' : '') %>> Certificado próprio para esta atividade <span style="color:var(--text-muted)">(ex.: minicurso — gera certificado isolado com a carga da atividade; as horas deixam de contar nos demais certificados do evento)</span></label>
+        <div id="own-certificate-min-wrap" style="margin:6px 0 6px 22px;font-size:13px;color:var(--text-muted)">
+          <label style="display:block">Presença mínima nas etapas para o certificado próprio (%) <input type="number" name="own_certificate_min_attendance" min="0" max="100" style="width:90px" value="<%= (typeof formDraft !== 'undefined' && formDraft) ? (formDraft.own_certificate_min_attendance ?? 75) : (editingActivity ? (editingActivity.own_certificate_min_attendance ?? 75) : 75) %>"></label>
+          <span class="hint">Elegível quem estiver inscrito e cumprir o percentual de etapas com presença (apresentações oral/pôster e mesa-redonda qualificam com qualquer presença). O fundo, a cor e o texto são herdados da configuração do certificado de Participante.</span>
+        </div>
+        <script nonce="<%= cspNonce %>" id="own-certificate-toggle">
+          (function(){
+            var box = document.getElementById('own_certificate');
+            var wrap = document.getElementById('own-certificate-min-wrap');
+            var cert = document.getElementById('certificate_enabled');
+            function sync(){ wrap.hidden = !box.checked; if (box.checked && cert){ cert.checked = true; } }
+            box.addEventListener('change', sync);
+            sync();
+          })();
+        </script>
         <button type="submit"><%= editingActivity ? 'Salvar atividade' : 'Cadastrar atividade' %></button>
         <% if (editingActivity) { %><a href="/admin/events/<%= event.id %>/activities">Cancelar edição</a><% } %>
       </form>
@@ -160,7 +175,11 @@
             <% if (Number(activity.requires_approval) === 1 || event.registration_approval_mode === 'review') { %><span class="badge" style="background:#78350f;color:#fdba74;font-size:10px">Aprovação obrigatória<%= event.registration_approval_mode === 'review' && Number(activity.requires_approval) !== 1 ? ' (do evento)' : '' %></span><% } %>
             <% if (Number(activity.requires_justification) === 1 && (Number(activity.requires_approval) === 1 || event.registration_approval_mode === 'review')) { %><span class="badge" style="background:#155e75;color:#a5f3fc;font-size:10px">Justificativa obrigatória</span><% } %>
             <span style="font-size:11px;color:var(--text-faint)">Presentes: <%= activity.attendees_count || 0 %></span>
-            <% if (activity.certificate_enabled) { %><span class="badge" style="background:var(--success-subtle);color:var(--success);font-size:10px">Certificável</span><% } else if (canManageActivities) { %><form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/certificate-enabled"><input type="hidden" name="enabled" value="1"><button type="submit" style="display:inline;padding:2px 8px;font-size:10px;background:var(--surface-2);color:var(--text-faint);border:1px solid var(--border);border-radius:4px;cursor:pointer;width:auto">Ativar cert.</button></form><% } %>
+            <% if (activity.certificate_enabled) { %><span class="badge" style="background:var(--success-subtle);color:var(--success);font-size:10px">Certificável</span><% } %>
+          <% if (Number(activity.own_certificate) === 1) { %><span class="badge" style="background:var(--primary-subtle,#1e3a5f);color:var(--link);font-size:10px">Cert. próprio · <%= activity.own_certificate_min_attendance || 0 %>%</span><% } %>
+          <% if (canManageActivities) { %>
+          <% if (activity.certificate_enabled || Number(activity.own_certificate) === 1) { %><% } else { %><form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/certificate-enabled"><input type="hidden" name="enabled" value="1"><button type="submit" style="display:inline;padding:2px 8px;font-size:10px;background:var(--surface-2);color:var(--text-faint);border:1px solid var(--border);border-radius:4px;cursor:pointer;width:auto">Ativar cert.</button></form><% } %>
+          <% } %>
           </div>
         </div>
         <% }) %>

@@ -466,6 +466,7 @@ function migrateSchema(db) {
       registration_id INTEGER,
       user_id INTEGER,
       certificate_role TEXT NOT NULL DEFAULT 'participant',
+      is_activity_certificate INTEGER NOT NULL DEFAULT 0,
       background_id INTEGER,
       certificate_code TEXT NOT NULL UNIQUE,
       version INTEGER NOT NULL DEFAULT 1,
@@ -490,8 +491,7 @@ function migrateSchema(db) {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL,
       FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL,
-      FOREIGN KEY (reissued_from_id) REFERENCES certificate_emissions(id) ON DELETE SET NULL,
-      UNIQUE(event_id, user_id, certificate_role, version)
+      FOREIGN KEY (reissued_from_id) REFERENCES certificate_emissions(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS event_user_roles (
@@ -621,6 +621,55 @@ function backfillColumnSteps(db) {
     if (!emissionCols.includes('activities_summary')) db.exec("ALTER TABLE certificate_emissions ADD COLUMN activities_summary TEXT DEFAULT ''");
     if (!emissionCols.includes('text_color')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
   } catch(e) { throw e; }
+  // Certificado próprio por atividade: colunas de configuração em
+  // event_activities e flag na emissão. Quando certificate_emissions ainda
+  // impõe UNIQUE(event_id,user_id,certificate_role,version), rebuild relaxa a
+  // restrição — versões passam a ser únicas por (evento, pessoa, atividade,
+  // papel), permitindo o certificado próprio por atividade sem colidir com o
+  // certificado consolidado do papel.
+  try {
+    const activityCols = db.prepare('PRAGMA table_info(event_activities)').all().map((c) => c.name);
+    if (!activityCols.includes('own_certificate')) db.exec('ALTER TABLE event_activities ADD COLUMN own_certificate INTEGER DEFAULT 0');
+    if (!activityCols.includes('own_certificate_min_attendance')) db.exec('ALTER TABLE event_activities ADD COLUMN own_certificate_min_attendance INTEGER DEFAULT 75');
+    db.prepare('UPDATE event_activities SET own_certificate = 0 WHERE own_certificate IS NULL').run();
+    db.prepare('UPDATE event_activities SET own_certificate_min_attendance = 75 WHERE own_certificate_min_attendance IS NULL').run();
+  } catch (e) { throw e; }
+  try {
+    const emissionCols = db.prepare("PRAGMA table_info(certificate_emissions)").all().map((c) => c.name);
+    if (!emissionCols.includes('is_activity_certificate')) db.exec('ALTER TABLE certificate_emissions ADD COLUMN is_activity_certificate INTEGER DEFAULT 0');
+    db.prepare('UPDATE certificate_emissions SET is_activity_certificate = COALESCE(is_activity_certificate, 0)').run();
+    const emissionSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='certificate_emissions'").get()?.sql || '';
+    if (/UNIQUE\s*\(\s*event_id\s*,\s*user_id\s*,\s*certificate_role\s*,\s*version\s*\)/.test(emissionSql)) {
+      db.pragma('foreign_keys = OFF');
+      db.transaction(() => {
+        db.exec(`CREATE TABLE certificate_emissions_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL, registration_id INTEGER,
+          user_id INTEGER, certificate_role TEXT NOT NULL DEFAULT 'participant',
+          is_activity_certificate INTEGER NOT NULL DEFAULT 0, background_id INTEGER,
+          certificate_code TEXT NOT NULL UNIQUE, version INTEGER NOT NULL DEFAULT 1, attendance_count INTEGER NOT NULL,
+          participant_name TEXT NOT NULL, event_name TEXT NOT NULL, event_date_start DATE, event_date_end DATE,
+          status TEXT NOT NULL DEFAULT 'issued', issued_at DATETIME, issued_by INTEGER, reissued_from_id INTEGER,
+          activity_id INTEGER, activities_attended INTEGER DEFAULT 0, total_workload_hours REAL DEFAULT 0,
+          activities_summary TEXT DEFAULT '', text_color TEXT DEFAULT '#0f172a', certificate_title TEXT, certificate_body TEXT,
+          FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+          FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE SET NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (background_id) REFERENCES certificate_backgrounds(id) ON DELETE SET NULL,
+          FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (reissued_from_id) REFERENCES certificate_emissions_new(id) ON DELETE SET NULL
+        );`);
+        db.exec(`INSERT INTO certificate_emissions_new
+          (id,event_id,registration_id,user_id,certificate_role,is_activity_certificate,background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,status,issued_at,issued_by,reissued_from_id,activity_id,activities_attended,total_workload_hours,activities_summary,text_color,certificate_title,certificate_body)
+          SELECT id,event_id,registration_id,user_id,certificate_role,COALESCE(is_activity_certificate,0),background_id,certificate_code,version,attendance_count,participant_name,event_name,event_date_start,event_date_end,status,issued_at,issued_by,reissued_from_id,activity_id,COALESCE(activities_attended,0),COALESCE(total_workload_hours,0),COALESCE(activities_summary,''),COALESCE(text_color,'#0f172a'),certificate_title,certificate_body
+          FROM certificate_emissions;`);
+        db.exec('DROP TABLE certificate_emissions');
+        db.exec('ALTER TABLE certificate_emissions_new RENAME TO certificate_emissions');
+      })();
+      db.pragma('foreign_keys = ON');
+    }
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_certificate_emission_version
+      ON certificate_emissions(event_id, user_id, COALESCE(activity_id, 0), certificate_role, version)`);
+  } catch (e) { try { db.pragma('foreign_keys = ON'); } finally { throw e; } }
   try {
     const ruleCols = db.prepare('PRAGMA table_info(certificate_rules)').all().map(c => c.name);
     if (!ruleCols.includes('text_color')) db.exec('ALTER TABLE certificate_rules ADD COLUMN text_color TEXT DEFAULT "#0f172a"');
