@@ -230,6 +230,8 @@ const STAFF_ROUTES = [
   ['GET', /^\/\d+\/activities\/\d+\/attendance-print$/],
   ['GET', /^\/\d+\/activities\/\d+\/checkin-print$/],
   ['POST', /^\/\d+\/participants$/],
+  ['POST', /^\/\d+\/participants\/\d+$/],
+  ['POST', /^\/\d+\/participants\/\d+\/activities\/decide$/],
   ['POST', /^\/\d+\/participants\/\d+\/review$/],
   ['POST', /^\/\d+\/subsidies\/\d+\/decision$/],
   ['POST', /^\/\d+\/import-users$/],
@@ -4098,12 +4100,11 @@ function updateParticipant(req, res) {
 
   const formData = normalizeParticipantForm(req.body);
 
-  const canEditGlobalData = isSuperAdminUser(req.session.userId);
-  if (registration.user_id && !canEditGlobalData) {
-    formData.name = registration.name || formData.name;
+  // E-mail é a identidade de login: só o superadministrador altera. Nome,
+  // instituição e telefone podem ser corrigidos pelo admin/staff do evento
+  // (erros de digitação após a inscrição) e sincronizados na conta vinculada.
+  if (registration.user_id && !isSuperAdminUser(req.session.userId)) {
     formData.email = String(registration.email || '').trim().toLowerCase() || formData.email;
-    formData.institution = registration.institution || '';
-    formData.phone = registration.phone || '';
   }
 
   const validationError = validateParticipantForm(formData);
@@ -4132,13 +4133,19 @@ function updateParticipant(req, res) {
         WHERE id=? AND event_id=?`).run(formData.name, formData.email, formData.institution,
         formData.phone, formData.registration_type, req.params.registrationId, req.params.id);
       saveParticipantActivities(registration.id, registration.user_id, formData.activity_ids, req.session.userId);
-      if (registration.user_id && canEditGlobalData) {
+      if (registration.user_id) {
+        // Formação só muda via superadmin; staff não envia esses campos
+        // (disabled no form), então preservamos os valores atuais da conta.
+        const canEditFormacao = isSuperAdminUser(req.session.userId);
         const noDegree = formData.formacao_curso === NO_DEGREE_COURSE;
         db.prepare(`UPDATE users
-          SET phone=?,formacao_area=?,formacao_curso=?,formacao_titulacao=?,formacao_status=?,updated_at=datetime('now','-3 hours')
-          WHERE id=?`).run(formData.phone || null, formData.formacao_area || null, formData.formacao_curso || null,
-          noDegree ? null : (formData.formacao_titulacao || null),
-          noDegree ? null : (formData.formacao_status || null),
+          SET name=?,institution=?,phone=?,formacao_area=?,formacao_curso=?,formacao_titulacao=?,formacao_status=?,updated_at=datetime('now','-3 hours')
+          WHERE id=?`).run(
+          formData.name, formData.institution, formData.phone || null,
+          (canEditFormacao ? formData.formacao_area : registration.user_formacao_area) || null,
+          (canEditFormacao ? formData.formacao_curso : registration.user_formacao_curso) || null,
+          (canEditFormacao ? (noDegree ? null : formData.formacao_titulacao) : registration.user_formacao_titulacao) || null,
+          (canEditFormacao ? (noDegree ? null : formData.formacao_status) : registration.user_formacao_status) || null,
           registration.user_id);
       }
       recordParticipantAudit({

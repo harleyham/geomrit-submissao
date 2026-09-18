@@ -166,7 +166,7 @@
 
         <div class="form-group">
           <label for="name">Nome do participante</label>
-          <input type="text" id="name" name="name" required <%= globalLocked ? 'readonly' : '' %> value="<%= formData.name %>">
+          <input type="text" id="name" name="name" required value="<%= formData.name %>">
         </div>
 
         <div class="form-group">
@@ -177,13 +177,13 @@
 
         <div class="form-group">
           <label for="institution">Instituição</label>
-          <input type="text" id="institution" name="institution" <%= globalLocked ? 'readonly' : '' %> value="<%= formData.institution %>">
+          <input type="text" id="institution" name="institution" value="<%= formData.institution %>">
         </div>
 
         <div class="form-group">
           <label for="phone">Telefone (opcional)</label>
-          <input type="tel" id="phone" name="phone" value="<%= formData.phone || '' %>" placeholder="+55 11 912345678" <%= globalLocked ? 'readonly' : '' %>>
-          <div class="help-text"><%= globalLocked ? 'Telefone da conta vinculada — somente o superadministrador pode alterar.' : 'Formato internacional: +XX XXX XXXXXXXXX' %></div>
+          <input type="tel" id="phone" name="phone" value="<%= formData.phone || '' %>" placeholder="+55 11 912345678">
+          <div class="help-text">Formato internacional: +XX XXX XXXXXXXXX. A correção também atualiza a conta vinculada.</div>
         </div>
 
         <% if (registration && registration.user_id) { %>
