@@ -20,6 +20,14 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-18 — Lista de presença impressa (attendance-print) incluía pessoas sem inscrição na atividade
+
+- Relato do usuário: em `attendance-print?session_id=` a lista trazia 18 nomes para 17 inscritos — uma pessoa com papel `staff` no evento (não inscrita na atividade) aparecia na lista impressa.
+- Causa: a query do PDF (`routes/events.js`, `GET /:id/activities/:activityId/attendance-print`) unia três fontes sem aplicar o filtro de `eligible_roles` que a chamada em tela (`GET .../attendance`) aplica: inscritos na atividade + **todos** os detentores de papéis do evento (`event_user_roles`, ex. staff) + revisores com atribuição. Na tela o filtro por papéis elegíveis escondia o staff; no PDF não havia filtro.
+- Correção: o PDF passa a usar o mesmo CTE da chamada, com `GROUP BY person_user_id`, `HAVING COALESCE(u.is_public,0)=1` e filtro `roles ∩ eligible_roles` (default `participant`), deduplicado por pessoa, mantendo exclusão de `admin@admin.com` e ordenação por nome. Resultado: a lista impressa reflete exatamente as pessoas da página de chamada.
+- Verificação: `node --check`; sandbox isolada (porta 3116, banco novo) com evento + atividade (`eligible_roles=participant`) + etapa, 17 inscritos e 1 staff sem inscrição: query antiga → 18 linhas com o staff; PDF corrigido (com e sem `session_id`) → 17 nomes, sem o staff; chamada em tela consistente (Staff ausente). Extração de texto do PDF feita por decodificação dos glifos hex dos streams Flate.
+- Status: **concluído (código + verificação técnica)**. Sem migração de banco; efetivo após reinício do servidor.
+
 ## 2026-09-18 — Criação de usuário em /admin/users/new: apenas nome + e-mail, senha via link
 
 - Objetivo: criar um usuário novo em `/admin/users/new` informando **apenas nome e e-mail**; o sistema envia por e-mail o mesmo link de definição de senha do fluxo de importação (como se fosse uma importação de arquivo com uma única linha). O próprio usuário define a senha e completa os dados pessoais no primeiro acesso.

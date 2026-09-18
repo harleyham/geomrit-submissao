@@ -2736,29 +2736,30 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
   const sessions = getActivitySessions(activity.id);
   const selectedSession = resolveSession(activity.id, req.query.session_id) || sessions[0] || null;
 
-  const participants = db.prepare(`
-    SELECT p.name, p.email, p.institution
+  // Mesmo filtro da chamada (GET .../attendance): a lista impressa inclui
+  // apenas quem se qualifica pelos papéis elegíveis da atividade — evita que
+  // detentores de outros papéis no evento (ex.: staff) apareçam na lista sem
+  // inscrição na atividade.
+  const allowedPrintRoles = String(activity.eligible_roles || 'participant').split(',').map((role) => role.trim());
+  const printRows = db.prepare(`
+    SELECT ep.person_user_id AS user_id, MAX(ep.name) AS name, MAX(ep.email) AS email, MAX(ep.institution) AS institution, GROUP_CONCAT(DISTINCT ep.role) AS roles
     FROM (
-      SELECT DISTINCT
-        ep.name,
-        ep.email,
-        MAX(ep.institution) AS institution,
-        MAX(ep.user_id) AS user_id
-      FROM (
-        SELECT er.user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role
-          FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
-          WHERE er.event_id=?
-        UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
-        UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, u.institution, NULL, 'reviewer'
-          FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
-      ) ep
-      GROUP BY ep.name, ep.email
-    ) p
-    LEFT JOIN users u ON u.id = p.user_id
-    WHERE p.email != 'admin@admin.com'
-      AND (u.id IS NULL OR u.is_public = 1)
-    ORDER BY p.name COLLATE NOCASE
+      SELECT er.user_id AS person_user_id, er.name, er.email, er.institution, 'participant' AS role
+        FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
+        WHERE er.event_id=?
+      UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
+      UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, u.institution, 'reviewer'
+        FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
+    ) ep
+    JOIN users u ON u.id = ep.person_user_id
+    GROUP BY ep.person_user_id
+    HAVING COALESCE(u.is_public, 0) = 1
+    ORDER BY name COLLATE NOCASE
   `).all(activity.id, activity.event_id, activity.event_id, activity.event_id);
+  const participants = printRows
+    .filter((row) => String(row.roles || '').split(',').some((role) => allowedPrintRoles.includes(role)))
+    .filter((row) => row.email !== 'admin@admin.com')
+    .map((row) => ({ name: row.name, email: row.email, institution: row.institution }));
 
   const PDFDocument = require('pdfkit');
   const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 60 });
