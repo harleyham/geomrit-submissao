@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const { db } = require('../db');
 
 const rootDir = path.join(__dirname, '..');
 
@@ -40,7 +41,11 @@ function renderCertificatePdf(res, certificate) {
   const certificateTitle = certificate.certificate_title || 'CERTIFICADO DE PARTICIPAÇÃO';
   let certificateBody = certificate.certificate_body || `participou do evento ${certificate.event_name}.`;
   const workloadHours = Number(certificate.total_workload_hours);
-  if (Number.isFinite(workloadHours) && workloadHours > 0) {
+  const isActivityCertificate = Number(certificate.is_activity_certificate) === 1;
+  // Em certificados de atividade o corpo já traz a carga da atividade
+  // ("Atividade: X (N hora(s)-aula)."); o adendo automático só vale para os
+  // demais certificados, para não exibir a carga duas vezes.
+  if (Number.isFinite(workloadHours) && workloadHours > 0 && !isActivityCertificate) {
     const formattedHours = Number.isInteger(workloadHours)
       ? String(workloadHours)
       : workloadHours.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
@@ -48,21 +53,36 @@ function renderCertificatePdf(res, certificate) {
     certificateBody = `${certificateBody} ( ${formattedHours} ${hourLabel} )`;
   }
   document.fillColor(textColor).font('Helvetica-Bold').fontSize(30).text(certificateTitle, 55, 105, { width: width - 110, align: 'center' });
-  document.fillColor(textColor).font('Helvetica').fontSize(16).text('Certificamos que', 80, 205, { width: width - 160, align: 'center' });
-  document.fillColor(textColor).font('Helvetica-Bold').fontSize(27).text(certificate.participant_name, 80, 240, { width: width - 160, align: 'center' });
+  // O bloco central de texto fica um pouco abaixo do meio vertical para não
+  // deixar a região inferior da arte vazia (~10% da altura da página).
+  const textOffset = Math.round(height * 0.10);
+  document.fillColor(textColor).font('Helvetica').fontSize(16).text('Certificamos que', 80, 205 + textOffset - 20, { width: width - 160, align: 'center' });
+  document.fillColor(textColor).font('Helvetica-Bold').fontSize(27).text(certificate.participant_name, 80, 240 + textOffset - 20, { width: width - 160, align: 'center' });
 
-  document.fillColor(textColor).font('Helvetica').fontSize(15).text(certificateBody, 80, 300, { width: width - 160, align: 'center' });
+  document.fillColor(textColor).font('Helvetica').fontSize(15).text(certificateBody, 80, 300 + textOffset - 15, { width: width - 160, align: 'center' });
 
-  const dateLabel = certificate.event_date_end && certificate.event_date_end !== certificate.event_date_start
-    ? `Realizado de ${certificate.event_date_start} a ${certificate.event_date_end}.`
-    : certificate.event_date_start ? `Realizado em ${certificate.event_date_start}.` : '';
-  document.fontSize(12).fillColor(textColor).text(dateLabel, 80, 335, { width: width - 160, align: 'center' });
+  // Certificados de atividade mostram o período da própria atividade; demais
+  // certificados usam o período do evento.
+  let dateStart = certificate.event_date_start;
+  let dateEnd = certificate.event_date_end;
+  if (isActivityCertificate && certificate.activity_id) {
+    const activity = db.prepare(`SELECT COALESCE(MIN(s.session_date), date_start) AS date_start,
+        COALESCE(MAX(s.session_date), date_end) AS date_end
+      FROM event_activities ea
+      LEFT JOIN activity_sessions s ON s.activity_id = ea.id
+      WHERE ea.id = ?`).get(certificate.activity_id);
+    if (activity && activity.date_start) { dateStart = activity.date_start; dateEnd = activity.date_end; }
+  }
+  const dateLabel = dateEnd && dateEnd !== dateStart
+    ? `Realizado de ${dateStart} a ${dateEnd}.`
+    : dateStart ? `Realizado em ${dateStart}.` : '';
+  document.fontSize(12).fillColor(textColor).text(dateLabel, 80, 335 + textOffset - 15, { width: width - 160, align: 'center' });
 
   if (certificate.activities_summary) {
     document.fillColor(textColor).font('Helvetica').fontSize(9).text(
       `Atividades: ${certificate.activities_summary}.`,
       80,
-      382,
+      382 + textOffset - 10,
       { width: width - 160, align: 'center', ellipsis: true }
     );
   }

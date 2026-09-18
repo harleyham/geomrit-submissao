@@ -901,3 +901,13 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Docs: `manual.md` (seções 7 e 11), `README.md`, `submissao.md`, este log.
 - Verificação: `node --check` em rotas alteradas; renderização EJS simulada; migração em banco novo e legado; E2E em sandbox isolada (minicurso 2h com 2 etapas + palestra 4h: certificado de participante = 4h, certificado próprio do minicurso = 2h; % por etapa — 1/2 etapas ineligível com 75%, elegível com 50%; emissão individual/lote/global; reemissão versionada; verificação pública mostra atividade; desmarcar a flag devolve as horas à consolidação).
 - Status: **implementado e verificado localmente**; validação funcional pelo usuário pendente.
+
+## 2026-09-18 — Ajustes no PDF do certificado de atividade
+
+- Reportado no PDF emitido de um certificado próprio de atividade: (1) carga horária exibida duas vezes ("Atividade: X (9 hora(s)-aula)." + adendo automático "( 9 horas-aula )"); (2) "Realizado de …" mostrava o período do evento em vez da atividade; (3) bloco central de texto ficava atrás do meio da arte, deixando a parte inferior vazia.
+- `services/certificates.js` (`renderCertificatePdf`):
+  - o adendo de carga "( X horas-aula )" agora só é aplicado aos certificados por papel (não aos de atividade, que já trazem a carga no corpo);
+  - certificados de atividade usam o período da própria atividade (data mínima/máxima das etapas, ou o intervalo cadastrado na atividade; fallback para o período do evento);
+  - bloco central ("Certificamos que", nome, corpo, período, atividades) baixado em ~10% da altura da página para equilibrar o layout.
+- Verificação: PDF de atividade com carga única e "Realizado em <data da atividade>."; PDF por papel continua com o adendo "( X horas-aula )"; `node --check` OK.
+- Status: **implementado e verificado localmente**; validação visual pelo usuário pendente.
