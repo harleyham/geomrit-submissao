@@ -101,10 +101,16 @@
         <script nonce="<%= cspNonce %>" id="own-certificate-toggle">
           (function(){
             var box = document.getElementById('own_certificate');
-            var wrap = document.getElementById('own-certificate-min-wrap');
             var cert = document.getElementById('certificate_enabled');
-            function sync(){ wrap.hidden = !box.checked; if (box.checked && cert){ cert.checked = true; } }
-            box.addEventListener('change', sync);
+            var wrap = document.getElementById('own-certificate-min-wrap');
+            // Exclusivos: contabilizar no somatório do evento OU certificado próprio.
+            function sync(source){
+              wrap.hidden = !box.checked;
+              if (source === box && box.checked) cert.checked = false;
+              if (source === cert && cert.checked) box.checked = false;
+            }
+            box.addEventListener('change', function(){ sync(box); });
+            cert.addEventListener('change', function(){ sync(cert); });
             sync();
           })();
         </script>
@@ -168,7 +174,7 @@
               <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/checkin-print" class="btn-secondary" style="margin-left:4px;font-size:11px;padding:2px 8px;text-decoration:none;border:1px solid #0f766e;border-radius:4px">QR Presença</a>
             <% } %>
           </div>
-          <div style="display:flex;gap:10px;align-items:center;margin-top:2px">
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:2px">
             <% const enrolled = activity.enrolled_count || 0; const maxP = activity.max_participants ? Number(activity.max_participants) : null; const seatsFull = maxP !== null && enrolled >= maxP; %>
             <span style="font-size:11px;color:<%= seatsFull ? '#fca5a5' : 'var(--text-faint)' %>">Inscritos: <%= enrolled %><%= maxP !== null ? '/' + maxP : '' %></span>
             <% if (seatsFull) { %><span class="badge" style="background:var(--danger-subtle);color:var(--danger);font-size:10px">Vagas esgotadas</span><% } %>
@@ -176,10 +182,7 @@
             <% if (Number(activity.requires_justification) === 1 && (Number(activity.requires_approval) === 1 || event.registration_approval_mode === 'review')) { %><span class="badge" style="background:#155e75;color:#a5f3fc;font-size:10px">Justificativa obrigatória</span><% } %>
             <span style="font-size:11px;color:var(--text-faint)">Presentes: <%= activity.attendees_count || 0 %></span>
             <% if (activity.certificate_enabled) { %><span class="badge" style="background:var(--success-subtle);color:var(--success);font-size:10px">Certificável</span><% } %>
-          <% if (Number(activity.own_certificate) === 1) { %><span class="badge" style="background:var(--primary-subtle,#1e3a5f);color:var(--link);font-size:10px">Cert. próprio · <%= activity.own_certificate_min_attendance || 0 %>%</span><% } %>
-          <% if (canManageActivities) { %>
-          <% if (activity.certificate_enabled || Number(activity.own_certificate) === 1) { %><% } else { %><form method="post" action="/admin/events/<%= event.id %>/activities/<%= activity.id %>/certificate-enabled"><input type="hidden" name="enabled" value="1"><button type="submit" style="display:inline;padding:2px 8px;font-size:10px;background:var(--surface-2);color:var(--text-faint);border:1px solid var(--border);border-radius:4px;cursor:pointer;width:auto">Ativar cert.</button></form><% } %>
-          <% } %>
+          <% if (Number(activity.own_certificate) === 1) { %><span class="badge" style="background:var(--primary-subtle,#1e3a5f);color:var(--link);font-size:10px">Cert. próprio · <%= activity.own_certificate_min_attendance || 0 %>%</span>          <% } %>
           </div>
         </div>
         <% }) %>

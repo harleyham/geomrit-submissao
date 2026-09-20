@@ -2266,7 +2266,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
   const ownCertificate = req.body.own_certificate === '1' ? 1 : 0;
   const ownCertificateMin = Math.min(100, Math.max(0, parseInt(req.body.own_certificate_min_attendance, 10) || 0));
-  const effectiveCertEnabled = ownCertificate ? 1 : certificateEnabled;
+  const effectiveCertEnabled = certificateEnabled;
   const dateStart = req.body.date_start || null;
   const dateEnd = req.body.date_end || null;
   const timeStartParsed = parseTimeInput(req, 'time_start');
@@ -2343,7 +2343,7 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const certificateEnabled = req.body.certificate_enabled === '1' ? 1 : 0;
   const ownCertificate = req.body.own_certificate === '1' ? 1 : 0;
   const ownCertificateMin = Math.min(100, Math.max(0, parseInt(req.body.own_certificate_min_attendance, 10) || 0));
-  const effectiveCertEnabled = ownCertificate ? 1 : certificateEnabled;
+  const effectiveCertEnabled = certificateEnabled;
   const dateStart = req.body.date_start || null;
   const dateEnd = req.body.date_end || null;
   const timeStartParsed = parseTimeInput(req, 'time_start');
