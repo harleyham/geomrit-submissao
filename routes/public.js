@@ -2510,7 +2510,7 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
   };
 
   res.render('public/author-dashboard', {
-
+    title: 'Área do Participante',
     participations: participationsWithMeta,
     submissions,
     stats,
