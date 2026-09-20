@@ -963,3 +963,4 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Efeito colateral do teste (transparente): com o envio de e-mails ativo no evento, o POST de teste disparou `participant_activities_updated` real para um participante (outbox #946).
 - Docs: `submissao.md`, `manual.md`, este log.
 - Status: **implementado e testado**.
+- Ajuste de fluxo (mesmo dia): o botão **Editar** da listagem passa a abrir a página de atividades; **Editar participante completo** (na página de atividades) leva à edição completa; o nome do participante voltou a texto simples (link pouco perceptível).

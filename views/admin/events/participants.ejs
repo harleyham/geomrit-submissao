@@ -204,7 +204,7 @@
             <% participants.forEach((participant) => { %>
               <tr>
                 <td class="name-cell">
-                  <strong><a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/atividades" title="Ver atividades de <%= participant.name %>" style="color:var(--text-strong); text-decoration:underline; text-decoration-color:transparent"><%= participant.name %></a></strong>
+                  <strong><%= participant.name %></strong>
                   <small><%= participant.email %></small><br>
                   <small><%= participant.institution || 'Instituição não informada' %></small>
                   <% if (participant.phone) { %>
@@ -283,7 +283,7 @@
                     <% if (participant.user_id && participant.account_active) { %>
                     <a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/qr-presenca/print" class="btn btn-ghost">Imprimir crachá</a>
                     <% } %>
-                    <a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/edit" class="btn btn-ghost">Editar</a>
+                    <a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/atividades" class="btn btn-ghost">Editar</a>
                     <% if (participant.registration_status === 'pending') { %><a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/review" class="btn btn-ghost" style="color:var(--warn)">Analisar inscrição</a><% } %>
                     <% if (participant.submitted_articles === 0) { %>
                       <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= participant.id %>" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm(<%= jsonForScript('Remover a inscrição de ' + (participant.name || '')) %>);">
