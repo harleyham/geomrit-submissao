@@ -73,6 +73,13 @@ function renderCertificatePdf(res, certificate) {
       WHERE ea.id = ?`).get(certificate.activity_id);
     if (activity && activity.date_start) { dateStart = activity.date_start; dateEnd = activity.date_end; }
   }
+  // Datas no formato brasileiro DD/MM/AAAA (o banco grava AAAA-MM-DD).
+  const formatDMY = (value) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+    return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+  };
+  dateStart = formatDMY(dateStart);
+  dateEnd = formatDMY(dateEnd);
   const dateLabel = dateEnd && dateEnd !== dateStart
     ? `Realizado de ${dateStart} a ${dateEnd}.`
     : dateStart ? `Realizado em ${dateStart}.` : '';
@@ -89,7 +96,7 @@ function renderCertificatePdf(res, certificate) {
     );
   }
 
-  document.fontSize(10).fillColor(textColor).text(`Código de verificação: ${certificate.certificate_code} · Emissão: ${certificate.issued_at}`, 80, height - 40, { width: width - 160, align: 'center' });
+  document.fontSize(10).fillColor(textColor).text(`Código de verificação: ${certificate.certificate_code} · Emissão: ${formatDMY(certificate.issued_at)}${certificate.issued_at ? String(certificate.issued_at).slice(10) : ''}`, 80, height - 40, { width: width - 160, align: 'center' });
   document.end();
 }
 

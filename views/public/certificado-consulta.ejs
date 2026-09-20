@@ -102,7 +102,7 @@
           <strong>Nome:</strong> <%= certificate.participant_name %><br>
           <strong>Evento:</strong> <%= certificate.event_name %><br>
           <% if (certificate.event_date_start) { %>
-            <strong>Período:</strong> <%= certificate.event_date_start %><% if (certificate.event_date_end && certificate.event_date_end !== certificate.event_date_start) { %> a <%= certificate.event_date_end %><% } %><br>
+            <strong>Período:</strong> <%= formatBRDate(certificate.event_date_start) %><% if (certificate.event_date_end && certificate.event_date_end !== certificate.event_date_start) { %> a <%= formatBRDate(certificate.event_date_end) %><% } %><br>
           <% } %>
           <strong>Versão:</strong> <%= certificate.version %><br>
           <strong>Emissão:</strong> <%= certificate.issued_at %><br>
