@@ -206,6 +206,7 @@ router.get('/:id', requireAuth, (req, res) => {
       ass.status as assignment_status,
       ass.reviewed_at,
       rp.recommendation,
+      rp.suggested_type,
       rp.report,
       rp.updated_at as report_updated_at
     FROM assignments ass

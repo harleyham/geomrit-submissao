@@ -132,9 +132,12 @@ router.get('/articles/:id', requireReviewer, (req, res) => {
       error: 'Artigo não encontrado.'
     });
   }
-  
+
+  const existingReport = db.prepare('SELECT recommendation, suggested_type FROM reports WHERE assignment_id = ?').bind(assignment.id).get();
+
   res.render('reviewer/article', {
     article,
+    existingReport,
     reviewer: { name: req.session.userName, area: '' },
     year: new Date().getFullYear()
   });
@@ -146,6 +149,7 @@ router.post('/articles/:id/review', requireReviewer, strictLimiter, (req, res, n
 }, (req, res) => {
   const articleId = req.params.id;
   const { recommendation, review_notes, rejection_reason } = req.body;
+  const suggestedType = String(req.body.suggested_type || '').trim() || null;
   const reviewerId = req.session.userId;
   
   const assignment = db.prepare(`
@@ -186,14 +190,14 @@ router.post('/articles/:id/review', requireReviewer, strictLimiter, (req, res, n
   const existingReport = db.prepare('SELECT id FROM reports WHERE assignment_id = ?').bind(assignment.id).get();
   if (existingReport) {
     db.prepare(`
-      UPDATE reports SET score=?, report=?, recommendation=?, updated_at=datetime('now', '-3 hours')
+      UPDATE reports SET score=?, report=?, recommendation=?, suggested_type=?
       WHERE assignment_id = ?
-    `).bind(null, reportBody, normalizedRecommendation, assignment.id).run();
+    `).bind(null, reportBody, normalizedRecommendation, suggestedType, assignment.id).run();
   } else {
     db.prepare(`
-      INSERT INTO reports (assignment_id, score, report, recommendation, created_at, updated_at)
-      VALUES (?, NULL, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
-    `).bind(assignment.id, reportBody, normalizedRecommendation).run();
+      INSERT INTO reports (assignment_id, score, report, recommendation, suggested_type, created_at, updated_at)
+      VALUES (?, NULL, ?, ?, ?, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+    `).bind(assignment.id, reportBody, normalizedRecommendation, suggestedType).run();
   }
   
   res.redirect('/reviewer');

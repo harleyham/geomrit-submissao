@@ -106,7 +106,7 @@ O sistema deve permitir:
 - Dashboard do revisor.
 - Lista de artigos pendentes baseada em `assignments` sem `reports`.
 - Lista de artigos revisados baseada em `reports`.
-- Envio de parecer com recomendação individual, sem deliberação final automática do artigo.
+- Envio de parecer com recomendação individual e **sugestão de modalidade (Oral/Pôster)** `reports.suggested_type`, opcional e reeditável (reenvio vazio limpa a sugestão); a sugestão embasa a deliberação final e é exibida como badge "Sugere Oral/Pôster" na página administrativa do artigo — a modalidade efetiva (`articles.type`) só muda na decisão administrativa, sem deliberação final automática do artigo.
 - Navegação cruzada para a área do participante e o dashboard admin quando o usuário acumula perfis.
 
 ### Público
@@ -519,6 +519,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - `score`
 - `report`
 - `recommendation`
+- `suggested_type` — modalidade sugerida pelo revisor no parecer (`oral`/`poster` ou `NULL`); embasa a deliberação final administrativa, sem alterar `articles.type` diretamente
 - `created_at`
 - `updated_at`
 

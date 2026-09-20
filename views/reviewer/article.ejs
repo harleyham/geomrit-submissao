@@ -80,7 +80,7 @@
         <span>🏛️ <%= article.event_name %></span>
         <span>👤 <%= article.contributor %></span>
         <span>🧭 <%= article.area || 'Sem trilha definida' %></span>
-        <span>🎤 <%= article.type === 'poster' ? 'Pôster' : 'Oral' %></span>
+        <span>🎤 Modalidade atual: <%= article.type === 'poster' ? 'Pôster' : 'Oral' %></span>
       </div>
     </div>
 
@@ -110,6 +110,16 @@
       <p style="margin-bottom: 1rem; color: var(--text-muted);">Seu envio registra uma recomendação individual. A decisão final do artigo continua sob responsabilidade administrativa.</p>
       <form method="POST" action="/reviewer/articles/<%= article.id %>/review">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="suggested-type">Modalidade sugerida</label>
+          <select id="suggested-type" name="suggested_type">
+            <% const currentSuggested = existingReport && existingReport.suggested_type ? existingReport.suggested_type : (article.type === 'poster' ? 'poster' : 'oral'); %>
+            <option value="oral" <%= currentSuggested === 'oral' ? 'selected' : '' %>>Oral</option>
+            <option value="poster" <%= currentSuggested === 'poster' ? 'selected' : '' %>>Pôster</option>
+          </select>
+          <p style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.8125rem;">Sua sugestão de modalidade (Oral ↔ Pôster) será exibida ao administrador na deliberação final; a modalidade efetiva só muda na decisão administrativa.</p>
+        </div>
+
         <div class="form-group">
           <label for="recommendation">Recomendação *</label>
           <select id="recommendation" name="recommendation" required>

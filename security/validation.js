@@ -120,7 +120,8 @@ const validators = {
   ],
   reviewerForm: [
     body('recommendation').isIn(['approved', 'rejected', 'revision_requested']).withMessage('Recomendação inválida.'),
-    body('review_notes').optional().trim().isLength({ max: 10000 })
+    body('review_notes').optional().trim().isLength({ max: 10000 }),
+    body('suggested_type').optional({ values: 'falsy' }).isIn(['oral', 'poster']).withMessage('Modalidade sugerida inválida.')
   ],
   finalDecision: [
     body('final_status').isIn(['pending', 'in_review', 'approved', 'rejected']).withMessage('Status inválido.'),

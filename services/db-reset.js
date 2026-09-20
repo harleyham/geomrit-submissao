@@ -366,6 +366,7 @@ function migrateSchema(db) {
       score INTEGER CHECK(score BETWEEN 1 AND 5),
       report TEXT,
       recommendation TEXT CHECK(recommendation IN ('approved', 'rejected', 'revision_requested')),
+      suggested_type TEXT CHECK(suggested_type IN ('oral', 'poster') OR suggested_type IS NULL),
       created_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       updated_at DATETIME DEFAULT (datetime('now', '-3 hours')),
       FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE
@@ -1199,6 +1200,12 @@ function backfillColumnSteps(db) {
       END
       WHERE subsidy_status IS NULL OR TRIM(subsidy_status) = ''
     `).run();
+  } catch(e) { throw e; }
+
+  // Modalidade sugerida pelo revisor no parecer (oral/poster).
+  try {
+    const reportColumns = db.prepare("PRAGMA table_info(reports)").all().map(c => c.name);
+    if (!reportColumns.includes('suggested_type')) db.exec("ALTER TABLE reports ADD COLUMN suggested_type TEXT CHECK(suggested_type IN ('oral', 'poster') OR suggested_type IS NULL)");
   } catch(e) { throw e; }
 
   try {

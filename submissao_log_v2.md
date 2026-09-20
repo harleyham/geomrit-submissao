@@ -20,6 +20,20 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-20 — Revisor sugere modalidade (Oral ↔ Pôster) no parecer
+
+- Requisito do usuário (aprovado em plano): o revisor pode sugerir a modalidade de apresentação (Oral ou Pôster) ao enviar o parecer; a modalidade efetiva (`articles.type`) continua sob controle administrativo na deliberação final — o parecer continua individual, sem deliberação automática.
+- `services/db-reset.js`: nova coluna `reports.suggested_type` (`TEXT`, `CHECK IN ('oral','poster') OR NULL`) no schema e migração idempotente `ALTER TABLE` para bases existentes.
+- `security/validation.js`: contrato `reviewerForm` aceita `suggested_type` opcional (`isIn(['oral','poster'])`; vazia = ausente).
+- `routes/reviewer.js`:
+  - `GET /articles/:id`: consulta o parecer existente da atribuição e passa `existingReport` ao template.
+  - `POST /articles/:id/review`: grava/atualiza `suggested_type` no relatório (vazio → `NULL`, o reenvio limpa a sugestão anterior).
+- `views/reviewer/article.ejs`: novo select "Modalidade sugerida" no formulário de parecer, pré-preenchido com a sugestão existente (fallback: tipo atual do artigo; nota explica que a sugestão apenas embasa a decisão administrativa); o selo de dados exibe "Modalidade atual".
+- `routes/articles.js` + `views/admin/articles/detail.ejs`: a consulta de revisores do detalhe do artigo inclui `rp.suggested_type`, exibido como badge "Sugere Oral/Pôster" ao lado da recomendação; nota da seção de deliberação final atualizada.
+- Referência do item (a) — múltiplos artigos por autor: já atendido (cada POST de submissão insere artigo novo, sem limite por autor; rascunhos ilimitados), sem alteração nesta rodada.
+- Verificação: `node --check` em `routes/reviewer.js`, `routes/articles.js`, `security/validation.js` e `services/db-reset.js`; compilação EJS de `reviewer/article.ejs` e `admin/articles/detail.ejs`; E2E em sandbox isolada (porta 3116, banco novo): **11/11 checks** — select presente com a modalidade atual pré-marcada; POST com sugestão `poster` gravada em `reports.suggested_type` com artigo permanecendo `in_review`; badge "Sugere Pôster" no detalhe admin; reenvio sem sugestão grava `NULL`; valor inválido (`malware`) rejeitado com HTTP 400 sem alterar o banco.
+- Status: **concluído (código + verificação técnica)**. Migração aplicada na inicialização; efetivo após reinício do servidor.
+
 ## 2026-09-18 — Lista de presença impressa (attendance-print) incluía pessoas sem inscrição na atividade
 
 - Relato do usuário: em `attendance-print?session_id=` a lista trazia 18 nomes para 17 inscritos — uma pessoa com papel `staff` no evento (não inscrita na atividade) aparecia na lista impressa.

@@ -133,7 +133,7 @@
 
     <div class="section">
       <h2>Deliberação Final Administrativa</h2>
-      <p class="section-text">Após ler os pareceres e conferir o PDF do artigo, defina a decisão final e, se necessário, ajuste a modalidade de apresentação entre <strong>Oral</strong> e <strong>Pôster</strong>.</p>
+      <p class="section-text">Após ler os pareceres e conferir o PDF do artigo, defina a decisão final e, se necessário, ajuste a modalidade de apresentação entre <strong>Oral</strong> e <strong>Pôster</strong>. As modalidades sugeridas pelos revisores aparecem como badges na lista de pareceres e servem de apoio à decisão; a modalidade efetiva é definida apenas aqui.</p>
       <form method="POST" action="/admin/articles/<%= article.id %>/final-decision">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="eventId" value="<%= article.event_id %>">
@@ -188,6 +188,9 @@
                 <span class="badge <%= reviewer.recommendation === 'approved' ? 'badge-approved' : reviewer.recommendation === 'rejected' ? 'badge-rejected' : 'badge-in-review' %>">
                   <%= reviewer.recommendation === 'approved' ? 'Recomenda aprovação' : reviewer.recommendation === 'rejected' ? 'Recomenda rejeição' : 'Solicita revisão' %>
                 </span>
+              <% } %>
+              <% if (reviewer.suggested_type) { %>
+                <span class="badge badge-oral">Sugere <%= reviewer.suggested_type === 'poster' ? 'Pôster' : 'Oral' %></span>
               <% } %>
               <form method="POST" action="/admin/articles/<%= article.id %>/assign">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
