@@ -1875,8 +1875,7 @@ function issueActivityCertificate(event, activity, userId, actorUserId, reissued
   if (!candidate || !candidate.eligible) throw new Error('Pessoa não elegível ao certificado desta atividade (exige inscrição e a presença mínima configurada).');
 
   const workload = Number(candidate.workload_hours) || 0;
-  const title = certificateText(rule.title || ruleTitle, event.name, activity.name)
-    + ((rule.title || ruleTitle).includes('{atividade}') ? '' : ` — ${activity.name}`);
+  const title = certificateText(rule.title || ruleTitle, event.name, activity.name);
   const body = certificateText(rule.body_text || ruleBody, event.name, activity.name)
     + ((rule.body_text || ruleBody).includes('{atividade}') ? '' : ` Atividade: ${activity.name} (${workload} hora(s)-aula).`);
   // Versão monotônica por pessoa+papel: emissoes legadas de papel também

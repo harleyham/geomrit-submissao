@@ -53,9 +53,9 @@ function renderCertificatePdf(res, certificate) {
     certificateBody = `${certificateBody} ( ${formattedHours} ${hourLabel} )`;
   }
   document.fillColor(textColor).font('Helvetica-Bold').fontSize(30).text(certificateTitle, 55, 105, { width: width - 110, align: 'center' });
-  // O bloco central de texto fica um pouco abaixo do meio vertical para não
-  // deixar a região inferior da arte vazia (~10% da altura da página).
-  const textOffset = Math.round(height * 0.10);
+  // O bloco central de texto fica abaixo do meio vertical para não
+  // concentrar tudo na metade superior da página.
+  const textOffset = Math.round(height * 0.14);
   document.fillColor(textColor).font('Helvetica').fontSize(16).text('Certificamos que', 80, 205 + textOffset - 20, { width: width - 160, align: 'center' });
   document.fillColor(textColor).font('Helvetica-Bold').fontSize(27).text(certificate.participant_name, 80, 240 + textOffset - 20, { width: width - 160, align: 'center' });
 
@@ -78,7 +78,9 @@ function renderCertificatePdf(res, certificate) {
     : dateStart ? `Realizado em ${dateStart}.` : '';
   document.fontSize(12).fillColor(textColor).text(dateLabel, 80, 335 + textOffset - 15, { width: width - 160, align: 'center' });
 
-  if (certificate.activities_summary) {
+  // Nos certificados por atividade o nome já consta no corpo do certificado;
+  // o resumo consolidado só vale para certificados por papel.
+  if (certificate.activities_summary && !isActivityCertificate) {
     document.fillColor(textColor).font('Helvetica').fontSize(9).text(
       `Atividades: ${certificate.activities_summary}.`,
       80,
@@ -87,7 +89,7 @@ function renderCertificatePdf(res, certificate) {
     );
   }
 
-  document.fontSize(10).fillColor(textColor).text(`Código de verificação: ${certificate.certificate_code} · Emissão: ${certificate.issued_at}`, 80, height - 75, { width: width - 160, align: 'center' });
+  document.fontSize(10).fillColor(textColor).text(`Código de verificação: ${certificate.certificate_code} · Emissão: ${certificate.issued_at}`, 80, height - 40, { width: width - 160, align: 'center' });
   document.end();
 }
 
