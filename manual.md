@@ -81,6 +81,10 @@ Após o login, o usuário é encaminhado conforme seus papéis, consultados no b
 
 O administrador de evento administra apenas os eventos nos quais possui o papel `admin` (e, nos artigos e relatórios, enxerga só os seus eventos). O papel atribuído em um evento não altera os demais eventos nem o cadastro global da pessoa.
 
+Quem usa o painel administrativo também pode ir direto à **Área do Participante**: o menu superior de todas as telas administrativas traz o link **Área do Participante** (`/author`), aberto com a própria conta do administrador.
+
+Na Área do Participante, o card **Submissões Enviadas** permite **editar** submissões ainda pendentes (status "Pendente"): a edição fica bloqueada quando um revisor já foi designado para o artigo ou quando o prazo de submissões do evento já encerrou (nesse caso o botão Editar aparece desabilitado com a explicação; rascunhos continuam editáveis a qualquer tempo). Os contadores **Em andamento**, **Aprovadas** e **Rejeitadas** ficam ao final da página, após as submissões.
+
 Contas novas podem exigir troca de senha e conclusão do perfil antes de acessar os painéis. Complete nome, país, instituição, telefone e formação acadêmica.
 
 ## 4. Criação e administração de usuários

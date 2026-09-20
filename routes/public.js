@@ -569,11 +569,8 @@ function requireNonAdminAuthorAccess(req, res, next) {
   if (req.session.previewUserId) {
     return next();
   }
-  // O superadmin semente (admin@admin.com) não deve acessar a área do
-  // participante; redireciona para o painel administrativo.
-  if (req.session.isAdmin) {
-    return res.redirect('/admin/dashboard');
-  }
+  // O administrador também acessa a área do participante com a própria conta
+  // (botão "Área do Participante" no menu superior das telas admin).
   return next();
 }
 
@@ -739,13 +736,16 @@ function removeUploadedFile(filePath) {
 
 function getDraftForEditing(draftId, eventId, req) {
   if (!draftId || !req.session || !req.session.userId) return null;
+  // Rascunhos e submissões pendentes (ainda em avaliação) podem ser editados
+  // pelo autor dono. O flag has_reviewer indica se já há revisor designado:
+  // nesse caso a edição é bloqueada (rotas decidem como reagir).
   return db.prepare(`
-    SELECT *
-    FROM articles
-    WHERE id = ?
-      AND event_id = ?
-      AND status = 'draft'
-      AND submitter_user_id = ?
+    SELECT a.*, EXISTS(SELECT 1 FROM assignments ass WHERE ass.article_id = a.id) AS has_reviewer
+    FROM articles a
+    WHERE a.id = ?
+      AND a.event_id = ?
+      AND a.status IN ('draft', 'pending')
+      AND a.submitter_user_id = ?
   `).bind(draftId, eventId, req.session.userId).get();
 }
 
@@ -2151,6 +2151,27 @@ router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
     LIMIT 1
   `).get(req.params.eventId, req.session.userId, req.session.userEmail || '');
   const draft = getDraftForEditing(req.query.draftId, event.id, req);
+  // Rascunhos continuam editáveis fora do prazo; submissões já enviadas
+  // (status 'pending') só podem ser editadas enquanto o prazo estiver aberto.
+  const submissionClosedForEditing = !!draft && draft.status === 'pending' && !eventWithMeta.submission.isOpen;
+  if (draft && draft.has_reviewer) {
+    // Prévia carregada antes da designação, ou acesso direto via URL:
+    // não pré-preenche o formulário enquanto já existir revisor designado.
+    return renderSubmissionForm(res, eventWithMeta, {
+      submissionError: 'Esta submissão não está mais disponível para edição — revisor já designado.',
+      formData: ensureAtLeastOneAuthor(normalizeFormData({}, req.session)),
+      currentFileName: null,
+      hasRegistration: !!registration
+    });
+  }
+  if (submissionClosedForEditing) {
+    return renderSubmissionForm(res, eventWithMeta, {
+      submissionError: `${eventWithMeta.submission.message || 'O prazo de submissões foi encerrado.'} Edição da submissão indisponível fora do prazo de submissões.`,
+      formData: ensureAtLeastOneAuthor(normalizeFormData({}, req.session)),
+      currentFileName: null,
+      hasRegistration: !!registration
+    });
+  }
   const formData = draft
     ? buildFormDataFromDraft(draft, req.session)
     : ensureAtLeastOneAuthor(normalizeFormData({}, req.session));
@@ -2177,7 +2198,11 @@ router.get('/submeter/:eventId', requireNonAdminAuthorAccess, (req, res) => {
     formData,
     currentFileName: draft ? draft.file_original_name : null,
     editingDraft: !!draft,
-    successMessage: draft ? 'Rascunho carregado. Você pode continuar a edição e submeter quando estiver pronto.' : null,
+    successMessage: draft
+      ? (draft.status === 'pending'
+        ? 'Submissão carregada para edição. Ao salvar, ela voltará à fila para nova avaliação.'
+        : 'Rascunho carregado. Você pode continuar a edição e submeter quando estiver pronto.')
+      : null,
     hasRegistration: true
   });
 });
@@ -2210,6 +2235,34 @@ router.post('/submeter/:eventId', registrationLimiter, requireNonAdminAuthorAcce
       ORDER BY id
       LIMIT 1
     `).get(req.params.eventId, req.session.userId, req.session.userEmail || '');
+
+    // Proteção anti-race: o formulário foi aberto referenciando uma submissão
+    // (rascunho ou pendente) que, entre o carregamento e o envio, tornou-se
+    // não editável (revisor designado) ou já não pertence ao autor. Sem esta
+    // guarda, o fluxo de inserção criaria uma submissão duplicada.
+    if (String(formData.draft_id || '').trim() && (!existingDraft || existingDraft.has_reviewer)) {
+      if (req.file) removeUploadedFile(req.file.filename);
+      return renderSubmissionForm(res, eventWithMeta, {
+        submissionError: 'Esta submissão não está mais disponível para edição — revisor já designado.',
+        formData,
+        currentFileName: null,
+        editingDraft: false,
+        hasRegistration: !!registration
+      });
+    }
+
+    // Submissão já enviada (rascunho é exceção: continua editável fora do prazo):
+    // bloqueia a regravação quando o período de submissões não está mais aberto.
+    if (existingDraft && existingDraft.status === 'pending' && !eventWithMeta.submission.isOpen) {
+      if (req.file) removeUploadedFile(req.file.filename);
+      return renderSubmissionForm(res, eventWithMeta, {
+        submissionError: `${eventWithMeta.submission.message || 'O prazo de submissões foi encerrado.'} Edição da submissão indisponível fora do prazo de submissões.`,
+        formData,
+        currentFileName: null,
+        editingDraft: false,
+        hasRegistration: !!registration
+      });
+    }
 
     if (req.uploadError) {
       if (req.file) removeUploadedFile(req.file.filename);
@@ -2372,34 +2425,14 @@ router.post('/submeter/:eventId', registrationLimiter, requireNonAdminAuthorAcce
 });
 
 router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const participationKeys = db.prepare(`
-    SELECT DISTINCT event_id
-    FROM event_registrations
-    WHERE user_id = ?
-       OR LOWER(TRIM(email)) = LOWER(TRIM(?))
-  `).bind(req.session.userId, req.session.userEmail).all();
-
-  const registeredEventIds = new Set(participationKeys.map((row) => Number(row.event_id)));
-
-  const participantEvents = db.prepare(`
-    SELECT *
+  const submissionWindowCache = new Map(db.prepare(`
+    SELECT id, has_article_submission, submission_start, submission_end
     FROM events
-    WHERE status = 'published'
-    ORDER BY date_start DESC
-  `).all()
-    .filter((event) => !registeredEventIds.has(Number(event.id)))
-    .filter((event) => {
-      if (!event.date_start) return false;
-      const eventStart = new Date(`${event.date_start}T00:00:00`);
-      return !Number.isNaN(eventStart.getTime()) && eventStart > today;
-    })
-    .map((event) => withSubmissionMeta(withAreaMeta(event)));
+  `).all().map((event) => [Number(event.id), getSubmissionWindow(event)]));
 
   const submissions = db.prepare(`
-    SELECT a.*, e.name as event_name, e.date_start, e.date_end
+    SELECT a.*, e.name as event_name, e.date_start, e.date_end,
+           EXISTS(SELECT 1 FROM assignments ass WHERE ass.article_id = a.id) AS has_reviewer
     FROM articles a
     JOIN events e ON e.id = a.event_id
     WHERE a.submitter_user_id = ?
@@ -2410,7 +2443,13 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
     ORDER BY a.created_at DESC
   `).bind(req.session.userId, req.session.userEmail).all().map((article) => ({
     ...article,
-    status_label: mapArticleStatus(article.status)
+    status_label: mapArticleStatus(article.status),
+    // Edição de submissão enviada (pending) usa mesma janela que novas submissões:
+    // encerrado o prazo (ou sem janela configurada), a edição fica bloqueada.
+    submission_closed: !!article.event_id && (() => {
+      const windowMap = submissionWindowCache.get(Number(article.event_id));
+      return windowMap ? !windowMap.isOpen : true;
+    })()
   }));
 
   const participations = db.prepare(`
@@ -2471,8 +2510,7 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
   };
 
   res.render('public/author-dashboard', {
-    title: 'Área do Participante',
-    participantEvents,
+
     participations: participationsWithMeta,
     submissions,
     stats,
@@ -2696,14 +2734,17 @@ router.post('/author/profile', registrationLimiter, requireNonAdminAuthorAccess,
 });
 
 // Consultar artigo por código
+// Padrão PRG (Post/Redirect/Get): o POST store o código pesquisado na sessão
+// e redireciona 303 para o GET, evitando que o botão "voltar" do browser
+// reapresente o aviso "Confirmar reenvio do formulário" (ERR_CACHE_MISS).
 router.get('/consultar', (req, res) => {
-  res.render('public/consultar', { article: null, error: null, title: 'Consultar Artigo' });
-});
-
-router.post('/consultar', (req, res, next) => {
-  validateAndHandle(req, res, next, v.articleCode);
-}, (req, res) => {
-  const access_code = String(req.body.access_code || '').trim();
+  const searched = req.session.consultCode || '';
+  const failed = !!(req.session.consultFailed);
+  delete req.session.consultCode;
+  delete req.session.consultFailed;
+  if (!searched && !failed) {
+    return res.render('public/consultar', { article: null, error: null, title: 'Consultar Artigo' });
+  }
   const article = db.prepare(`
     SELECT
       a.*,
@@ -2719,24 +2760,44 @@ router.post('/consultar', (req, res, next) => {
     WHERE a.access_code = ?
       AND a.status != 'draft'
     GROUP BY a.id, e.name
-  `).bind(access_code).get();
+  `).bind(searched).get();
 
-  if (!article) {
+  if (failed || !article) {
     return res.render('public/consultar', { article: null, error: 'Código de acesso inválido.', title: 'Consultar Artigo' });
   }
 
   res.render('public/consultar', { article, error: null, title: 'Artigo Encontrado' });
 });
 
-// Consultar certificado por código
-router.get('/consultar-certificado', (req, res) => {
-  res.render('public/certificado-consulta', { certificate: null, error: null, codePrefill: req.query.code || null, title: 'Verificar Certificado' });
+router.post('/consultar', (req, res, next) => {
+  validateAndHandle(req, res, next, v.articleCode);
+}, (req, res) => {
+  const access_code = String(req.body.access_code || '').trim();
+  const article = db.prepare(`
+    SELECT a.id FROM articles a WHERE a.access_code = ? AND a.status != 'draft'
+  `).bind(access_code).get();
+
+  if (!article || !req.session) {
+    req.session.consultFailed = true;
+    req.session.consultCode = '';
+  } else {
+    req.session.consultFailed = false;
+    req.session.consultCode = access_code;
+  }
+
+  return res.redirect(303, '/consultar');
 });
 
-router.post('/consultar-certificado', (req, res, next) => {
-  validateAndHandle(req, res, next, v.certificateCode);
-}, (req, res) => {
-  const certificate_code = String(req.body.certificate_code || '').trim();
+// PRG: o GET consome o código da sessão, evitando reenvio de formulário ao voltar.
+router.get('/consultar-certificado', (req, res) => {
+  const searched = req.session.certificateCode || '';
+  const failed = !!(req.session.certificateFailed);
+  delete req.session.certificateCode;
+  delete req.session.certificateFailed;
+  const codePrefill = req.query.code || searched || null;
+  if (!searched && !failed) {
+    return res.render('public/certificado-consulta', { certificate: null, error: null, codePrefill: req.query.code || null, title: 'Verificar Certificado' });
+  }
   const certificate = db.prepare(`
     SELECT
       ce.*,
@@ -2751,17 +2812,36 @@ router.post('/consultar-certificado', (req, res, next) => {
     LEFT JOIN certificate_backgrounds cb ON cb.id = ce.background_id
     LEFT JOIN users u ON u.id = ce.user_id
     WHERE ce.certificate_code = ?
-  `).bind(certificate_code).get();
+  `).bind(searched).get();
 
-  if (!certificate) {
-    return res.render('public/certificado-consulta', { certificate: null, error: 'Código de certificado inválido ou não encontrado.', codePrefill: certificate_code, title: 'Verificar Certificado' });
+  if (failed || !certificate) {
+    return res.render('public/certificado-consulta', { certificate: null, error: 'Código de certificado inválido ou não encontrado.', codePrefill, title: 'Verificar Certificado' });
   }
 
   const roleLabels = { participant: 'Participante', reviewer: 'Revisor', speaker: 'Palestrante', teacher: 'Professor', oral_presenter: 'Apresentador Oral', poster_presenter: 'Apresentador Pôster' };
   certificate.role_label = roleLabels[certificate.certificate_role] || 'Participante';
   if (certificate.activity_name) certificate.role_label = `${certificate.role_label} — ${certificate.activity_name}`;
 
-  res.render('public/certificado-consulta', { certificate, error: null, codePrefill: certificate_code, title: 'Certificado Verificado' });
+  res.render('public/certificado-consulta', { certificate, error: null, codePrefill, title: 'Certificado Verificado' });
+});
+
+router.post('/consultar-certificado', (req, res, next) => {
+  validateAndHandle(req, res, next, v.certificateCode);
+}, (req, res) => {
+  const certificate_code = String(req.body.certificate_code || '').trim();
+  const certificate = db.prepare(`
+    SELECT ce.id FROM certificate_emissions ce WHERE ce.certificate_code = ?
+  `).bind(certificate_code).get();
+
+  if (!certificate || !req.session) {
+    req.session.certificateFailed = true;
+    req.session.certificateCode = '';
+  } else {
+    req.session.certificateFailed = false;
+    req.session.certificateCode = certificate_code;
+  }
+
+  return res.redirect(303, '/consultar-certificado');
 });
 
 // Página de revisores (papéis são por evento: quem tem papel 'reviewer' em

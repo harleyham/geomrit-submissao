@@ -18,6 +18,7 @@
       <nav class="topbar-nav">
         <% const canManageSessions = (typeof canManage !== 'undefined') ? canManage : true; const isStaffView = (typeof isStaff !== 'undefined') && isStaff; const canEditSessions = canManageSessions || isStaffView; %>
         <% if (isAdmin) { %><a href="/admin">Dashboard</a><% } %>
+        <a href="/author" class="btn btn-secondary">Área do Participante</a>
         <a href="/admin/events">Eventos</a>
         <a href="/admin/events/<%= event.id %>/activities">Atividades</a>
         <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>

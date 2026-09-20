@@ -124,13 +124,15 @@ O sistema deve permitir:
 - Seleção das atividades durante a inscrição (reconfigurável na própria página de inscrição) e manutenção em `/evento/:id/atividades`, que lista somente as atividades em que o participante está inscrito; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
 - Avaliação de atividades: em `/evento/:id/atividades`, o participante inscrito registra uma avaliação por atividade (texto livre de até 2000 caracteres); com o evento encerrado, as inscrições ficam travadas, mas as avaliações das atividades já inscritas continuam editáveis.
 - Submissão de artigo com geração de código de acesso.
-- Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões, inclusive em contas com perfil de revisor.
+- Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões (hero em coluna única; stats "Em andamento / Aprovadas / Rejeitadas" em painel próprio ao final da página).
+- Edição de submissões em `/author`: rascunhos por `Continuar Preenchimento`; submissões pendentes por botão **Editar** (`/submeter/:eventId?draftId=`, formulário pré-preenchido; ao salvar voltam a `pending` para reavaliação, mantendo o código de acesso). A edição de submissão pendente é bloqueada **quando há revisor designado** (`assignments`) ou **fora do prazo de submissões** — nesse caso o botão aparece desabilitado com a razão (tooltip) e o acesso direto ao formulário não pré-preenche; o POST rejeita sem criar duplicata. Rascunhos continuam editáveis fora do prazo.
+- Área do Participante acessível também ao administrador com a própria conta: botão "Área do Participante" no menu superior das telas administrativas.
+- Consulta por código com padrão PRG (Post/Redirect/Get): o POST redireciona 303 e o GET exibe o resultado, eliminando o aviso de "Confirmar reenvio do formulário" ao usar o botão voltar do browser.
 - Perfil do participante em `/author/profile` com atualização de dados cadastrais (nome, e-mail, instituição, CPF, passaporte, país, telefone), formação acadêmica e troca opcional de senha.
 - Área do participante acessível também a contas com múltiplos perfis, com atalhos para revisão e administração quando aplicável.
 - Página pública de evento encerrado permanece acessível (detalhes e certificados), com aviso de encerramento; inscrição e submissão ficam bloqueadas.
 - Consulta de submissão por código.
-- Consulta por código com andamento agregado da avaliação, sem expor um único revisor como responsável oficial.
-- Verificação pública de certificados emitidos pelo respectivo código.
+- Consulta por código com andamento agregado da avaliação, sem expor um único revisor como responsável oficial.- Verificação pública de certificados emitidos pelo respectivo código.
 - Exibição pública de revisores ativos.
 - Fluxo de participação conectado às atividades, chamadas e certificados: para participante, somente atividades com inscrição e presença são contabilizadas.
 - Registro de presença por QR Code: a folha impressa por etapa (ou atividade sem etapas) contém um QR Code que abre a página `/presenca/:eventId/:activityId(/:sessionId)`; o usuário autenticado escolhe o papel exercido e marca a própria presença, no dia da etapa (ou no período da atividade, quando não houver etapas).
@@ -739,11 +741,12 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 4. Público autenticado e já inscrito submete artigo dentro da janela permitida.
 5. Sistema cria artigo com `status = 'pending'`.
 6. Sistema registra ou promove a participação do inscrito para `author`.
-7. Admin atribui revisor.
-8. Sistema cria `assignment` e move o artigo para `in_review`.
-9. Revisor envia parecer.
-10. Sistema grava ou atualiza `report`.
-11. Admin acompanha os relatórios e define o status final do artigo.
+7. O autor pode editar a submissão enquanto `pending`, dentro do prazo de submissões e sem revisor designado (salvar devolve o artigo a `pending` para reavaliação; rascunhos permanecem editáveis fora do prazo).
+8. Admin atribui revisor.
+9. Sistema cria `assignment` e move o artigo para `in_review` — a partir daqui a edição pelo autor fica bloqueada.
+10. Revisor envia parecer.
+11. Sistema grava ou atualiza `report`.
+12. Admin acompanha os relatórios e define o status final do artigo.
 
 ### Fluxo de autenticação
 

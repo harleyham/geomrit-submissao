@@ -143,6 +143,7 @@
         <% } %>
 
         <form action="/submeter/<%= event.id %>" method="POST" enctype="multipart/form-data" id="submission-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="draft_id" value="<%= safeFormData.draft_id || '' %>">
 
           <div class="section-block" style="margin-top:0; padding-top:0; border-top:none;">

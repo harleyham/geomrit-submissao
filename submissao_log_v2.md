@@ -925,3 +925,27 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
   - bloco central ("Certificamos que", nome, corpo, período, atividades) baixado em ~10% da altura da página para equilibrar o layout.
 - Verificação: PDF de atividade com carga única e "Realizado em <data da atividade>."; PDF por papel continua com o adendo "( X horas-aula )"; `node --check` OK.
 - Status: **implementado e verificado localmente**; validação visual pelo usuário pendente.
+
+## 2026-09-20 — Correções de submissão, consulta por código (PRG), acesso de admin à Área do Participante, edição de submissões e redesign de /author
+
+1. **CSRF no formulário de submissão**: `views/public/submit.ejs` — o formulário `POST /submeter/:id` (multipart) não tinha campo `_csrf` e a página não inclui o partial `csrf-inject`; todo envio resultava em 403 "O token de segurança não foi fornecido". Corrigido com hidden `_csrf` no form. Os demais forms multipart já tinham o token.
+
+2. **PRG (Post/Redirect/Get) nas consultas públicas**: `POST /consultar` e `POST /consultar-certificado` renderizavam o resultado direto no POST; ao usar o botão "voltar" do browser, o usuário recebia o aviso "Confirmar reenvio do formulário" (ERR_CACHE_MISS). Agora o POST grava o código pesquisado (ou flag de falha) na sessão e redireciona 303; o GET consome a sessão e renderiza o resultado (consulta reexecutada por código — dados sempre atuais; prefill do código em erro mantido no certificado).
+
+3. **Área do Participante acessível ao admin**: `requireNonAdminAuthorAccess` (routes/public.js) não redireciona mais contas admin para o dashboard — admin usa a área do participante com a própria conta. Botão "Área do Participante" (`/author`) adicionado ao menu superior das 23 telas admin (dashboard, eventos, artigos, usuários, salas, certificados, etc.), logo após o link Dashboard.
+
+4. **Edição de submissões enviadas** (`/author`):
+   - `getDraftForEditing` aceita `draft` e `pending` do autor (dono) e calcula `has_reviewer` (EXISTS em `assignments`); artigos decididos (in_review/aprovado/rejeitado) nunca editáveis.
+   - Regras de bloqueio da edição de submissão `pending`: (a) revisor já designado; (b) prazo de submissões do evento encerrado ou não configurado (`getSubmissionWindow.isOpen = false`). **Rascunhos permanecem editáveis fora do prazo** (comportamento pré-existente).
+   - `GET /submeter/:id`: aberto com `draftId` de submissão bloqueada → formulário sem prefill com aviso ("revisor já designado" ou mensagem do prazo + "Edição da submissão indisponível fora do prazo de submissões").
+   - `POST /submeter/:id`: guarda anti-race — `draft_id` do form não recuperável ou com revisor/prazo encerrado → rejeita sem INSERT (evita submissão duplicada) e remove o PDF recebido; salvar edição de `pending` devolve o status a `pending` (reavaliação), mantendo o `access_code`.
+   - Card "Submissões Enviadas" em `/author`: botão **Editar** (`/submeter/:eventId?draftId=`) para `pending` sem revisor e dentro do prazo; **desabilitado** (opacity 0.55, cursor not-allowed) com tooltip "Edição bloqueada — revisor já designado" ou "Edição bloqueada — prazo de submissões encerrado"; nada para os demais status.
+
+5. **Redesign de `/author`** (views/public/author-dashboard.ejs + GET /author):
+   - Removidos: card "Eventos Disponíveis para Participação", card "Informações úteis ao participante" e stats "Total"/"Rascunhos".
+   - Stats restantes (**Em andamento / Aprovadas / Rejeitadas**) movidos para painel próprio **após** o card "Submissões Enviadas" (grid de 3 colunas; colapsa em 1 coluna no mobile).
+   - Hero em coluna única; limpeza de JS órfão (`updateStat`, `data-stat-*`) — modal e handler de exclusão de rascunho intactos. Rota sem `participantEvents`/`today`/`participationKeys`/`registeredEventIds` (órfãos); `submissionWindowCache` alimenta o flag `submission_closed` por submissão.
+
+- Verificação: `node --check` nas rotas alteradas; renders EJS simulados (botão desabilitado, ordem dos cards, ausência dos elementos removidos); testes funcionais pendentes do usuário (designação de revisor bloqueando edição; prazo encerrado bloqueando; /author sem os cards; consulta por código sem reenvio ao voltar).
+- Docs: `submissao.md`, `manual.md`, `README.md`, este log.
+- Status: **implementado e verificado localmente**; validação funcional pelo usuário pendente.

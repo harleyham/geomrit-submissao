@@ -73,6 +73,7 @@
       <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
       <nav class="topbar-nav">
         <% if (isAdmin) { %><a href="/admin">Dashboard</a><% } %>
+        <a href="/author" class="btn btn-secondary">Área do Participante</a>
         <a href="/admin/events">Eventos</a>
         <% if (isAdmin) { %><a href="/admin/users">Usuários</a><% } %>
         <% if (userEmail) { %><span class="session-pill"><%= userEmail %></span><% } %>
