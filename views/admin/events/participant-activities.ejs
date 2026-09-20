@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Gerência de Eventos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0}
+    .topbar{background:var(--surface);border-bottom:1px solid var(--border);backdrop-filter:blur(20px);padding:0 2rem;height:64px;display:flex;align-items:center;position:sticky;top:0;z-index:100}
+    .topbar-inner{width:100%;max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+    .logo{font-size:1.25rem;font-weight:700;color:var(--text);text-decoration:none}
+    .logo-icon{color:var(--accent)}
+    .topbar-nav{display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap}
+    .topbar-nav a{color:var(--text-muted);padding:0.5rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.875rem;font-weight:500}
+    .topbar-nav a:hover{color:var(--text);background:var(--surface-hover)}
+    .btn-logout{background:transparent;color:var(--danger);border:1px solid var(--danger-border);font-family:inherit;cursor:pointer}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:0.6rem 1.1rem;border-radius:8px;font-size:0.875rem;font-weight:500;cursor:pointer;border:none;text-decoration:none}
+    .btn-secondary{background:var(--surface-hover);color:var(--text);border:1px solid var(--border-strong);text-decoration:none}
+    .btn-secondary:hover{background:var(--surface-hover)}
+    .main-content{max-width:1400px;margin:0 auto;padding:2rem}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.5rem;margin-bottom:1.5rem}
+    .card h1{color:var(--text-strong);font-size:1.4rem;margin-bottom:0.25rem}
+    .card h2{color:var(--text-strong);font-size:1.05rem;margin-bottom:0.5rem}
+    .muted{color:var(--text-muted)}
+    .small{font-size:0.85rem}
+    .badge{display:inline-block;padding:0.2rem 0.55rem;border-radius:999px;font-size:0.68rem;font-weight:700}
+    .badge-role{background:var(--surface-hover);color:var(--text)}
+    .badge-warn{background:var(--warn-subtle);color:var(--warn)}
+    .badge-danger{background:var(--danger-subtle);color:var(--danger)}
+    .alert{padding:0.9rem 1rem;border-radius:10px;font-size:0.9rem;margin-bottom:1rem}
+    .alert-success{background:var(--success-subtle);border:1px solid var(--success-border);color:var(--success)}
+    .alert-error{background:var(--danger-subtle);border:1px solid var(--danger-border);color:var(--danger)}
+    form .activity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:.75rem;margin-top:.65rem}
+    .activity-option{display:flex!important;align-items:flex-start;gap:.7rem;padding:.85rem;margin:0!important;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-inset);cursor:pointer}
+    .activity-option:has(input:checked){border-color:var(--primary);background:var(--surface-selected)}
+    .activity-option input[type="checkbox"]{width:auto!important;min-width:17px;height:17px;margin-top:.1rem;accent-color:var(--primary)}
+    .activity-option strong{display:block;color:var(--text-strong);font-size:.88rem}
+    .activity-option small{display:block;color:var(--text-muted);margin-top:.25rem;line-height:1.35}
+    .help-text{color:var(--text-muted);font-size:0.82rem;line-height:1.5;margin-top:.5rem}
+  </style>
+  <%- include('../../partials/theme') %>
+  <%- include('../../partials/mobile-fixes') %>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
+      <nav class="topbar-nav">
+        <a href="/admin" class="active">Dashboard</a>
+        <a href="/admin/events/<%= event.id %>" class="btn btn-secondary">← Evento</a>
+        <span class="session-pill"><%= userEmail %></span>
+        <form method="POST" action="/admin/logout" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-logout">Sair</button></form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+    <div class="card">
+      <h1>Atividades do Participante</h1>
+      <p class="small" style="margin-bottom:.25rem"><strong style="color:var(--text-strong)"><%= registration.name %></strong> · <%= registration.email %></p>
+      <p class="small muted" style="margin-bottom:.75rem"><%= registration.institution || 'Instituição não informada' %> · Evento: <%= event.name %></p>
+      <p class="small">
+        <span class="badge badge-role"><%= enrolledCount %> inscrita(s)</span>
+        <% if (pendingNames.length) { %><span class="badge badge-warn"><%= pendingNames.length %> pedido(s) aguardando análise</span><% } %>
+        <% if (rejectedNames.length) { %><span class="badge badge-danger"><%= rejectedNames.length %> rejeitada(s)</span><% } %>
+      </p>
+      <% if (pendingNames.length) { %>
+        <p class="small" style="margin-top:.5rem"><strong class="muted">Pendentes de análise:</strong> <span class="muted"><%= pendingNames.join(' · ') %></span></p>
+      <% } %>
+      <% if (rejectedNames.length) { %>
+        <p class="small" style="margin-top:.25rem"><strong class="muted">Rejeitadas:</strong> <span class="muted"><%= rejectedNames.join(' · ') %></span></p>
+      <% } %>
+      <div style="margin-top:1rem;display:flex;gap:.6rem;flex-wrap:wrap;">
+        <a href="/admin/events/<%= event.id %>/participants" class="btn btn-secondary">← Voltar aos participantes</a>
+        <a href="/admin/events/<%= event.id %>/participants/<%= registration.id %>/edit" class="btn btn-secondary">Editar participante completo</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Atividades da inscrição</h2>
+      <% if (!activities.length) { %>
+        <div class="help-text">Nenhuma atividade foi cadastrada neste evento. Cadastre atividades antes de vincular a programação do participante.</div>
+      <% } else { %>
+        <form method="POST" action="/admin/events/<%= event.id %>/participants/<%= registration.id %>/atividades">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="activity-grid">
+            <% activities.forEach((activity) => { const selected = enrolledIds.includes(Number(activity.id)); const isRequired = Number(activity.required_for_participants) === 1; const isDefault = !isRequired && Number(activity.default_for_participants) === 1; const isAutomatic = isRequired || isDefault; %>
+              <label class="activity-option" style="<%= isAutomatic ? 'cursor:default' : '' %>">
+                <input type="checkbox" name="activity_ids" value="<%= activity.id %>" <%= (selected || isAutomatic) ? 'checked' : '' %> <%= isAutomatic ? 'disabled' : '' %>>
+                <span><strong><%= activity.name %><% if (isRequired) { %><span class="badge" style="background:var(--primary-hover);color:var(--link);margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span><% } else if (isDefault) { %><span class="badge" style="background:var(--success);color:var(--on-success);margin-left:6px;font-size:10px;vertical-align:middle">Padrão</span><% } %></strong><small><%= activityDateRange(activity) %> · <%= activity.effective_workload_hours || 0 %>h<%= activity.certificate_enabled ? ' · contabiliza para certificado' : '' %><% if (justifiedActivityIds && justifiedActivityIds.has(Number(activity.id))) { %> · <a href="/admin/events/<%= event.id %>/participants/<%= registration.id %>/activities/<%= activity.id %>/justification" target="_blank" rel="noopener noreferrer" style="color:var(--link)" onclick="event.preventDefault(); window.open(this.href, '_blank');">ver justificativa</a><% } %></small></span>
+              </label>
+            <% }) %>
+          </div>
+          <div class="help-text">A inscrição habilita a pessoa para a chamada da atividade. A presença efetiva continua sendo registrada separadamente. Ao salvar, o conjunto de cards marcados substitui as inscrições anteriores.</div>
+          <div style="margin-top:1rem;">
+            <button type="submit" class="btn btn-secondary">Salvar atividades</button>
+          </div>
+        </form>
+      <% } %>
+    </div>
+  </main>
+</body>
+</html>

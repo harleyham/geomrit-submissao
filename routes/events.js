@@ -652,8 +652,6 @@ function getEventParticipantSummary(eventId, filters = {}, pagination = null) {
       COALESCE(sa.submitted_count, 0) as submitted_articles,
       COALESCE(aa.approved_count, 0) as approved_articles,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.registration_id=er.id) AS enrolled_activities,
-      (SELECT GROUP_CONCAT(ea.name, ' · ') FROM participant_activity_enrollments pae
-        JOIN event_activities ea ON ea.id=pae.activity_id WHERE pae.registration_id=er.id) AS activity_names,
       COALESCE((SELECT GROUP_CONCAT(eur.role, ',') FROM event_user_roles eur WHERE eur.user_id=er.user_id AND eur.event_id=er.event_id), '') AS roles,
       CASE
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
@@ -4292,6 +4290,74 @@ router.get('/:id/participants/:registrationId/edit', (req, res) => {
     noDegreeCourse: NO_DEGREE_COURSE,
     error: null
   });
+});
+
+// Atividades do participante: página dedicada (acessada pelo nome na listagem)
+// com os mesmos cards + checkboxes da edição, para edição rápida das inscrições
+// sem abrir o formulário completo.
+router.get('/:id/participants/:registrationId/atividades', (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  const registration = getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
+  if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
+
+  const enrolledIds = getParticipantActivityIds(registration.id);
+  const rejectedIds = parseRequestedActivityIds(registration.rejected_activity_ids);
+  const pendingRequests = getPendingActivityRequests(registration);
+  const activities = getActivitiesForParticipantForm(event.id);
+  const nameById = new Map(activities.map((activity) => [Number(activity.id), activity.name]));
+  const pendingNames = pendingRequests.map((row) => nameById.get(Number(row.id)) || `Atividade #${row.id}`);
+
+  res.render('admin/events/participant-activities', {
+    title: `Atividades do Participante - ${event.name}`,
+    event,
+    registration,
+    activities,
+    enrolledIds,
+    enrolledCount: enrolledIds.length,
+    pendingNames,
+    rejectedNames: rejectedIds.map((id) => nameById.get(id) || `Atividade #${id}`),
+    justifiedActivityIds: getJustifiedActivityIds(registration.id),
+    error: req.query.error || null
+  });
+});
+
+router.post('/:id/participants/:registrationId/atividades', strictLimiter, (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  const registration = getParticipantRegistrationForEvent(req.params.id, req.params.registrationId);
+  if (!registration) return res.status(404).render('error', { title: 'Participante não encontrado' });
+
+  const activityIds = normalizeActivityIds(req.body.activity_ids);
+  const formData = enforceRequiredActivitiesAdmin(event.id, activityIds, getParticipantActivityIds(registration.id));
+  const activityValidationError = validateParticipantActivities(event.id, formData);
+  if (activityValidationError) {
+    return res.redirect(`/admin/events/${req.params.id}/participants/${req.params.registrationId}/atividades?error=${encodeURIComponent(activityValidationError)}`);
+  }
+
+  const previousActivityIds = getParticipantActivityIds(registration.id);
+  const activitiesChanged = previousActivityIds.length !== formData.length
+    || previousActivityIds.some((id) => !formData.includes(id));
+  db.transaction(() => {
+    saveParticipantActivities(registration.id, registration.user_id, formData, req.session.userId);
+    recordParticipantAudit({
+      eventId: event.id, registrationId: registration.id, actorUserId: req.session.userId,
+      action: 'participant_activities_updated_manually',
+      details: { previous: { activity_ids: previousActivityIds }, current: { activity_ids: formData } }
+    });
+  })();
+  if (activitiesChanged) {
+    const changedActivities = getActivitiesForParticipantForm(event.id).filter((activity) => formData.includes(Number(activity.id)));
+    try {
+      queueParticipantActivitiesUpdated({ event, registration, activities: changedActivities });
+    } catch (error) {
+      console.error('[email] Falha ao enfileirar alteração de atividades:', error.message);
+    }
+  }
+
+  return res.redirect(`/admin/events/${req.params.id}/participants?success=${encodeURIComponent('Atividades do participante atualizadas com sucesso.')}`);
 });
 
 function updateParticipant(req, res) {

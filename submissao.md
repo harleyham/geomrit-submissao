@@ -806,7 +806,8 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 | `POST /admin/events/:id/close` | Encerra o evento (published → encerrado) |
 | `POST /admin/events/:id/unpublish` | Volta o evento para Rascunho (published → draft); sai da página inicial e as páginas públicas passam a dar 404 |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
-| `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento |
+| `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento (a coluna "Atividades inscritas" exibe apenas a quantidade; o nome do participante abre a página de atividades) |
+| `/admin/events/:id/participants/:registrationId/atividades` | Página dedicada de atividades do participante: cards com checkbox (idênticos aos da edição), contadores, salvar com redirect à listagem |
 | `/admin/events/:id/participants/:registrationId/review` | Análise da solicitação de inscrição: aprova todas, algumas ou nenhuma das atividades solicitadas |
 | `GET /admin/events/:id/participants/:registrationId/qr-presenca/print` | Impressão do crachá (PDF) de um participante, direto do credenciamento, sem encaminhamento para a área do participante (exige conta vinculada) |
 | `/admin/events/:id/import-users` | Importação de participantes via CSV ou XLSX (cria usuário + inscreve no evento) |

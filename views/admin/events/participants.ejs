@@ -204,7 +204,7 @@
             <% participants.forEach((participant) => { %>
               <tr>
                 <td class="name-cell">
-                  <strong><%= participant.name %></strong>
+                  <strong><a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/atividades" title="Ver atividades de <%= participant.name %>" style="color:var(--text-strong); text-decoration:underline; text-decoration-color:transparent"><%= participant.name %></a></strong>
                   <small><%= participant.email %></small><br>
                   <small><%= participant.institution || 'Instituição não informada' %></small>
                   <% if (participant.phone) { %>
@@ -243,7 +243,7 @@
                 </td>
                 <td class="activity-summary">
                   <% if (participant.enrolled_activities > 0) { %>
-                    <strong><%= participant.enrolled_activities %></strong> atividade(s)<br><small class="muted"><%= participant.activity_names %></small>
+                    <strong><%= participant.enrolled_activities %></strong> atividade(s)
                   <% } else { %>
                     <span class="muted">Nenhuma atividade vinculada</span><br><a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/edit" class="btn btn-ghost" style="margin-top:.4rem">Vincular</a>
                   <% } %>

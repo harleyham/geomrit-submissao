@@ -949,3 +949,17 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Verificação: `node --check` nas rotas alteradas; renders EJS simulados (botão desabilitado, ordem dos cards, ausência dos elementos removidos); testes funcionais pendentes do usuário (designação de revisor bloqueando edição; prazo encerrado bloqueando; /author sem os cards; consulta por código sem reenvio ao voltar).
 - Docs: `submissao.md`, `manual.md`, `README.md`, este log.
 - Status: **implementado e verificado localmente**; validação funcional pelo usuário pendente.
+
+## 2026-09-20 (2) — Participantes: coluna compacta e página dedicada "Atividades do Participante"
+
+- Pedido: em `/admin/events/:id/participants`, a coluna "Atividades inscritas" listava os nomes concatenados das atividades (`GROUP_CONCAT`), inviável em eventos com centenas de atividades. A coluna deve exibir apenas a quantidade; os detalhes ficam numa página acessada pelo nome do participante.
+- `routes/events.js`:
+  - `getEventParticipantSummary`: removido o subselect `GROUP_CONCAT(ea.name) AS activity_names` da listagem (mantido `enrolled_activities` por contagem);
+  - rota nova `GET /:id/participants/:registrationId/atividades`: cards com checkbox idênticos aos da página de edição (badges Obrigatória/Padrão, carga, justificativa), contadores (inscritas/pendentes/rejeitadas) e links "Voltar aos participantes" e "Editar participante completo";
+  - rota nova `POST /:id/participants/:registrationId/atividades` (`strictLimiter`): reusa `normalizeActivityIds` → `enforceRequiredActivitiesAdmin` → `validateParticipantActivities`; transação com `saveParticipantActivities` + audit `participant_activities_updated_manually` (previous/current); enfileira `participant_activities_updated` quando houver mudança; redirect à listagem com `?success=...`.
+- `views/admin/events/participants.ejs`: coluna compacta (mantido "Nenhuma atividade vinculada" + "Vincular" quando 0); nome do participante link para a página de atividades (`title="Ver atividades de <nome>"`).
+- `views/admin/events/participant-activities.ejs` (nova): topbar padrão, cabeçalho com participante/evento/contadores, grid de cards com checkbox e botão "Salvar atividades" (POST `_csrf`).
+- Verificação: `node --check` OK; E2E em teste.ham.eng.br (3001): listagem compacta com 17 links; página de atividades renderizando os 9 cards do evento 2; POST com redirect para a listagem + success, enrollment alterado no banco e audit gravado; alterações de teste revertidas no banco. Correção durante o teste: include dos partials na view nova (`../../partials/`).
+- Efeito colateral do teste (transparente): com o envio de e-mails ativo no evento, o POST de teste disparou `participant_activities_updated` real para um participante (outbox #946).
+- Docs: `submissao.md`, `manual.md`, este log.
+- Status: **implementado e testado**.

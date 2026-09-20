@@ -174,6 +174,8 @@ Quando há um PDF, eventos publicados ou encerrados ganham a URL pública `/even
 
 Abra `/admin/events/:id/participants` para incluir, editar ou remover participantes. Na edição de uma inscrição com conta vinculada, o **administrador do evento** altera apenas os dados relativos ao evento (tipo de participante, atividades e papéis); **nome, e-mail, instituição, telefone e formação acadêmica são dados da conta e aparecem somente-leitura** — quem os altera é o superadministrador (`admin@admin.com`), que pode editar tudo também por essa tela (alterações no cadastro se refletem automaticamente nas inscrições).
 
+Na listagem de participantes, a coluna **Atividades inscritas** mostra apenas a **quantidade** de atividades (sem nomes) e o **nome do participante é um link** para a página **Atividades do Participante**: um formulário rápido com os mesmos cards com checkbox da edição, para marcar/desmarcar atividades e **Salvar** (independente do restante do formulário, que continua na página **Editar**). Ali também aparecem os pedidos de atividade pendentes e as atividades rejeitadas, com contadores no topo.
+
 Durante a inclusão ou edição:
 
 1. selecione uma conta existente ou crie uma nova;
