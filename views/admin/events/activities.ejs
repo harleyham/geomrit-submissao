@@ -164,6 +164,7 @@
             <% } %>
             <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/sessions">Etapas<% if (hasSessions) { %> (<%= activity.session_count %>)<% } %></a>
             <a href="/admin/events/<%= event.id %>/activities/<%= activity.id %>/attendance">Marcar Presença</a>
+            <a href="/admin/events/<%= event.id %>/participants?activity_id=<%= activity.id %>">Participantes (<%= activity.enrolled_count || 0 %>)</a>
             <% if (activity.video_url) { %><a href="<%= activity.video_url %>" target="_blank" rel="noopener noreferrer">Vídeo</a><% } else if (activity.has_video) { %><span style="flex:1;text-align:center;background:var(--surface-2);color:var(--link);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px">Transmissão</span><% } %>
             <% if (hasSessions) { %>
               <% (activity.sessions || []).forEach((session) => { %>

@@ -150,6 +150,15 @@
             <option value="1" <%= filters.subsidy_requested === '1' ? 'selected' : '' %>>Pediu subsídio</option>
           </select>
         </div>
+        <div class="filter-group" style="max-width:260px;">
+          <label for="activity_id">Atividade</label>
+          <select id="activity_id" name="activity_id">
+            <option value="all" <%= filters.activity_id === 'all' ? 'selected' : '' %>>Todas</option>
+            <% (filterActivities || []).forEach(function(activity) { %>
+              <option value="<%= activity.id %>" <%= String(filters.activity_id) === String(activity.id) ? 'selected' : '' %>><%= activity.name %></option>
+            <% }) %>
+          </select>
+        </div>
         <div class="actions">
           <button type="submit" class="btn btn-primary">Aplicar Filtros</button>
           <a href="/admin/events/<%= event.id %>/participants" class="btn btn-ghost">Limpar</a>
@@ -167,13 +176,13 @@
           </div>
          <div style="display:flex;gap:0.5rem;align-items:center">
              <% if (pagination.hasPrev) { %>
-              <a href="/admin/events/<%= event.id %>/participants?page=<%= pagination.currentPage - 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %><% if (filters && filters.category && filters.category !== 'all') { %>&category=<%= filters.category %><% } %><% if (filters && filters.titulation && filters.titulation !== 'all') { %>&titulation=<%= encodeURIComponent(filters.titulation) %><% } %><% if (filters && filters.subsidy_requested && filters.subsidy_requested !== 'all') { %>&subsidy_requested=<%= filters.subsidy_requested %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-flex;font-size:0.75rem;padding:0.3rem 0.65rem">← Anterior</a>
+              <a href="/admin/events/<%= event.id %>/participants?page=<%= pagination.currentPage - 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %><% if (filters && filters.category && filters.category !== 'all') { %>&category=<%= filters.category %><% } %><% if (filters && filters.titulation && filters.titulation !== 'all') { %>&titulation=<%= encodeURIComponent(filters.titulation) %><% } %><% if (filters && filters.subsidy_requested && filters.subsidy_requested !== 'all') { %>&subsidy_requested=<%= filters.subsidy_requested %><% } %><% if (filters && filters.activity_id && filters.activity_id !== 'all') { %>&activity_id=<%= filters.activity_id %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-flex;font-size:0.75rem;padding:0.3rem 0.65rem">← Anterior</a>
              <% } %>
              <% if (pagination.totalPages > 1) { %>
              <span style="color:var(--text-muted);font-size:0.8125rem;padding:0.25rem 0.5rem">Página <%= pagination.currentPage %> de <%= pagination.totalPages %></span>
              <% } %>
              <% if (pagination.hasNext) { %>
-              <a href="/admin/events/<%= event.id %>/participants?page=<%= pagination.currentPage + 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %><% if (filters && filters.category && filters.category !== 'all') { %>&category=<%= filters.category %><% } %><% if (filters && filters.titulation && filters.titulation !== 'all') { %>&titulation=<%= encodeURIComponent(filters.titulation) %><% } %><% if (filters && filters.subsidy_requested && filters.subsidy_requested !== 'all') { %>&subsidy_requested=<%= filters.subsidy_requested %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-flex;font-size:0.75rem;padding:0.3rem 0.65rem">Próxima →</a>
+              <a href="/admin/events/<%= event.id %>/participants?page=<%= pagination.currentPage + 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %><% if (filters && filters.category && filters.category !== 'all') { %>&category=<%= filters.category %><% } %><% if (filters && filters.titulation && filters.titulation !== 'all') { %>&titulation=<%= encodeURIComponent(filters.titulation) %><% } %><% if (filters && filters.subsidy_requested && filters.subsidy_requested !== 'all') { %>&subsidy_requested=<%= filters.subsidy_requested %><% } %><% if (filters && filters.activity_id && filters.activity_id !== 'all') { %>&activity_id=<%= filters.activity_id %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-flex;font-size:0.75rem;padding:0.3rem 0.65rem">Próxima →</a>
              <% } %>
            <select id="per-page-select" style="background:var(--surface-input);color:var(--text);border:1px solid var(--border-strong);border-radius:6px;padding:0.3rem 0.5rem;font-size:0.75rem;font-family:'Inter',sans-serif">
              <option value="25"<%= pagination.perPage === 25 ? ' selected' : ''%>>25 por página</option>
@@ -326,6 +335,10 @@
         var subsidy = document.getElementById('subsidy_requested');
         if (subsidy && subsidy.value !== 'all') {
           url += '&subsidy_requested=' + encodeURIComponent(subsidy.value);
+        }
+        var activity = document.getElementById('activity_id');
+        if (activity && activity.value !== 'all') {
+          url += '&activity_id=' + encodeURIComponent(activity.value);
         }
         window.location.href = url;
       });

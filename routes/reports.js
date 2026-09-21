@@ -194,6 +194,36 @@ router.get('/', requireAuth, (req, res) => {
   const totalAttendance = activities.reduce((sum, a) => sum + (a.attendees_count || 0), 0);
   const certifiedActivities = activities.filter(a => a.certificate_enabled).length;
 
+  // Participantes por atividade (inscrição + presença), base dos checkboxes "Participantes no PDF"
+  const activityParticipants = {};
+  if (activities.length) {
+    const activityIds = activities.map((a) => a.id);
+    const sessionTotals = {};
+    db.prepare(`SELECT activity_id, COUNT(*) AS total FROM activity_sessions WHERE activity_id IN (${activityIds.map(() => '?').join(',')}) GROUP BY activity_id`)
+      .all(...activityIds).forEach((row) => { sessionTotals[row.activity_id] = row.total; });
+    const enrollmentRows = db.prepare(`
+      SELECT pae.activity_id, pae.registration_id, er.name, er.email, er.institution,
+        EXISTS (SELECT 1 FROM activity_attendance_records aar WHERE aar.activity_id = pae.activity_id AND aar.registration_id = pae.registration_id) AS present,
+        (SELECT COUNT(DISTINCT aar.session_id) FROM activity_attendance_records aar WHERE aar.activity_id = pae.activity_id AND aar.registration_id = pae.registration_id AND aar.session_id IS NOT NULL) AS sessions_attended
+      FROM participant_activity_enrollments pae
+      JOIN event_registrations er ON er.id = pae.registration_id
+      WHERE pae.activity_id IN (${activityIds.map(() => '?').join(',')})
+      ORDER BY er.name COLLATE NOCASE
+    `).all(...activityIds);
+    enrollmentRows.forEach((row) => {
+      if (!activityParticipants[row.activity_id]) activityParticipants[row.activity_id] = [];
+      activityParticipants[row.activity_id].push({
+        name: row.name,
+        email: row.email,
+        institution: row.institution,
+        presence: row.present ? 1 : 0,
+        sessionsAttended: row.sessions_attended || 0,
+        sessionsTotal: sessionTotals[row.activity_id] || 0
+      });
+    });
+  }
+  activities.forEach((activity) => { activity.participants = activityParticipants[activity.id] || []; });
+
   const evaluationsByActivity = {};
   db.prepare(`SELECT a.activity_id, u.name, a.evaluation, a.updated_at
     FROM activity_evaluations a JOIN users u ON u.id=a.user_id

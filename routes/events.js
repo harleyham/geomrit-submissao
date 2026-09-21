@@ -616,6 +616,11 @@ function getEventParticipantSummary(eventId, filters = {}, pagination = null) {
     conditions.push('er.subsidy_requested = 1');
   }
 
+  if (filters.activity_id && filters.activity_id !== 'all') {
+    conditions.push('EXISTS (SELECT 1 FROM participant_activity_enrollments pae WHERE pae.registration_id = er.id AND pae.activity_id = ?)');
+    params.push(parseInt(filters.activity_id, 10));
+  }
+
   const sql = `
     WITH approved_articles AS (
       SELECT
@@ -726,6 +731,11 @@ function countEventParticipants(eventId, filters = {}) {
     conditions.push('er.subsidy_requested = 1');
   }
 
+  if (filters.activity_id && filters.activity_id !== 'all') {
+    conditions.push('EXISTS (SELECT 1 FROM participant_activity_enrollments pae WHERE pae.registration_id = er.id AND pae.activity_id = ?)');
+    params.push(parseInt(filters.activity_id, 10));
+  }
+
   return db.prepare(`SELECT COUNT(*) as total FROM event_registrations er WHERE ${conditions.join(' AND ')}`).bind(...params).get().total;
 }
 
@@ -761,6 +771,11 @@ function countEventParticipantsDetailed(eventId, filters = {}) {
 
   if (filters.subsidy_requested && filters.subsidy_requested === '1') {
     conditions.push('er.subsidy_requested = 1');
+  }
+
+  if (filters.activity_id && filters.activity_id !== 'all') {
+    conditions.push('EXISTS (SELECT 1 FROM participant_activity_enrollments pae WHERE pae.registration_id = er.id AND pae.activity_id = ?)');
+    params.push(parseInt(filters.activity_id, 10));
   }
 
   return db.prepare(`
@@ -1343,8 +1358,16 @@ router.get('/:id/participants', (req, res) => {
     query: String(req.query.q || '').trim(),
     category: ['all', 'author', 'instrutor'].includes(String(req.query.category || 'all')) ? String(req.query.category || 'all') : 'all',
     titulation: ['all', 'Graduado', 'Mestre', 'Doutor', 'Não especificado'].includes(String(req.query.titulation || 'all')) ? String(req.query.titulation || 'all') : 'all',
-    subsidy_requested: ['all', '1'].includes(String(req.query.subsidy_requested || 'all')) ? String(req.query.subsidy_requested || 'all') : 'all'
+    subsidy_requested: ['all', '1'].includes(String(req.query.subsidy_requested || 'all')) ? String(req.query.subsidy_requested || 'all') : 'all',
+    activity_id: 'all'
   };
+  const rawActivityId = String(req.query.activity_id || 'all').trim();
+  if (rawActivityId !== 'all' && /^\d+$/.test(rawActivityId)) {
+    const activityExists = db.prepare('SELECT id FROM event_activities WHERE id = ? AND event_id = ?').get(parseInt(rawActivityId, 10), req.params.id);
+    if (activityExists) filters.activity_id = String(parseInt(rawActivityId, 10));
+  }
+
+  const filterActivities = db.prepare(`SELECT id, name, activity_type FROM event_activities WHERE event_id = ? AND (activity_type IS NULL OR activity_type NOT IN ('breakfast','coffee_break','brunch','lunch','dinner')) ORDER BY COALESCE(NULLIF(name, \'\'), \'\') COLLATE NOCASE, date_start`).all(req.params.id);
 
   const perPage = Math.min(parseInt(req.query.per_page) || 50, 200);
   const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -1376,6 +1399,7 @@ router.get('/:id/participants', (req, res) => {
     event,
     participants,
     filters,
+    filterActivities,
     summary,
     pagination: {
       currentPage: clampedPage,

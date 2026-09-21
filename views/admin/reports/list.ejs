@@ -310,6 +310,42 @@
                         </div>
                       </div>
                     <% } %>
+                    <div style="margin-top:0.75rem">
+                      <label class="report-selection no-print" style="font-size:0.78rem">
+                        <input type="checkbox" class="activity-participants-toggle" data-participants-target="participants-<%= activity.id %>">
+                        Participantes no PDF (<%= (activity.participants || []).length %>)
+                      </label>
+                      <div id="participants-<%= activity.id %>" hidden style="margin-top:0.65rem">
+                        <div style="font-size:0.72rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem">Participantes da atividade e presença</div>
+                        <table style="width:100%">
+                          <thead>
+                            <tr>
+                              <th style="padding:0.4rem 0.75rem">Nome</th>
+                              <th style="padding:0.4rem 0.75rem">E-mail</th>
+                              <th style="padding:0.4rem 0.75rem">Órgão</th>
+                              <th style="padding:0.4rem 0.75rem">Presença</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <% (activity.participants || []).forEach(function(p) { %>
+                              <tr>
+                                <td style="padding:0.4rem 0.75rem"><strong style="color:var(--text-strong)"><%= p.name || '-' %></strong></td>
+                                <td style="padding:0.4rem 0.75rem;color:var(--text)"><%= p.email || '-' %></td>
+                                <td style="padding:0.4rem 0.75rem;color:var(--text)"><%= p.institution || '-' %></td>
+                                <td style="padding:0.4rem 0.75rem">
+                                  <% if (p.presence) { %>
+                                    <span class="badge badge-approved" style="font-size:0.68rem;padding:0.12rem 0.45rem">Presente</span>
+                                    <% if (p.sessionsTotal > 0) { %><small style="color:var(--text-muted);margin-left:4px"><%= p.sessionsAttended %>/<%= p.sessionsTotal %> etapas</small><% } %>
+                                  <% } else { %>
+                                    <span class="badge badge-pending" style="font-size:0.68rem;padding:0.12rem 0.45rem">Ausente</span>
+                                  <% } %>
+                                </td>
+                              </tr>
+                            <% }) %>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 <% }) %>
               </div>
@@ -692,6 +728,15 @@
       if (clearButton) clearButton.addEventListener('click', function() { setSelection(false); });
 
       var evaluationsToggles = Array.prototype.slice.call(document.querySelectorAll('.btn-evaluations-toggle'));
+      var participantsToggles = Array.prototype.slice.call(document.querySelectorAll('.activity-participants-toggle'));
+      participantsToggles.forEach(function(toggle) {
+        var target = document.getElementById(toggle.dataset.participantsTarget);
+        if (target) target.hidden = !toggle.checked;
+        toggle.addEventListener('change', function() {
+          var el = document.getElementById(toggle.dataset.participantsTarget);
+          if (el) el.hidden = !toggle.checked;
+        });
+      });
       evaluationsToggles.forEach(function(button) {
         button.addEventListener('click', function() {
           var target = document.getElementById(button.dataset.evaluationsTarget);
