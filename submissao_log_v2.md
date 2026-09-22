@@ -20,6 +20,41 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-22 — Status do detalhe do artigo em português e botão "Ir para a Área do Participante" na submissão
+
+- Rótulo do badge de Status em `/admin/articles/:id` exibia o valor cru do banco (`pending`, `in_review`, `approved`, `rejected`). `views/admin/articles/detail.ejs` passa a mapear: Pendente, Em análise, Aprovado, Rejeitado (fallback para o valor cru se o status for desconhecido); o combobox de deliberação já usava os mesmos rótulos.
+- Botão de sucesso da submissão (`views/public/submit.ejs`): o rótulo "Ir para a Área do Autor" foi unificado para **"Ir para a Área do Participante"** (destino inalterado: `/author` quando público, `/` quando preview).
+- Verificação: `node --check` OK; compilação EJS de `detail.ejs` e `submit.ejs`.
+- Docs: `submissao.md`, este log.
+- Status: **concluído (código + verificação técnica)**. Sem migração; efetivo após reinício do servidor.
+
+## 2026-09-22 — Presença por QR Code com tolerância de 10 minutos (janela por data+hora em UTC-3)
+
+- Antes: `isWithinCheckinWindow` comparava apenas a **data** (`YYYY-MM-DD` em UTC-3) com `start`/`end` da etapa/atividade — check-in aceitável o dia inteiro, sem horário, e a página de check-in dizia "no dia da etapa/período da atividade".
+- `routes/public.js`:
+  - `getCheckinWindow` agora também retorna `timeStart`/`timeEnd` (horário da etapa ou da atividade).
+  - Nova constante `CHECKIN_GRACE_MINUTES = 10` e helper `checkinMinutes(dateStr, timeStr)` (minutos absolutos/epoch de data+hora em UTC-3; sem hora = 00:00).
+  - `isWithinCheckinWindow` recalculada por data+hora: aceita de `início − 10min` a `fim + 10min` (fim sem horário usa 23:59); a tolerância também vale em torno dos horários de início/fim da etapa/atividade.
+- `views/public/checkin.ejs`: mensagem do estado "Fora do período" atualizada — "do início ao fim da etapa (`data`, `HH:MM–HH:MM`)/do período da atividade (`data [a data]`), com 10 minutos de tolerância antes e depois."
+- Verificação: `node --check` em `routes/public.js`; compilação EJS de `checkin.ejs`; revisão da lógica de `checkinMinutes` (parse `HH:MM`, fallback 00:00, `Date.parse` com offset `-03:00`).
+- Docs: `submissao.md`, `manual.md`, `README.md`, este log.
+- Status: **concluído (código + verificação técnica)**. Sem migração; efetivo após reinício do servidor.
+
+## 2026-09-21 — Participantes: filtro por atividade; atividades: botão "Participantes (n)"; relatório: checkbox "Participantes no PDF"
+
+- Pedido: (1) filtrar a listagem de participantes por atividade; (2) atalho da listagem de atividades para os participantes inscritos naquela atividade; (3) no relatório do evento, opção de incluir no PDF, por atividade, a tabela de participantes com presença.
+- `routes/events.js`:
+  - `filters.activity_id` validado no `GET /:id/participants` (inteiro, atividade do evento via `SELECT ... WHERE id = ? AND event_id = ?`; inválido → `all`).
+  - `EXISTS (SELECT 1 FROM participant_activity_enrollments pae WHERE pae.registration_id = er.id AND pae.activity_id = ?)` aplicado nas 3 queries: `getEventParticipantSummary`, `countEventParticipants` e `countEventParticipantsDetailed` (listagem e contadores consistentes).
+  - `filterActivities` para o select: atividades do evento **exceto** tipos de convívio (`breakfast`, `coffee_break`, `brunch`, `lunch`, `dinner`), ordenadas por nome.
+- `views/admin/events/participants.ejs`: select "Atividade" (Todas + opções) na barra de filtros; `activity_id` preservado na paginação (Anterior/Próxima) e no JS de "por página".
+- `views/admin/events/activities.ejs`: botão **"Participantes (n)"** por atividade (ação "Marcar Presença"), linkando `/admin/events/:id/participants?activity_id=<id>` (n = `enrolled_count`).
+- `routes/reports.js`: carga de `activity.participants` por atividade — inscritos (`participant_activity_enrollments` ⋈ `event_registrations`) com `presence` (`EXISTS` em `activity_attendance_records`), `sessionsAttended` (`COUNT(DISTINCT session_id)`) e `sessionsTotal` (`activity_sessions`), ordenado por nome.
+- `views/admin/reports/list.ejs`: checkbox **"Participantes no PDF (n)"** por atividade (`activity-participants-toggle`, oculto por padrão) + tabela Nome/E-mail/Órgão/Presença — **Presente** com `x/y etapas` (quando houver etapas) ou **Ausente**.
+- Verificação: `node --check` em `routes/events.js` e `routes/reports.js`; compilação EJS de `participants.ejs`, `activities.ejs` e `list.ejs` (relatório).
+- Docs: `submissao.md`, `manual.md`, este log.
+- Status: **concluído (código + verificação técnica)**. Sem migração; efetivo após reinício do servidor.
+
 ## 2026-09-20 — Revisor sugere modalidade (Oral ↔ Pôster) no parecer
 
 - Requisito do usuário (aprovado em plano): o revisor pode sugerir a modalidade de apresentação (Oral ou Pôster) ao enviar o parecer; a modalidade efetiva (`articles.type`) continua sob controle administrativo na deliberação final — o parecer continua individual, sem deliberação automática.

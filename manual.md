@@ -176,6 +176,8 @@ Abra `/admin/events/:id/participants` para incluir, editar ou remover participan
 
 Na listagem de participantes, a coluna **Atividades inscritas** mostra apenas a **quantidade** de atividades (sem nomes). O botão **Editar** de cada participante abre a página **Atividades do Participante**: um formulário rápido com os mesmos cards com checkbox da edição, para marcar/desmarcar atividades e **Salvar** (independente do restante do formulário); ali também aparecem os pedidos de atividade pendentes e as atividades rejeitadas, com contadores no topo. Para editar os dados da inscrição, use **Editar participante completo** na própria página de atividades.
 
+A barra de filtros da listagem inclui o select **Atividade** (Todas + as atividades do evento, exceto café da manhã, coffee break, brunch, almoço e jantar): ao aplicar, a lista e os contadores mostram apenas os participantes inscritos naquela atividade; o filtro é preservado na paginação. Na página de atividades (`/admin/events/:id/activities`), o botão **"Participantes (n)"** de cada linha abre a listagem já filtrada pelaquela atividade.
+
 Durante a inclusão ou edição:
 
 1. selecione uma conta existente ou crie uma nova;
@@ -302,7 +304,7 @@ O administrador pode:
 - imprimir a folha de presença com QR Code (a sala aparece no cabeçalho, abaixo da data);
 - visualizar as avaliações registradas pelos participantes na atividade.
 
-O auto-check-in é feito pela URL `/presenca/:eventId/:activityId(/:sessionId)`. O usuário precisa estar autenticado e vinculado à atividade quando estiver atuando como participante. A presença só pode ser registrada no dia da etapa ou no período da atividade.
+O auto-check-in é feito pela URL `/presenca/:eventId/:activityId(/:sessionId)`. O usuário precisa estar autenticado e vinculado à atividade quando estiver atuando como participante. A presença pode ser registrada do início ao fim do dia da etapa (ou do período da atividade), **com 10 minutos de tolerância antes e depois** — a janela usa data e horário em UTC-3 (horário da etapa/atividade quando definido; sem horário, o dia até 23:59).
 
 ## 11. Configuração e emissão de certificados
 
@@ -393,11 +395,14 @@ Abra `/admin/reports` e selecione o evento. O relatório consolida:
 - participantes, autores e papéis;
 - atividades, inscrições e presenças;
 - avaliações dos participantes por atividade (card "Participantes que avaliaram" e listas expansíveis por atividade);
+- por atividade, o checkbox **"Participantes no PDF (n)"** expande a tabela de inscritos com Nome, E-mail, Órgão e Presença (Presente com `x/y etapas`, ou Ausente) e pode ser marcada antes de imprimir o PDF;
 - certificados emitidos;
 - pedidos de subsídio;
 - listagens para impressão.
 
 É possível selecionar as seções antes de imprimir ou exportar pelo diálogo de impressão do navegador. A deliberação final do artigo também pode ser registrada pela página administrativa correspondente.
+
+Na página do artigo (`/admin/articles/:id`), o campo **Status** mostra o rótulo em português (**Pendente**, **Em análise**, **Aprovado**, **Rejeitado**), o mesmo usado no combobox de deliberação final. Após enviar um artigo, a tela de confirmação oferece **Consultar Artigo** e **Ir para a Área do Participante** (ou "Voltar ao Início" na prévia administrativa).
 
 As salas também possuem relatórios próprios, acessíveis em `/admin/events/:id/rooms`: **Ocupação por dia** (grade de salas e horários bloqueados em cada dia) e **Agenda por sala** (atividades, etapas e reservas por sala em ordem cronológica). Ambos com botão de impressão/PDF (Seção 9).
 

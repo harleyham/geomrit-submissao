@@ -131,7 +131,7 @@ Nomenclatura: "aulas" foram implementadas como **etapas** (`activity_sessions`) 
 - Não há rota `/presenca-qr` separada: a leitura do operador está embutida em `.../attendance` (mesma etapa selecionada).
 
 ### 1.7 Fluxo de check-in — CONCLUÍDO ✔
-- **Auto-check-in:** `/presenca/:eventId/:activityId(/:sessionId)` — login com retorno via `?next=`, papel exercido, janela de data (dia da etapa / período da atividade, UTC-3) — 16/08.
+- **Auto-check-in:** `/presenca/:eventId/:activityId(/:sessionId)` — login com retorno via `?next=`, papel exercido, janela de data+hora (dia da etapa / período da atividade, UTC-3) **com tolerância de 10 minutos antes e depois** — 16/08 (tolerância em 22/09).
 - **Proxy por admin:** `POST .../attendance/qr` marca a presença da pessoa do crachá, com papel resolvido automaticamente e auditoria `via_qr` — implementado e validado E2E (17/08), commitado em 18/08.
 - HTTPS: a câmera exige HTTPS (ou localhost); fallback de digitação manual coberto. A origem do link da folha vem do campo "URL do Evento" (decisão que substituiu o `BASE_URL` do plano).
 

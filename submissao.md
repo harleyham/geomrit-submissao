@@ -61,7 +61,7 @@ O sistema deve permitir:
 - Atualização em lote de perfis e status de usuários.
 - Visualização administrativa da área de participante de um usuário.
 - Visualização de artigos por evento.
-- Página administrativa do artigo com leitura dos pareceres já enviados.
+- Página administrativa do artigo com leitura dos pareceres já enviados; o badge de **Status** exibe rótulos em português (Pendente, Em análise, Aprovado, Rejeitado), igual ao combobox de deliberação.
 - Atribuição de revisores com sugestão por trilha/área do artigo.
 - Deliberação final administrativa na própria página do artigo, com definição de status e modalidade `oral` ou `poster`.
 - Relatórios por evento com consolidação de pareceres.
@@ -69,7 +69,10 @@ O sistema deve permitir:
 - Impressão do relatório do evento em PDF pelo navegador.
 - Seleção de seções do relatório antes da impressão em PDF.
 - Relatório do evento com card "Participantes que avaliaram" (participantes distintos) e, por atividade, contagem de avaliações com botão "Ver avaliações (n)" que expande a lista (nome, data e texto).
+- Relatório do evento com, por atividade, checkbox **"Participantes no PDF (n)"** que expande a tabela Nome/E-mail/Órgão/Presença (badge **Presente** com `x/y etapas` quando houver etapas, ou **Ausente**); a seção entra no PDF quando marcada.
 - Gestão administrativa de participantes por evento, com criação de conta, inscrição, edição e remoção condicionada.
+- Filtro **Atividade** na listagem de participantes (`/admin/events/:id/participants?activity_id=`): select com as atividades do evento (exceto os tipos de convívio — café da manhã, coffee break, brunch, almoço e jantar), aplicado à listagem e aos contadores; preservado na paginação e na seleção de "por página".
+- Listagem de atividades com botão **"Participantes (n)"** por atividade, levando à listagem de participantes já filtrada por aquela atividade.
 - Importação de participantes via CSV ou XLSX, com auto-detecção de delimitador (vírgula ou ponto-e-vírgula), compatibilidade com quebras de linha Windows (CRLF) e Unix (LF), detecção flexível de colunas (nome, e-mail, instituição, telefone, CPF, passaporte), criação ou atualização de contas, senha temporária e resumo do processamento.
 - Duas rotas de importação distintas: por evento (`/admin/events/:id/import-users`) cria usuários e inscreve no evento; por usuários (`/admin/users/import`) cria apenas usuários sem inscrição.
 - Relatório detalhado pessoa por pessoa na importação, com status individual (Sucesso, Falha, Ignorado), descrição detalhada e download em CSV.
@@ -123,7 +126,7 @@ O sistema deve permitir:
 - Inscrição somente pela administração: quando o evento tem `public_registration = 0`, a página `/evento/:id/inscricao` exibe a mensagem "As inscrições deste evento são realizadas somente pela administração." com o botão de envio desabilitado, o `POST` é bloqueado e a linha "Inscrições" não aparece no cronograma público da página do evento (participantes já inscritos continuam vendo "Minhas participações").
 - Seleção das atividades durante a inscrição (reconfigurável na própria página de inscrição) e manutenção em `/evento/:id/atividades`, que lista somente as atividades em que o participante está inscrito; atividades com presença registrada não podem ser removidas. Para atividades com etapas, o card de cada atividade mostra quantas presenças o participante já tem e quais etapas foram frequentadas (ex.: "3 de 5 presenças — Aula 1 · Aula 2 · Aula 3").
 - Avaliação de atividades: em `/evento/:id/atividades`, o participante inscrito registra uma avaliação por atividade (texto livre de até 2000 caracteres); com o evento encerrado, as inscrições ficam travadas, mas as avaliações das atividades já inscritas continuam editáveis.
-- Submissão de artigo com geração de código de acesso.
+- Submissão de artigo com geração de código de acesso; após o envio, o botão secundário leva à **Área do Participante** ("Ir para a Área do Participante").
 - Página do participante em `/author` para acompanhar inscrições, participações, rascunhos e submissões (hero em coluna única; stats "Em andamento / Aprovadas / Rejeitadas" em painel próprio ao final da página).
 - Edição de submissões em `/author`: rascunhos por `Continuar Preenchimento`; submissões pendentes por botão **Editar** (`/submeter/:eventId?draftId=`, formulário pré-preenchido; ao salvar voltam a `pending` para reavaliação, mantendo o código de acesso). A edição de submissão pendente é bloqueada **quando há revisor designado** (`assignments`) ou **fora do prazo de submissões** — nesse caso o botão aparece desabilitado com a razão (tooltip) e o acesso direto ao formulário não pré-preenche; o POST rejeita sem criar duplicata. Rascunhos continuam editáveis fora do prazo.
 - Área do Participante acessível também ao administrador com a própria conta: botão "Área do Participante" no menu superior das telas administrativas.
@@ -135,7 +138,7 @@ O sistema deve permitir:
 - Consulta por código com andamento agregado da avaliação, sem expor um único revisor como responsável oficial.- Verificação pública de certificados emitidos pelo respectivo código.
 - Exibição pública de revisores ativos.
 - Fluxo de participação conectado às atividades, chamadas e certificados: para participante, somente atividades com inscrição e presença são contabilizadas.
-- Registro de presença por QR Code: a folha impressa por etapa (ou atividade sem etapas) contém um QR Code que abre a página `/presenca/:eventId/:activityId(/:sessionId)`; o usuário autenticado escolhe o papel exercido e marca a própria presença, no dia da etapa (ou no período da atividade, quando não houver etapas).
+- Registro de presença por QR Code: a folha impressa por etapa (ou atividade sem etapas) contém um QR Code que abre a página `/presenca/:eventId/:activityId(/:sessionId)`; o usuário autenticado escolhe o papel exercido e marca a própria presença, no dia da etapa (ou no período da atividade, quando não houver etapas), **com tolerância de 10 minutos antes e depois** do período (janela calculada por data+hora em UTC-3 — início/fim da etapa ou da atividade; sem horário, o dia inteiro até 23:59 + tolerância).
 
 ## Perfis, Acesso e Sessão
 
@@ -806,7 +809,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 | `POST /admin/events/:id/close` | Encerra o evento (published → encerrado) |
 | `POST /admin/events/:id/unpublish` | Volta o evento para Rascunho (published → draft); sai da página inicial e as páginas públicas passam a dar 404 |
 | `/admin/events/:id/subsidies` | Análise administrativa dos pedidos de subsídio do evento |
-| `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento (a coluna "Atividades inscritas" exibe apenas a quantidade; o nome do participante abre a página de atividades) |
+| `/admin/events/:id/participants` | Gestão administrativa dos participantes do evento (a coluna "Atividades inscritas" exibe apenas a quantidade; o nome do participante abre a página de atividades; filtro por atividade via `activity_id`, excluindo tipos de convívio) |
 | `/admin/events/:id/participants/:registrationId/atividades` | Página dedicada de atividades do participante: cards com checkbox (idênticos aos da edição), contadores, salvar com redirect à listagem |
 | `/admin/events/:id/participants/:registrationId/review` | Análise da solicitação de inscrição: aprova todas, algumas ou nenhuma das atividades solicitadas |
 | `GET /admin/events/:id/participants/:registrationId/qr-presenca/print` | Impressão do crachá (PDF) de um participante, direto do credenciamento, sem encaminhamento para a área do participante (exige conta vinculada) |
@@ -825,7 +828,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 | `/admin/backup/download` | Download do backup completo em ZIP (banco + uploads + assets substituíveis), restrito ao `admin@admin.com` |
 | `/admin/backup/restore` | Página de confirmação e upload para restauração de backup, restrita ao `admin@admin.com` |
 | `/admin/events/:id/attendance` | Painel de chamadas por atividade do evento |
-| `/admin/events/:id/activities` | Cadastro de atividades internas do evento |
+| `/admin/events/:id/activities` | Cadastro de atividades internas do evento (cada atividade tem botão "Participantes (n)" para a listagem filtrada) |
 | `/admin/events/:id/activities/:activityId/attendance` | Controle de presença da atividade |
 | `GET /admin/events/:id/activities/:activityId/checkin-print?session_id=` | Folha letter de presença com QR Code por etapa (ou da atividade, sem etapas) |
 | `POST /admin/events/:id/activities/:activityId/attendance/qr` | Registra presença pelo código do crachá (lido pela câmera com jsQR local ou digitado manualmente) |
