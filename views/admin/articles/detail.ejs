@@ -119,7 +119,7 @@
         </div>
         <div class="detail-item">
           <div class="detail-label">Status</div>
-          <div class="detail-value"><span class="badge badge-<%= article.status %>"><%= article.status %></span></div>
+          <div class="detail-value"><span class="badge badge-<%= article.status %>"><%= {pending:'Pendente',in_review:'Em análise',approved:'Aprovado',rejected:'Rejeitado'}[article.status] || article.status %></span></div>
         </div>
         <div class="detail-item">
           <div class="detail-label">Autores</div>
