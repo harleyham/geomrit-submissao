@@ -3042,15 +3042,41 @@ function defaultCheckinRole(activity, markableRoles) {
 }
 
 function getCheckinWindow(activity, session) {
-  if (session && session.session_date) return { start: session.session_date, end: session.session_date };
-  if (activity.date_start || activity.date_end) return { start: activity.date_start, end: activity.date_end || activity.date_start };
-  return { start: null, end: null };
+  if (session && session.session_date) {
+    return { start: session.session_date, end: session.session_date, timeStart: session.time_start, timeEnd: session.time_end };
+  }
+  if (activity.date_start || activity.date_end) {
+    return { start: activity.date_start, end: activity.date_end || activity.date_start, timeStart: activity.time_start, timeEnd: activity.time_end };
+  }
+  return { start: null, end: null, timeStart: null, timeEnd: null };
 }
 
+const CHECKIN_GRACE_MINUTES = 10;
+
+// Minutos absolutos (epoch) de uma data/hora no fuso UTC-3; sem hora = 00:00.
+function checkinMinutes(dateStr, timeStr) {
+  const time = String(timeStr || '').trim();
+  let hour = '00';
+  let minute = '00';
+  const match = /^(\d{1,2}):(\d{2})/.exec(time);
+  if (match) {
+    hour = match[1].padStart(2, '0');
+    minute = match[2];
+  }
+  const minutes = Date.parse(`${dateStr}T${hour}:${minute}:00-03:00`) / 60000;
+  return Number.isFinite(minutes) ? minutes : null;
+}
+
+// Janela com tolerância: 10 minutos antes e 10 minutos depois do período
+// (dia da etapa ou período da atividade; quando há horário definido, a
+// tolerância também vale em torno do horário de início e término).
 function isWithinCheckinWindow(checkinWindow) {
   if (!checkinWindow.start) return false;
-  const todayUtc3 = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
-  return todayUtc3 >= checkinWindow.start && todayUtc3 <= (checkinWindow.end || checkinWindow.start);
+  const commenceMinutes = checkinMinutes(checkinWindow.start, checkinWindow.timeStart);
+  const concludeMinutes = checkinMinutes(checkinWindow.end || checkinWindow.start, checkinWindow.timeEnd || '23:59');
+  if (commenceMinutes == null || concludeMinutes == null) return false;
+  const nowMinutes = Date.now() / 60000;
+  return nowMinutes >= commenceMinutes - CHECKIN_GRACE_MINUTES && nowMinutes <= concludeMinutes + CHECKIN_GRACE_MINUTES;
 }
 
 function getCheckinRecord(activityId, userId, session) {

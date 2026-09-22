@@ -93,7 +93,7 @@
       <% } else if (!inWindow) { %>
         <div class="empty">
           <p><strong>Fora do período de registro.</strong></p>
-          <p style="margin-top:.5rem"><% if (windowStart) { %>A presença por QR Code pode ser registrada no dia <% if (session) { %>da etapa (<%= formatBRDate(windowStart) %>).<% } else { %>do período da atividade (<%= windowStart !== windowEnd ? formatBRDate(windowStart) + ' a ' + formatBRDate(windowEnd) : formatBRDate(windowStart) %>).<% } %><% } else { %>Esta atividade ainda não tem data definida.<% } %></p>
+          <p style="margin-top:.5rem"><% if (windowStart) { %>A presença por QR Code pode ser registrada do início ao fim <% if (session) { %>da etapa (<%= formatBRDate(windowStart) %><%= session.time_start ? ', ' + String(session.time_start).slice(0,5) + '–' + String(session.time_end || session.time_start).slice(0,5) : '' %>),<% } else { %>do período da atividade (<%= windowStart !== windowEnd ? formatBRDate(windowStart) + ' a ' + formatBRDate(windowEnd) : formatBRDate(windowStart) %>),<% } %> com 10 minutos de tolerância antes e depois.<% } else { %>Esta atividade ainda não tem data definida.<% } %></p>
         </div>
       <% } else { %>
         <div class="empty">
