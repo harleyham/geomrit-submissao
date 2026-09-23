@@ -20,6 +20,22 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-23 — Atividade sem data/hora: status "A definir" e remoção automática da sala (opção A)
+
+- Pedido: permitir salvar atividade (e etapa) **sem data e sem horários** com o rótulo **"A definir"**, em vez de falhar com "Defina a data... para alocar a sala" quando o seletor de sala vinha pré-preenchido na edição.
+- Comportamento (opção A, rótulo unificado "A definir" — decisão do usuário):
+  - `routes/events.js` `resolveRoomAllocation`: com `room_id` selecionado mas `allocationDate` e/ou horários incompletos, retorna `{ roomId: null, error: null, clearedRoom: true }` (antes: `error` de data/horários). Sala inválida continua com erro; atividade com etapas continua com o erro de sala na atividade.
+  - Edição de atividade e de etapa: com `clearedRoom`/`roomId: null`, o `syncTargetAssignments` já existente **apaga** a alocação (`DELETE` por `activity_id`/`session_id`) — criação só grava sala se `roomId` (sem mudanças).
+  - `services/rooms.js` `syncTargetAssignments`: em vez de `throw` quando faltam data/horários, **remove** a alocação (defensivo, cobre chamadores remanescentes).
+  - Aviso após salvar: "Sala removida: defina data e horários para realocar." (edição de atividade/etapa) ou "Sala não alocada: defina data e horários para alocar." (criação), concatenado com o demais `success` do redirect.
+  - Hint no form de atividade: datas/horários opcionais; sem data/horários a sala é removida ao salvar.
+- Rótulo unificado **A definir** (antes "Data a definir" em alguns pontos): `activityDateRange` em `server.js` e fallbacks em `activity-sessions.ejs` (público), `activity-attendance.ejs` (etapa sem data), `participant-review.ejs` (usa `activityDateRange` em vez do cru `date_start`).
+- Listagem administrativa de atividades: badge âmbar **A definir** quando `!date_start && !date_end` (em vez do texto puro da faixa de data).
+- Fora de escopo (confirmado na pesquisa): coluna `status` persistida; liberar check-in QR sem data (janela nula); mudar `NOT NULL` de `room_assignments`. Efeitos aceitos: sem data não aparece na grade/barras públicas; check-in QR auto-presença bloqueado; presença admin OK; ordenação sem data por último (sentinel já existente).
+- Verificação: `node --check` em `routes/events.js`, `server.js`, `services/rooms.js`; compilação EJS de `activities.ejs`, `activity-attendance.ejs`, `participant-review.ejs`, `activity-sessions.ejs`.
+- Docs: `submissao.md`, `manual.md` (seções 7 e sala), este log.
+- Status: **concluído (código + verificação técnica)**. Sem migração; efetivo após reinício do servidor.
+
 ## 2026-09-22 — Status do detalhe do artigo em português e botão "Ir para a Área do Participante" na submissão
 
 - Rótulo do badge de Status em `/admin/articles/:id` exibia o valor cru do banco (`pending`, `in_review`, `approved`, `rejected`). `views/admin/articles/detail.ejs` passa a mapear: Pendente, Em análise, Aprovado, Rejeitado (fallback para o valor cru se o status for desconhecido); o combobox de deliberação já usava os mesmos rótulos.

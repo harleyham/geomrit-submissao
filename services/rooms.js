@@ -151,8 +151,12 @@ function syncTargetAssignments({ eventId, activityId = null, sessionId = null, r
     else if (activityId != null) db.prepare('DELETE FROM room_assignments WHERE activity_id=?').run(activityId);
     return;
   }
+  // Sem data/horários completos não é possível manter a alocação
+  // (room_assignments NOT NULL): remove em vez de falhar o save.
   if (!date || !timeStart || !timeEnd) {
-    throw new Error('Para alocar sala informe a data e os horários de início e término.');
+    if (sessionId != null) db.prepare('DELETE FROM room_assignments WHERE session_id=?').run(sessionId);
+    else if (activityId != null) db.prepare('DELETE FROM room_assignments WHERE activity_id=?').run(activityId);
+    return;
   }
   replaceTargetAssignments({ roomId, date: { value: date }, timeStart, timeEnd, activityId, sessionId, eventId, assignedBy });
 }

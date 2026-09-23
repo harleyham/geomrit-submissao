@@ -125,7 +125,7 @@ function activityDateRange(activity) {
   }
   if (start) return formatBRDate(start);
   if (end) return formatBRDate(end);
-  return 'Data a definir';
+  return 'A definir';
 }
 
 // Codifica um objeto/valor de forma segura para ser inserido dentro de uma

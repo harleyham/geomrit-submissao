@@ -123,7 +123,7 @@
       <div>
         <h1>Presença — <%= activity.name %><% if (selectedSession) { %> · <%= selectedSession.name %><% } %></h1>
         <p>
-          <% if (selectedSession) { %><%= selectedSession.session_date ? formatBRDate(selectedSession.session_date) : 'Data a definir' %><% if (Number(selectedSession.workload_hours) > 0) { %> · <%= selectedSession.workload_hours %>h<% } %><% } else { %><%= activityDateRange(activity) %><% if (Number(activity.workload_hours) > 0) { %> · <%= activity.workload_hours %>h carga horária<% } %><% } %>
+          <% if (selectedSession) { %><%= selectedSession.session_date ? formatBRDate(selectedSession.session_date) : 'A definir' %><% if (Number(selectedSession.workload_hours) > 0) { %> · <%= selectedSession.workload_hours %>h<% } %><% } else { %><%= activityDateRange(activity) %><% if (Number(activity.workload_hours) > 0) { %> · <%= activity.workload_hours %>h carga horária<% } %><% } %>
           · Perfis elegíveis: <%= (activity.eligible_roles || 'participant').split(',').map((r) => roleLabels[r.trim()] || r.trim()).join(', ') %>
         </p>
       </div>

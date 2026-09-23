@@ -53,7 +53,7 @@
   <main class="main-content">
     <a class="back-link" href="/evento/<%= event.id %>">← Voltar às atividades</a>
     <h1>Etapas — <%= activity.name %></h1>
-    <p class="hint"><%= activityDateRange(activity) || 'Data a definir' %></p>
+    <p class="hint"><%= activityDateRange(activity) || 'A definir' %></p>
 
     <% if (!sessions.length) { %>
       <div class="table-wrap"><div class="empty">Esta atividade não possui etapas detalhadas.</div></div>

@@ -2139,13 +2139,17 @@ function timeRangeError(timeStart, timeEnd) {
 }
 function resolveRoomAllocation(req, { eventId, allocationDate, timeStart, timeEnd, hasSessions = false }) {
   const roomId = Number(req.body.room_id) || null;
-  if (!roomId) return { roomId: null, error: null };
-  if (hasSessions) return { roomId, error: 'Atividades com etapas têm a sala alocada por etapa; remova as etapas para alocar sala à atividade.' };
+  if (!roomId) return { roomId: null, error: null, clearedRoom: false };
+  if (hasSessions) return { roomId, error: 'Atividades com etapas têm a sala alocada por etapa; remova as etapas para alocar sala à atividade.', clearedRoom: false };
   const room = rooms.getRoom(eventId, roomId);
-  if (!room) return { roomId, error: 'Selecione uma sala válida deste evento.' };
-  if (!allocationDate) return { roomId, error: 'Defina a data da atividade/etapa para alocar a sala.' };
-  if (!timeStart || !timeEnd) return { roomId, error: 'Informe os horários de início e término para alocar a sala.' };
-  return { roomId, error: null };
+  if (!room) return { roomId, error: 'Selecione uma sala válida deste evento.', clearedRoom: false };
+  // Sem data e/ou horários completos: a alocação de sala exige esses campos
+  // (room_assignments NOT NULL). Em vez de bloquear o save, remove a alocação
+  // existente (opção A — atividade "A definir" fica sem sala até novo prazo).
+  if (!allocationDate || !timeStart || !timeEnd) {
+    return { roomId: null, error: null, clearedRoom: true };
+  }
+  return { roomId, error: null, clearedRoom: false };
 }
 function sessionTimeWithinActivityError(activity, sessionDate, timeStart, timeEnd) {
   if (!timeStart || !timeEnd || !activity.time_start || !activity.time_end) return null;
@@ -2338,7 +2342,7 @@ router.post('/:id/activities', strictLimiter, (req, res, next) => {
   } catch (error) {
     return failActivities((error && error.message) || 'Não foi possível salvar a atividade.');
   }
-  return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent(automaticEnrollmentMessage(applyAutomaticActivityEnrollments(db.prepare('SELECT * FROM event_activities WHERE id=?').get(createdActivityId), req.session.userId), 'Atividade cadastrada.'))}`);
+  return res.redirect(`/admin/events/${event.id}/activities?success=${encodeURIComponent((allocation.clearedRoom ? 'Sala não alocada: defina data e horários para alocar. ' : '') + automaticEnrollmentMessage(applyAutomaticActivityEnrollments(db.prepare('SELECT * FROM event_activities WHERE id=?').get(createdActivityId), req.session.userId), 'Atividade cadastrada.'))}`);
 });
 router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.activityForm, (rq, rs, messages) => activityValidationFallback((r2) => r2.params.id, true)(rq, rs, messages));
@@ -2418,7 +2422,10 @@ router.post('/:id/activities/:activityId', strictLimiter, (req, res, next) => {
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity: { ...activity, name }, oldUrl: activity.video_url, newUrl: videoUrl });
   const backfillResult = applyAutomaticActivityEnrollments(db.prepare('SELECT * FROM event_activities WHERE id=?').get(activity.id), req.session.userId);
-  const baseMessage = dateShiftDays ? `Data da atividade deslocada em ${dateShiftDays > 0 ? '+' : ''}${dateShiftDays} dia(s). ` : '';
+  const notes = [];
+  if (allocation.clearedRoom) notes.push('Sala removida: defina data e horários para realocar.');
+  if (dateShiftDays) notes.push(`Data da atividade deslocada em ${dateShiftDays > 0 ? '+' : ''}${dateShiftDays} dia(s).`);
+  const baseMessage = notes.length ? `${notes.join(' ')} ` : '';
   return res.redirect(`/admin/events/${activity.event_id}/activities?success=${encodeURIComponent(baseMessage + automaticEnrollmentMessage(backfillResult, 'Atividade atualizada.'))}`);
 });
 router.post('/:id/activities/:activityId/certificate-enabled', (req, res) => {
@@ -2617,7 +2624,8 @@ router.post('/:id/activities/:activityId/sessions/:sessionId', strictLimiter, (r
   }
   const event = db.prepare('SELECT * FROM events WHERE id=?').get(activity.event_id);
   queueVideoLinkNotifications({ event, activity, session: { ...session, name, session_date: sessionDate }, oldUrl: session.video_url, newUrl: sessionVideoUrl });
-  return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent('Etapa atualizada.')}`);
+  const sessionNotes = sessionAllocation.clearedRoom ? 'Sala removida: defina data e horários para realocar. ' : '';
+  return res.redirect(`/admin/events/${activity.event_id}/activities/${activity.id}/sessions?success=${encodeURIComponent(sessionNotes + 'Etapa atualizada.')}`);
 });
 
 router.post('/:id/activities/:activityId/sessions/:sessionId/delete', strictLimiter, (req, res) => {

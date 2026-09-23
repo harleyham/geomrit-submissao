@@ -52,18 +52,19 @@
           <div class="hint">Disponível para palestras e minicursos. Máximo de 2000 caracteres.</div>
         </div>
         <input name="date_start" type="text" class="datepicker" title="Data de início" value="<%= activityForm.date_start ? formatBRDate(activityForm.date_start) : '' %>">
-        <input name="date_end" type="text" class="datepicker" title="Data de fim" value="<%= activityForm.date_end ? formatBRDate(activityForm.date_end) : '' %>">
-        <input name="time_start" type="time" title="Hora de início" value="<%= activityForm.time_start || '' %>">
-        <input name="time_end" type="time" title="Hora de término" value="<%= activityForm.time_end || '' %>">
+        <input name="date_end"   type="text" class="datepicker" title="Data de fim"    value="<%= activityForm.date_end   ? formatBRDate(activityForm.date_end)   : '' %>">
+        <input name="time_start" type="time" title="Hora de início"  value="<%= activityForm.time_start || '' %>">
+        <input name="time_end"   type="time" title="Hora de término" value="<%= activityForm.time_end   || '' %>">
+        <span class="hint" style="display:block;margin:2px 4px 6px">Datas e horários são opcionais: deixe em branco para status "A definir" (a atividade fica sem sala até houver data/horários).</span>
         <% const activityHasSessions = Boolean(editingActivity) && Number(editingActivity.session_count || 0) > 0; %>
         <% if (!activityHasSessions && eventRooms && eventRooms.length) { %>
           <select name="room_id" id="room-select" title="Sala (somente para atividades sem etapas)">
             <option value="">— Sem sala —</option>
             <% eventRooms.forEach((room) => { %>
-              <option value="<%= room.id %>" <%= activityForm.room_allocation && activityForm.room_allocation.room_id === room.id ? 'selected' : '' %>><%= room.name %> (<%= roomLabel(room.size) %><%= room.capacity ? ' · ' + room.capacity + ' lugares' : '' %>)</option>
+              <option value="<%= room.id %>"<%= activityForm.room_allocation && activityForm.room_allocation.room_id === room.id ? ' selected' : '' %>><%= room.name %> (<%= roomLabel(room.size) %><%= room.capacity ? ' · ' + room.capacity + ' lugares' : '' %>)</option>
             <% }) %>
           </select>
-          <span class="hint" style="display:block;margin:6px 4px">A sala usa a data e os horários acima (em atividades de vários dias, a reserva vale no dia de início).</span>
+          <span class="hint" style="display:block;margin:6px 4px">A sala usa a data e os horários acima (em atividades de vários dias, a reserva vale no dia de início). Sem data/horários, a sala é removida ao salvar.</span>
         <% } else if (activityHasSessions) { %>
           <span class="hint" style="display:block;margin:6px 4px">Atividades com etapas têm a sala alocada <a href="/admin/events/<%= event.id %>/activities/<%= editingActivity.id %>/sessions" style="color:var(--link)">por etapa</a>.</span>
         <% } else if (eventRooms && !eventRooms.length) { %>
@@ -148,7 +149,7 @@
         <div class="activity-item">
           <strong><%= activity.name %></strong><% if (Number(activity.required_for_participants) === 1) { %><span class="badge" style="background:var(--primary-hover);color:var(--link);margin-left:6px;font-size:10px">Obrigatória</span><% } else if (Number(activity.default_for_participants) === 1) { %><span class="badge" style="background:var(--success);color:var(--on-success);margin-left:6px;font-size:10px">Padrão</span><% } %>
           <% if (activity.description) { %><small><%= activity.description %></small><% } %>
-          <small><%= activityDateRange(activity) %><% if (activity.time_start || activity.time_end) { %> · <%= activity.time_start || '?' %>–<%= activity.time_end || '?' %><% } %><% if (displayWorkload > 0) { %> · <%= displayWorkload %>h<% if (hasSessions && !activityHoursSet) { %> (etapas)<% } %></small><% } else { %></small><% } %>
+          <small><% if (!activity.date_start && !activity.date_end) { %><span class="badge" style="background:var(--warn-subtle);color:var(--warn);font-size:10px">A definir</span><% } else { %><%= activityDateRange(activity) %><% } %><% if (activity.time_start || activity.time_end) { %> · <%= activity.time_start || '?' %>–<%= activity.time_end || '?' %><% } %><% if (displayWorkload > 0) { %> · <%= displayWorkload %>h<% if (hasSessions && !activityHoursSet) { %> (etapas)<% } %></small><% } else { %></small><% } %>
           <% if (activity.room_allocation) { %><small style="color:var(--link)">Sala: <%= activity.room_allocation.room_name %> (<%= String(activity.room_allocation.time_start).slice(0,5) %>–<%= String(activity.room_allocation.time_end).slice(0,5) %>)</small><% } %>
           <small>
             <% String(activity.eligible_roles || '').split(',').filter(Boolean).forEach((role) => { %><span class="badge" style="background:var(--surface-hover);color:var(--text-muted);font-size:10px"><%= activityRolesMap[role] || role %></span> <% }) %>
