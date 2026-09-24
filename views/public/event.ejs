@@ -281,6 +281,8 @@
             .activities-toggle-block .act-badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; letter-spacing:.3px; text-transform:uppercase; }
             .activities-toggle-block .act-type-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr)); gap:10px; }
             .activities-toggle-block .act-item { background:var(--surface); padding:12px 14px; border-radius:8px; border:1px solid var(--border); display:flex; flex-direction:column; gap:5px; }
+            .activities-toggle-block .act-item-pending { background:var(--warn-subtle); border:1px dashed var(--warn-border); }
+            .activities-toggle-block .act-item-pending .pending-date-badge { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--warn-subtle); border:1px solid var(--warn-border); color:var(--warn); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
             .activities-toggle-block .act-item-title { font-size:14px; color:var(--text-strong); }
             .activities-toggle-block .act-item-desc, .activities-toggle-block .act-item-meta { color:var(--text-muted); font-size:12px; line-height:1.5; }
             .activities-toggle-block .act-item-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px; }
@@ -342,10 +344,11 @@
                        var isDenied = isCourse && !isEnrolled && typeof rejectedActivityIds !== 'undefined' && rejectedActivityIds.has(a.id);
                        var canToggle = isCourse && canEnrollCourses && !isEnrolled && !isRequested && !isDenied && (!seats || !seats.full);
                        var requiresJustification = isCourse && Number(a.requires_justification) === 1 && (event.registration_approval_mode === 'review' || Number(a.requires_approval) === 1);
-                       var hasJustification = isCourse && typeof justifiedActivityIds !== 'undefined' && justifiedActivityIds.has(a.id); %>
+                        var hasJustification = isCourse && typeof justifiedActivityIds !== 'undefined' && justifiedActivityIds.has(a.id);
+                        var datePending = !a.date_start && !a.date_end; %>
                         <% var isRequired = Number(a.required_for_participants) === 1; var isDefaultAct = !isRequired && Number(a.default_for_participants) === 1; var requiredBadge = isRequired ? ' <span class="badge" style="background:var(--primary-hover);color:var(--link);margin-left:6px;font-size:10px;vertical-align:middle">Obrigatória</span>' : (isDefaultAct ? ' <span class="badge" style="background:var(--success);color:var(--on-success);margin-left:6px;font-size:10px;vertical-align:middle">Padrão</span>' : ''); %>
-                      <div class="act-item">
-                        <% if (isCourse) { %>
+                       <div class="act-item<% if (datePending) { %> act-item-pending<% } %>">
+                         <% if (isCourse) { %>
                           <label class="act-item-interest">
                             <input type="checkbox" class="course-enroll" data-activity="<%= a.id %>" data-url="/evento/<%= event.id %>/atividades/inscricao" data-requires-justification="<%= requiresJustification ? '1' : '0' %>" data-justified="<%= hasJustification ? '1' : '0' %>" <%= (isEnrolled || isRequested) ? 'checked' : '' %> <%= canToggle ? '' : 'disabled' %>>
                             <span class="act-item-title"><%= a.name %><%- requiredBadge %></span>
@@ -362,7 +365,7 @@
                           <strong class="act-item-title"><%= a.name %><%- requiredBadge %></strong>
                         <% } %>
                         <% if (a.description) { %><small class="act-item-desc"><%= a.description %></small><% } %>
-                        <small class="act-item-meta"><%= activityDateRange(a) || 'A definir' %><% if (a.time_start || a.time_end) { %> · <%= String(a.time_start || '?').slice(0,5) %>–<%= String(a.time_end || '?').slice(0,5) %><% } %><% if (!hasSess && a.room_allocation) { %> · <%= a.room_allocation.room_name %><% } %></small>
+                        <small class="act-item-meta"><% if (datePending) { %><span class="pending-date-badge">A definir</span><% } else { %><%= activityDateRange(a) %><% } %><% if (a.time_start || a.time_end) { %> · <%= String(a.time_start || '?').slice(0,5) %>–<%= String(a.time_end || '?').slice(0,5) %><% } %><% if (!hasSess && a.room_allocation) { %> · <%= a.room_allocation.room_name %><% } %></small>
                         <% if (hasSess) { a.sessions.forEach(function(s){ %><small class="act-item-meta">• <%= s.name %><% if (s.session_date) { %> — <%= formatBRDate(s.session_date) %><% } %><% if (s.time_start || s.time_end) { %> · <%= String(s.time_start || '?').slice(0,5) %>–<%= String(s.time_end || '?').slice(0,5) %><% } %><% if (s.room_allocation) { %> · <%= s.room_allocation.room_name %><% } %></small><% }) } %>
                         <div class="act-item-actions">
                           <% if (hasSess) { %><a class="btn btn-secondary activity-video" href="/evento/<%= event.id %>/atividades/<%= a.id %>/etapas">Etapas (<%= a.sessions.length %>)</a><% } %>
