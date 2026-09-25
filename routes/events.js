@@ -15,7 +15,7 @@ const { removeEventLogoFile, drawEventLogo } = require('../services/event-logo')
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { getSystemEmailSettings, getPendingEmailCount, setEventEmailEnabled, queueCertificateIssued,
   queueVideoLinkNotifications, isValidHttpUrl, createImportBatch, getImportBatchEmailSummary,
-  authorizeImportBatch, queueImportedAccount, queueImportedRegistration, queueRegistrationReviewDecision, queueParticipantActivitiesUpdated, queueActivityRequestDecision } = require('../services/email');
+  authorizeImportBatch, queueImportedAccount, queueImportedRegistration, queueRegistrationReviewDecision, queueParticipantActivitiesUpdated, queueActivityRequestDecision, canQueueEmail, queueGroupDirectEmail } = require('../services/email');
 const { strictLimiter } = require('../security/rate-limits');
 const { isSuperAdminUser } = require('./auth');
 const { validateAndHandle, validators: v } = require('../security/validation');
@@ -1393,6 +1393,10 @@ router.get('/:id/participants', (req, res) => {
     participant.pending_activity_requests = requestedIds.filter((id) => !enrolled.has(id) && !rejected.has(id)).length;
   });
   const summary = countEventParticipantsDetailed(req.params.id, filters);
+  // Contagens para o envio de e-mail em grupo (somente papel 'admin' do evento)
+  const groupEmail = req.eventRole === 'admin' || req.session.isAdmin
+    ? { ...getGroupEmailOptions(req.params.id), emailPermission: canQueueEmail(req.params.id) }
+    : null;
 
   res.render('admin/events/participants', {
     title: `Participantes - ${event.name}`,
@@ -1409,9 +1413,133 @@ router.get('/:id/participants', (req, res) => {
       hasNext: clampedPage < totalPages,
       hasPrev: clampedPage > 1
     },
+    groupEmail,
     success: req.query.success || null,
     error: req.query.error || null
   });
+});
+
+// --- Envio de e-mail em grupo (pagina de participantes) ---------------------
+// Usuarios aptos a receber: conta publica (ativa), aprovada e com e-mail
+// (mesmo criterio do lembrete automatico de evento). Grupos: inscritos
+// aprovados de todas as inscricoes do evento, papeis do evento
+// (event_user_roles, inscrito ou nao) e inscritos em uma atividade.
+
+const GROUP_EMAIL_REGISTRATION_WHERE = "er.event_id=? AND COALESCE(er.registration_status,'approved')='approved' AND u.is_public=1 AND u.approval_status='approved' AND TRIM(u.email)!=''";
+
+function getGroupEmailRecipients(eventId, group, roleId = null, activityId = null) {
+  if (group === 'role' && roleId) {
+    return db.prepare(`
+      SELECT DISTINCT u.id, u.name, u.email
+      FROM event_user_roles eur
+      JOIN users u ON u.id = eur.user_id
+      WHERE eur.event_id = ? AND eur.role = ? AND u.is_public = 1 AND u.approval_status = 'approved' AND TRIM(u.email) != ''
+      ORDER BY u.name COLLATE NOCASE
+    `).all(eventId, roleId);
+  }
+  if (group === 'activity' && activityId) {
+    return db.prepare(`
+      SELECT DISTINCT u.id, u.name, u.email
+      FROM participant_activity_enrollments pae
+      JOIN event_registrations er ON er.id = pae.registration_id
+      JOIN users u ON u.id = pae.user_id
+      WHERE pae.activity_id = ? AND ${GROUP_EMAIL_REGISTRATION_WHERE}
+      ORDER BY u.name COLLATE NOCASE
+    `).all(activityId, eventId);
+  }
+  return db.prepare(`
+    SELECT DISTINCT u.id, u.name, u.email
+    FROM event_registrations er
+    JOIN users u ON u.id = er.user_id
+    WHERE ${GROUP_EMAIL_REGISTRATION_WHERE}
+    ORDER BY u.name COLLATE NOCASE
+  `).all(eventId);
+}
+
+function getGroupEmailOptions(eventId) {
+  const roles = db.prepare(`
+    SELECT eur.role AS role, COUNT(DISTINCT u.id) AS count
+    FROM event_user_roles eur
+    JOIN users u ON u.id = eur.user_id
+    WHERE eur.event_id = ? AND u.is_public = 1 AND u.approval_status = 'approved' AND TRIM(u.email) != ''
+    GROUP BY eur.role
+    ORDER BY eur.role
+  `).all(eventId);
+  const activities = db.prepare(`
+    SELECT a.id, a.name, COUNT(DISTINCT pae.user_id) AS count
+    FROM participant_activity_enrollments pae
+    JOIN event_activities a ON a.id = pae.activity_id
+    JOIN event_registrations er ON er.id = pae.registration_id
+    JOIN users u ON u.id = pae.user_id
+    WHERE a.event_id = ? AND ${GROUP_EMAIL_REGISTRATION_WHERE}
+    GROUP BY a.id
+    ORDER BY COALESCE(NULLIF(a.name, ''), '') COLLATE NOCASE, a.date_start
+  `).all(eventId, eventId);
+  return {
+    allCount: getGroupEmailRecipients(eventId, 'all').length,
+    roles: roles.map((row) => ({ role: row.role, count: row.count, label: (CERTIFICATE_ROLES[row.role] && CERTIFICATE_ROLES[row.role].label) || EVENT_ROLE_LABELS[row.role] || row.role })),
+    activities
+  };
+}
+
+router.post('/:id/email-groups', requireEventAdminOnly, strictLimiter, (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id=?').bind(req.params.id).get());
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const back = (params) => res.redirect(`/admin/events/${event.id}/participants?${params}`);
+
+  // O formulario envia um unico select com valor combinado:
+  // 'all', 'role:<papel>' ou 'activity:<id>'.
+  const groupRaw = String(req.body.group || '').trim();
+  let group = '';
+  let role = '';
+  let activityId = '';
+  if (groupRaw === 'all') {
+    group = 'all';
+  } else if (/^role:[A-Za-z_]+$/.test(groupRaw)) {
+    group = 'role';
+    role = groupRaw.slice(5);
+  } else if (/^activity:\d+$/.test(groupRaw)) {
+    group = 'activity';
+    activityId = groupRaw.slice(9);
+  }
+  const subject = String(req.body.subject || '').trim();
+  const body = String(req.body.body || '').trim();
+
+  let recipientsError = null;
+  if (!subject || !body) recipientsError = 'Preencha o assunto e a mensagem do e-mail.';
+  else if (!group) recipientsError = 'Selecione o grupo de destinatários.';
+  else if (group === 'role' && !role) recipientsError = 'Selecione o papel do evento.';
+  else if (group !== 'role' && role) recipientsError = 'Seleção de papel indisponível para este grupo.';
+  else if (group === 'activity' && !/^\d+$/.test(activityId)) recipientsError = 'Selecione a atividade.';
+  else if (group === 'role' && !['participant', ...EVENT_ASSIGNABLE_ROLES].includes(role)) recipientsError = 'Papel inválido.';
+  else if (group === 'activity' && !db.prepare('SELECT id FROM event_activities WHERE id=? AND event_id=?').get(parseInt(activityId, 10), event.id)) recipientsError = 'Atividade não encontrada neste evento.';
+  if (recipientsError) return back(`error=${encodeURIComponent(recipientsError)}#email-group-card`);
+
+  const recipients = getGroupEmailRecipients(event.id, group, role || null, group === 'activity' ? parseInt(activityId, 10) : null);
+  if (!recipients.length) {
+    return back(`error=${encodeURIComponent('Nenhum destinatário disponível para este grupo (verifique contas ativas e aprovadas).')}#email-group-card`);
+  }
+
+  const permission = canQueueEmail(event.id);
+  const { queued, suppressed } = queueGroupDirectEmail({ event, recipients, subject, body });
+
+  const groupLabel = group === 'role'
+    ? `papel ${role}`
+    : group === 'activity'
+      ? `atividade "${db.prepare('SELECT name FROM event_activities WHERE id=?').get(parseInt(activityId, 10)).name}"`
+      : 'todos os inscritos do evento';
+  let message = `${queued} e-mail(s) enfileirado(s) para ${recipients.length} destinatário(s) (${groupLabel}).`;
+  if (suppressed > 0) message += ` ${suppressed} foi(iram) apenas registrada(s) como suprimida(s).`;
+  if (!permission.allowed) message += ` Observação: ${permission.reason} Autorize o envio para que sejam entregues.`;
+  return back(`success=${encodeURIComponent(message)}#email-group-card`);
+});
+
+router.get('/:id/email-groups/options', requireEventAdminOnly, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id=?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Evento não encontrado' });
+  const options = getGroupEmailOptions(event.id);
+  const permission = canQueueEmail(event.id);
+  return res.json({ ...options, emailEnabled: permission.allowed, disabledReason: permission.reason });
 });
 
 // Credenciamento: imprime o crachá do participante direto (PDF), sem encaminhamento para a área do participante

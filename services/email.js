@@ -200,6 +200,43 @@ function enqueueDirectEmail(options) {
   });
 }
 
+// Envio em grupo a partir da pagina de participantes de um evento: uma mensagem
+// por destinatario (mesmo template 'direct-message'), com a identidade do
+// evento (remetente, assinatura e logo) e respeitando o master switch global e
+// o switch de e-mails do evento (mensagens fora do periodico ficam 'suppressed').
+function queueGroupDirectEmail({ event, recipients, subject, body }) {
+  const identity = getEventIdentity(event);
+  const subjectFinal = text(subject) || '(sem assunto)';
+  const bodyFinal = text(body);
+  const groupKey = `direct-group:${event.id}:${crypto.randomUUID()}`;
+  let queued = 0;
+  let suppressed = 0;
+  (recipients || []).forEach((user) => {
+    const result = enqueueEmail({
+      eventId: event.id,
+      userId: user.id || null,
+      recipientEmail: user.email,
+      recipientName: user.name || user.email,
+      messageType: 'direct',
+      templateName: 'direct-message',
+      subject: subjectFinal,
+      identity,
+      groupKey,
+      dedupeKey: `${groupKey}:${user.id || crypto.randomUUID()}`,
+      payload: {
+        body: bodyFinal,
+        recipientName: user.name || user.email,
+        recipientEmail: text(user.email),
+        platformName: identity.platformName,
+        signature: identity.signature
+      }
+    });
+    if (result.inserted && result.status === 'queued') queued += 1;
+    else if (result.inserted) suppressed += 1;
+  });
+  return { queued, suppressed, groupKey };
+}
+
 function createSetupToken(userId) {
   const raw = crypto.randomBytes(32).toString('hex');
   const hash = crypto.createHash('sha256').update(raw).digest('hex');
@@ -675,7 +712,7 @@ function isValidHttpUrl(value) {
 
 module.exports = {
   getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, getGlobalIdentity, getEventIdentity,
-  setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail, clearEmailQueue,
+  setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail, queueGroupDirectEmail, clearEmailQueue,
   queueAccountRequested, queueAccountApproved, queuePasswordReset, queueRecoveryEmailConfirmation, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
   queueRegistrationReviewDecision, queueParticipantActivitiesUpdated, queueActivityRequestDecision,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,

@@ -192,6 +192,16 @@ Os papéis disponíveis no evento incluem administrador, staff, **revisor**, pal
 
 No credenciamento, use **Imprimir crachá** na linha do participante. O crachá contém o QR pessoal usado pelo operador para localizar a pessoa na chamada.
 
+### Envio de e-mail para grupo
+
+No topo da página de participantes há o card **Enviar e-mail para grupo** (administrador do evento e superadmin; o staff não o vê). Para avisar um conjunto de pessoas — por exemplo, alteração de horário — escolha os **Destinatários**, escreva assunto e mensagem e clique em **Enviar e-mail**:
+
+- **Todos os inscritos do evento (N)** — todas as inscrições aprovadas;
+- **Por papel no evento** — todas as pessoas que exercem o papel escolhido no evento (Participante, Revisor, Palestrante, Professor, Apresentador Oral ou Pôster, Administrador do evento, Staff), inscritas ou não;
+- **Participantes de atividade (N)** — todas as pessoas inscritas em uma atividade específica (incluindo atividades de convívio como jantar ou almoço).
+
+O contador junto ao seletor mostra para quantas pessoas o e-mail será enviado, e a confirmação do navegador pede o OK final. Cada destinatário recebe **uma mensagem individual** (ninguém vê os produtos e-mails dos outros), com o remetente, a assinatura e o logo do próprio evento. Só recebem as pessoas com **conta ativa e aprovada** e e-mail válido. O envio passa pela mesma fila do sistema: com o envio de e-mails desativado (global ou do evento), as mensagens aparecem como suprimidas e nada é entregue; com o envio ativado, são entregues automaticamente. Para avisar alturas de e-mails falhados ou descartar pendências, use os controles de fila no painel administrativo.
+
 ### Papel Staff
 
 O papel **Staff** é uma designação **exclusivamente por evento**, atribuída apenas na página de Papéis (`/admin/events/:id/roles`) ou na edição do participante do evento. Em `/admin/users/:id/edit` a seção "Papéis por evento" é **somente leitura** (mostra onde a pessoa atua, com link para gerenciar). Não existe mais elegibilidade global: desligar contas não revoga papéis, e remover o papel na página de Papéis é o que encerra a designação. O acesso efetivo do Staff limita-se **apenas aos eventos em que foi designado**.
