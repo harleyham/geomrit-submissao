@@ -107,7 +107,7 @@
         </div>
       </div>
       <% } else { %>
-        <p class="help-text" style="margin-bottom:1.5rem;">Toda inscrição administrativa possui uma conta vinculada. Crie uma conta com senha temporária ou selecione uma conta existente.</p>
+        <p class="help-text" style="margin-bottom:1.5rem;">Toda inscrição administrativa possui uma conta vinculada. Crie uma conta (o participante receberá um e-mail com link para definir a própria senha, como na importação de listas) ou selecione uma conta existente.</p>
       <% } %>
 
       <% const isSuper = typeof isSuperAdmin !== 'undefined' && isSuperAdmin; %>
@@ -233,19 +233,6 @@
         </div>
         <% } %>
 
-        <% if (!registration) { %>
-          <div id="temporary-password-fields">
-            <div class="form-group">
-              <label for="temporary_password">Senha temporária</label>
-              <input type="password" id="temporary_password" name="temporary_password" minlength="6" autocomplete="new-password">
-              <div class="help-text">O participante deverá trocar esta senha no primeiro acesso.</div>
-            </div>
-            <div class="form-group">
-              <label for="confirm_temporary_password">Confirmar senha temporária</label>
-              <input type="password" id="confirm_temporary_password" name="confirm_temporary_password" minlength="6" autocomplete="new-password">
-            </div>
-          </div>
-        <% } %>
 
         <div class="form-group">
           <label for="registration_type">Tipo de participação</label>
@@ -330,9 +317,6 @@
       const existingUserResults = document.getElementById('existing-user-results');
       const selectedExistingUser = document.getElementById('selected-existing-user');
       const existingUserGroup = document.getElementById('existing-user-group');
-      const temporaryPasswordFields = document.getElementById('temporary-password-fields');
-      const temporaryPassword = document.getElementById('temporary_password');
-      const confirmTemporaryPassword = document.getElementById('confirm_temporary_password');
       let searchTimer = null;
       let selectedUser = <%- jsonForScript(selectedExistingUser || null) %>;
       const setAccountFields = (user) => {
@@ -365,9 +349,6 @@
         const phoneInput = document.getElementById('phone');
         existingUserGroup.style.display = usesExistingAccount ? 'block' : 'none';
         existingUserSearch.disabled = !usesExistingAccount;
-        temporaryPasswordFields.style.display = usesExistingAccount ? 'none' : 'block';
-        temporaryPassword.required = !usesExistingAccount;
-        confirmTemporaryPassword.required = !usesExistingAccount;
         nameInput.readOnly = isExistingUser;
         emailInput.readOnly = isExistingUser;
         institutionInput.readOnly = isExistingUser;

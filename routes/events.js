@@ -4063,15 +4063,10 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
   const activityValidationError = validateParticipantActivities(event.id, formData.activity_ids);
   if (activityValidationError) return renderParticipantFormError(res, event, null, formData, activityValidationError);
 
-  const temporaryPassword = String(req.body.temporary_password || '');
-  const confirmTemporaryPassword = String(req.body.confirm_temporary_password || '');
+  // Mesmo padrão da importação de listas (CSV/XLSX): a senha é aleatória e
+  // invisível ao administrador; o participante define a própria senha pelo
+  // link único enviado por e-mail (queueImportedAccount).
   if (formData.account_mode === 'new') {
-    if (temporaryPassword.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(temporaryPassword)) {
-      return renderParticipantFormError(res, event, null, formData, 'A senha temporária deve ter ao menos 8 caracteres, com maiúscula, minúscula e número.');
-    }
-    if (temporaryPassword !== confirmTemporaryPassword) {
-      return renderParticipantFormError(res, event, null, formData, 'A confirmação da senha temporária não confere.');
-    }
     const existingEmail = db.prepare(`
       SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1
     `).get(formData.email);
@@ -4091,7 +4086,7 @@ router.post('/:id/participants', strictLimiter, (req, res, next) => {
         `).run(
           formData.name,
           formData.email,
-          bcrypt.hashSync(temporaryPassword, 10),
+          bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10),
           formData.institution || null
         );
         linkedUser = { id: newUser.lastInsertRowid, name: formData.name, email: formData.email };
