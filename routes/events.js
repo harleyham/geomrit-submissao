@@ -18,6 +18,7 @@ const { getSystemEmailSettings, getPendingEmailCount, setEventEmailEnabled, queu
   authorizeImportBatch, queueImportedAccount, queueImportedRegistration, queueRegistrationReviewDecision, queueParticipantActivitiesUpdated, queueActivityRequestDecision, canQueueEmail, queueGroupDirectEmail } = require('../services/email');
 const { strictLimiter } = require('../security/rate-limits');
 const { isSuperAdminUser } = require('./auth');
+const { getGroupEmailRecipients, getGroupEmailOptions } = require('../services/email-groups');
 const { validateAndHandle, validators: v } = require('../security/validation');
 const rooms = require('../services/rooms');
 const { diffDays, shiftEventContent, shiftEventWindows, shiftActivityDates } = require('../services/date-shift');
@@ -1393,10 +1394,6 @@ router.get('/:id/participants', (req, res) => {
     participant.pending_activity_requests = requestedIds.filter((id) => !enrolled.has(id) && !rejected.has(id)).length;
   });
   const summary = countEventParticipantsDetailed(req.params.id, filters);
-  // Contagens para o envio de e-mail em grupo (somente papel 'admin' do evento)
-  const groupEmail = req.eventRole === 'admin' || req.session.isAdmin
-    ? { ...getGroupEmailOptions(req.params.id), emailPermission: canQueueEmail(req.params.id) }
-    : null;
 
   res.render('admin/events/participants', {
     title: `Participantes - ${event.name}`,
@@ -1413,79 +1410,28 @@ router.get('/:id/participants', (req, res) => {
       hasNext: clampedPage < totalPages,
       hasPrev: clampedPage > 1
     },
-    groupEmail,
     success: req.query.success || null,
     error: req.query.error || null
   });
 });
 
-// --- Envio de e-mail em grupo (pagina de participantes) ---------------------
+// --- Envio de e-mail em grupo (card no dashboard) ----------------------------
 // Usuarios aptos a receber: conta publica (ativa), aprovada e com e-mail
 // (mesmo criterio do lembrete automatico de evento). Grupos: inscritos
 // aprovados de todas as inscricoes do evento, papeis do evento
 // (event_user_roles, inscrito ou nao) e inscritos em uma atividade.
-
-const GROUP_EMAIL_REGISTRATION_WHERE = "er.event_id=? AND COALESCE(er.registration_status,'approved')='approved' AND u.is_public=1 AND u.approval_status='approved' AND TRIM(u.email)!=''";
-
-function getGroupEmailRecipients(eventId, group, roleId = null, activityId = null) {
-  if (group === 'role' && roleId) {
-    return db.prepare(`
-      SELECT DISTINCT u.id, u.name, u.email
-      FROM event_user_roles eur
-      JOIN users u ON u.id = eur.user_id
-      WHERE eur.event_id = ? AND eur.role = ? AND u.is_public = 1 AND u.approval_status = 'approved' AND TRIM(u.email) != ''
-      ORDER BY u.name COLLATE NOCASE
-    `).all(eventId, roleId);
-  }
-  if (group === 'activity' && activityId) {
-    return db.prepare(`
-      SELECT DISTINCT u.id, u.name, u.email
-      FROM participant_activity_enrollments pae
-      JOIN event_registrations er ON er.id = pae.registration_id
-      JOIN users u ON u.id = pae.user_id
-      WHERE pae.activity_id = ? AND ${GROUP_EMAIL_REGISTRATION_WHERE}
-      ORDER BY u.name COLLATE NOCASE
-    `).all(activityId, eventId);
-  }
-  return db.prepare(`
-    SELECT DISTINCT u.id, u.name, u.email
-    FROM event_registrations er
-    JOIN users u ON u.id = er.user_id
-    WHERE ${GROUP_EMAIL_REGISTRATION_WHERE}
-    ORDER BY u.name COLLATE NOCASE
-  `).all(eventId);
-}
-
-function getGroupEmailOptions(eventId) {
-  const roles = db.prepare(`
-    SELECT eur.role AS role, COUNT(DISTINCT u.id) AS count
-    FROM event_user_roles eur
-    JOIN users u ON u.id = eur.user_id
-    WHERE eur.event_id = ? AND u.is_public = 1 AND u.approval_status = 'approved' AND TRIM(u.email) != ''
-    GROUP BY eur.role
-    ORDER BY eur.role
-  `).all(eventId);
-  const activities = db.prepare(`
-    SELECT a.id, a.name, COUNT(DISTINCT pae.user_id) AS count
-    FROM participant_activity_enrollments pae
-    JOIN event_activities a ON a.id = pae.activity_id
-    JOIN event_registrations er ON er.id = pae.registration_id
-    JOIN users u ON u.id = pae.user_id
-    WHERE a.event_id = ? AND ${GROUP_EMAIL_REGISTRATION_WHERE}
-    GROUP BY a.id
-    ORDER BY COALESCE(NULLIF(a.name, ''), '') COLLATE NOCASE, a.date_start
-  `).all(eventId, eventId);
-  return {
-    allCount: getGroupEmailRecipients(eventId, 'all').length,
-    roles: roles.map((row) => ({ role: row.role, count: row.count, label: (CERTIFICATE_ROLES[row.role] && CERTIFICATE_ROLES[row.role].label) || EVENT_ROLE_LABELS[row.role] || row.role })),
-    activities
-  };
-}
+// Helpers em services/email-groups.js.
 
 router.post('/:id/email-groups', requireEventAdminOnly, strictLimiter, (req, res) => {
   const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id=?').bind(req.params.id).get());
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
-  const back = (params) => res.redirect(`/admin/events/${event.id}/participants?${params}`);
+  const returnToDashboard = req.body.return_to === 'dashboard';
+  const back = (raw) => {
+    const params = String(raw).replace(/#[^#]*$/, '');
+    return returnToDashboard
+      ? res.redirect(`/admin/dashboard?${params}#email-group-card`)
+      : res.redirect(`/admin/events/${event.id}/participants?${params}#email-group-card`);
+  };
 
   // O formulario envia um unico select com valor combinado:
   // 'all', 'role:<papel>' ou 'activity:<id>'.

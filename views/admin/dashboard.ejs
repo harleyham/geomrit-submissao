@@ -145,6 +145,12 @@
       </div>
     <% } else { %>
 
+    <% if (query && query.success) { %>
+      <div style="background:var(--success-subtle);border:1px solid var(--success-border);border-radius:12px;padding:0.95rem 1rem;margin-bottom:1.5rem;font-size:0.9rem;color:var(--success);"><%= query.success %></div>
+    <% } %>
+    <% if (query && query.error) { %>
+      <div style="background:var(--danger-subtle);border:1px solid var(--danger-border);border-radius:12px;padding:0.95rem 1rem;margin-bottom:1.5rem;font-size:0.9rem;color:var(--danger);"><%= query.error %></div>
+    <% } %>
     <% if (typeof dashboardScoped !== 'undefined' && dashboardScoped && managedEvents && managedEvents.length) { %>
     <div class="stats-group">
       <div class="stats-group-title">Eventos que administro</div>
@@ -163,6 +169,148 @@
         <% }) %>
       </div>
     </div>
+    <% } %>
+
+    <% if (typeof emailGroupEvents !== 'undefined' && emailGroupEvents.length) { const egInit = typeof emailGroupInitialOptions !== 'undefined' ? emailGroupInitialOptions : { allCount: 0, roles: [], activities: [] }; const egInitPerm = typeof emailGroupInitialPermission !== 'undefined' ? emailGroupInitialPermission : { allowed: true, reason: '' }; %>
+      <section class="section" id="email-group-card" style="margin-bottom:2rem;">
+        <div class="section-header"><h2>Enviar e-mail para grupo</h2></div>
+        <div class="section-body">
+        <form method="POST" action="/admin/events/<%= emailGroupEvents[0].id %>/email-groups" nonce="<%= cspNonce %>" id="email-group-form" style="padding:1.25rem 1.5rem;display:flex;flex-direction:column;gap:0.85rem;max-width:60rem;">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="return_to" value="dashboard">
+          <div style="color:var(--text-muted);font-size:0.875rem;">Envia a mesma mensagem individualmente para cada destinatário do grupo escolhido, com a identidade do evento. Respeita o master switch global e o envio de e-mails do evento.</div>
+          <div id="eg-permission-warning" style="background:var(--danger-subtle);border:1px solid var(--danger-border);border-radius:10px;padding:0.85rem 1rem;margin-bottom:0;color:var(--danger);<%= egInitPerm.allowed ? ' display:none;' : '' %>"><span id="eg-permission-text"><%= egInitPerm.allowed ? '' : ('Envio de e-mails desativado (' + egInitPerm.reason + ') — as mensagens serão apenas registradas como suprimidas até que o envio seja reativado.') %></span></div>
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+            <div style="display:flex;flex-direction:column;gap:0.35rem;max-width:340px;flex:1 1 240px;">
+              <label for="eg_event" style="font-size:0.8rem;font-weight:600;color:var(--text-muted);">Evento</label>
+              <select id="eg_event" style="padding:.55rem .75rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-input);color:var(--text-strong);font-size:.875rem;">
+                <% emailGroupEvents.forEach(function (ev) { %>
+                  <option value="<%= ev.id %>"><%= ev.name %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.35rem;max-width:340px;flex:1 1 240px;">
+              <label for="eg_group" style="font-size:0.8rem;font-weight:600;color:var(--text-muted);">Destinatários</label>
+              <select id="eg_group" name="group" style="padding:.55rem .75rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-input);color:var(--text-strong);font-size:.875rem;">
+                <option value="all" data-count="<%= egInit.allCount %>">Todos os inscritos do evento (<%= egInit.allCount %>)</option>
+                <% if (egInit.roles.length) { %>
+                  <optgroup label="Por papel no evento">
+                    <% egInit.roles.forEach(function (r) { %>
+                      <option value="role:<%= r.role %>" data-count="<%= r.count %>"><%= r.label %> (<%= r.count %>)</option>
+                    <% }) %>
+                  </optgroup>
+                <% } %>
+                <% if (egInit.activities.length) { %>
+                  <optgroup label="Participantes de atividade">
+                    <% egInit.activities.forEach(function (a) { %>
+                      <option value="activity:<%= a.id %>" data-count="<%= a.count %>"><%= a.name %> (<%= a.count %>)</option>
+                    <% }) %>
+                  </optgroup>
+                <% } %>
+              </select>
+            </div>
+            <div id="eg-count" style="align-self:end;font-size:0.8125rem;color:var(--text-muted);padding-bottom:0.5rem;">Enviará para <strong><%= egInit.allCount %></strong> destinatário(s)</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:0.35rem;">
+            <label for="eg_subject" style="font-size:0.8rem;font-weight:600;color:var(--text-muted);">Assunto</label>
+            <input id="eg_subject" type="text" name="subject" required maxlength="200" placeholder="Ex.: Alteração de horário da atividade X" style="padding:.55rem .75rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-input);color:var(--text-strong);font-size:.875rem;">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:0.35rem;">
+            <label for="eg_body" style="font-size:0.8rem;font-weight:600;color:var(--text-muted);">Mensagem (texto simples; a assinatura do evento é adicionada automaticamente)</label>
+            <textarea id="eg_body" name="body" rows="5" required placeholder="Escreva o recado para os destinatários…" style="padding:.55rem .75rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-input);color:var(--text-strong);font-size:.875rem;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+          <div>
+            <button type="submit" class="btn btn-primary">Enviar e-mail</button>
+            <span id="eg-status" style="font-size:0.75rem;color:var(--text-muted);margin-left:0.5rem;"></span>
+          </div>
+        </form>
+        </div>
+      </section>
+      <script nonce="<%= cspNonce %>">
+        (function () {
+          const eventSelect = document.getElementById('eg_event');
+          const select = document.getElementById('eg_group');
+          const counter = document.getElementById('eg-count');
+          const form = document.getElementById('email-group-form');
+          const statusEl = document.getElementById('eg-status');
+          const permBox = document.getElementById('eg-permission-warning');
+          const permText = document.getElementById('eg-permission-text');
+          let fetchToken = 0;
+          const count = () => {
+            const option = select.selectedOptions[0];
+            return option ? Number(option.getAttribute('data-count') || 0) : 0;
+          };
+          const update = () => {
+            counter.innerHTML = 'Enviará para <strong>' + count() + '</strong> destinatário(s)';
+          };
+          const applyOptions = (options) => {
+            while (select.options.length) select.remove(0);
+            const all = document.createElement('option');
+            all.value = 'all';
+            all.setAttribute('data-count', options.allCount || 0);
+            all.textContent = 'Todos os inscritos do evento (' + (options.allCount || 0) + ')';
+            select.appendChild(all);
+            if (options.roles && options.roles.length) {
+              const og = document.createElement('optgroup');
+              og.label = 'Por papel no evento';
+              options.roles.forEach((r) => {
+                const o = document.createElement('option');
+                o.value = 'role:' + r.role;
+                o.setAttribute('data-count', r.count);
+                o.textContent = r.label + ' (' + r.count + ')';
+                og.appendChild(o);
+              });
+              select.appendChild(og);
+            }
+            if (options.activities && options.activities.length) {
+              const og = document.createElement('optgroup');
+              og.label = 'Participantes de atividade';
+              options.activities.forEach((a) => {
+                const o = document.createElement('option');
+                o.value = 'activity:' + a.id;
+                o.setAttribute('data-count', a.count);
+                o.textContent = a.name + ' (' + a.count + ')';
+                og.appendChild(o);
+              });
+              select.appendChild(og);
+            }
+            update();
+          };
+          const applyPermission = (permission) => {
+            if (!permission || permission.allowed !== false) {
+              permBox.style.display = 'none';
+              return;
+            }
+            permText.textContent = 'Envio de e-mails desativado (' + (permission.reason || 'desconhecido') + ') — as mensagens serão apenas registradas como suprimidas até que o envio seja reativado.';
+            permBox.style.display = '';
+          };
+          eventSelect.addEventListener('change', async () => {
+            const token = ++fetchToken;
+            const eventId = eventSelect.value;
+            form.setAttribute('action', '/admin/events/' + eventId + '/email-groups');
+            statusEl.textContent = '';
+            try {
+              const res = await fetch('/admin/events/' + eventId + '/email-groups/options', { credentials: 'same-origin' });
+              if (!res.ok) throw new Error('http ' + res.status);
+              const options = await res.json();
+              if (token !== fetchToken) return;
+              applyOptions(options);
+              applyPermission(options.emailEnabled === false ? { allowed: false, reason: options.disabledReason } : { allowed: true });
+            } catch (err) {
+              if (token !== fetchToken) return;
+              statusEl.textContent = 'Não foi possível atualizar os grupos deste evento. Recarregue a página.';
+            }
+          });
+          form.addEventListener('submit', (event) => {
+            const option = select.selectedOptions[0];
+            const label = option ? option.textContent.trim() : '';
+            if (!confirm('Enviar e-mail para ' + count() + ' destinatário(s) (' + label + ')?')) {
+              event.preventDefault();
+            }
+          });
+          update();
+        })();
+      </script>
     <% } %>
 
     <div class="stats-group">

@@ -16,6 +16,7 @@ const { requireSuperAdmin } = require('../security/super-admin');
 const { validateCsrfToken } = require('../security/csrf');
 const themeService = require('../services/theme');
 const { getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, setSystemEmailEnabled, enqueueDirectEmail, clearEmailQueue, queuePasswordReset, queueRecoveryEmailConfirmation, canQueueEmail } = require('../services/email');
+const { getGroupEmailOptions } = require('../services/email-groups');
 
 const RESTORE_UPLOADS_DIR = path.join(os.tmpdir(), 'artigos-restore-uploads');
 fs.mkdirSync(RESTORE_UPLOADS_DIR, { recursive: true });
@@ -419,6 +420,20 @@ router.get('/dashboard', (req, res, next) => {
   if (staffEventIds) (staffEventIds || []).forEach((id) => managedRoleByEvent.set(id, managedRoleByEvent.get(id) ? 'admin+staff' : 'staff'));
   const managedEvents = managedEventRows.map((row) => ({ ...row, manage_role: managedRoleByEvent.get(row.id) || 'admin' }));
 
+  // Card "Enviar e-mail para grupo": superadmin pode escolher qualquer evento;
+  // quem so tem papel staff fica de fora (envio e restrito a admins do evento).
+  let emailGroupEvents = [];
+  if (isSuperAdmin) {
+    emailGroupEvents = db.prepare('SELECT id, name FROM events ORDER BY date_start DESC, name COLLATE NOCASE').all();
+  } else {
+    emailGroupEvents = managedEvents
+      .filter((me) => me.manage_role === 'admin' || me.manage_role === 'admin+staff')
+      .map((me) => ({ id: me.id, name: me.name }));
+  }
+  const emailGroupInitialOptions = emailGroupEvents.length ? getGroupEmailOptions(emailGroupEvents[0].id) : null;
+  const emailGroupInitialPermission = emailGroupEvents.length ? canQueueEmail(emailGroupEvents[0].id) : null;
+
+
   const totalEvents = !hasScope ? 0 : db.prepare(`SELECT COUNT(*) as count FROM events e WHERE 1=1 ${evIn('e.id')}`).bind(...evBind()).get().count;
   const publishedEvents = !hasScope ? 0 : db.prepare(`SELECT COUNT(*) as count FROM events e WHERE e.status = 'published' ${evIn('e.id')}`).bind(...evBind()).get().count;
   // Evento realizado = encerrado explicitamente, ou publicado cuja data de
@@ -672,7 +687,10 @@ router.get('/dashboard', (req, res, next) => {
     themeId: themeService.getThemeId(),
     listThemes: themeService.listThemes(),
     year: new Date().getFullYear(),
-    query: req.query
+    query: req.query,
+    emailGroupEvents,
+    emailGroupInitialOptions,
+    emailGroupInitialPermission
   });
 });
 
