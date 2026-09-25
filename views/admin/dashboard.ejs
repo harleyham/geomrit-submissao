@@ -284,6 +284,7 @@
             permText.textContent = 'Envio de e-mails desativado (' + (permission.reason || 'desconhecido') + ') — as mensagens serão apenas registradas como suprimidas até que o envio seja reativado.';
             permBox.style.display = '';
           };
+          select.addEventListener('change', update);
           eventSelect.addEventListener('change', async () => {
             const token = ++fetchToken;
             const eventId = eventSelect.value;
