@@ -158,6 +158,7 @@ app.use((req, res, next) => {
   const superAdmin = isSuperAdminId(userId);
   res.locals.isAdmin = superAdmin;
   res.locals.isSuperAdmin = superAdmin;
+  res.locals.isEventAdmin = superAdmin || hasRoleAnyEventId(userId, 'admin');
   res.locals.isEventStaff = Boolean(req.session && req.session.isEventStaff) && !superAdmin;
   res.locals.isReviewer = Boolean(userId && hasRoleAnyEventId(userId, 'reviewer'));
   res.locals.isPublic = Boolean(userId);
