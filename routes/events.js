@@ -22,6 +22,7 @@ const { getGroupEmailRecipients, getGroupEmailOptions } = require('../services/e
 const { validateAndHandle, validators: v } = require('../security/validation');
 const rooms = require('../services/rooms');
 const { diffDays, shiftEventContent, shiftEventWindows, shiftActivityDates } = require('../services/date-shift');
+const { removeUserPhotoFile } = require('../services/user-photo');
 
 function safeArchiveFileName(value, fallback) {
   const normalized = String(value || fallback)
@@ -2240,7 +2241,8 @@ function loadActivitiesData(eventId) {
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
       (SELECT COUNT(DISTINCT aar.user_id) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count,
       (SELECT COUNT(*) FROM activity_sessions s WHERE s.activity_id=ea.id) AS session_count,
-      (SELECT COALESCE(SUM(s.workload_hours),0) FROM activity_sessions s WHERE s.activity_id=ea.id) AS sessions_workload
+      (SELECT COALESCE(SUM(s.workload_hours),0) FROM activity_sessions s WHERE s.activity_id=ea.id) AS sessions_workload,
+      (SELECT COUNT(DISTINCT ap.user_id || ':' || ap.role) FROM activity_people ap WHERE ap.activity_id=ea.id) AS people_count
     FROM event_activities ea
     WHERE ea.event_id = ?
     ORDER BY ea.date_start, ea.name
@@ -2345,6 +2347,299 @@ router.get('/:id/activities', (req, res) => {
     error: req.query.error || null
   });
 });
+
+// --- Palestrantes/Professores por atividade (activity_people) ----------------
+
+function activityPeopleQuery(where, bind) {
+  return db.prepare(`
+    SELECT ap.activity_id, ap.role, ap.user_id, u.name, u.email, u.photo_path, u.mini_bio,
+           u.institution, u.approval_status, u.is_public, a.name AS activity_name,
+           CASE WHEN EXISTS (
+             SELECT 1 FROM event_registrations er
+             WHERE er.event_id = a.event_id
+               AND (er.user_id = u.id OR (er.email IS NOT NULL AND LOWER(TRIM(er.email)) = LOWER(TRIM(u.email))))
+           ) THEN 1 ELSE 0 END AS event_registered
+    FROM activity_people ap
+    JOIN users u ON u.id = ap.user_id
+    JOIN event_activities a ON a.id = ap.activity_id
+    WHERE ${where}
+    ORDER BY a.name COLLATE NOCASE, CASE ap.role WHEN 'teacher' THEN 0 ELSE 1 END, u.name COLLATE NOCASE
+  `).all(...bind);
+}
+
+function decorateActivityPeople(rows) {
+  return rows.map((row) => ({
+    ...row,
+    roleLabel: (CERTIFICATE_ROLES[row.role] && CERTIFICATE_ROLES[row.role].label) || row.role,
+    profileComplete: Boolean(row.photo_path) && !!(row.mini_bio || '').trim()
+  }));
+}
+
+function getEventPeople(eventId) {
+  return decorateActivityPeople(activityPeopleQuery('a.event_id = ?', [eventId]));
+}
+
+const MAX_PROFILE_PHOTO_SIZE = 5 * 1024 * 1024;
+const profilePhotoDirAbs = path.join(__dirname, '..', 'uploads', 'profile-photos');
+if (!fs.existsSync(profilePhotoDirAbs)) fs.mkdirSync(profilePhotoDirAbs, { recursive: true });
+const profilePhotoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, profilePhotoDirAbs),
+    filename: (req, file, cb) => {
+      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname || '').toLowerCase()}`);
+    }
+  }),
+  limits: { fileSize: MAX_PROFILE_PHOTO_SIZE, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    cb(null, ['.png', '.jpg', '.jpeg'].includes(ext));
+  }
+});
+
+function runProfilePhotoUpload(req, res, next) {
+  profilePhotoUpload.single('photo')(req, res, (err) => {
+    if (err) {
+      req.profilePhotoUploadError = err.code === 'LIMIT_FILE_SIZE'
+        ? 'A foto deve ter no máximo 5 MB.'
+        : 'Não foi possível enviar a foto (formatos aceitos: PNG, JPG, JPEG).';
+      if (req.file) {
+        try { fs.unlinkSync(req.file.path); } catch (e) { /* ignora */ }
+        req.file = null;
+      }
+      return next();
+    }
+    return validateCsrfToken(req, res, next);
+  });
+}
+
+// Edição do perfil (foto/mini currículo) de um professor/palestrante no lugar
+// do próprio usuário, pelo admin do evento.
+router.post('/:id/people/:userId/profile', requireEventAdminOnly, runProfilePhotoUpload, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activityId = parseInt(req.body.activity_id, 10);
+  const activityOk = activityId && db.prepare('SELECT id FROM event_activities WHERE id = ? AND event_id = ?').get(activityId, event.id);
+  const back = (params) => activityOk
+    ? res.redirect(`/admin/events/${event.id}/activities/${activityId}/people${params}`)
+    : res.redirect(`/admin/events/${event.id}/people${params}`);
+  const target = db.prepare('SELECT id, photo_path, photo_original_name FROM users WHERE id = ?').get(parseInt(req.params.userId, 10));
+  if (!target) return back('?error=' + encodeURIComponent('Usuário não encontrado.'));
+  if (req.profilePhotoUploadError) return back('?error=' + encodeURIComponent(req.profilePhotoUploadError));
+
+  if (req.body.remove_photo === '1') {
+    removeUserPhotoFile(target.photo_path);
+    db.prepare(`UPDATE users SET photo_path = '', photo_original_name = '', updated_at = datetime('now', '-3 hours') WHERE id = ?`).run(target.id);
+  } else if (req.file) {
+    removeUserPhotoFile(target.photo_path);
+    db.prepare(`UPDATE users SET photo_path = ?, photo_original_name = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?`)
+      .run(path.join('uploads', 'profile-photos', req.file.filename).split(path.sep).join('/'), String(req.file.originalname || ''), target.id);
+  }
+  if (req.body.mini_bio !== undefined) {
+    const miniBio = String(req.body.mini_bio || '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 1000);
+    db.prepare(`UPDATE users SET mini_bio = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?`).run(miniBio, target.id);
+  }
+  return back('?success=' + encodeURIComponent('Perfil atualizado com sucesso.'));
+});
+
+router.get('/:id/people', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activities = db.prepare(`SELECT id, name FROM event_activities WHERE event_id = ? ORDER BY COALESCE(NULLIF(name, ''), '') COLLATE NOCASE`).all(event.id);
+  const activityFilter = parseInt(req.query.activity, 10);
+  const filteredActivity = activities.some((a) => a.id === activityFilter) ? activityFilter : null;
+  const people = filteredActivity
+    ? decorateActivityPeople(activityPeopleQuery('a.id = ?', [filteredActivity]))
+    : getEventPeople(event.id);
+  const query = String(req.query.q || '').trim();
+  let candidates = null;
+  if (query.length >= 2) {
+    candidates = db.prepare(`
+      SELECT id, name, email, photo_path, mini_bio, institution
+      FROM users
+      WHERE (name LIKE ? OR email LIKE ?)
+        AND is_public = 1 AND approval_status = 'approved'
+      ORDER BY name COLLATE NOCASE LIMIT 10
+    `).all(`%${query}%`, `%${query}%`);
+  }
+  res.render('admin/events/activity-people', {
+    title: `Palestrantes e Professores - ${event.name}`,
+    event,
+    activity: null,
+    activities,
+    activityFilter,
+    people,
+    query,
+    candidates: candidates || [],
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+});
+
+router.get('/:id/activities/:activityId/people', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT id, name, eligible_roles FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, event.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const people = decorateActivityPeople(activityPeopleQuery('a.id = ?', [activity.id]));
+  const query = String(req.query.q || '').trim();
+  let candidates = null;
+  if (query.length >= 2) {
+    candidates = db.prepare(`
+      SELECT id, name, email, photo_path, mini_bio, institution
+      FROM users
+      WHERE (name LIKE ? OR email LIKE ?)
+        AND is_public = 1 AND approval_status = 'approved'
+        AND id NOT IN (SELECT user_id FROM activity_people WHERE activity_id = ?)
+      ORDER BY name COLLATE NOCASE LIMIT 10
+    `).all(`%${query}%`, `%${query}%`, activity.id);
+  }
+  res.render('admin/events/activity-people', {
+    title: `Palestrantes e Professores - ${activity.name}`,
+    event,
+    activity,
+    activities: null,
+    people,
+    query,
+    candidates: candidates || [],
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+});
+
+router.post('/:id/people', strictLimiter, (req, res, next) => {
+  validateAndHandle(req, res, next, v.peopleLinkForm);
+}, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activityId = enforceActivityBelongsToEvent(event.id, req.body.activity_id);
+  linkActivityAndMaybeCreateAccount({ event, activityId, body: req.body, actorUserId: req.session.userId, back: (params) => res.redirect(`/admin/events/${event.id}/people${params}`) });
+});
+
+router.post('/:id/activities/:activityId/people', strictLimiter, (req, res, next) => { validateCsrfToken(req, res, next); }, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT id FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, event.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  linkActivityAndMaybeCreateAccount({ event, activityId: activity.id, body: req.body, actorUserId: req.session.userId, back: (params) => res.redirect(`/admin/events/${event.id}/activities/${activity.id}/people${params}`) });
+});
+
+function enforceActivityBelongsToEvent(eventId, activityId) {
+  const id = parseInt(activityId, 10);
+  const activity = db.prepare('SELECT id FROM event_activities WHERE id = ? AND event_id = ?').get(id, eventId);
+  return activity ? activity.id : null;
+}
+
+// Vincula professor/palestrante numa atividade; quando account_mode='new',
+// cria a conta no sistema (padrão da inscrição manual: senha aleatória
+// desconhecida, conta aprovada e e-mail com link de uso único para definir
+// senha) e então faz o vínculo como professor/palestrante.
+function linkActivityAndMaybeCreateAccount({ event, activityId, body, actorUserId, back }) {
+  const activity = db.prepare('SELECT id FROM event_activities WHERE id = ? AND event_id = ?').get(parseInt(activityId, 10) || 0, event.id);
+  if (!activity) { back('?error=' + encodeURIComponent('Selecione uma atividade válida do evento.')); return; }
+  const role = String(body.role || '');
+  if (!['speaker', 'teacher'].includes(role)) { back('?error=' + encodeURIComponent('Selecione se a pessoa é Palestrante ou Professor.')); return; }
+  let linkedUser = null;
+
+  if (body.account_mode === 'new') {
+    const name = String(body.name || '').trim();
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!name) { back('?error=' + encodeURIComponent('O nome é obrigatório para criar a conta.')); return; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { back('?error=' + encodeURIComponent('Informe um e-mail válido.')); return; }
+    if (email.length > 200) { back('?error=' + encodeURIComponent('E-mail muito longo (máximo de 200 caracteres).')); return; }
+    const existingEmail = db.prepare('SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1').get(email);
+    if (existingEmail) { back('?error=' + encodeURIComponent('Já existe uma conta com este e-mail. Utilize o vínculo de conta existente.')); return; }
+    const newUser = db.prepare(`
+      INSERT INTO users (name, email, password, institution, is_public, approval_status, approved_at, password_changed, profile_completed, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 1, 'approved', datetime('now', '-3 hours'), 0, 0, datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+    `).run(name, email, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10), String(body.institution || '').trim() || null);
+    linkedUser = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(newUser.lastInsertRowid);
+  } else {
+    const userId = parseInt(body.user_id, 10);
+    linkedUser = db.prepare(`SELECT id, name, email FROM users WHERE id = ? AND is_public = 1 AND approval_status = 'approved'`).get(userId);
+    if (!linkedUser) { back('?error=' + encodeURIComponent('Usuário não encontrado (conta ativa e aprovada).')); return; }
+  }
+
+  try {
+    db.prepare('INSERT OR IGNORE INTO activity_people (activity_id, user_id, role, created_by) VALUES (?, ?, ?, ?)')
+      .run(activity.id, linkedUser.id, role, actorUserId);
+  } catch (e) {
+    back('?error=' + encodeURIComponent('Não foi possível vincular a pessoa à atividade.'));
+    return;
+  }
+
+  // E-mail de criação de conta (fora da transação, padrão das demais vias).
+  if (body.account_mode === 'new') {
+    try {
+      queueImportedAccount({ user: linkedUser, event: withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(event.id).get()), registration: false, dedupeKey: `people-account:${event.id}:${linkedUser.id}` });
+    } catch (error) { /* sem e-mail não invalida o vínculo */ }
+    return back('?success=' + encodeURIComponent(`Conta criada e pessoa vinculada como ${role === 'teacher' ? 'Professor' : 'Palestrante'}.`));
+  }
+  return back('?success=' + encodeURIComponent('Pessoa vinculada à atividade.'));
+}
+
+// Inscreve o professor/palestrante no evento (registrations listener) quando
+// ele ainda não tiver inscrição — por user_id ou e-mail normalizado.
+router.post('/:id/people/:userId/register', strictLimiter, (req, res, next) => { validateCsrfToken(req, res, next); }, (req, res) => {
+  const event = withAreaMeta(db.prepare('SELECT * FROM events WHERE id = ?').bind(req.params.id).get());
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activityId = parseInt(req.body.activity_id, 10);
+  const activityOk = activityId && db.prepare('SELECT id FROM event_activities WHERE id = ? AND event_id = ?').get(activityId, event.id);
+  const back = (params) => activityOk
+    ? res.redirect(`/admin/events/${event.id}/activities/${activityId}/people${params}`)
+    : res.redirect(`/admin/events/${event.id}/people${params}`);
+  const user = db.prepare('SELECT id, name, email, institution, phone FROM users WHERE id = ? AND is_public = 1 AND approval_status = \'approved\'').get(parseInt(req.params.userId, 10));
+  if (!user) return back('?error=' + encodeURIComponent('Usuário não encontrado (conta ativa e aprovada).'));
+  const registered = db.prepare(`
+    SELECT id FROM event_registrations
+    WHERE event_id = ? AND ((user_id IS NOT NULL AND user_id = ?) OR (email IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM(?))))
+    LIMIT 1
+  `).get(event.id, user.id, String(user.email || '').trim().toLowerCase());
+  if (registered) return back('?error=' + encodeURIComponent('Esta pessoa já está inscrita no evento.'));
+
+  let registrationId = null;
+  try {
+    const registerPerson = db.transaction(() => {
+      const result = db.prepare(`
+        INSERT INTO event_registrations (event_id, user_id, name, email, institution, phone, registration_type, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'listener', datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+      `).run(event.id, user.id, user.name, user.email, user.institution, user.phone);
+      registrationId = result.lastInsertRowid;
+      recordParticipantAudit({
+        eventId: event.id,
+        registrationId,
+        actorUserId: req.session.userId,
+        action: 'existing_account_registered_manually',
+        details: { event_people_registration: true, linked_user_id: user.id }
+      });
+    });
+    registerPerson();
+  } catch (error) {
+    if (error && String(error.message).includes('UNIQUE constraint failed')) {
+      return back('?error=' + encodeURIComponent('Esta pessoa já está inscrita no evento.'));
+    }
+    throw error;
+  }
+
+  try {
+    queueImportedRegistration({ user, event, dedupeKey: `manual-registration:${event.id}:${registrationId}` });
+  } catch (error) { /* sem e-mail a inscrição vale igualmente */ }
+  return back('?success=' + encodeURIComponent('Pessoa inscrita no evento (Participante inscrito).'));
+});
+
+router.post('/:id/activities/:activityId/people/:userId/:role/delete', (req, res, next) => { validateCsrfToken(req, res, next); }, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT id FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, event.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const back = (params) => res.redirect(`/admin/events/${event.id}/activities/${activity.id}/people${params}`);
+  const role = String(req.params.role);
+  if (!['speaker', 'teacher'].includes(role)) return back('?error=' + encodeURIComponent('Papel inválido.'));
+  const info = db.prepare('DELETE FROM activity_people WHERE activity_id = ? AND user_id = ? AND role = ?')
+    .run(activity.id, parseInt(req.params.userId, 10), role);
+  if (info.changes) return back('?success=' + encodeURIComponent('Vínculo removido.'));
+  return back('?error=' + encodeURIComponent('Vínculo não encontrado.'));
+});
+
 router.post('/:id/activities', strictLimiter, (req, res, next) => {
   validateAndHandle(req, res, next, v.activityForm, (rq, rs, messages) => activityValidationFallback((r2) => r2.params.id)(rq, rs, messages));
 }, (req, res) => {

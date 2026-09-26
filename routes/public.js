@@ -14,6 +14,7 @@ const { brDate, brToday, brFormatDate } = require('../services/datetime');
 const { validateCsrfToken } = require('../security/csrf');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountRequested, queuePublicRegistrationSubmission } = require('../services/email');
+const { PHOTO_DIR_REL, getUserPhotoAbsPath, removeUserPhotoFile } = require('../services/user-photo');
 const roomsService = require('../services/rooms');
 
 const ABSTRACT_LIMIT = 2500;
@@ -45,6 +46,56 @@ const justificationUploadDir = path.join(uploadsDir, 'activity-justifications');
 if (!fs.existsSync(justificationUploadDir)) {
   fs.mkdirSync(justificationUploadDir, { recursive: true });
 }
+
+const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
+const photoDirAbs = path.join(__dirname, '..', 'uploads', 'profile-photos');
+if (!fs.existsSync(photoDirAbs)) fs.mkdirSync(photoDirAbs, { recursive: true });
+const photoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, photoDirAbs),
+    filename: (req, file, cb) => {
+      const unique = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
+      cb(null, unique + path.extname(file.originalname || '').toLowerCase());
+    }
+  }),
+  limits: { fileSize: MAX_PHOTO_SIZE, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    cb(null, ['.png', '.jpg', '.jpeg'].includes(ext));
+  }
+});
+
+function runPhotoUpload(req, res, next) {
+  photoUpload.single('photo')(req, res, (err) => {
+    if (err) {
+      req.photoUploadError = err.code === 'LIMIT_FILE_SIZE'
+        ? 'A foto deve ter no máximo 5 MB.'
+        : 'Não foi possível enviar a foto (formatos aceitos: PNG, JPG, JPEG).';
+      if (req.file) {
+        try { fs.unlinkSync(req.file.path); } catch (e) { /* ignora */ }
+        req.file = null;
+      }
+      return next();
+    }
+    return validateCsrfToken(req, res, next);
+  });
+}
+
+function cleanMiniBio(value, maxLength = 1000) {
+  return String(value || '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, maxLength);
+}
+
+function fullProfileRow(userId) {
+  return db.prepare(`
+    SELECT id, name, email, institution, phone, cpf, passport, country,
+           formacao_area, formacao_curso, formacao_titulacao, formacao_status,
+           photo_path, photo_original_name, mini_bio
+    FROM users
+    WHERE id = ?
+  `).get(userId);
+}
+
+
 
 // Documentos da inscricao: os arquivos de subsídio vão para uploads/ e os de
 // justificativa de atividade (campo justification_<activityId>) para
@@ -1285,7 +1336,8 @@ router.get('/evento/:id', (req, res) => {
   const activities = db.prepare(`
     SELECT id,name,activity_type,description,date_start,date_end,time_start,time_end,video_url,has_video,max_participants,requires_approval,COALESCE(requires_justification,0) AS requires_justification,required_for_participants,COALESCE(default_for_participants,0) AS default_for_participants,certificate_enabled,
       COALESCE(workload_hours,0) AS workload_hours,
-      (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload
+      (SELECT COALESCE(SUM(COALESCE(s.workload_hours,0)),0) FROM activity_sessions s WHERE s.activity_id=event_activities.id) AS sessions_workload,
+      (SELECT COUNT(DISTINCT ap.user_id || ':' || ap.role) FROM activity_people ap WHERE ap.activity_id=event_activities.id) AS people_count
     FROM event_activities
     WHERE event_id=?
     ORDER BY (date_start IS NULL), date_start, (time_start IS NULL), time_start, name COLLATE NOCASE
@@ -1714,8 +1766,35 @@ router.get('/evento/:id/atividades/:activityId/etapas', (req, res) => {
     SELECT id,name,session_date,time_start,time_end,description,video_url,has_video,workload_hours,sequence_no
     FROM activity_sessions WHERE activity_id=? ORDER BY sequence_no, session_date, id
   `).all(activity.id);
+  const peopleCount = db.prepare(`
+    SELECT COUNT(*) AS count FROM activity_people ap JOIN users u ON u.id = ap.user_id
+    WHERE ap.activity_id = ? AND u.is_public = 1 AND u.approval_status = 'approved'
+  `).get(activity.id).count;
   sessions.forEach((session) => { session.room_allocation = roomsService.targetAssignment({ sessionId: session.id }); });
-  res.render('public/activity-sessions', { event, activity, sessions, title: activity.name });
+  res.render('public/activity-sessions', { event, activity, sessions, peopleCount, title: activity.name });
+});
+
+router.get('/evento/:id/atividade/:activityId/pessoas', requireNonAdminAuthorAccess, (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
+  if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+  const activity = db.prepare('SELECT id, name, description FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, event.id);
+  if (!activity) return res.status(404).render('error', { title: 'Atividade não encontrada' });
+  const people = db.prepare(`
+    SELECT ap.role, u.id, u.name, u.photo_path, u.mini_bio, u.institution,
+           (SELECT COUNT(*) FROM activity_people ap2 WHERE ap2.user_id = u.id) AS total_links
+    FROM activity_people ap
+    JOIN users u ON u.id = ap.user_id
+    WHERE ap.activity_id = ? AND u.is_public = 1 AND u.approval_status = 'approved'
+    ORDER BY CASE ap.role WHEN 'teacher' THEN 0 ELSE 1 END, u.name COLLATE NOCASE
+  `).all(activity.id);
+  const roleLabels = { speaker: 'Palestrante', teacher: 'Professor' };
+  return res.render('public/activity-people', {
+    title: `Palestrantes e Professores - ${activity.name}`,
+    event: withAreaMeta(event),
+    activity,
+    people,
+    roleLabels
+  });
 });
 
 router.get('/evento/:id/atividades', requireNonAdminAuthorAccess, (req, res) => {
@@ -2501,6 +2580,15 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
 
   const showSubsidyStatus = participationsWithMeta.some((p) => !!p.subsidy_requested);
 
+  const presenterRole = db.prepare(`
+    SELECT 1 FROM event_user_roles
+    WHERE user_id = ? AND role IN ('teacher','speaker') LIMIT 1
+  `).get(req.session.userId);
+  const presenterProfileIncomplete = !!presenterRole && (() => {
+    const row = db.prepare(`SELECT photo_path, mini_bio FROM users WHERE id = ?`).get(req.session.userId);
+    return !row || !row.photo_path || !(row.mini_bio || '').trim();
+  })();
+
   const stats = {
     total: submissions.length,
     drafts: submissions.filter((item) => item.status === 'draft').length,
@@ -2517,6 +2605,7 @@ router.get('/author', requireNonAdminAuthorAccess, (req, res) => {
     previewMode: false,
     previewUser: null,
     showSubsidyStatus: showSubsidyStatus,
+    presenterProfileIncomplete,
     success: req.query.success || null,
     error: req.query.error || null
   });
@@ -2622,7 +2711,8 @@ router.post('/evento/:id/inscricao/cancelar', registrationLimiter, requireNonAdm
 router.get('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
   const user = db.prepare(`
     SELECT id, name, email, institution, phone, cpf, passport, country,
-           formacao_area, formacao_curso, formacao_titulacao, formacao_status
+           formacao_area, formacao_curso, formacao_titulacao, formacao_status,
+           photo_path, photo_original_name, mini_bio
     FROM users
     WHERE id = ?
   `).get(req.session.userId);
@@ -2635,6 +2725,41 @@ router.get('/author/profile', requireNonAdminAuthorAccess, (req, res) => {
   }
 
   return renderParticipantProfile(res, { formData: user });
+});
+
+router.post('/author/profile/photo', registrationLimiter, runPhotoUpload, (req, res) => {
+  const user = db.prepare('SELECT id, photo_path FROM users WHERE id = ?').get(req.session.userId);
+  if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
+  if (req.photoUploadError) {
+    return renderParticipantProfile(res, { formData: user, error: req.photoUploadError });
+  }
+  if (!req.file) {
+    return renderParticipantProfile(res, { formData: user, error: 'Selecione uma imagem para enviar.' });
+  }
+  removeUserPhotoFile(user.photo_path);
+  db.prepare(`UPDATE users SET photo_path = ?, photo_original_name = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?`)
+    .run(path.join('uploads', 'profile-photos', req.file.filename).split(path.sep).join('/'), String(req.file.originalname || ''), req.session.userId);
+
+  const updated = fullProfileRow(req.session.userId);
+  return renderParticipantProfile(res, { formData: updated, success: 'Sua foto foi atualizada com sucesso.' });
+});
+
+router.post('/author/profile/bio', registrationLimiter, (req, res, next) => { validateCsrfToken(req, res, next); }, (req, res) => {
+  const user = db.prepare('SELECT id, photo_path FROM users WHERE id = ?').get(req.session.userId);
+  if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
+  const miniBio = cleanMiniBio(req.body.mini_bio, 1000);
+  db.prepare(`UPDATE users SET mini_bio = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?`).run(miniBio, req.session.userId);
+  const updated = fullProfileRow(req.session.userId);
+  return renderParticipantProfile(res, { formData: updated, success: 'Seu mini currículo foi atualizado com sucesso.' });
+});
+
+router.post('/author/profile/photo/remove', registrationLimiter, (req, res, next) => { validateCsrfToken(req, res, next); }, (req, res) => {
+  const user = db.prepare('SELECT id, photo_path FROM users WHERE id = ?').get(req.session.userId);
+  if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
+  removeUserPhotoFile(user.photo_path);
+  db.prepare(`UPDATE users SET photo_path = '', photo_original_name = '', updated_at = datetime('now', '-3 hours') WHERE id = ?`).run(req.session.userId);
+  const updated = fullProfileRow(req.session.userId);
+  return renderParticipantProfile(res, { formData: updated, success: 'Sua foto foi removida.' });
 });
 
 router.post('/author/profile', registrationLimiter, requireNonAdminAuthorAccess, (req, res, next) => {

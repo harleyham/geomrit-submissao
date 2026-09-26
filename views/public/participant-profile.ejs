@@ -39,6 +39,12 @@
     .input-with-toggle { position: relative; }
     .input-with-toggle input { padding-right: 2.75rem; }
     .toggle-password { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; line-height: 1; }
+    .photo-row { display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+    .photo-circle { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--surface-input); border: 2px solid var(--border-strong); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .photo-circle img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-circle .photo-initial { font-size: 2rem; font-weight: 700; color: var(--text-faint); }
+    .photo-actions { display: flex; flex-direction: column; gap: 0.5rem; }
+    .photo-file-input { color: var(--text); font-size: 0.85rem; max-width: 22rem; }
     footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
     @media (max-width: 720px) {
       .grid { grid-template-columns: 1fr; }
@@ -76,6 +82,43 @@
     <div class="hero">
       <h1>Meus Dados</h1>
       <p>Atualize aqui suas informações cadastrais para manter suas inscrições e submissões vinculadas corretamente à sua conta.</p>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:1.05rem;font-weight:700;color:var(--text-strong);margin-bottom:1rem;">Foto e mini currículo</h2>
+      <p class="help">Imagem redonda (PNG, JPG ou JPEG, até 5 MB) e um mini currículo de até 1000 caracteres. Se você é professor(a) ou palestrante de alguma atividade, use esta seção para aparecer nos eventos.</p>
+      <div class="photo-row">
+        <div class="photo-circle">
+          <% if (formData.photo_path) { %>
+            <img src="/<%= formData.photo_path %>" alt="Sua foto">
+          <% } else { %>
+            <span class="photo-initial"><%= (String(formData.name || '').trim()[0] || '◆').toUpperCase() %></span>
+          <% } %>
+        </div>
+        <div class="photo-actions">
+          <form method="POST" action="/author/profile/photo" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label class="photo-file-input" for="photo">Selecionar foto</label>
+            <input class="photo-file-input" type="file" id="photo" name="photo" accept=".png,.jpg,.jpeg" required>
+            <button type="submit" style="margin-top:0.5rem;">Enviar foto</button>
+          </form>
+          <% if (formData.photo_path) { %>
+            <form method="POST" action="/author/profile/photo/remove" onsubmit="return confirm('Remover sua foto?');">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit">Remover foto</button>
+            </form>
+          <% } %>
+        </div>
+      </div>
+      <form method="POST" action="/author/profile/bio">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="mini_bio">Mini currículo</label>
+          <textarea id="mini_bio" name="mini_bio" rows="4" maxlength="1000" placeholder="Ex.: Doutor em Física; professor no IFSC. Pesquisa em acústica e sinal sonoro." style="width:100%;padding:0.8rem 0.95rem;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-input);color:var(--text-strong);font-size:0.95rem;font-family:'Inter',sans-serif;resize:vertical;"><%= formData.mini_bio || '' %></textarea>
+          <div class="help" id="mini-bio-count"><%= ((formData.mini_bio || '').length) %> / 1000 caracteres</div>
+        </div>
+        <button type="submit">Salvar mini currículo</button>
+      </form>
     </div>
 
     <div class="card">
@@ -256,6 +299,15 @@
           button.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
         });
       });
+    })();
+
+    (function () {
+      var bio = document.getElementById('mini_bio');
+      var counter = document.getElementById('mini-bio-count');
+      if (!bio || !counter) return;
+      var update = function () { counter.textContent = bio.value.length + ' / 1000 caracteres'; };
+      bio.addEventListener('input', update);
+      update();
     })();
   </script>
 </body>

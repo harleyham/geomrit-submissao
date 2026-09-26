@@ -586,6 +586,18 @@ function migrateSchema(db) {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS uq_event_qr_codes_token ON event_qr_codes(token);
     ${ROOM_DDL}
+    CREATE TABLE IF NOT EXISTS activity_people (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('speaker','teacher')),
+      created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+      created_by INTEGER,
+      UNIQUE(activity_id,user_id,role),
+      FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
   `);
 
   if (!hadParticipantActivityEnrollments) {
@@ -607,6 +619,30 @@ function migrateSchema(db) {
 // ausentes em bancos legados.
 function backfillColumnSteps(db) {
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email')) db.exec('ALTER TABLE users ADD COLUMN recovery_email TEXT'); } catch(e){ throw e; }
+  // Perfis de professor/palestrante: colunas em users e tabela de vínculo por
+  // atividade (idempotentes; bancos legados ficam a par mesmo sem nova versão).
+  try {
+    const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+    if (!cols.includes('photo_path')) db.exec("ALTER TABLE users ADD COLUMN photo_path TEXT DEFAULT ''");
+    if (!cols.includes('photo_original_name')) db.exec("ALTER TABLE users ADD COLUMN photo_original_name TEXT DEFAULT ''");
+    if (!cols.includes('mini_bio')) db.exec("ALTER TABLE users ADD COLUMN mini_bio TEXT DEFAULT ''");
+  } catch (e) { throw e; }
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS activity_people (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        activity_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('speaker','teacher')),
+        created_at DATETIME DEFAULT (datetime('now','-3 hours')),
+        created_by INTEGER,
+        UNIQUE(activity_id,user_id,role),
+        FOREIGN KEY(activity_id) REFERENCES event_activities(id) ON DELETE CASCADE,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+  } catch (e) { throw e; }
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_hash')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_hash TEXT'); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_expires_at')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_expires_at DATETIME'); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_verified')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_verified INTEGER DEFAULT 0'); } catch(e){ throw e; }
@@ -1162,6 +1198,9 @@ function backfillColumnSteps(db) {
     if (!userColumns.includes('formacao_titulacao')) db.exec("ALTER TABLE users ADD COLUMN formacao_titulacao TEXT");
     if (!userColumns.includes('formacao_status')) db.exec("ALTER TABLE users ADD COLUMN formacao_status TEXT");
     if (!userColumns.includes('profile_completed')) db.exec("ALTER TABLE users ADD COLUMN profile_completed INTEGER DEFAULT 1");
+    if (!userColumns.includes('photo_path')) db.exec("ALTER TABLE users ADD COLUMN photo_path TEXT DEFAULT ''");
+    if (!userColumns.includes('photo_original_name')) db.exec("ALTER TABLE users ADD COLUMN photo_original_name TEXT DEFAULT ''");
+    if (!userColumns.includes('mini_bio')) db.exec("ALTER TABLE users ADD COLUMN mini_bio TEXT DEFAULT ''");
   } catch(e) { throw e; }
 
   try {

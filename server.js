@@ -80,6 +80,7 @@ app.use(methodOverride((req) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/uploads/event-logos', express.static(path.join(__dirname, 'uploads', 'event-logos')));
+app.use('/uploads/profile-photos', express.static(path.join(__dirname, 'uploads', 'profile-photos')));
 
 // Arquivos estáticos não consomem a cota das rotas dinâmicas.
 app.use(defaultLimiter);

@@ -54,6 +54,9 @@
     <a class="back-link" href="/evento/<%= event.id %>">← Voltar às atividades</a>
     <h1>Etapas — <%= activity.name %></h1>
     <p class="hint"><%= activityDateRange(activity) || 'A definir' %></p>
+    <% if (typeof peopleCount !== 'undefined' && Number(peopleCount) > 0) { %>
+      <p><a class="btn btn-secondary" href="/evento/<%= event.id %>/atividade/<%= activity.id %>/pessoas">Palestrante/Professor (<%= peopleCount %>)</a></p>
+    <% } %>
 
     <% if (!sessions.length) { %>
       <div class="table-wrap"><div class="empty">Esta atividade não possui etapas detalhadas.</div></div>

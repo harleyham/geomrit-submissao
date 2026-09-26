@@ -220,6 +220,15 @@ const validators = {
       return true;
     })
   ],
+  peopleLinkForm: [
+    body('activity_id').isInt({ min: 1 }).withMessage('Selecione a atividade.'),
+    body('role').isIn(['speaker', 'teacher']).withMessage('Selecione se a pessoa é Palestrante ou Professor.'),
+    body('account_mode').optional().isIn(['existing', 'new']).withMessage('Modo de conta inválido.'),
+    body('user_id').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Usuário inválido.'),
+    body('name').optional().trim().isLength({ max: 200 }),
+    body('email').optional({ values: 'falsy' }).customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail válido.'),
+    body('institution').optional().trim().isLength({ max: 200 })
+  ],
   completeProfile: [
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
     body('institution').trim().notEmpty().withMessage('A instituição é obrigatória.').isLength({ max: 200 }),
