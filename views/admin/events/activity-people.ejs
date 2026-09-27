@@ -255,7 +255,7 @@
                     <label class="hint">Nova foto (PNG, JPG ou JPEG, até 5 MB; substitui a atual):</label>
                     <input type="file" name="photo" accept=".png,.jpg,.jpeg">
                     <label class="hint">Mini currículo (até 2000 caracteres):</label>
-                    <textarea name="mini_bio" rows="3" maxlength="2000"><%= p.mini_bio || '' %></textarea>
+                    <textarea name="mini_bio" class="bio-autogrow" rows="3" maxlength="2000"><%= p.mini_bio || '' %></textarea>
                     <div class="edit-actions">
                       <button type="submit" class="btn btn-primary">Salvar perfil</button>
                     </div>
@@ -339,6 +339,19 @@
         button.addEventListener('click', function () {
           selectCandidate({ id: button.getAttribute('data-id'), name: button.getAttribute('data-name'), email: button.getAttribute('data-email') });
         });
+      });
+
+      // Mini curriculo cresce (e encolhe) para caber todo o texto digitado.
+      function autogrowBio(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.max(textarea.scrollHeight + 4, 60) + 'px';
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('.bio-autogrow'), function (textarea) {
+        autogrowBio(textarea);
+        textarea.addEventListener('input', function () { autogrowBio(textarea); });
+        // O <details> esconde o campo até abrir: recalcula ao expandir.
+        var details = textarea.closest('details');
+        if (details) details.addEventListener('toggle', function () { if (details.open) autogrowBio(textarea); });
       });
     })();
   </script>
