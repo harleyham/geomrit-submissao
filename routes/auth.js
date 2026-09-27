@@ -411,9 +411,14 @@ router.get('/dashboard', (req, res, next) => {
   const evBind = (params = []) => (dashboardEventIds === null ? params : [...params, ...scopedParams]);
   const brToday = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
 
-  const managedEventRows = dashboardEventIds === null ? [] : (hasScope
-    ? db.prepare(`SELECT id,name,status,date_start,date_end FROM events WHERE id IN (${scopedParams.map(() => '?').join(',')}) ORDER BY date_start DESC, name COLLATE NOCASE`).all(...scopedParams)
-    : []);
+  const managedEventRows = dashboardEventIds === null
+    // Superadmin administra todos os eventos: o card "Eventos que administro"
+    // lista todos, garantindo acesso aos atalhos (participantes, atividades,
+    // papeis, palestrantes/professores e certificados) de qualquer evento.
+    ? db.prepare('SELECT id,name,status,date_start,date_end FROM events ORDER BY date_start DESC, name COLLATE NOCASE').all()
+    : (hasScope
+      ? db.prepare(`SELECT id,name,status,date_start,date_end FROM events WHERE id IN (${scopedParams.map(() => '?').join(',')}) ORDER BY date_start DESC, name COLLATE NOCASE`).all(...scopedParams)
+      : []);
   // Papel operador por evento (para o badge no card "Eventos que administro").
   const managedRoleByEvent = new Map();
   if (adminEventIds) adminEventIds.forEach((id) => managedRoleByEvent.set(id, 'admin'));

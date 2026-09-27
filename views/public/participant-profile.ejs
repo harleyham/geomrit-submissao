@@ -86,7 +86,7 @@
 
     <div class="card">
       <h2 style="font-size:1.05rem;font-weight:700;color:var(--text-strong);margin-bottom:1rem;">Foto e mini currículo</h2>
-      <p class="help">Imagem redonda (PNG, JPG ou JPEG, até 5 MB) e um mini currículo de até 1000 caracteres. Se você é professor(a) ou palestrante de alguma atividade, use esta seção para aparecer nos eventos.</p>
+      <p class="help">Imagem redonda (PNG, JPG ou JPEG, até 5 MB) e um mini currículo de até 2000 caracteres. Se você é professor(a) ou palestrante de alguma atividade, use esta seção para aparecer nos eventos.</p>
       <div class="photo-row">
         <div class="photo-circle">
           <% if (formData.photo_path) { %>
@@ -114,8 +114,8 @@
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
           <label for="mini_bio">Mini currículo</label>
-          <textarea id="mini_bio" name="mini_bio" rows="4" maxlength="1000" placeholder="Ex.: Doutor em Física; professor no IFSC. Pesquisa em acústica e sinal sonoro." style="width:100%;padding:0.8rem 0.95rem;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-input);color:var(--text-strong);font-size:0.95rem;font-family:'Inter',sans-serif;resize:vertical;"><%= formData.mini_bio || '' %></textarea>
-          <div class="help" id="mini-bio-count"><%= ((formData.mini_bio || '').length) %> / 1000 caracteres</div>
+          <textarea id="mini_bio" name="mini_bio" rows="4" maxlength="2000" placeholder="Ex.: Doutor em Física; professor no IFSC. Pesquisa em acústica e sinal sonoro." style="width:100%;padding:0.8rem 0.95rem;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-input);color:var(--text-strong);font-size:0.95rem;font-family:'Inter',sans-serif;resize:vertical;"><%= formData.mini_bio || '' %></textarea>
+          <div class="help" id="mini-bio-count"><%= ((formData.mini_bio || '').length) %> / 2000 caracteres</div>
         </div>
         <button type="submit">Salvar mini currículo</button>
       </form>
@@ -305,7 +305,7 @@
       var bio = document.getElementById('mini_bio');
       var counter = document.getElementById('mini-bio-count');
       if (!bio || !counter) return;
-      var update = function () { counter.textContent = bio.value.length + ' / 1000 caracteres'; };
+      var update = function () { counter.textContent = bio.value.length + ' / 2000 caracteres'; };
       bio.addEventListener('input', update);
       update();
     })();

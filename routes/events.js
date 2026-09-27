@@ -2386,22 +2386,34 @@ const profilePhotoUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, profilePhotoDirAbs),
     filename: (req, file, cb) => {
-      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname || '').toLowerCase()}`);
+      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname || '').toLowerCase() || photoExtFromMime(file.mimetype)}`);
     }
   }),
   limits: { fileSize: MAX_PROFILE_PHOTO_SIZE, files: 1 },
   fileFilter: (req, file, cb) => {
+    // O mimetype (informado pelo navegador) é a referência confiável; a
+    // extensão é apenas fallback para clientes que não enviam o campo.
+    const mime = String(file.mimetype || '').toLowerCase();
+    if (['image/png', 'image/jpeg', 'image/jpg', 'image/pjpeg'].includes(mime)) return cb(null, true);
     const ext = path.extname(file.originalname || '').toLowerCase();
-    cb(null, ['.png', '.jpg', '.jpeg'].includes(ext));
+    const ok = ['.png', '.jpg', '.jpeg'].includes(ext);
+    if (!ok) req.profilePhotoFormatRejected = true;
+    cb(null, ok);
   }
 });
+
+function photoExtFromMime(mime) {
+  const m = String(mime || '').toLowerCase();
+  if (m === 'image/jpeg' || m === 'image/jpg' || m === 'image/pjpeg') return '.jpg';
+  return '.png';
+}
 
 function runProfilePhotoUpload(req, res, next) {
   profilePhotoUpload.single('photo')(req, res, (err) => {
     if (err) {
       req.profilePhotoUploadError = err.code === 'LIMIT_FILE_SIZE'
         ? 'A foto deve ter no máximo 5 MB.'
-        : 'Não foi possível enviar a foto (formatos aceitos: PNG, JPG, JPEG).';
+        : 'Não foi possível enviar a foto. Use um arquivo PNG, JPG ou JPEG de até 5 MB (verifique o formato em que o celular está salvando).';
       if (req.file) {
         try { fs.unlinkSync(req.file.path); } catch (e) { /* ignora */ }
         req.file = null;
@@ -2425,6 +2437,9 @@ router.post('/:id/people/:userId/profile', requireEventAdminOnly, runProfilePhot
   const target = db.prepare('SELECT id, photo_path, photo_original_name FROM users WHERE id = ?').get(parseInt(req.params.userId, 10));
   if (!target) return back('?error=' + encodeURIComponent('Usuário não encontrado.'));
   if (req.profilePhotoUploadError) return back('?error=' + encodeURIComponent(req.profilePhotoUploadError));
+  if (!req.file && req.profilePhotoFormatRejected) {
+    return back('?error=' + encodeURIComponent('Não foi possível enviar a foto. Use um arquivo PNG, JPG ou JPEG de até 5 MB (verifique o formato em que o celular está salvando).'));
+  }
 
   if (req.body.remove_photo === '1') {
     removeUserPhotoFile(target.photo_path);
@@ -2435,7 +2450,7 @@ router.post('/:id/people/:userId/profile', requireEventAdminOnly, runProfilePhot
       .run(path.join('uploads', 'profile-photos', req.file.filename).split(path.sep).join('/'), String(req.file.originalname || ''), target.id);
   }
   if (req.body.mini_bio !== undefined) {
-    const miniBio = String(req.body.mini_bio || '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 1000);
+    const miniBio = String(req.body.mini_bio || '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
     db.prepare(`UPDATE users SET mini_bio = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?`).run(miniBio, target.id);
   }
   return back('?success=' + encodeURIComponent('Perfil atualizado com sucesso.'));
@@ -2565,6 +2580,15 @@ function linkActivityAndMaybeCreateAccount({ event, activityId, body, actorUserI
   } catch (e) {
     back('?error=' + encodeURIComponent('Não foi possível vincular a pessoa à atividade.'));
     return;
+  }
+
+  // O papel do evento (pagina "Papeis") acompanha o vinculo de professor ou
+  // palestrante, para que o usuario apareca com esse papel no evento inteiro
+  // (certificados e permissao pelo dashboard). Superadmin nao pode ter papeis
+  // atribuidos/alterados por nenhuma via.
+  if (!eventRolesProtected(linkedUser.id)) {
+    db.prepare('INSERT OR IGNORE INTO event_user_roles (event_id, user_id, role, assigned_by) VALUES (?, ?, ?, ?)')
+      .run(event.id, linkedUser.id, role, actorUserId);
   }
 
   // E-mail de criação de conta (fora da transação, padrão das demais vias).

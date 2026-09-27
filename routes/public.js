@@ -48,6 +48,12 @@ if (!fs.existsSync(justificationUploadDir)) {
 }
 
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
+
+function photoExtFromMime(mime) {
+  const m = String(mime || '').toLowerCase();
+  if (m === 'image/jpeg' || m === 'image/jpg' || m === 'image/pjpeg') return '.jpg';
+  return '.png';
+}
 const photoDirAbs = path.join(__dirname, '..', 'uploads', 'profile-photos');
 if (!fs.existsSync(photoDirAbs)) fs.mkdirSync(photoDirAbs, { recursive: true });
 const photoUpload = multer({
@@ -55,13 +61,19 @@ const photoUpload = multer({
     destination: (req, file, cb) => cb(null, photoDirAbs),
     filename: (req, file, cb) => {
       const unique = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
-      cb(null, unique + path.extname(file.originalname || '').toLowerCase());
+      cb(null, unique + (path.extname(file.originalname || '').toLowerCase() || photoExtFromMime(file.mimetype)));
     }
   }),
   limits: { fileSize: MAX_PHOTO_SIZE, files: 1 },
   fileFilter: (req, file, cb) => {
+    // O mimetype (informado pelo navegador) é a referência confiável; a
+    // extensão é apenas fallback para clientes que não enviam o campo.
+    const mime = String(file.mimetype || '').toLowerCase();
+    if (['image/png', 'image/jpeg', 'image/jpg', 'image/pjpeg'].includes(mime)) return cb(null, true);
     const ext = path.extname(file.originalname || '').toLowerCase();
-    cb(null, ['.png', '.jpg', '.jpeg'].includes(ext));
+    const ok = ['.png', '.jpg', '.jpeg'].includes(ext);
+    if (!ok) req.photoFormatRejected = true;
+    cb(null, ok);
   }
 });
 
@@ -70,7 +82,7 @@ function runPhotoUpload(req, res, next) {
     if (err) {
       req.photoUploadError = err.code === 'LIMIT_FILE_SIZE'
         ? 'A foto deve ter no máximo 5 MB.'
-        : 'Não foi possível enviar a foto (formatos aceitos: PNG, JPG, JPEG).';
+        : 'Não foi possível enviar a foto. Use um arquivo PNG, JPG ou JPEG de até 5 MB (verifique o formato em que o celular está salvando).';
       if (req.file) {
         try { fs.unlinkSync(req.file.path); } catch (e) { /* ignora */ }
         req.file = null;
@@ -81,7 +93,7 @@ function runPhotoUpload(req, res, next) {
   });
 }
 
-function cleanMiniBio(value, maxLength = 1000) {
+function cleanMiniBio(value, maxLength = 2000) {
   return String(value || '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, maxLength);
 }
 
@@ -2734,7 +2746,12 @@ router.post('/author/profile/photo', registrationLimiter, runPhotoUpload, (req, 
     return renderParticipantProfile(res, { formData: user, error: req.photoUploadError });
   }
   if (!req.file) {
-    return renderParticipantProfile(res, { formData: user, error: 'Selecione uma imagem para enviar.' });
+    return renderParticipantProfile(res, {
+      formData: user,
+      error: req.photoFormatRejected
+        ? 'Não foi possível enviar a foto. Use um arquivo PNG, JPG ou JPEG de até 5 MB (verifique o formato em que o celular está salvando).'
+        : 'Selecione uma imagem para enviar.'
+    });
   }
   removeUserPhotoFile(user.photo_path);
   db.prepare(`UPDATE users SET photo_path = ?, photo_original_name = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?`)
@@ -2747,7 +2764,7 @@ router.post('/author/profile/photo', registrationLimiter, runPhotoUpload, (req, 
 router.post('/author/profile/bio', registrationLimiter, (req, res, next) => { validateCsrfToken(req, res, next); }, (req, res) => {
   const user = db.prepare('SELECT id, photo_path FROM users WHERE id = ?').get(req.session.userId);
   if (!user) return res.status(404).render('error', { title: 'Usuário não encontrado' });
-  const miniBio = cleanMiniBio(req.body.mini_bio, 1000);
+  const miniBio = cleanMiniBio(req.body.mini_bio, 2000);
   db.prepare(`UPDATE users SET mini_bio = ?, updated_at = datetime('now', '-3 hours') WHERE id = ?`).run(miniBio, req.session.userId);
   const updated = fullProfileRow(req.session.userId);
   return renderParticipantProfile(res, { formData: updated, success: 'Seu mini currículo foi atualizado com sucesso.' });
