@@ -260,6 +260,7 @@
                 </td>
                 <td>
                   <div><%= participant.participation_label %></div>
+                  <% if (participant.user_id && (participant.user_password_changed === 0 || participant.user_profile_completed === 0)) { %><div><span class="badge badge-subsidy">Primeiro acesso pendente</span></div><% } %>
                   <% if (participant.registration_status === 'pending') { %><div><span class="badge badge-subsidy">Inscrição pendente de análise</span></div><% } %>
                   <% if (participant.registration_status === 'rejected') { %><div><span class="badge badge-rejected">Inscrição rejeitada</span></div><% } %>
                   <% if (participant.registration_status !== 'pending' && participant.pending_activity_requests) { %><div><a href="/admin/events/<%= event.id %>/participants/<%= participant.id %>/edit" class="badge badge-subsidy" style="text-decoration:none"><%= participant.pending_activity_requests %> pedido(s) de atividade aguardando análise</a></div><% } %>

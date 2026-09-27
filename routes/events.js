@@ -656,11 +656,14 @@ function getEventParticipantSummary(eventId, filters = {}, pagination = null) {
       u.email as linked_user_email,
       EXISTS (SELECT 1 FROM event_user_roles rr WHERE rr.event_id = er.event_id AND rr.user_id = er.user_id AND rr.role = 'reviewer') AS linked_user_is_reviewer,
       COALESCE(u.is_public, 0) AS account_active,
+      COALESCE(u.password_changed, 1) AS user_password_changed,
+      COALESCE(u.profile_completed, 1) AS user_profile_completed,
       COALESCE(sa.submitted_count, 0) as submitted_articles,
       COALESCE(aa.approved_count, 0) as approved_articles,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.registration_id=er.id) AS enrolled_activities,
       COALESCE((SELECT GROUP_CONCAT(eur.role, ',') FROM event_user_roles eur WHERE eur.user_id=er.user_id AND eur.event_id=er.event_id), '') AS roles,
       CASE
+        WHEN er.user_id IS NOT NULL AND (COALESCE(u.password_changed, 1) = 0 OR COALESCE(u.profile_completed, 1) = 0) THEN 'Aguardando primeiro acesso (perfil não concluído)'
         WHEN COALESCE(aa.approved_count, 0) > 0 THEN 'Apresentador com artigo aprovado'
         WHEN er.registration_type = 'author' THEN 'Participante com artigo submetido'
         ELSE 'Participante inscrito'
