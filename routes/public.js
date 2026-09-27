@@ -1786,7 +1786,8 @@ router.get('/evento/:id/atividades/:activityId/etapas', (req, res) => {
   res.render('public/activity-sessions', { event, activity, sessions, peopleCount, title: activity.name });
 });
 
-router.get('/evento/:id/atividade/:activityId/pessoas', requireNonAdminAuthorAccess, (req, res) => {
+// Pagina publica (sem login): palestrantes/professores da atividade.
+router.get('/evento/:id/atividade/:activityId/pessoas', (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id=? AND status IN ('published','encerrado')").get(req.params.id);
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
   const activity = db.prepare('SELECT id, name, description FROM event_activities WHERE id = ? AND event_id = ?').get(req.params.activityId, event.id);
