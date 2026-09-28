@@ -20,6 +20,19 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-09-28 — Chamada da atividade: professores/palestrantes restritos ao vínculo da atividade (activity_people)
+
+- Bug reportado: em `/admin/events/2/activities/5/attendance`, pessoas com o papel `teacher` atribuído na página Papéis do evento apareciam na chamada de **qualquer** atividade com `teacher` em `eligible_roles`, mesmo sem vínculo com a atividade. Causa: a CTE da lista incluía `event_user_roles` inteiro do evento (branch 2) e o filtro posterior só cruzava com os papéis elegíveis da atividade — nunca conferia o vínculo por atividade (`activity_people`, página "Pessoas").
+- Regra centralizada (alinhada à regra "presença por atividade" e ao achado 11 da análise): **professor/palestrante só participam da chamada, da lista impressa, do lote e do scan quando vinculados à atividade em `activity_people`**; demais papéis (participante por matrícula na atividade, revisor por atribuição, apresentadores por papel do evento) inalterados.
+- `routes/events.js`:
+  - `GET .../attendance`, `GET .../attendance-print` e o `eligibleUsers` de `POST .../attendance-bulk`: branch de `event_user_roles` ganha `AND role NOT IN ('teacher','speaker')` e novo branch `UNION ALL ... FROM activity_people ap WHERE ap.activity_id=?` (bindings ajustados).
+  - `POST .../attendance-bulk`: `hasRoleInEvent` para `teacher`/`speaker` passa a conferir `activity_people` da atividade (antes, `event_user_roles` do evento).
+  - `applyAttendanceMark`: mesma exigência de vínculo para `teacher`/`speaker` (marcação individual e QR passam pela mesma regra da lista).
+  - `resolveScanRole`: não propõe `teacher`/`speaker` sem vínculo na atividade (cai no papel elegível seguinte — ex.: `participant` matriculado).
+- `routes/public.js`: `getCheckinMarkableRoles(eventId, activityId, userId)` — `teacher`/`speaker` só marcam auto-presença via folha QR quando vinculados em `activity_people`; chamadores (`renderCheckin`/`handleCheckinSubmit`) atualizados.
+- Verificação: `node --check` em `routes/events.js`/`routes/public.js`; `npm run verify-env` OK; comparação das consultas **reais extraídas do código-fonte** sobre cópia do banco com dados sintéticos (professor sem vínculo × professor com vínculo): lista, impressão e lote excluem o primeiro e mantêm o segundo — 6/6 checks.
+- Status: **concluído (código + verificação técnica)**. Sem migração; efetivo após reinício do servidor (sem hot-reload).
+
 ## 2026-09-25 — Envio de e-mail para grupo por evento (página de participantes)
 
 - Pedido: capacidade de enviar um e-mail (ex.: alteração de horário, recados) para um grupo — participantes de determinada atividade ou todos do evento — em vez de apenas um destinatário individual no card "Enviar e-mail para um destinatário" do dashboard.

@@ -3145,12 +3145,18 @@ function checkinNextPath(eventId, activityId, session) {
   return `/presenca/${eventId}/${activityId}${session ? `/${session.id}` : ''}`;
 }
 
-function getCheckinMarkableRoles(eventId, userId) {
+function getCheckinMarkableRoles(eventId, activityId, userId) {
   const registration = db.prepare('SELECT * FROM event_registrations WHERE event_id = ? AND user_id = ?').get(eventId, userId);
   const roles = db.prepare('SELECT role FROM event_user_roles WHERE event_id = ? AND user_id = ?').all(eventId, userId).map((row) => row.role);
+  // Professor/palestrante só marcam presença na atividade em que estão
+  // vinculados (activity_people, página "Pessoas") — o papel do evento não basta.
+  const activityPersonRoles = db.prepare('SELECT role FROM activity_people WHERE activity_id = ? AND user_id = ?').all(activityId, userId).map((row) => row.role);
   const markableRoles = [];
   if (registration) markableRoles.push('participant');
-  CHECKIN_SPECIAL_ROLES.forEach((role) => { if (roles.includes(role)) markableRoles.push(role); });
+  CHECKIN_SPECIAL_ROLES.forEach((role) => {
+    const hasRole = ['teacher', 'speaker'].includes(role) ? activityPersonRoles.includes(role) : roles.includes(role);
+    if (hasRole) markableRoles.push(role);
+  });
   return { registration, roles, markableRoles };
 }
 
@@ -3247,7 +3253,7 @@ function renderCheckin(req, res, message) {
   }
 
   const userId = req.session.userId;
-  const { registration, roles, markableRoles } = getCheckinMarkableRoles(eventId, userId);
+  const { registration, roles, markableRoles } = getCheckinMarkableRoles(eventId, activityId, userId);
   const selectableRoles = getCheckinSelectableRoles(activity, markableRoles);
   const checkinWindow = getCheckinWindow(activity, session);
   const inWindow = isWithinCheckinWindow(checkinWindow);
@@ -3293,7 +3299,7 @@ function handleCheckinSubmit(req, res) {
 
   const userId = req.session.userId;
   const role = String(req.body.role || '');
-  const { registration, roles, markableRoles } = getCheckinMarkableRoles(eventId, userId);
+  const { registration, roles, markableRoles } = getCheckinMarkableRoles(eventId, activityId, userId);
   const selectableRoles = getCheckinSelectableRoles(activity, markableRoles);
 
   const withMessage = (text, isError) => {

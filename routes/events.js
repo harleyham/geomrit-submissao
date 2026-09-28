@@ -3221,11 +3221,15 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
   const allowedRoles = String(activity.eligible_roles || 'participant').split(',').map((role) => role.trim());
   const sessionCondition = selectedSession ? 'AND aar.session_id=?' : 'AND aar.session_id IS NULL';
   const sessionParams = selectedSession ? [selectedSession.id] : [];
+  // Professor/palestrante entram na chamada somente quando vinculados à
+  // atividade (activity_people, página "Pessoas") — o papel do evento não
+  // basta; admin/staff/revisor etc. continuam escopados pelo evento.
   const people = db.prepare(`WITH event_people AS (
       SELECT er.user_id AS person_user_id, er.name, er.email, er.institution, er.id AS registration_id, 'participant' AS role
         FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
         WHERE er.event_id=? AND er.user_id IS NOT NULL
-      UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
+      UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=? AND eur.role NOT IN ('teacher','speaker')
+      UNION ALL SELECT ap.user_id, u.name, u.email, u.institution, NULL, ap.role FROM activity_people ap JOIN users u ON u.id=ap.user_id WHERE ap.activity_id=?
       UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, u.institution, NULL, 'reviewer'
         FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
       ) SELECT ep.person_user_id AS user_id, MAX(ep.name) AS name, MAX(ep.email) AS email, MAX(ep.institution) AS institution, MAX(ep.registration_id) AS registration_id, GROUP_CONCAT(DISTINCT ep.role) AS roles,
@@ -3236,7 +3240,7 @@ router.get('/:id/activities/:activityId/attendance', (req, res) => {
       LEFT JOIN activity_attendance_records aar ON aar.activity_id=? AND aar.user_id=ep.person_user_id ${sessionCondition}
       GROUP BY ep.person_user_id
       HAVING COALESCE(u.is_public, 0) = 1
-      ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.event_id, activity.id, ...sessionParams)
+      ORDER BY name COLLATE NOCASE`).all(activity.id, activity.event_id, activity.event_id, activity.id, activity.event_id, activity.id, ...sessionParams)
     .filter((person) => String(person.roles).split(',').some((role) => allowedRoles.includes(role)));
   const roleLabels = Object.fromEntries(Object.entries(CERTIFICATE_ROLES).map(([role, meta]) => [role, meta.label]));
   people.forEach((person) => {
@@ -3285,7 +3289,8 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
       SELECT er.user_id AS person_user_id, er.name, er.email, er.institution, 'participant' AS role
         FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
         WHERE er.event_id=?
-      UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
+      UNION ALL SELECT eur.user_id, u.name, u.email, u.institution, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=? AND eur.role NOT IN ('teacher','speaker')
+      UNION ALL SELECT ap.user_id, u.name, u.email, u.institution, ap.role FROM activity_people ap JOIN users u ON u.id=ap.user_id WHERE ap.activity_id=?
       UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, u.institution, 'reviewer'
         FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
     ) ep
@@ -3293,7 +3298,7 @@ router.get('/:id/activities/:activityId/attendance-print', (req, res) => {
     GROUP BY ep.person_user_id
     HAVING COALESCE(u.is_public, 0) = 1
     ORDER BY name COLLATE NOCASE
-  `).all(activity.id, activity.event_id, activity.event_id, activity.event_id);
+  `).all(activity.id, activity.event_id, activity.event_id, activity.id, activity.event_id);
   const participants = printRows
     .filter((row) => String(row.roles || '').split(',').some((role) => allowedPrintRoles.includes(role)))
     .filter((row) => row.email !== 'admin@admin.com')
@@ -3483,10 +3488,17 @@ function applyAttendanceMark(activity, userId, role, sessionId, actorUserId, ext
   const participantEnrollment = registration && role === 'participant' && db.prepare(`SELECT 1 FROM participant_activity_enrollments
     WHERE activity_id=? AND registration_id=? AND user_id=?`).get(activity.id, registration.id, userId);
   const eventRole = db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').get(activity.event_id, userId, role);
+  // Professor/palestrante só marcam presença na atividade em que estão
+  // vinculados (activity_people); o papel detido no evento não basta.
+  const activityPersonLink = ['teacher','speaker'].includes(role)
+    ? db.prepare('SELECT 1 FROM activity_people WHERE activity_id=? AND user_id=? AND role=?').get(activity.id, userId, role)
+    : null;
   const reviewerAssignment = role === 'reviewer' && db.prepare(`SELECT 1 FROM assignments ass
     JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, userId);
   const allowedRoles = String(activity.eligible_roles || '').split(',').map((item) => item.trim()).filter(Boolean);
-  const hasRoleInEvent = role === 'participant' ? Boolean(participantEnrollment) : Boolean(eventRole || reviewerAssignment);
+  const hasRoleInEvent = role === 'participant' ? Boolean(participantEnrollment)
+    : ['teacher','speaker'].includes(role) ? Boolean(activityPersonLink)
+    : Boolean(eventRole || reviewerAssignment);
   if (!CERTIFICATE_ROLES[role] || !allowedRoles.includes(role) || !hasRoleInEvent) {
     return { ok: false, error: 'A pessoa não possui este papel no evento ou o papel não é elegível para a atividade.' };
   }
@@ -3515,7 +3527,8 @@ function resolveScanRole(activity, userId, sessionId) {
   const registration = db.prepare('SELECT id FROM event_registrations WHERE event_id=? AND user_id=?').get(activity.event_id, userId);
   const enrollment = registration && db.prepare('SELECT 1 FROM participant_activity_enrollments WHERE activity_id=? AND registration_id=? AND user_id=?').get(activity.id, registration.id, userId);
   if (allowedRoles.includes('participant') && enrollment) return 'participant';
-  const roles = new Set(db.prepare('SELECT role FROM event_user_roles WHERE event_id=? AND user_id=?').all(activity.event_id, userId).map((row) => row.role));
+  const roles = new Set(db.prepare("SELECT role FROM event_user_roles WHERE event_id=? AND user_id=? AND role NOT IN ('teacher','speaker')").all(activity.event_id, userId).map((row) => row.role));
+  db.prepare('SELECT role FROM activity_people WHERE activity_id=? AND user_id=?').all(activity.id, userId).forEach((row) => roles.add(row.role));
   const reviewer = db.prepare(`SELECT 1 FROM assignments ass JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, userId);
   if (reviewer) roles.add('reviewer');
   return allowedRoles.find((role) => CERTIFICATE_ROLES[role] && roles.has(role)) || null;
@@ -3608,13 +3621,14 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
       SELECT er.user_id, er.name, er.email, er.id AS registration_id, 'participant' AS role
         FROM event_registrations er JOIN participant_activity_enrollments pae ON pae.registration_id=er.id AND pae.activity_id=?
         WHERE er.event_id=?
-      UNION ALL SELECT eur.user_id, u.name, u.email, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=?
+      UNION ALL SELECT eur.user_id, u.name, u.email, NULL, eur.role FROM event_user_roles eur JOIN users u ON u.id=eur.user_id WHERE eur.event_id=? AND eur.role NOT IN ('teacher','speaker')
+      UNION ALL SELECT ap.user_id, u.name, u.email, NULL, ap.role FROM activity_people ap JOIN users u ON u.id=ap.user_id WHERE ap.activity_id=?
       UNION ALL SELECT DISTINCT ass.reviewer_id, u.name, u.email, NULL, 'reviewer'
         FROM assignments ass JOIN articles ar ON ar.id=ass.article_id JOIN users u ON u.id=ass.reviewer_id WHERE ar.event_id=?
     ) ep
     WHERE ep.email != 'admin@admin.com'
     ORDER BY ep.name COLLATE NOCASE
-  `).all(activity.event_id, activity.id, activity.event_id, activity.event_id, activity.event_id);
+  `).all(activity.event_id, activity.id, activity.event_id, activity.event_id, activity.id, activity.event_id);
 
   const bulkAction = String(req.body.bulk_action || '').trim();
   let marked = 0;
@@ -3642,7 +3656,9 @@ router.post('/:id/activities/:activityId/attendance-bulk', strictLimiter, (req, 
         ? Boolean(user.registration_id)
         : selectedRole === 'reviewer'
           ? Boolean(db.prepare(`SELECT 1 FROM assignments ass JOIN articles ar ON ar.id=ass.article_id WHERE ar.event_id=? AND ass.reviewer_id=? LIMIT 1`).get(activity.event_id, user.user_id))
-          : Boolean(db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').get(activity.event_id, user.user_id, selectedRole));
+          : ['teacher','speaker'].includes(selectedRole)
+            ? Boolean(db.prepare('SELECT 1 FROM activity_people WHERE activity_id=? AND user_id=? AND role=?').get(activity.id, user.user_id, selectedRole))
+            : Boolean(db.prepare('SELECT 1 FROM event_user_roles WHERE event_id=? AND user_id=? AND role=?').get(activity.event_id, user.user_id, selectedRole));
       if (!hasRoleInEvent) { skipped++; return; }
       const existing = db.prepare('SELECT id FROM activity_attendance_records WHERE activity_id=? AND user_id=? AND session_id IS ?').get(activity.id, user.user_id, sessionId);
       if (existing) {
