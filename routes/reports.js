@@ -182,7 +182,7 @@ router.get('/', requireAuth, (req, res) => {
   const activities = db.prepare(`
     SELECT ea.id, ea.name, ea.activity_type, ea.date_start, ea.date_end, ea.workload_hours, ea.certificate_enabled, ea.eligible_roles,
       (SELECT COUNT(*) FROM participant_activity_enrollments pae WHERE pae.activity_id=ea.id) AS enrolled_count,
-      (SELECT COUNT(DISTINCT aar.user_id) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id) AS attendees_count
+      (SELECT COUNT(DISTINCT aar.user_id) FROM activity_attendance_records aar WHERE aar.activity_id=ea.id AND aar.role='participant') AS attendees_count
     FROM event_activities ea
     WHERE ea.event_id = ?
       AND (ea.activity_type IS NULL OR ea.activity_type NOT IN ('breakfast', 'coffee_break', 'lunch'))

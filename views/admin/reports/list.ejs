@@ -61,6 +61,12 @@
     .print-only { display: none; }
     .report-selection { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--text-muted); font-size: 0.78rem; font-weight: 500; white-space: nowrap; }
     .report-selection input { accent-color: var(--primary); }
+    .activity-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem; }
+    .activity-title { font-weight: 600; color: var(--text-strong); font-size: 0.9rem; overflow-wrap: anywhere; }
+    .activity-counters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-left: auto; }
+    .activity-counter { display: flex; align-items: baseline; gap: 0.35rem; padding: 0.3rem 0.8rem; border-radius: 6px; white-space: nowrap; }
+    .activity-counter .num { font-size: 1.1rem; font-weight: 700; }
+    .activity-counter .lbl { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
     @media print {
       body { background: #ffffff; color: #111827; min-height: auto; }
       .topbar, .no-print, footer, .report-selection, .page-header { display: none !important; }
@@ -243,18 +249,6 @@
             <div style="font-size:1.5rem;font-weight:700;color:var(--text-strong)"><%= totalActivities %></div>
             <div style="color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Total de atividades</div>
           </div>
-          <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:1rem">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--text-strong)"><%= totalEnrollments %></div>
-            <div style="color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Inscrições vinculadas</div>
-          </div>
-          <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:1rem">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--text-strong)"><%= totalAttendance %></div>
-            <div style="color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Presenças registradas</div>
-          </div>
-          <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:1rem">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--text-strong)"><%= certifiedActivities %></div>
-            <div style="color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.74rem;margin-top:0.25rem">Atividades certificáveis</div>
-          </div>
         </div>
         <% if (activities.length === 0) { %>
           <div class="empty-state"><p>Nenhuma atividade cadastrada para este evento.</p></div>
@@ -271,26 +265,26 @@
               <div style="display:flex;flex-direction:column;gap:0.5rem">
                 <% items.forEach(function(activity) { %>
                   <div style="background:var(--surface-elevated);border:1px solid var(--border);border-radius:8px;padding:0.85rem 1rem">
-                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+                    <div class="activity-head">
                       <div>
-                        <div style="font-weight:600;color:var(--text-strong);font-size:0.9rem"><%= activity.name %></div>
+                        <div class="activity-title"><%= activity.name %></div>
                         <div style="color:var(--text-faint);font-size:0.8rem;margin-top:0.15rem">
                           <%= activityDateRange(activity) %>
                           <%= Number(activity.workload_hours) > 0 ? ' · ' + activity.workload_hours + 'h' : '' %>
                         </div>
                       </div>
-                      <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
-                        <div style="text-align:center;padding:0.3rem 0.8rem;background:var(--surface-selected);border-radius:6px">
-                          <div style="font-size:1.1rem;font-weight:700;color:var(--accent)"><%= activity.enrolled_count || 0 %></div>
-                          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Inscritos</div>
+                      <div class="activity-counters">
+                        <div class="activity-counter" style="background:var(--surface-selected)">
+                          <span class="num" style="color:var(--accent)"><%= activity.enrolled_count || 0 %></span>
+                          <span class="lbl">Inscritos</span>
                         </div>
-                        <div style="text-align:center;padding:0.3rem 0.8rem;background:var(--success-subtle);border-radius:6px">
-                          <div style="font-size:1.1rem;font-weight:700;color:var(--success)"><%= activity.attendees_count || 0 %></div>
-                          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Presentes</div>
+                        <div class="activity-counter" style="background:var(--success-subtle)">
+                          <span class="num" style="color:var(--success)"><%= activity.attendees_count || 0 %></span>
+                          <span class="lbl">Presentes</span>
                         </div>
-                        <div style="text-align:center;padding:0.3rem 0.8rem;background:rgba(34,211,238,0.1);border-radius:6px">
-                          <div style="font-size:1.1rem;font-weight:700;color:#22d3ee"><%= (activity.evaluations || []).length %></div>
-                          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Avaliações</div>
+                        <div class="activity-counter" style="background:rgba(34,211,238,0.1)">
+                          <span class="num" style="color:#22d3ee"><%= (activity.evaluations || []).length %></span>
+                          <span class="lbl">Avaliações</span>
                         </div>
                       </div>
                     </div>
@@ -323,12 +317,19 @@
                               <th style="padding:0.4rem 0.75rem">Nome</th>
                               <th style="padding:0.4rem 0.75rem">E-mail</th>
                               <th style="padding:0.4rem 0.75rem">Órgão</th>
-                              <th style="padding:0.4rem 0.75rem">Presença</th>
+                              <th style="padding:0.4rem 0.75rem">
+                                Presença
+                                <select class="presence-filter no-print" data-presence-rows="participants-table-<%= activity.id %>" style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.4rem;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text)">
+                                  <option value="all">TODOS</option>
+                                  <option value="present">PRESENTES</option>
+                                  <option value="absent">AUSENTES</option>
+                                </select>
+                              </th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody id="participants-table-<%= activity.id %>">
                             <% (activity.participants || []).forEach(function(p) { %>
-                              <tr>
+                              <tr data-presence="<%= p.presence ? 1 : 0 %>">
                                 <td style="padding:0.4rem 0.75rem"><strong style="color:var(--text-strong)"><%= p.name || '-' %></strong></td>
                                 <td style="padding:0.4rem 0.75rem;color:var(--text)"><%= p.email || '-' %></td>
                                 <td style="padding:0.4rem 0.75rem;color:var(--text)"><%= p.institution || '-' %></td>
@@ -745,6 +746,18 @@
           button.textContent = target.hidden
             ? 'Ver avaliações (' + button.dataset.count + ')'
             : 'Ocultar avaliações';
+        });
+      });
+
+      var presenceFilters = Array.prototype.slice.call(document.querySelectorAll('.presence-filter'));
+      presenceFilters.forEach(function(select) {
+        select.addEventListener('change', function() {
+          var tbody = document.getElementById(select.dataset.presenceRows);
+          if (!tbody) return;
+          var value = select.value;
+          Array.prototype.forEach.call(tbody.querySelectorAll('tr'), function(row) {
+            row.hidden = value !== 'all' && row.dataset.presence !== (value === 'present' ? '1' : '0');
+          });
         });
       });
 
