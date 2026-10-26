@@ -20,6 +20,15 @@ Versão atual registrada: **V0.35**.
 
 > **Sobre a V0.2**: consolidando o estado funcional entregue (eventos, inscrições, artigos, presença, certificados, e-mails, avaliações etc.) e o **hardening de segurança** realizado em 24/08/2026 (bypass de CSRF, session fixation, `RequireSuperAdmin`, senhas legadas em hash, path traversal no upload, reset de senha forte e XSS por JSON cru). As correções pendentes de hardening permanecem documentadas em `plano.md` (Ciclo 6).
 
+## 2026-10-26 — Usuários: filtros por primeiro acesso, data de cadastro e ordenação
+
+- Pedido: identificar rapidamente os novos usuários que ainda não definiram a senha e não concluíram o preenchimento dos dados pessoais, filtrando e ordenando pela data de solicitação de cadastro.
+- `routes/users.js` (`GET /admin/users`): novos parâmetros de consulta validados — `first_access` (`all` | `pending` | `never` | `complete`), `sort` (`created_desc` padrão | `created_asc` | `name`), `created_from` e `created_to` (datas ISO `YYYY-MM-DD`). O filtro `pending` aplica `(COALESCE(password_changed,0)=0 OR COALESCE(profile_completed,0)=0)`; `never` exige ambas as etapas pendentes; `complete` exige ambas concluídas. A ordenação padrão passa a ser por `created_at DESC` (mais recentes primeiro), com desempate por nome; a listagem de cadastros pendentes de aprovação também passa a ser ordenada por `created_at DESC`.
+- `server.js`: novo helper global `formatBRDateTime` (formata o DATETIME local `YYYY-MM-DD HH:MM:SS` como `DD/MM/YYYY HH:MM`, sem conversão de fuso) exposto em `res.locals`.
+- `views/admin/users/list.ejs`: novos filtros (Primeiro acesso, Ordenar por, Cadastro de/até), coluna **Cadastro** na tabela de usuários aprovados e coluna **Solicitado em** na tabela de cadastros pendentes; paginação e seletor "por página" preservam todos os filtros.
+- Verificação: `node --check` em `routes/users.js` e `server.js`; compilação EJS de `list.ejs`; `node scripts/verify-env.js` OK; consultas reais no `artigos.db` (somente leitura) confirmaram os filtros e a ordenação.
+- Status: **concluído (código + verificação técnica)**. Sem migração; efetivo após reinício do servidor.
+
 ## 2026-09-28 — Chamada da atividade: professores/palestrantes restritos ao vínculo da atividade (activity_people)
 
 - Bug reportado: em `/admin/events/2/activities/5/attendance`, pessoas com o papel `teacher` atribuído na página Papéis do evento apareciam na chamada de **qualquer** atividade com `teacher` em `eligible_roles`, mesmo sem vínculo com a atividade. Causa: a CTE da lista incluía `event_user_roles` inteiro do evento (branch 2) e o filtro posterior só cruzava com os papéis elegíveis da atividade — nunca conferia o vínculo por atividade (`activity_people`, página "Pessoas").

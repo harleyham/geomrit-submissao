@@ -203,12 +203,13 @@
     <% if (pendingList.length > 0) { %>
     <div class="section" id="cadastros-pendentes">
       <div class="section-title">Cadastros Pendentes de Aprovação</div>
-      <div class="section-desc">Solicitações externas aguardando validação administrativa</div>
+      <div class="section-desc">Solicitações externas aguardando validação administrativa — mais recentes primeiro</div>
       <div class="table-scroll"><table>
         <thead>
           <tr>
             <th>Nome</th>
             <th>E-mail</th>
+            <th>Solicitado em</th>
             <th>Dados Complementares</th>
             <th>Status</th>
             <th>Ações</th>
@@ -223,6 +224,7 @@
               </div>
             </td>
             <td><%= u.email %></td>
+            <td><%= formatBRDateTime(u.created_at) || '—' %></td>
             <td>
               <% if (u.cpf || u.passport || u.country || u.institution) { %>
                 <div style="display:flex; flex-direction:column; gap:0.25rem;">
@@ -261,6 +263,9 @@
     <div class="section">
       <div class="section-title">Gerenciar Usuários</div>
       <div class="section-desc">Usuários já aprovados, com status de acesso e visão resumida de papéis por evento</div>
+      <div class="section-note" style="border-left:3px solid var(--accent); padding-left:0.75rem;">
+        O filtro <strong>Primeiro acesso</strong> mostra usuários já aprovados que ainda não definiram a senha e/ou não concluíram o perfil. Cadastros pendentes de aprovação aparecem na seção acima, ordenados pela data da solicitação.
+      </div>
        <div class="section-note">
         Papéis (revisor, staff, palestrante, professor, apresentador) são atribuídos <strong>por evento</strong>, na página <strong>Papéis</strong> de cada evento; qualquer conta ativa e aprovada pode recebê-los, inscrita ou não no evento.
         Conta ativa define se a pessoa pode entrar no sistema.
@@ -269,27 +274,53 @@
         O botão <strong>Excluir</strong> é definitivo: remove também papéis em eventos, inscrições em atividades, presenças, crachá e revisões — reserve para cadastros por engado.
       </div>
       <form method="GET" class="filters">
+        <input type="hidden" name="per_page" value="<%= pagination ? pagination.perPage : 50 %>">
         <div class="filter-group">
           <label for="q">Buscar usuário</label>
           <input id="q" type="text" name="q" value="<%= (filters && filters.query) || '' %>" placeholder="Nome, e-mail, instituição ou CPF">
         </div>
+        <div class="filter-group">
+          <label for="first_access">Primeiro acesso</label>
+          <select id="first_access" name="first_access">
+            <option value="all" <%= (!filters || filters.firstAccess === 'all') ? 'selected' : '' %>>Todos</option>
+            <option value="pending" <%= (filters && filters.firstAccess === 'pending') ? 'selected' : '' %>>Pendente (sem senha e/ou perfil)</option>
+            <option value="never" <%= (filters && filters.firstAccess === 'never') ? 'selected' : '' %>>Nunca acessou (senha e perfil pendentes)</option>
+            <option value="complete" <%= (filters && filters.firstAccess === 'complete') ? 'selected' : '' %>>Concluído</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="sort">Ordenar por</label>
+          <select id="sort" name="sort">
+            <option value="created_desc" <%= (!filters || filters.sort === 'created_desc') ? 'selected' : '' %>>Data de cadastro (mais recentes)</option>
+            <option value="created_asc" <%= (filters && filters.sort === 'created_asc') ? 'selected' : '' %>>Data de cadastro (mais antigos)</option>
+            <option value="name" <%= (filters && filters.sort === 'name') ? 'selected' : '' %>>Nome (A-Z)</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="created_from">Cadastro de</label>
+          <input id="created_from" type="date" name="created_from" value="<%= (filters && filters.createdFrom) || '' %>">
+        </div>
+        <div class="filter-group">
+          <label for="created_to">Cadastro até</label>
+          <input id="created_to" type="date" name="created_to" value="<%= (filters && filters.createdTo) || '' %>">
+        </div>
         <div class="filter-actions">
-          <button type="submit" class="btn btn-primary">Buscar</button>
+          <button type="submit" class="btn btn-primary">Filtrar</button>
           <a href="/admin/users" class="btn btn-ghost">Limpar</a>
         </div>
       </form>
        <% if (pagination) { %>
        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
-         <span style="color:var(--text-faint);font-size:0.8125rem">Exibindo <%= ((pagination.currentPage - 1) * pagination.perPage) + 1 %>-<%= Math.min(pagination.currentPage * pagination.perPage, pagination.totalApproved) %> de <%= pagination.totalApproved %> usuário(s)</span>
+         <span style="color:var(--text-faint);font-size:0.8125rem"><% if (pagination.totalApproved > 0) { %>Exibindo <%= ((pagination.currentPage - 1) * pagination.perPage) + 1 %>-<%= Math.min(pagination.currentPage * pagination.perPage, pagination.totalApproved) %> de <%= pagination.totalApproved %> usuário(s)<% } else { %>0 usuário(s)<% } %></span>
          <div style="display:flex;gap:0.5rem;align-items:center">
            <% if (pagination.hasPrev) { %>
-            <a href="/admin/users?page=<%= pagination.currentPage - 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-block">← Anterior</a>
+            <a href="/admin/users?page=<%= pagination.currentPage - 1 %>&per_page=<%= pagination.perPage %><% if (filtersQuery) { %>&<%= filtersQuery %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-block">← Anterior</a>
            <% } %>
            <% if (pagination.totalPages > 1) { %>
            <span style="color:var(--text-muted);font-size:0.8125rem;padding:0.25rem 0.5rem">Página <%= pagination.currentPage %> de <%= pagination.totalPages %></span>
            <% } %>
            <% if (pagination.hasNext) { %>
-            <a href="/admin/users?page=<%= pagination.currentPage + 1 %>&per_page=<%= pagination.perPage %><% if (filters && filters.query) { %>&q=<%= encodeURIComponent(filters.query) %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-block">Próxima →</a>
+            <a href="/admin/users?page=<%= pagination.currentPage + 1 %>&per_page=<%= pagination.perPage %><% if (filtersQuery) { %>&<%= filtersQuery %><% } %>" class="btn btn-ghost btn-sm" style="display:inline-block">Próxima →</a>
            <% } %>
            <select id="per-page-select" style="background:var(--surface-input);color:var(--text);border:1px solid var(--border-strong);border-radius:6px;padding:0.25rem 0.5rem;font-size:0.8125rem;font-family:'Inter',sans-serif">
              <option value="25"<%= pagination.perPage === 25 ? ' selected' : ''%>>25 por página</option>
@@ -301,13 +332,14 @@
         </div>
        <% } %>
        <% if (!approvedList.length) { %>
-       <div class="empty-state">Nenhum usuário encontrado<% if (filters && filters.query) { %> para a busca "<%= filters.query %>"<% } %>.</div>
+       <div class="empty-state">Nenhum usuário encontrado<% if (filters && (filters.query || filters.firstAccess !== 'all' || filters.createdFrom || filters.createdTo)) { %> para os filtros selecionados<% } %>.</div>
        <% } else { %>
        <div class="table-scroll"><table>
         <thead>
           <tr>
             <th>Nome</th>
             <th>E-mail</th>
+            <th>Cadastro</th>
              <th>Papéis em Eventos</th>
             <th>Conta Ativa</th>
             <th>Primeiro acesso</th>
@@ -330,6 +362,9 @@
               <div style="display:flex; flex-direction:column; gap:0.35rem;">
                 <span><%= u.email %></span>
               </div>
+            </td>
+            <td style="white-space:nowrap; color:var(--text-muted); font-size:0.78rem;">
+              <%= formatBRDateTime(u.created_at) || '—' %>
             </td>
             <td>
               <% if (u.roles_count) { %>
@@ -424,12 +459,16 @@
       if (!sel) return;
       sel.addEventListener('change', function() {
         var perPage = this.value;
-        var url = '/admin/users?page=1&per_page=' + perPage;
-        var q = document.getElementById('q');
-        if (q && q.value.trim()) {
-          url += '&q=' + encodeURIComponent(q.value.trim());
+        var form = document.querySelector('form.filters');
+        var params = new URLSearchParams();
+        if (form) {
+          new FormData(form).forEach(function(value, key) {
+            if (String(value).trim()) params.set(key, value);
+          });
         }
-        window.location.href = url;
+        params.set('page', '1');
+        params.set('per_page', perPage);
+        window.location.href = '/admin/users?' + params.toString();
       });
     })();
   </script>

@@ -91,6 +91,17 @@ Contas novas podem exigir troca de senha e conclusão do perfil antes de acessar
 
 A área de usuários (`/admin/users` — cadastro, edição, reset de senha, aprovação, importação global e a prévia "Área do Participante") é **exclusiva do superadministrador** (`admin@admin.com`). Os demais usuários gerenciam pessoas apenas dentro dos seus eventos (participantes, importação por evento e página de Papéis). Quem precisa trocar a própria senha sem ser o superadmin usa **Alterar Senha** na Área do Participante (`/author/profile`).
 
+### Filtros e ordenação da listagem
+
+Na listagem `/admin/users`, a barra de filtros permite localizar os novos usuários que ainda não concluíram o primeiro acesso:
+
+- **Primeiro acesso**: `Todos`, `Pendente` (sem senha e/ou perfil), `Nunca acessou` (senha e perfil pendentes) e `Concluído`;
+- **Cadastro de / até**: intervalo de datas da criação da conta (solicitação de cadastro);
+- **Ordenar por**: data de cadastro (mais recentes primeiro — padrão), data de cadastro (mais antigos) ou nome (A-Z);
+- **Buscar usuário**: nome, e-mail, instituição ou CPF.
+
+A coluna **Cadastro** mostra a data e hora da criação da conta. A seção **Cadastros Pendentes de Aprovação** exibe a coluna **Solicitado em** e é ordenada da solicitação mais recente para a mais antiga. Os filtros são preservados ao navegar entre páginas e ao alterar o número de registros por página.
+
 Ao usar a prévia "Área do Participante" de um usuário, a sessão passa a navegar como ele e **todas as páginas** mostram uma tarja laranja no topo: "Visualização administrativa como \<pessoa\> — ações são registradas em nome deste usuário". Clique em **Sair da visualização** na própria tarja (ou acesse qualquer página de `/admin/*`) para encerrar a prévia e retomar a sessão de administrador.
 
 ### Cadastro individual

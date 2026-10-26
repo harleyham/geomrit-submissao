@@ -283,6 +283,19 @@ router.get('/', requireAuth, (req, res) => {
   const perPage = Math.min(parseInt(req.query.per_page) || 50, 200);
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const query = String(req.query.q || '').trim();
+
+  // Filtro de primeiro acesso: identifica contas novas que ainda não definiram
+  // a senha e/ou não concluíram o preenchimento dos dados pessoais.
+  const firstAccess = ['all', 'pending', 'never', 'complete'].includes(req.query.first_access)
+    ? req.query.first_access
+    : 'all';
+  const sort = ['created_desc', 'created_asc', 'name'].includes(req.query.sort)
+    ? req.query.sort
+    : 'created_desc';
+  const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+  const createdFrom = isIsoDate(req.query.created_from) ? String(req.query.created_from) : '';
+  const createdTo = isIsoDate(req.query.created_to) ? String(req.query.created_to) : '';
+
   const conditions = ["approval_status != 'pending'"];
   const params = [];
 
@@ -291,6 +304,29 @@ router.get('/', requireAuth, (req, res) => {
     conditions.push('(LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(COALESCE(institution, \'\')) LIKE ? OR LOWER(COALESCE(cpf, \'\')) LIKE ?)');
     params.push(term, term, term, term);
   }
+
+  if (firstAccess === 'pending') {
+    conditions.push('(COALESCE(password_changed, 0) = 0 OR COALESCE(profile_completed, 0) = 0)');
+  } else if (firstAccess === 'never') {
+    conditions.push('(COALESCE(password_changed, 0) = 0 AND COALESCE(profile_completed, 0) = 0)');
+  } else if (firstAccess === 'complete') {
+    conditions.push('(COALESCE(password_changed, 0) = 1 AND COALESCE(profile_completed, 0) = 1)');
+  }
+
+  if (createdFrom) {
+    conditions.push('created_at >= ?');
+    params.push(`${createdFrom} 00:00:00`);
+  }
+  if (createdTo) {
+    conditions.push('created_at <= ?');
+    params.push(`${createdTo} 23:59:59`);
+  }
+
+  const orderBy = sort === 'name'
+    ? 'name COLLATE NOCASE'
+    : sort === 'created_asc'
+      ? 'created_at ASC, name COLLATE NOCASE'
+      : 'created_at DESC, name COLLATE NOCASE';
 
   const whereClause = conditions.join(' AND ');
   const totalApproved = db.prepare(`SELECT COUNT(*) as count FROM users WHERE ${whereClause}`).bind(...params).get().count;
@@ -304,7 +340,7 @@ router.get('/', requireAuth, (req, res) => {
            password_changed, profile_completed, created_at
     FROM users
     WHERE approval_status = 'pending'
-    ORDER BY name
+    ORDER BY created_at DESC, name COLLATE NOCASE
   `).all();
 
   const paginatedApproved = db.prepare(`
@@ -316,9 +352,17 @@ router.get('/', requireAuth, (req, res) => {
            (SELECT COUNT(*) FROM event_user_roles eur WHERE eur.user_id = users.id AND eur.role = 'reviewer') AS roles_reviewer
     FROM users
     WHERE ${whereClause}
-    ORDER BY name
+    ORDER BY ${orderBy}
     LIMIT ? OFFSET ?
   `).bind(...params, perPage, clampedOffset).all();
+
+  const filterParams = new URLSearchParams();
+  if (query) filterParams.set('q', query);
+  if (firstAccess !== 'all') filterParams.set('first_access', firstAccess);
+  if (sort !== 'created_desc') filterParams.set('sort', sort);
+  if (createdFrom) filterParams.set('created_from', createdFrom);
+  if (createdTo) filterParams.set('created_to', createdTo);
+  const filtersQuery = filterParams.toString();
 
   const currentUser = db.prepare('SELECT id, name, email, recovery_email, recovery_email_verified, recovery_email_expires_at, pending_recovery_email, pending_recovery_email_expires_at FROM users WHERE id = ?').bind(req.session.userId).get();
   res.render('admin/users/list', {
@@ -333,7 +377,8 @@ router.get('/', requireAuth, (req, res) => {
       hasNext: clampedPage < totalPages,
       hasPrev: clampedPage > 1
     },
-    filters: { query },
+    filters: { query, firstAccess, sort, createdFrom, createdTo },
+    filtersQuery,
     title: 'Usuários',
     year: new Date().getFullYear(),
     success: req.query.success,

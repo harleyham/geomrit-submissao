@@ -117,6 +117,16 @@ function formatBRDate(dateStr) {
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 }
+
+// Formata DATETIME armazenado no padrão local do Brasil (UTC-3), sem converter
+// o valor para o fuso do host: "YYYY-MM-DD HH:MM:SS" -> "DD/MM/YYYY HH:MM".
+function formatBRDateTime(value) {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  if (!match) return String(value);
+  const [, year, month, day, hour = '00', minute = '00'] = match;
+  return `${day}/${month}/${year} ${hour}:${minute}`;
+}
 function activityDateRange(activity) {
   const start = activity && activity.date_start;
   const end = activity && activity.date_end;
@@ -172,6 +182,7 @@ app.use((req, res, next) => {
   res.locals.appVersion = APP_VERSION;
   res.locals.csrfToken = req.session && req.session.csrfToken;
   res.locals.formatBRDate = formatBRDate;
+  res.locals.formatBRDateTime = formatBRDateTime;
   res.locals.activityDateRange = activityDateRange;
   res.locals.jsonForScript = jsonForScript;
   let theme = null;
