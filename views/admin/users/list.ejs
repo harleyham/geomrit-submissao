@@ -317,6 +317,8 @@
         <div class="filter-actions">
           <button type="submit" class="btn btn-primary">Filtrar</button>
           <a href="/admin/users" class="btn btn-ghost">Limpar</a>
+          <a href="/admin/users/export?format=csv<% if (filtersQuery) { %>&<%= filtersQuery %><% } %>" class="btn btn-secondary">Exportar CSV</a>
+          <a href="/admin/users/export?format=pdf<% if (filtersQuery) { %>&<%= filtersQuery %><% } %>" class="btn btn-secondary">Exportar PDF</a>
         </div>
       </form>
        <% if (pagination) { %>

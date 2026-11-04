@@ -280,22 +280,30 @@ function mapArticleStatus(status) {
   return labels[status] || status;
 }
 
-router.get('/', requireAuth, (req, res) => {
-  const perPage = Math.min(parseInt(req.query.per_page) || 50, 200);
-  const page = Math.max(parseInt(req.query.page) || 1, 1);
-  const query = String(req.query.q || '').trim();
+function formatDateTimeBR(value) {
+  if (!value) return '';
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  if (!match) return String(value);
+  const [, year, month, day, hour = '00', minute = '00'] = match;
+  return `${day}/${month}/${year} ${hour}:${minute}`;
+}
+
+// Centraliza a leitura dos filtros da listagem para que a exportação (CSV/PDF)
+// devolva exatamente o mesmo conjunto de usuários exibido em "Gerenciar Usuários".
+function parseUsersFilters(queryParams = {}) {
+  const query = String(queryParams.q || '').trim();
 
   // Filtro de primeiro acesso: identifica contas novas que ainda não definiram
   // a senha e/ou não concluíram o preenchimento dos dados pessoais.
-  const firstAccess = ['all', 'pending', 'never', 'complete'].includes(req.query.first_access)
-    ? req.query.first_access
+  const firstAccess = ['all', 'pending', 'never', 'complete'].includes(queryParams.first_access)
+    ? queryParams.first_access
     : 'all';
-  const sort = ['created_desc', 'created_asc', 'name'].includes(req.query.sort)
-    ? req.query.sort
+  const sort = ['created_desc', 'created_asc', 'name'].includes(queryParams.sort)
+    ? queryParams.sort
     : 'created_desc';
   const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
-  const createdFrom = isIsoDate(req.query.created_from) ? String(req.query.created_from) : '';
-  const createdTo = isIsoDate(req.query.created_to) ? String(req.query.created_to) : '';
+  const createdFrom = isIsoDate(queryParams.created_from) ? String(queryParams.created_from) : '';
+  const createdTo = isIsoDate(queryParams.created_to) ? String(queryParams.created_to) : '';
 
   const conditions = ["approval_status != 'pending'"];
   const params = [];
@@ -329,7 +337,132 @@ router.get('/', requireAuth, (req, res) => {
       ? 'created_at ASC, name COLLATE NOCASE'
       : 'created_at DESC, name COLLATE NOCASE';
 
-  const whereClause = conditions.join(' AND ');
+  const filterParams = new URLSearchParams();
+  if (query) filterParams.set('q', query);
+  if (firstAccess !== 'all') filterParams.set('first_access', firstAccess);
+  if (sort !== 'created_desc') filterParams.set('sort', sort);
+  if (createdFrom) filterParams.set('created_from', createdFrom);
+  if (createdTo) filterParams.set('created_to', createdTo);
+
+  return {
+    query,
+    firstAccess,
+    sort,
+    createdFrom,
+    createdTo,
+    whereClause: conditions.join(' AND '),
+    params,
+    orderBy,
+    filtersQuery: filterParams.toString()
+  };
+}
+
+router.get('/export', requireAuth, (req, res) => {
+  const format = req.query.format === 'pdf' ? 'pdf' : 'csv';
+  const { whereClause, params, orderBy } = parseUsersFilters(req.query);
+
+  const users = db.prepare(`
+    SELECT name, email, created_at, password_changed, profile_completed
+    FROM users
+    WHERE ${whereClause}
+    ORDER BY ${orderBy}
+  `).bind(...params).all();
+
+  const rows = users.map((user) => ({
+    name: user.name || user.email || '',
+    email: user.email || '',
+    createdAt: formatDateTimeBR(user.created_at),
+    passwordChanged: user.password_changed ? 'Sim' : 'Não',
+    profileCompleted: user.profile_completed ? 'Sim' : 'Não'
+  }));
+
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  if (format === 'csv') {
+    const escape = (value) => '"' + String(value || '').replace(/"/g, '""') + '"';
+    const lines = ['Nome;E-mail;Data do cadastro;Trocou a senha;Perfil completo'];
+    rows.forEach((row) => {
+      lines.push([
+        row.name,
+        row.email,
+        row.createdAt,
+        row.passwordChanged,
+        row.profileCompleted
+      ].map(escape).join(';'));
+    });
+    const csv = '\uFEFF' + lines.join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="usuarios-${stamp}.csv"`);
+    return res.end(csv);
+  }
+
+  const PDFDocument = require('pdfkit');
+  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 40 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="usuarios-${stamp}.pdf"`);
+  doc.pipe(res);
+  doc.on('error', (err) => {
+    console.error('users export pdf error:', err && err.message);
+  });
+
+  const pageWidth = doc.page.width - 80;
+  const columns = [
+    { label: 'Nome', x: 40, width: pageWidth * 0.30 },
+    { label: 'E-mail', x: 40 + pageWidth * 0.30, width: pageWidth * 0.28 },
+    { label: 'Data do cadastro', x: 40 + pageWidth * 0.58, width: pageWidth * 0.16 },
+    { label: 'Trocou a senha', x: 40 + pageWidth * 0.74, width: pageWidth * 0.13 },
+    { label: 'Perfil completo', x: 40 + pageWidth * 0.87, width: pageWidth * 0.13 }
+  ];
+
+  doc.fontSize(16).font('Helvetica-Bold').text('Usuários', { align: 'center' });
+  doc.moveDown(0.3);
+  doc.fontSize(9).font('Helvetica').text(
+    `Exportado em ${formatDateTimeBR(new Date().toISOString())} · ${rows.length} usuário(s)`,
+    { align: 'center' }
+  );
+  doc.moveDown(1);
+
+  const rowHeight = 20;
+  const bottomMargin = 40;
+
+  function drawHeader(yPos) {
+    doc.fontSize(8).font('Helvetica-Bold');
+    columns.forEach((col) => doc.text(col.label, col.x, yPos, { width: col.width }));
+    doc.moveTo(40, yPos + 14).lineTo(40 + pageWidth, yPos + 14).stroke({ color: '#999999' });
+    return yPos + 22;
+  }
+
+  let y = drawHeader(doc.y);
+  doc.font('Helvetica');
+
+  if (!rows.length) {
+    doc.fontSize(10).text('Nenhum usuário encontrado para os filtros selecionados.', 40, y);
+  } else {
+    rows.forEach((row) => {
+      if (y + rowHeight > doc.page.height - bottomMargin) {
+        doc.addPage();
+        y = drawHeader(40);
+        doc.font('Helvetica');
+      }
+      const values = [row.name, row.email, row.createdAt, row.passwordChanged, row.profileCompleted];
+      doc.fontSize(8);
+      columns.forEach((col, index) => {
+        doc.text(String(values[index] || ''), col.x, y, { width: col.width, height: rowHeight, ellipsis: true });
+      });
+      doc.moveTo(40, y + rowHeight - 4).lineTo(40 + pageWidth, y + rowHeight - 4).stroke({ color: '#dddddd' });
+      y += rowHeight;
+    });
+  }
+
+  doc.end();
+});
+
+router.get('/', requireAuth, (req, res) => {
+  const perPage = Math.min(parseInt(req.query.per_page) || 50, 200);
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const filtersData = parseUsersFilters(req.query);
+  const { whereClause, params, orderBy, filtersQuery } = filtersData;
+
   const totalApproved = db.prepare(`SELECT COUNT(*) as count FROM users WHERE ${whereClause}`).bind(...params).get().count;
   const totalPages = Math.max(1, Math.ceil(totalApproved / perPage));
   const clampedPage = Math.min(page, totalPages);
@@ -359,14 +492,6 @@ router.get('/', requireAuth, (req, res) => {
     LIMIT ? OFFSET ?
   `).bind(...params, perPage, clampedOffset).all();
 
-  const filterParams = new URLSearchParams();
-  if (query) filterParams.set('q', query);
-  if (firstAccess !== 'all') filterParams.set('first_access', firstAccess);
-  if (sort !== 'created_desc') filterParams.set('sort', sort);
-  if (createdFrom) filterParams.set('created_from', createdFrom);
-  if (createdTo) filterParams.set('created_to', createdTo);
-  const filtersQuery = filterParams.toString();
-
   const currentUser = db.prepare('SELECT id, name, email, recovery_email, recovery_email_verified, recovery_email_expires_at, pending_recovery_email, pending_recovery_email_expires_at FROM users WHERE id = ?').bind(req.session.userId).get();
   res.render('admin/users/list', {
     pendingUsers: allPending,
@@ -381,7 +506,13 @@ router.get('/', requireAuth, (req, res) => {
       hasNext: clampedPage < totalPages,
       hasPrev: clampedPage > 1
     },
-    filters: { query, firstAccess, sort, createdFrom, createdTo },
+    filters: {
+      query: filtersData.query,
+      firstAccess: filtersData.firstAccess,
+      sort: filtersData.sort,
+      createdFrom: filtersData.createdFrom,
+      createdTo: filtersData.createdTo
+    },
     filtersQuery,
     title: 'Usuários',
     year: new Date().getFullYear(),
