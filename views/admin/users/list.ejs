@@ -202,14 +202,15 @@
 
     <% if (pendingList.length > 0) { %>
     <div class="section" id="cadastros-pendentes">
-      <div class="section-title">Cadastros Pendentes de Aprovação</div>
-      <div class="section-desc">Solicitações externas aguardando validação administrativa — mais recentes primeiro</div>
+      <div class="section-title">Cadastros Pendentes de Confirmação (fallback)</div>
+      <div class="section-desc">Contas que ainda não confirmaram o e-mail. O fluxo normal é ativado pelo próprio usuário; use "Reenviar confirmação" ou aprove manualmente quando o envio falhar — mais recentes primeiro</div>
       <div class="table-scroll"><table>
         <thead>
           <tr>
             <th>Nome</th>
             <th>E-mail</th>
             <th>Solicitado em</th>
+            <th>Último envio</th>
             <th>Dados Complementares</th>
             <th>Status</th>
             <th>Ações</th>
@@ -225,6 +226,7 @@
             </td>
             <td><%= u.email %></td>
             <td><%= formatBRDateTime(u.created_at) || '—' %></td>
+            <td><%= u.last_verification_at ? formatBRDateTime(u.last_verification_at) : 'Nunca enviado' %></td>
             <td>
               <% if (u.cpf || u.passport || u.country || u.institution) { %>
                 <div style="display:flex; flex-direction:column; gap:0.25rem;">
@@ -241,6 +243,14 @@
             <td class="actions-cell">
               <a href="/admin/users/<%= u.id %>/participant" class="btn btn-ghost btn-sm">Área do Participante</a>
               <a href="/admin/users/<%= u.id %>/edit" class="btn btn-ghost btn-sm">Editar</a>
+              <% if (typeof emailEnabled !== 'undefined' && emailEnabled) { %>
+              <form method="POST" action="/admin/users/<%= u.id %>/resend-verification" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Reenviar o link de confirmação para <%= u.email %>?')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn btn-secondary btn-sm">Reenviar confirmação</button>
+              </form>
+              <% } else { %>
+              <button type="button" class="btn btn-ghost btn-sm" disabled title="Envio de e-mails desativado no switch global">Reenviar confirmação</button>
+              <% } %>
               <form method="POST" action="/admin/users/<%= u.id %>/approve" style="display:inline" nonce="<%= cspNonce %>" onsubmit="return confirm('Aprovar o cadastro de <%= u.email %>?')">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-primary btn-sm">Aprovar Cadastro</button>
@@ -264,7 +274,7 @@
       <div class="section-title">Gerenciar Usuários</div>
       <div class="section-desc">Usuários já aprovados, com status de acesso e visão resumida de papéis por evento</div>
       <div class="section-note" style="border-left:3px solid var(--accent); padding-left:0.75rem;">
-        O filtro <strong>Primeiro acesso</strong> mostra usuários já aprovados que ainda não definiram a senha e/ou não concluíram o perfil. Cadastros pendentes de aprovação aparecem na seção acima, ordenados pela data da solicitação.
+        O filtro <strong>Primeiro acesso</strong> mostra usuários já aprovados que ainda não definiram a senha e/ou não concluíram o perfil. Cadastros pendentes de confirmação aparecem na seção acima, ordenados pela data da solicitação; o próprio usuário ativa a conta pelo link enviado por e-mail, e esta fila serve como fallback administrativo.
       </div>
        <div class="section-note">
         Papéis (revisor, staff, palestrante, professor, apresentador) são atribuídos <strong>por evento</strong>, na página <strong>Papéis</strong> de cada evento; qualquer conta ativa e aprovada pode recebê-los, inscrita ou não no evento.

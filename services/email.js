@@ -237,13 +237,30 @@ function queueGroupDirectEmail({ event, recipients, subject, body }) {
   return { queued, suppressed, groupKey };
 }
 
-function createSetupToken(userId) {
+function createSetupToken(userId, purpose = 'setup') {
   const raw = crypto.randomBytes(32).toString('hex');
   const hash = crypto.createHash('sha256').update(raw).digest('hex');
-  db.prepare("UPDATE user_setup_tokens SET revoked_at=datetime('now','-3 hours') WHERE user_id=? AND used_at IS NULL AND revoked_at IS NULL").run(userId);
-  const result = db.prepare(`INSERT INTO user_setup_tokens (user_id,token_hash,expires_at,created_at)
-    VALUES (?,?,datetime('now','-3 hours','+72 hours'),datetime('now','-3 hours'))`).run(userId, hash);
+  // Revoga apenas tokens da mesma finalidade: um reenvio de confirmação de
+  // e-mail não deve invalidar um link de redefinição de senha em andamento.
+  db.prepare("UPDATE user_setup_tokens SET revoked_at=datetime('now','-3 hours') WHERE user_id=? AND purpose=? AND used_at IS NULL AND revoked_at IS NULL").run(userId, purpose);
+  const result = db.prepare(`INSERT INTO user_setup_tokens (user_id,token_hash,purpose,expires_at,created_at)
+    VALUES (?,?,?,datetime('now','-3 hours','+72 hours'),datetime('now','-3 hours'))`).run(userId, hash, purpose);
   return { id: result.lastInsertRowid, raw };
+}
+
+// Confirmação de posse do e-mail no cadastro público (double opt-in): a conta
+// só é ativada quando o usuário abre o link e define a senha em /definir-senha.
+function queueAccountVerification(user) {
+  const identity = getGlobalIdentity();
+  const token = createSetupToken(user.id, 'verify_email');
+  const setupUrl = `${appBaseUrl()}/definir-senha?token=${encodeURIComponent(token.raw)}`;
+  return enqueueEmail({
+    userId: user.id, setupTokenId: token.id, recipientEmail: user.email, recipientName: user.name,
+    messageType: 'account_verification', templateName: 'account-verification',
+    subject: 'Confirme seu e-mail para ativar sua conta', identity,
+    dedupeKey: `account-verification:${user.id}:${token.id}`,
+    payload: { name: user.name, setupUrl, platformName: identity.platformName }
+  });
 }
 
 function queueAccountRequested(user) {
@@ -255,6 +272,42 @@ function queueAccountRequested(user) {
     dedupeKey: `account-requested:${user.id}`,
     payload: { name: user.name, platformName: identity.platformName }
   });
+}
+
+const VERIFICATION_COOLDOWN_MINUTES = 5;
+
+function isWithinCooldown(createdAt, minutes) {
+  if (!createdAt || minutes <= 0) return false;
+  // created_at é gravado como datetime('now','-3 hours'); interpretamos como -03:00.
+  const ms = Date.parse(String(createdAt).replace(' ', 'T') + '-03:00');
+  if (!Number.isFinite(ms)) return false;
+  return Date.now() - ms < minutes * 60 * 1000;
+}
+
+// Reenvia o link de confirmação de cadastro. Cancela e-mails antigos ainda na
+// fila para não entregar um link que será revogado em seguida.
+function resendAccountVerification(user, { cooldownMinutes = VERIFICATION_COOLDOWN_MINUTES } = {}) {
+  if (!user || user.approval_status !== 'pending') {
+    return { ok: false, reason: 'not_pending' };
+  }
+  const permission = canQueueEmail(null);
+  if (!permission.allowed) {
+    return { ok: false, reason: 'email_disabled', detail: permission.reason };
+  }
+  if (cooldownMinutes > 0) {
+    const last = db.prepare("SELECT created_at FROM user_setup_tokens WHERE user_id=? AND purpose='verify_email' ORDER BY id DESC LIMIT 1").get(user.id);
+    if (last && isWithinCooldown(last.created_at, cooldownMinutes)) {
+      return { ok: false, reason: 'cooldown' };
+    }
+  }
+  let result = null;
+  db.transaction(() => {
+    db.prepare(`UPDATE email_outbox SET status='cancelled', cancelled_at=datetime('now','-3 hours'),
+      last_error='Substituído por novo link de confirmação.', updated_at=datetime('now','-3 hours')
+      WHERE user_id=? AND message_type='account_verification' AND status IN ('queued','failed')`).run(user.id);
+    result = queueAccountVerification(user);
+  })();
+  return { ok: true, status: result.status, inserted: result.inserted };
 }
 
 function queueAccountApproved(user) {
@@ -652,7 +705,9 @@ async function processEmailQueue() {
         .run(permission.reason, row.id);
       return;
     }
-    if (row.user_id && row.message_type !== 'account_requested') {
+    // E-mails de solicitação e de confirmação de cadastro precisam sair mesmo
+    // com a conta ainda pendente/inativa; os demais exigem conta aprovada.
+    if (row.user_id && !['account_requested', 'account_verification'].includes(row.message_type)) {
       const user = db.prepare('SELECT is_public,approval_status FROM users WHERE id=?').get(row.user_id);
       if (!user || !user.is_public || user.approval_status !== 'approved') {
         if (row.setup_token_id) db.prepare("UPDATE user_setup_tokens SET revoked_at=datetime('now','-3 hours') WHERE id=? AND used_at IS NULL").run(row.setup_token_id);
@@ -713,7 +768,7 @@ function isValidHttpUrl(value) {
 module.exports = {
   getSystemEmailSettings, getPendingEmailCount, getPendingEmails, getSuppressedEmailCount, getSuppressedEmails, deleteSuppressedEmails, getGlobalIdentity, getEventIdentity,
   setSystemEmailEnabled, setEventEmailEnabled, canQueueEmail, enqueueEmail, enqueueDirectEmail, queueGroupDirectEmail, clearEmailQueue,
-  queueAccountRequested, queueAccountApproved, queuePasswordReset, queueRecoveryEmailConfirmation, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
+  queueAccountRequested, queueAccountVerification, resendAccountVerification, queueAccountApproved, queuePasswordReset, queueRecoveryEmailConfirmation, queueImportedAccount, queueImportedRegistration, queuePublicRegistrationSubmission,
   queueRegistrationReviewDecision, queueParticipantActivitiesUpdated, queueActivityRequestDecision,
   createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
   queueCertificateIssued, queueVideoLinkNotifications, queueDueEventReminders,

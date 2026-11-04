@@ -584,8 +584,9 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 
 - O cadastro administrativo permite criar usuários com perfil de admin e/ou revisor.
 - O cadastro administrativo de revisor permite informar áreas de atuação em `reviewer_areas`.
-- O cadastro público gera usuário pendente de aprovação administrativa.
+- O cadastro público cria a conta como `pending`/`is_public=0`, mas a ativação é feita pelo **próprio usuário** por double opt-in: ele recebe um e-mail `account_verification` (token `purpose='verify_email'`, 72h) e, ao abrir o link e definir a senha em `/definir-senha`, a conta passa a `approved`/`is_public=1` com `approved_by=NULL`. A aprovação manual do superadmin em `/admin/users/:id/approve` permanece apenas como **fallback** (e-mail suprimido, falha de SMTP ou abuso).
 - O formulário de cadastro público exige que o **e-mail seja repetido em "Confirme E-mail"**; o envio é recusado (com aviso) quando os valores não conferem — validado no navegador e no servidor — e o usuário é redirecionado para a página de confirmação /cadastro/sucesso.
+- Reenvio de confirmação: `POST /cadastro/reenviar-confirmacao` (público, `strictLimiter`, cooldown de 5 min por conta, resposta genérica contra enumeração) e `POST /admin/users/:id/resend-verification` (superadmin, cooldown de 60 s, botão "Reenviar confirmação" na fila de pendentes com coluna "Último envio"). O reenvio cancela e-mails antigos ainda na fila, revoga apenas tokens `verify_email` e preserva links de reset de senha em andamento.
 - A troca de senha é obrigatória no primeiro acesso quando `password_changed = 0`.
 - Contas novas possuem `profile_completed = 0` e, depois de trocar a senha, devem completar identificação, país, instituição, telefone e formação acadêmica antes de acessar qualquer painel.
 - A formação acadêmica possui a opção especial `Não possui curso de graduação`, disponível em todas as áreas de formação; quando selecionada, os campos Titulação e Status são gravados como nulos e ficam bloqueados (desabilitados, sem valor) nos formulários voltados ao usuário (`/login/complete-profile` e `/author/profile`; nos formulários administrativos continuam ocultos).
@@ -601,7 +602,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 
 - `Revisores Ativos` conta pessoas com papel `reviewer` em pelo menos um evento e `is_public = 1`.
 - `Revisores Inativos` conta pessoas com papel `reviewer` em pelo menos um evento e `is_public = 0`.
-- `Usuários Pendentes` conta registros com `approval_status = 'pending'`.
+- `Cadastros Pendentes de Confirmação` conta registros com `approval_status = 'pending'` (contas que ainda não concluíram o double opt-in ou dependem do fallback administrativo).
 - `Sem Revisor` conta artigos sem designação em `assignments`.
 - `Em Análise` conta artigos com revisor atribuído e ao menos um parecer ainda pendente.
 - `Prontos para Deliberação` conta artigos com todos os pareceres atribuídos já concluídos e sem deliberação final administrativa.
@@ -717,6 +718,7 @@ Alocação de sala por data e horário: `room_id`, e exatamente um vínculo entr
 - Desligar o global cancela toda mensagem pendente; desligar o evento cancela apenas suas pendências. Mensagens canceladas não são retomadas.
 - Solicitação e aprovação de conta usam identidade global neutra. Lembretes, certificados, importações do evento e transmissões usam identidade e logo do evento, quando existentes.
 - Tanto a aprovação de solicitação pública quanto a criação direta de usuário pelo administrador geram mensagem com **link de uso único para o usuário definir a própria senha** (72h, hash em `user_setup_tokens`; cancelamento do e-mail revoga o token). A criação direta (`/admin/users/new`) envia o mesmo e-mail da importação global (`imported-account`, "Sua conta foi criada"). Nenhuma senha é enviada por e-mail.
+- O cadastro público usa o e-mail **`account_verification`** ("Confirme seu e-mail para ativar sua conta"), com token `purpose='verify_email'`; é a única mensagem, além de `account_requested` (legado), autorizada a sair com a conta ainda pendente/inativa. A definição de senha por esse token ativa a conta; tokens `purpose='setup'` (reset/importação/aprovação manual) nunca aprovam contas pendentes, e `/esqueci-senha` só gera reset para contas já aprovadas e ativas.
 - Criação direta de usuário em `/admin/users/new` exige **apenas nome e e-mail**: a conta nasce no padrão de importação (senha inutilizável — hash aleatório desconhecido, `password_changed=0`, `profile_completed=0`, aprovada e ativa), e o e-mail guia o usuário a definir a senha e completar o perfil no primeiro login; envio de senha no formulário é rejeitado. Com o master global desligado, a mensagem de sucesso informa que o e-mail não foi enfileirado. Demais dados pessoais do formulário permanecem opcionais.
 - O lembrete é criado às 09h (America/Sao_Paulo) no dia anterior ao evento para inscritos ativos.
 - Alterações de transmissão notificam inscritos ativos da atividade; atividade e etapa são suportadas, remoção também notifica e mudanças feitas em até cinco minutos são consolidadas.

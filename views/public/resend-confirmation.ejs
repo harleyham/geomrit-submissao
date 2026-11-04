@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Gerência de Eventos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; }
+    .topbar-inner { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: var(--text); background: var(--surface-hover); }
+    .main-content { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem; }
+    .hero { margin-bottom: 1.75rem; text-align: center; }
+    .hero h1 { font-size: 2rem; font-weight: 800; color: var(--text-strong); margin-bottom: 0.75rem; }
+    .hero p { color: var(--text-muted); line-height: 1.7; max-width: 640px; margin: 0 auto; }
+    .card { background:var(--surface-elevated); border: 1px solid var(--border-strong); border-radius: 18px; padding: 2rem; box-shadow: 0 24px 80px rgba(2,6,23,0.35); }
+    .note { margin-bottom: 1.5rem; padding: 1rem 1.1rem; border-radius: 12px; background:var(--surface-selected); border: 1px solid var(--primary-border); color: var(--text); font-size: 0.9rem; line-height: 1.65; }
+    .alert { padding: 0.9rem 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.9rem; }
+    .alert-error { background:var(--danger-subtle); border: 1px solid var(--danger-border); color:var(--danger); }
+    .alert-success { background:var(--success-subtle); border: 1px solid var(--success-border); color:var(--success); }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; color: var(--text); font-size: 0.9rem; font-weight: 600; margin-bottom: 0.45rem; }
+    .form-group input { width: 100%; padding: 0.8rem 0.95rem; border: 1px solid var(--border-strong); border-radius: 10px; background:var(--surface-input); color: var(--text-strong); font-size: 0.95rem; font-family: 'Inter', sans-serif; }
+    .form-group input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+    .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
+    .btn-primary { background: var(--primary); color:var(--on-primary); }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border-strong); }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
+  </style>
+  <%- include('../partials/theme') %>
+  <%- include('../partials/mobile-fixes') %>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
+      <nav class="topbar-nav">
+        <a href="/login" class="btn btn-secondary">Entrar</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="hero">
+      <h1>Reenviar confirmação</h1>
+      <p>Se você solicitou um cadastro e não recebeu o e-mail de confirmação, informe o endereço usado no cadastro.</p>
+    </div>
+
+    <div class="card">
+      <div class="note">
+        A conta só é ativada depois que você abrir o link recebido e definir sua senha. Verifique também a caixa de Lixo Eletrônico ou Spam.
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-error"><%= error %></div>
+      <% } %>
+      <% if (success) { %>
+        <div class="alert alert-success"><%= success %></div>
+      <% } %>
+
+      <form method="POST" action="/cadastro/reenviar-confirmacao">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="email">E-mail usado no cadastro *</label>
+          <input type="email" id="email" name="email" required value="<%= formData.email || '' %>">
+        </div>
+        <div class="actions">
+          <a href="/login" class="btn btn-secondary">Voltar ao login</a>
+          <button type="submit" class="btn btn-primary">Reenviar confirmação</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer>&copy; <%= typeof year !== 'undefined' ? year : new Date().getFullYear() %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+</body>
+</html>

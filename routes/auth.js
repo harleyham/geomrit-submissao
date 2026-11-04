@@ -277,12 +277,32 @@ router.get('/esqueci-senha', (req, res) => {
 
 router.post('/esqueci-senha', strictLimiter, (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
-  let user = null;
-  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    user = db.prepare('SELECT id, name, email, recovery_email, recovery_email_verified FROM users WHERE LOWER(email) = ?').get(email);
+  const emailValid = Boolean(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+
+  if (!emailValid) {
+    return res.render('forgot-password', {
+      title: 'Esqueci a senha',
+      error: 'Informe um e-mail válido.',
+      success: null,
+      formData: { email: '' }
+    });
   }
-  let sent = false;
-  if (user && user.email && canQueueEmail(null).allowed) {
+
+  if (!canQueueEmail(null).allowed) {
+    return res.render('forgot-password', {
+      title: 'Esqueci a senha',
+      error: 'O envio de e-mails está desativado. Procure a organização para redefinir a senha.',
+      success: null,
+      formData: { email: '' }
+    });
+  }
+
+  // Somente contas ativas e aprovadas recebem reset. Contas pendentes usam o
+  // link de confirmação do cadastro (double opt-in); permitir reset aqui abriria
+  // uma via de autoaprovação. A resposta é sempre genérica para não revelar se
+  // o e-mail está cadastrado.
+  const user = db.prepare("SELECT id, name, email, recovery_email, recovery_email_verified FROM users WHERE LOWER(email) = ? AND approval_status = 'approved' AND is_public = 1").get(email);
+  if (user && user.email) {
     try {
       // Canal de recuperação: somente o superadmin (conta fixa) e apenas após
       // confirmar o e-mail. O token é vinculado ao 'user.id' e não ao endereço
@@ -291,24 +311,16 @@ router.post('/esqueci-senha', strictLimiter, (req, res) => {
       const deliverTo = isSuperAdminUser(user.id) && user.recovery_email && user.recovery_email_verified
         ? user.recovery_email
         : null;
-      const result = queuePasswordReset({ user, deliverTo });
-      sent = result.status === 'queued';
+      queuePasswordReset({ user, deliverTo });
     } catch (error) {
       console.error('[email] Falha ao enfileirar link de esqueci a senha:', error.message);
     }
   }
-  if (sent) {
-    return res.render('forgot-password', {
-      title: 'Esqueci a senha',
-      error: null,
-      success: GENERIC_RESET_NOTICE,
-      formData: { email: '' }
-    });
-  }
+
   return res.render('forgot-password', {
     title: 'Esqueci a senha',
-    error: 'Não foi possível gerar o link. Verifique o e-mail informado e tente novamente; se o problema persistir, o envio de e-mails pode estar desativado e você deve procurar a organização para redefinir a senha.',
-    success: null,
+    error: null,
+    success: GENERIC_RESET_NOTICE,
     formData: { email: '' }
   });
 });

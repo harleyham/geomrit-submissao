@@ -13,7 +13,7 @@ const { validators: v, validateAndHandle } = require('../security/validation');
 const { brDate, brToday, brFormatDate } = require('../services/datetime');
 const { validateCsrfToken } = require('../security/csrf');
 const { getAreas, getCursosByArea, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
-const { queueAccountRequested, queuePublicRegistrationSubmission } = require('../services/email');
+const { queueAccountVerification, resendAccountVerification, queuePublicRegistrationSubmission } = require('../services/email');
 const { PHOTO_DIR_REL, getUserPhotoAbsPath, removeUserPhotoFile } = require('../services/user-photo');
 const roomsService = require('../services/rooms');
 
@@ -3019,14 +3019,56 @@ router.get('/cadastro/sucesso', (req, res) => {
   });
 });
 
+router.get('/cadastro/reenviar-confirmacao', (req, res) => {
+  res.render('public/resend-confirmation', {
+    title: 'Reenviar confirmação',
+    error: null,
+    success: null,
+    formData: { email: '' }
+  });
+});
+
+router.post('/cadastro/reenviar-confirmacao', strictLimiter, (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const formData = { email };
+  const genericSuccess = 'Se houver um cadastro pendente para este e-mail, enviaremos um novo link de confirmação. Verifique também a caixa de spam.';
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).render('public/resend-confirmation', {
+      title: 'Reenviar confirmação',
+      error: 'Informe um e-mail válido.',
+      success: null,
+      formData
+    });
+  }
+
+  const user = db.prepare("SELECT id, name, email, approval_status FROM users WHERE LOWER(email) = ? AND approval_status = 'pending'").get(email);
+  if (user) {
+    try {
+      resendAccountVerification(user, { cooldownMinutes: 5 });
+    } catch (error) {
+      console.error('[cadastro] Falha ao reenviar confirmação:', error.message);
+    }
+  }
+
+  // Resposta sempre genérica para não revelar se o e-mail está cadastrado.
+  return res.render('public/resend-confirmation', {
+    title: 'Reenviar confirmação',
+    error: null,
+    success: genericSuccess,
+    formData: { email: '' }
+  });
+});
+
 router.get('/definir-senha', (req, res) => {
   const token = String(req.query.token || '').trim();
   const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : '';
-  const valid = tokenHash && db.prepare(`SELECT 1 FROM user_setup_tokens WHERE token_hash=? AND used_at IS NULL AND revoked_at IS NULL
+  const setup = tokenHash && db.prepare(`SELECT purpose FROM user_setup_tokens WHERE token_hash=? AND used_at IS NULL AND revoked_at IS NULL
     AND expires_at>datetime('now','-3 hours')`).get(tokenHash);
-  res.status(valid ? 200 : 400).render('set-password', {
-    title: 'Definir senha', token: valid ? token : '',
-    error: valid ? null : 'Este link é inválido, expirou ou já foi utilizado.', success: null
+  res.status(setup ? 200 : 400).render('set-password', {
+    title: setup && setup.purpose === 'verify_email' ? 'Confirmar e-mail e definir senha' : 'Definir senha',
+    token: setup ? token : '',
+    error: setup ? null : 'Este link é inválido, expirou ou já foi utilizado.', success: null
   });
 });
 
@@ -3041,13 +3083,33 @@ router.post('/definir-senha', strictLimiter, (req, res) => {
   if (!setup) error = 'Este link é inválido, expirou ou já foi utilizado.';
   else if (password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) error = 'A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula e número.';
   else if (password !== confirmation) error = 'As senhas não conferem.';
-  if (error) return res.status(400).render('set-password', { title: 'Definir senha', token: setup ? token : '', error, success: null });
+  if (error) return res.status(400).render('set-password', {
+    title: setup && setup.purpose === 'verify_email' ? 'Confirmar e-mail e definir senha' : 'Definir senha',
+    token: setup ? token : '', error, success: null
+  });
+  let activated = false;
   db.transaction(() => {
     db.prepare("UPDATE users SET password=?,password_changed=1,updated_at=datetime('now','-3 hours') WHERE id=?")
       .run(bcrypt.hashSync(password, 10), setup.user_id);
+    // Double opt-in: o token de confirmação de e-mail prova a posse do endereço
+    // e ativa a conta pendente. Tokens de reset ('setup') nunca aprovam conta.
+    if (setup.purpose === 'verify_email') {
+      const user = db.prepare('SELECT approval_status FROM users WHERE id=?').get(setup.user_id);
+      if (user && user.approval_status === 'pending') {
+        db.prepare(`UPDATE users SET is_public=1, approval_status='approved',
+          approved_at=datetime('now','-3 hours'), approved_by=NULL, updated_at=datetime('now','-3 hours')
+          WHERE id=?`).run(setup.user_id);
+        activated = true;
+      }
+    }
     db.prepare("UPDATE user_setup_tokens SET used_at=datetime('now','-3 hours') WHERE id=?").run(setup.id);
   })();
-  return res.render('set-password', { title: 'Senha definida', token: '', error: null, success: 'Senha definida com sucesso. Faça login para completar seu perfil.' });
+  return res.render('set-password', {
+    title: activated ? 'Conta ativada' : 'Senha definida', token: '', error: null,
+    success: activated
+      ? 'E-mail confirmado e conta ativada. Faça login para completar seu perfil.'
+      : 'Senha definida com sucesso. Faça login para completar seu perfil.'
+  });
 });
 
 router.post('/cadastro', registrationLimiter, (req, res, next) => {
@@ -3094,8 +3156,8 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
     });
   }
 
-  // Senha interna inutilizável: o acesso só é liberado pelo link de uso único
-  // enviado por e-mail após a aprovação do cadastro.
+  // Senha interna inutilizável: a conta é ativada pelo link de confirmação de
+  // e-mail (double opt-in), onde o próprio usuário define a senha.
   const hash = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   const created = db.prepare(`
     INSERT INTO users (
@@ -3113,7 +3175,11 @@ router.post('/cadastro', registrationLimiter, (req, res, next) => {
     country || null,
     institution || null
   ).run();
-  queueAccountRequested({ id: created.lastInsertRowid, name, email });
+  try {
+    queueAccountVerification({ id: created.lastInsertRowid, name, email });
+  } catch (emailErr) {
+    console.error('[cadastro] Falha ao enfileirar confirmação de e-mail:', emailErr.message);
+  }
 
   return res.redirect('/cadastro/sucesso');
 });

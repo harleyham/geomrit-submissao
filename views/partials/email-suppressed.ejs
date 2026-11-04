@@ -19,7 +19,7 @@
     <table>
       <thead><tr><th>ID</th><th>Destinatário</th><th>Mensagem</th><th>Evento</th><th>Status</th><th>Data</th></tr></thead>
       <tbody>
-        <% const emailTypeLabels = { account_requested: 'Solicitação de cadastro', account_approved: 'Cadastro aprovado', imported_account: 'Conta criada', imported_account_registration: 'Conta e inscrição', imported_registration: 'Inscrição no evento', event_reminder: 'Lembrete do evento', certificate_issued: 'Certificado emitido', certificate_reissued: 'Certificado reemitido', video_link_changed: 'Alteração de transmissão', direct_message: 'Mensagem direta' }; %>
+        <% const emailTypeLabels = { account_requested: 'Solicitação de cadastro', account_verification: 'Confirmação de cadastro', account_approved: 'Cadastro aprovado', imported_account: 'Conta criada', imported_account_registration: 'Conta e inscrição', imported_registration: 'Inscrição no evento', event_reminder: 'Lembrete do evento', certificate_issued: 'Certificado emitido', certificate_reissued: 'Certificado reemitido', video_link_changed: 'Alteração de transmissão', direct_message: 'Mensagem direta' }; %>
         <% suppressedEmails.forEach(email => { %>
         <tr>
           <td>#<%= email.id %></td>

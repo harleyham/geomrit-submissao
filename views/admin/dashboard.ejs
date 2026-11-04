@@ -357,7 +357,7 @@
           <div class="stat-value"><%= totalUsers %></div>
         </div>
         <div class="stat-card pending-users">
-          <div class="stat-label">Usuários Pendentes</div>
+          <div class="stat-label">Cadastros Pendentes de Confirmação</div>
           <div class="stat-value"><%= pendingUsers %></div>
         </div>
       </div>
@@ -555,7 +555,7 @@
     <% if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) { %>
     <div class="section" style="margin-top:1.5rem;">
       <div class="section-header">
-        <h2>Solicitações de cadastro não analisadas</h2>
+        <h2>Solicitações de cadastro pendentes de confirmação (fallback)</h2>
       </div>
       <div class="section-body">
         <% if (pendingRegistrationRequests.length > 0) { %>
@@ -582,8 +582,8 @@
         </table></div>
         <% } else { %>
         <div class="empty">
-          <p>Não há solicitações de cadastro pendentes de análise.</p>
-          <p>Todos os pedidos de acesso já foram avaliados.</p>
+          <p>Não há cadastros pendentes de confirmação.</p>
+          <p>Todas as contas foram confirmadas ou aprovadas manualmente.</p>
         </div>
         <% } %>
       </div>

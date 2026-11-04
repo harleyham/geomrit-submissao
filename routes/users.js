@@ -13,7 +13,7 @@ const { validateCsrfToken } = require('../security/csrf');
 const { validators: v, validateAndHandle, sanitizeHtml } = require('../security/validation');
 const { getAreas, getCursosMap, NO_DEGREE_COURSE } = require('../services/academic-formation');
 const { queueAccountApproved, queueImportedAccount, queuePasswordReset, queueRecoveryEmailConfirmation, createImportBatch, getImportBatchEmailSummary, authorizeImportBatch,
-   canQueueEmail, getSystemEmailSettings } = require('../services/email');
+   canQueueEmail, getSystemEmailSettings, resendAccountVerification } = require('../services/email');
 const { brDate, brToday } = require('../services/datetime');
 const { isSuperAdminUser } = require('./auth');
 
@@ -337,7 +337,9 @@ router.get('/', requireAuth, (req, res) => {
   const allPending = db.prepare(`
     SELECT id, name, email, cpf, passport, country, institution, phone,
            is_admin, is_reviewer, is_participant, is_speaker, is_teacher, is_oral_presenter, is_poster_presenter, is_staff, is_public, approval_status, approved_at,
-           password_changed, profile_completed, created_at
+           password_changed, profile_completed, created_at,
+           (SELECT MAX(COALESCE(sent_at, created_at)) FROM email_outbox
+            WHERE user_id = users.id AND message_type = 'account_verification') AS last_verification_at
     FROM users
     WHERE approval_status = 'pending'
     ORDER BY created_at DESC, name COLLATE NOCASE
@@ -369,6 +371,7 @@ router.get('/', requireAuth, (req, res) => {
     pendingUsers: allPending,
     approvedUsers: paginatedApproved,
     currentUser,
+    emailEnabled: canQueueEmail(null).allowed,
     pagination: {
       currentPage: clampedPage,
       totalPages,
@@ -741,6 +744,16 @@ function updateUser(req, res) {
     ).run();
   }
 
+  // Se o e-mail de uma conta pendente foi corrigido, o link de confirmação
+  // enviado ao endereço antigo não pode mais ativar a conta. Revoga o token e
+  // cancela o e-mail pendente; o admin pode reenviar ao novo endereço.
+  if (user.approval_status === 'pending' && displayEmail && String(displayEmail).trim().toLowerCase() !== String(user.email || '').trim().toLowerCase()) {
+    db.prepare("UPDATE user_setup_tokens SET revoked_at=datetime('now','-3 hours') WHERE user_id=? AND purpose='verify_email' AND used_at IS NULL AND revoked_at IS NULL").run(id);
+    db.prepare(`UPDATE email_outbox SET status='cancelled', cancelled_at=datetime('now','-3 hours'),
+      last_error='E-mail da conta pendente alterado; reenvie a confirmação.', updated_at=datetime('now','-3 hours')
+      WHERE user_id=? AND message_type='account_verification' AND status IN ('queued','failed')`).run(id);
+  }
+
   res.redirect('/admin/users?success=Usuário atualizado');
 }
 
@@ -997,17 +1010,25 @@ router.post('/:id/approve', requireAuth, (req, res) => {
     return res.redirect('/admin/users?success=Cadastro já estava aprovado');
   }
 
-  db.prepare(`
-    UPDATE users
-    SET is_public = 1,
-        approval_status = 'approved',
-        approved_at = datetime('now', '-3 hours'),
-        approved_by = ?,
-        password_changed = 0,
-        profile_completed = 0,
-        updated_at = datetime('now', '-3 hours')
-    WHERE id = ?
-  `).bind(req.session.userId, id).run();
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE users
+      SET is_public = 1,
+          approval_status = 'approved',
+          approved_at = datetime('now', '-3 hours'),
+          approved_by = ?,
+          password_changed = 0,
+          profile_completed = 0,
+          updated_at = datetime('now', '-3 hours')
+      WHERE id = ?
+    `).bind(req.session.userId, id).run();
+    // A aprovação manual substitui o link de confirmação pendente: revoga o
+    // token verify_email e cancela e-mails de confirmação ainda na fila.
+    db.prepare("UPDATE user_setup_tokens SET revoked_at=datetime('now','-3 hours') WHERE user_id=? AND purpose='verify_email' AND used_at IS NULL AND revoked_at IS NULL").run(id);
+    db.prepare(`UPDATE email_outbox SET status='cancelled', cancelled_at=datetime('now','-3 hours'),
+      last_error='Substituído pela aprovação manual do cadastro.', updated_at=datetime('now','-3 hours')
+      WHERE user_id=? AND message_type='account_verification' AND status IN ('queued','failed')`).run(id);
+  })();
 
   try {
     queueAccountApproved(user);
@@ -1016,6 +1037,43 @@ router.post('/:id/approve', requireAuth, (req, res) => {
   }
 
   return res.redirect('/admin/users?success=Cadastro aprovado com sucesso');
+});
+
+// Reenvia o link de confirmação de e-mail (double opt-in) para uma conta ainda
+// pendente. O cooldown curto evita duplo clique acidental; o switch global de
+// e-mails é respeitado antes de criar qualquer token.
+router.post('/:id/resend-verification', requireAuth, strictLimiter, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const back = (params) => res.redirect(`/admin/users?${params}#cadastros-pendentes`);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.redirect('/admin/users?error=Identificação de usuário inválida');
+  }
+  const user = db.prepare('SELECT id, name, email, approval_status FROM users WHERE id = ?').bind(id).get();
+  if (!user) {
+    return res.redirect('/admin/users?error=Usuário não encontrado');
+  }
+  if (user.approval_status !== 'pending') {
+    return back('success=' + encodeURIComponent('Conta já aprovada; nenhum e-mail reenviado.'));
+  }
+  try {
+    const result = resendAccountVerification(user, { cooldownMinutes: 1 });
+    if (result.ok && result.status === 'queued') {
+      return back('success=' + encodeURIComponent(`Novo link de confirmação enviado para ${user.email}.`));
+    }
+    if (result.ok) {
+      return back('error=' + encodeURIComponent('O envio de e-mails está desativado (switch global). Ative o envio ou comunique o usuário por outro canal.'));
+    }
+    if (result.reason === 'cooldown') {
+      return back('success=' + encodeURIComponent('Aguarde alguns instantes antes de reenviar.'));
+    }
+    if (result.reason === 'email_disabled') {
+      return back('error=' + encodeURIComponent('O envio de e-mails está desativado (switch global).'));
+    }
+    return back('error=' + encodeURIComponent('Não foi possível reenviar a confirmação.'));
+  } catch (error) {
+    console.error('[admin] Falha ao reenviar confirmação:', error.message);
+    return back('error=' + encodeURIComponent('Falha ao reenviar a confirmação.'));
+  }
 });
 
 router.get('/import', requireAuth, (req, res) => {

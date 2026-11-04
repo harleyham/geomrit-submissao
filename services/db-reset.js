@@ -248,6 +248,7 @@ function migrateSchema(db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       token_hash TEXT NOT NULL UNIQUE,
+      purpose TEXT NOT NULL DEFAULT 'setup',
       expires_at DATETIME NOT NULL,
       used_at DATETIME,
       revoked_at DATETIME,
@@ -642,6 +643,10 @@ function backfillColumnSteps(db) {
         FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
       )
     `);
+  } catch (e) { throw e; }
+  try {
+    const tokenCols = db.prepare("PRAGMA table_info(user_setup_tokens)").all().map((c) => c.name);
+    if (!tokenCols.includes('purpose')) db.exec("ALTER TABLE user_setup_tokens ADD COLUMN purpose TEXT NOT NULL DEFAULT 'setup'");
   } catch (e) { throw e; }
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_hash')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_hash TEXT'); } catch(e){ throw e; }
   try { const cols=db.prepare("PRAGMA table_info(users)").all().map(c=>c.name); if(!cols.includes('recovery_email_expires_at')) db.exec('ALTER TABLE users ADD COLUMN recovery_email_expires_at DATETIME'); } catch(e){ throw e; }
