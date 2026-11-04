@@ -288,6 +288,37 @@ function formatDateTimeBR(value) {
   return `${day}/${month}/${year} ${hour}:${minute}`;
 }
 
+function isValidYmd(year, month, day) {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+// Aceita datas em ISO (YYYY-MM-DD) e no formato brasileiro (DD/MM/AAAA), que é
+// o que navegadores sem suporte a <input type="date"> acabam enviando. O formato
+// com barras é sempre lido como dia/mês/ano (nunca mês/dia/ano).
+function normalizeFilterDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return isValidYmd(year, month, day) ? raw : '';
+  }
+
+  const brMatch = raw.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+  if (brMatch) {
+    const [, day, month, year] = brMatch;
+    return isValidYmd(year, month, day) ? `${year}-${month}-${day}` : '';
+  }
+
+  return '';
+}
+
 // Centraliza a leitura dos filtros da listagem para que a exportação (CSV/PDF)
 // devolva exatamente o mesmo conjunto de usuários exibido em "Gerenciar Usuários".
 function parseUsersFilters(queryParams = {}) {
@@ -301,9 +332,8 @@ function parseUsersFilters(queryParams = {}) {
   const sort = ['created_desc', 'created_asc', 'name'].includes(queryParams.sort)
     ? queryParams.sort
     : 'created_desc';
-  const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
-  const createdFrom = isIsoDate(queryParams.created_from) ? String(queryParams.created_from) : '';
-  const createdTo = isIsoDate(queryParams.created_to) ? String(queryParams.created_to) : '';
+  const createdFrom = normalizeFilterDate(queryParams.created_from);
+  const createdTo = normalizeFilterDate(queryParams.created_to);
 
   const conditions = ["approval_status != 'pending'"];
   const params = [];
@@ -322,13 +352,15 @@ function parseUsersFilters(queryParams = {}) {
     conditions.push('(COALESCE(password_changed, 0) = 1 AND COALESCE(profile_completed, 0) = 1)');
   }
 
+  // Compara apenas a parte da data: funciona tanto para DATETIME
+  // ("YYYY-MM-DD HH:MM:SS") quanto para ISO 8601 ou data sem hora.
   if (createdFrom) {
-    conditions.push('created_at >= ?');
-    params.push(`${createdFrom} 00:00:00`);
+    conditions.push('date(created_at) >= date(?)');
+    params.push(createdFrom);
   }
   if (createdTo) {
-    conditions.push('created_at <= ?');
-    params.push(`${createdTo} 23:59:59`);
+    conditions.push('date(created_at) <= date(?)');
+    params.push(createdTo);
   }
 
   const orderBy = sort === 'name'
