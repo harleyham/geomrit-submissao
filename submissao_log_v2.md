@@ -1065,3 +1065,27 @@ Auditoria pontual de segurança (análise de código + agentes especializados po
 - Verificação: `node --check` nas rotas/serviços alterados e renderização dos templates EJS; validação funcional pendente do usuário (cadastro → e-mail → `/definir-senha` → login; reenvio público e pelo admin; reset de conta pendente bloqueado).
 - Docs: `submissao.md`, este log.
 - Status: **implementado e verificado localmente**; validação funcional pelo usuário pendente.
+
+## 2026-11-04 (2) - Inscrição pública combinada ("Inscrever-se") e dashboard de pedidos de inscrição
+
+- Pedido: ao clicar em "Entrar" na linha de Inscrições da página do evento, o visitante deve ser levado à inscrição; usuário novo cria conta e se inscreve no mesmo fluxo; usuário existente entra e se inscreve; eventos automáticos aprovam após a confirmação do e-mail; eventos com análise ficam pendentes para o admin do evento.
+- `routes/public.js`:
+  - `buildEventTimeline`: visitante não autenticado em Inscrições passa a ver "Inscrever-se" apontando para `/evento/:id/inscricao`.
+  - `GET /evento/:id/inscricao` deixou de exigir login: visitante recebe o formulário combinado com dados da conta (confirmar e-mail, CPF, passaporte, país); autenticado mantém o fluxo atual. `renderListenerRegistrationForm` ganhou `isAuthenticated`, `accountFieldsRequired`, `loginNext` e desabilita o envio em evento encerrado.
+  - `POST /evento/:id/inscricao`: visitante usa `handleAnonymousEventRegistration` — e-mail novo cria conta `pending` + inscrição `pending`; e-mail de conta pendente reutiliza a conta e atualiza/cria a inscrição; e-mail de conta aprovada redireciona para `/login?next=/evento/:id/inscricao`. Uploads/justificativas são preservados e a transação cobre conta + inscrição. O sucesso usa PRG em `GET /evento/:id/inscricao/sucesso` (sessão).
+  - `POST /definir-senha`: após confirmar o e-mail, `approvePendingAutomaticRegistrations(userId)` aprova inscrições `pending` de eventos `automatic`, matricula as atividades solicitadas e enfileira e-mail de confirmação. Se alguma atividade estiver sem vagas, a inscrição permanece pendente com observação para o admin.
+- `routes/auth.js`:
+  - `safeAfterLoginPath` passou a aceitar `/evento/<id>/inscricao`; novo `consumeAfterLoginPath` é usado no login e após troca de senha/completar perfil. A página de login exibe aviso contextual com `next`.
+- `routes/users.js`:
+  - Aprovação manual de conta (`POST /admin/users/:id/approve`) e ativação em lote (`bulk-update-flags`) também chamam `approvePendingAutomaticRegistrations`, evitando inscrições automáticas órfãs quando o double opt-in falha.
+  - Dashboard (`GET /dashboard`): novo escopo por `adminEventIds`, variáveis `canReviewRegistrations`, `pendingEventRegistrationRequests` e `pendingEventRegistrationCount`.
+- `views`:
+  - `public/event-register.ejs`: seção de conta para visitante, link "Já tenho conta? Entrar", botão "Criar conta e inscrever-se" e validação de confirmação de e-mail no navegador.
+  - `public/event-register-success.ejs` (novo): status da inscrição, aviso de confirmação de conta e link de reenvio.
+  - `login.ejs`: aviso contextual quando há `next` de inscrição.
+  - `admin/dashboard.ejs`: card "Pedidos de inscrição" e seção "Pedidos de inscrição pendentes" (admin do evento/superadmin; staff não vê), com "Analisar" para eventos `review` e "Ver participantes" para `automatic`.
+  - `emails/account-verification.ejs` e `emails/registration-submitted.ejs`: textos com evento, status e conta pendente.
+- `services/email.js`: `queueAccountVerification`/`resendAccountVerification` recebem contexto do evento; `queuePublicRegistrationSubmission` aceita `awaitingAccountVerification` e `dedupeKey`; o worker permite `registration_submitted`, `registration_reviewed` e `activity_request_reviewed` para contas pendentes, mantendo bloqueio de contas inativas.
+- Verificação: `node --check` e compilação EJS OK; smoke tests em transação confirmaram criação de conta/inscrição por visitante, reutilização de conta pendente, redirecionamento de conta aprovada para login, ativação + aprovação automática de inscrição e matrícula de atividade, além da query do dashboard.
+- Docs: `submissao.md`, este log.
+- Status: **implementado e verificado localmente**; validação funcional no navegador/SMTP pendente.

@@ -330,6 +330,12 @@
           <div class="stat-label">Eventos Realizados</div>
           <div class="stat-value"><%= concludedEvents %></div>
         </div>
+        <% if (typeof canReviewRegistrations !== 'undefined' && canReviewRegistrations) { %>
+        <div class="stat-card pending-registrations">
+          <div class="stat-label">Pedidos de inscrição</div>
+          <div class="stat-value"><%= pendingEventRegistrationCount %></div>
+        </div>
+        <% } %>
       </div>
     </div>
 
@@ -551,6 +557,60 @@
         <% } %>
       </div>
     </div>
+
+    <% if (typeof canReviewRegistrations !== 'undefined' && canReviewRegistrations) { %>
+    <div class="section" style="margin-top:1.5rem;">
+      <div class="section-header">
+        <h2>Pedidos de inscrição pendentes</h2>
+      </div>
+      <div class="section-body">
+        <% if (pendingEventRegistrationRequests.length > 0) { %>
+        <div class="table-scroll"><table>
+          <thead>
+            <tr><th>Participante</th><th>Evento</th><th>Conta</th><th>Situação</th><th>Solicitado em</th><th>Ação</th></tr>
+          </thead>
+          <tbody>
+            <% pendingEventRegistrationRequests.forEach(request => { %>
+            <tr>
+              <td>
+                <%= request.name %><br>
+                <small style="color:var(--text-faint);"><%= request.email %></small>
+              </td>
+              <td><%= request.event_name %></td>
+              <td>
+                <% if (!request.user_id) { %>Sem conta vinculada
+                <% } else if (request.approval_status === 'pending') { %>Aguardando confirmação
+                <% } else if (request.is_public === 0) { %>Conta inativa
+                <% } else { %>Conta aprovada<% } %>
+              </td>
+              <td>
+                <% if (request.registration_approval_mode === 'review') { %>
+                  <span class="badge badge-subsidy">Aguardando análise</span>
+                <% } else { %>
+                  <span class="badge badge-pending">Aguardando confirmação de e-mail</span>
+                <% } %>
+              </td>
+              <td><%= new Date(request.created_at).toLocaleDateString('pt-BR') %></td>
+              <td>
+                <% if (request.registration_approval_mode === 'review') { %>
+                  <a href="/admin/events/<%= request.event_id %>/participants/<%= request.id %>/review" class="btn btn-ghost">Analisar</a>
+                <% } else { %>
+                  <a href="/admin/events/<%= request.event_id %>/participants" class="btn btn-ghost">Ver participantes</a>
+                <% } %>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table></div>
+        <% } else { %>
+        <div class="empty">
+          <p>Não há pedidos de inscrição pendentes nos eventos que você administra.</p>
+          <p>Pedidos em eventos automáticos ficam pendentes apenas até a confirmação do e-mail; em eventos com análise, use "Analisar".</p>
+        </div>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
 
     <% if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) { %>
     <div class="section" style="margin-top:1.5rem;">

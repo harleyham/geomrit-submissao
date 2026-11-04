@@ -16,6 +16,7 @@ const { queueAccountApproved, queueImportedAccount, queuePasswordReset, queueRec
    canQueueEmail, getSystemEmailSettings, resendAccountVerification } = require('../services/email');
 const { brDate, brToday } = require('../services/datetime');
 const { isSuperAdminUser } = require('./auth');
+const { approvePendingAutomaticRegistrations } = require('./public');
 
 const importUploadDir = path.join(__dirname, '..', 'uploads', 'import');
 if (!fs.existsSync(importUploadDir)) fs.mkdirSync(importUploadDir, { recursive: true });
@@ -995,7 +996,23 @@ router.post('/bulk-update-flags', requireAuth, (req, res, next) => {
     });
   });
 
+  const newlyApprovedIds = sanitizedIds.filter((id) => {
+    const currentUser = currentUsersById.get(id);
+    if (!currentUser || currentUser.approval_status !== 'pending') return false;
+    const nextIsPublic = parseToggleValue(req.body[`is_public_${id}`]);
+    return getNextApprovalStatus(currentUser.approval_status, nextIsPublic) === 'approved';
+  });
+
   updateMany(sanitizedIds);
+
+  newlyApprovedIds.forEach((id) => {
+    try {
+      approvePendingAutomaticRegistrations(id);
+    } catch (error) {
+      console.error('Falha ao aprovar inscrições automáticas pendentes em lote:', error.message);
+    }
+  });
+
   return res.redirect('/admin/users?success=Contas atualizadas');
 });
 
@@ -1029,6 +1046,14 @@ router.post('/:id/approve', requireAuth, (req, res) => {
       last_error='Substituído pela aprovação manual do cadastro.', updated_at=datetime('now','-3 hours')
       WHERE user_id=? AND message_type='account_verification' AND status IN ('queued','failed')`).run(id);
   })();
+
+  // Aprovação manual da conta é um fallback do double opt-in: libera também as
+  // inscrições pendentes em eventos automáticos, para não deixá-las órfãs.
+  try {
+    approvePendingAutomaticRegistrations(id);
+  } catch (error) {
+    console.error('Falha ao aprovar inscrições automáticas pendentes:', error.message);
+  }
 
   try {
     queueAccountApproved(user);

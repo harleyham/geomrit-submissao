@@ -52,6 +52,15 @@
       </div>
     <% } %>
 
+    <% if (typeof next !== 'undefined' && next) { %>
+      <% const nextEventMatch = String(next).match(/^\/evento\/(\d+)\/inscricao$/); %>
+      <div class="notice">
+        Entre para concluir sua inscrição no evento.
+        <% if (nextEventMatch) { %><a href="/evento/<%= nextEventMatch[1] %>">Voltar ao evento</a>.<% } %>
+        Se ainda não tem conta, volte à página do evento e use "Inscrever-se" para criar a conta e se inscrever.
+      </div>
+    <% } %>
+
     <form method="POST" action="/login">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="form-group">

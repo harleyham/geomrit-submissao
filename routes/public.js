@@ -543,9 +543,9 @@ function buildEventTimeline(event, options = {}) {
 
       return {
         ...item,
-        actionLabel: 'Entrar',
-        actionHref: '/login',
-        actionTone: 'ghost'
+        actionLabel: 'Inscrever-se',
+        actionHref: `/evento/${event.id}/inscricao`,
+        actionTone: registrationWindow.isOpen ? 'primary' : 'ghost'
       };
     }
 
@@ -910,6 +910,26 @@ function normalizeListenerRegistrationForm(body = {}, session = null) {
   };
 }
 
+// Formulário combinado (conta + inscrição) para visitante: além dos campos da
+// inscrição, carrega os dados usados para criar a conta quando o e-mail é novo.
+function normalizePublicRegistrationForm(body = {}, session = null) {
+  return {
+    ...normalizeListenerRegistrationForm(body, session),
+    confirm_email: String(body.confirm_email || '').trim().toLowerCase(),
+    cpf: String(body.cpf || '').trim(),
+    passport: String(body.passport || '').trim(),
+    country: String(body.country || '').trim()
+  };
+}
+
+function validatePublicAccountFields(formData) {
+  const errors = [];
+  if (!formData.name || !formData.email) errors.push('Nome e e-mail são obrigatórios.');
+  if (!formData.confirm_email) errors.push('Confirme o e-mail.');
+  else if (formData.confirm_email !== formData.email) errors.push('Os endereços de e-mail não conferem.');
+  return errors;
+}
+
 const PARTICIPANT_NON_SELECTABLE_ACTIVITY_TYPES = ['breakfast', 'coffee_break', 'brunch', 'lunch', 'dinner'];
 
 function getRequiredParticipantActivityIds(eventId, previouslyEnrolledIds = []) {
@@ -1118,7 +1138,12 @@ function renderListenerRegistrationForm(req, res, event, options = {}) {
   const eventWithMeta = withSubmissionMeta(withAreaMeta(event));
   const formData = { ...(options.formData || {}) };
   formData.activity_ids = enforceRequiredActivities(event.id, formData.activity_ids || [], options.previouslyEnrolledIds || []);
-  const registrationForJustifications = getOwnedEventRegistration(event.id, req);
+  const isAuthenticated = options.isAuthenticated !== undefined
+    ? Boolean(options.isAuthenticated)
+    : Boolean(req.session && req.session.userId);
+  const registrationForJustifications = isAuthenticated ? getOwnedEventRegistration(event.id, req) : null;
+  const registrationWindow = getRegistrationWindow(eventWithMeta);
+  if (event.status === 'encerrado') registrationWindow.isOpen = false;
   res.render('public/event-register', {
     event: eventWithMeta,
     title: options.title || `Inscrição no Evento - ${event.name}`,
@@ -1130,9 +1155,81 @@ function renderListenerRegistrationForm(req, res, event, options = {}) {
     registrationStatus: options.registrationStatus || null,
     activities: getPublicEventActivities(event.id),
     justificationFiles: getRegistrationJustificationNames(registrationForJustifications ? registrationForJustifications.id : null),
-    registrationWindow: getRegistrationWindow(eventWithMeta),
-    requiredActivityIds: new Set(getRequiredParticipantActivityIds(event.id))
+    registrationWindow,
+    requiredActivityIds: new Set(getRequiredParticipantActivityIds(event.id)),
+    isAuthenticated,
+    accountFieldsRequired: Boolean(options.accountFieldsRequired),
+    loginNext: options.loginNext || `/evento/${event.id}/inscricao`
   });
+}
+
+// Aprova inscrições pendentes de eventos automáticos após a confirmação do
+// e-mail (ou aprovação manual da conta pelo superadmin). Se alguma atividade
+// solicitada estiver sem vagas, a inscrição permanece pendente para análise.
+function approvePendingAutomaticRegistrations(userId) {
+  const pending = db.prepare(`
+    SELECT er.id, er.user_id, er.event_id, er.name, er.email, er.requested_activity_ids,
+           e.name AS event_name
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    WHERE er.user_id = ? AND er.registration_status = 'pending'
+      AND e.registration_approval_mode = 'automatic'
+  `).all(userId);
+
+  const approved = [];
+  const blocked = [];
+  db.transaction(() => {
+    pending.forEach((registration) => {
+      const validActivityIds = new Set(
+        db.prepare('SELECT id FROM event_activities WHERE event_id=?')
+          .all(registration.event_id).map((row) => Number(row.id))
+      );
+      const requestedIds = parseRequestedActivityIds(registration.requested_activity_ids)
+        .filter((id) => validActivityIds.has(id));
+      const alreadyEnrolled = getRegistrationActivityIds(registration.id);
+      const blockedIds = getCapacityBlockedActivityIds(
+        requestedIds.filter((id) => !alreadyEnrolled.includes(id)),
+        alreadyEnrolled
+      );
+      if (blockedIds.length) {
+        db.prepare(`UPDATE event_registrations SET registration_review_notes=?,
+          updated_at=datetime('now','-3 hours') WHERE id=?`)
+          .run('Confirmação automática bloqueada: uma ou mais atividades solicitadas não possui mais vagas. A organização deve analisar a inscrição.', registration.id);
+        blocked.push(registration);
+        return;
+      }
+      db.prepare(`UPDATE event_registrations SET registration_status='approved',
+        registration_reviewed_at=datetime('now','-3 hours'), registration_reviewed_by=NULL,
+        updated_at=datetime('now','-3 hours') WHERE id=?`).run(registration.id);
+      saveRegistrationActivities(registration.id, userId, requestedIds, userId);
+      recordParticipantAudit({
+        eventId: registration.event_id, registrationId: registration.id, actorUserId: userId,
+        action: 'registration_confirmed_by_email', details: { activity_ids: requestedIds }
+      });
+      approved.push(registration);
+    });
+  })();
+
+  approved.forEach((registration) => {
+    try {
+      const event = db.prepare('SELECT * FROM events WHERE id=?').get(registration.event_id);
+      if (event) {
+        queuePublicRegistrationSubmission({
+          event,
+          registration: {
+            id: registration.id, user_id: userId, name: registration.name, email: registration.email
+          },
+          pendingReview: false,
+          awaitingAccountVerification: false,
+          dedupeKey: `registration-confirmed:${registration.id}`
+        });
+      }
+    } catch (error) {
+      console.error('[inscricao] Falha ao enfileirar confirmação automática:', error.message);
+    }
+  });
+
+  return { approved, blocked };
 }
 
 function renderSubmissionForm(res, event, options = {}) {
@@ -1478,9 +1575,30 @@ router.get('/evento/:id/certificates', requireNonAdminAuthorAccess, (req, res) =
   });
 });
 
-router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
+router.get('/evento/:id/inscricao', (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published','encerrado')").bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
+
+  const registrationWindow = getRegistrationWindow(event);
+
+  // Visitante sem sessão: formulário combinado (dados da conta + inscrição).
+  if (!req.session || !req.session.userId) {
+    if (event.status === 'encerrado') {
+      registrationWindow.isOpen = false;
+      registrationWindow.message = 'O evento está encerrado e não aceita novas inscrições.';
+    }
+    return renderListenerRegistrationForm(req, res, event, {
+      error: !registrationWindow.isOpen ? registrationWindow.message : null,
+      formData: { name: '', email: '', institution: '', activity_ids: [] },
+      alreadyRegistered: false,
+      registrationType: null,
+      registrationStatus: null,
+      isAuthenticated: false,
+      accountFieldsRequired: true,
+      loginNext: `/evento/${event.id}/inscricao`
+    });
+  }
+
   const currentUser = db.prepare(`
     SELECT institution
     FROM users
@@ -1501,7 +1619,6 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
     LIMIT 1
   `).get(req.params.id, req.session.userId, req.session.userEmail || '');
 
-  const registrationWindow = getRegistrationWindow(event);
   if (event.status === 'encerrado') {
     registrationWindow.isOpen = false;
     if (!existingRegistration) registrationWindow.message = 'O evento está encerrado e não aceita novas inscrições.';
@@ -1530,6 +1647,8 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
     registrationType: existingRegistration ? existingRegistration.registration_type : null,
     registrationStatus: existingRegistration ? existingRegistration.registration_status : null,
     previouslyEnrolledIds: existingRegistration ? getRegistrationActivityIds(existingRegistration.id) : [],
+    isAuthenticated: true,
+    accountFieldsRequired: false,
     success: existingRegistration && existingRegistration.registration_status === 'approved'
       ? existingRegistration.registration_type === 'author'
         ? 'Você já está inscrito neste evento como apresentador.'
@@ -1538,13 +1657,264 @@ router.get('/evento/:id/inscricao', requireNonAdminAuthorAccess, (req, res) => {
   });
 });
 
-router.post('/evento/:id/inscricao', registrationLimiter, requireNonAdminAuthorAccess, runRegistrationUpload, (req, res, next) => {
+// Página de sucesso da inscrição combinada (PRG): lê o resultado gravado na
+// sessão pelo POST anônimo e evita reenvio do formulário ao atualizar.
+router.get('/evento/:id/inscricao/sucesso', (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id = ? AND status IN ('published','encerrado')").bind(req.params.id).get();
+  const result = req.session && req.session.publicRegistrationResult;
+  if (!event || !result || Number(result.eventId) !== Number(event.id)) {
+    return res.redirect(`/evento/${req.params.id}`);
+  }
+  delete req.session.publicRegistrationResult;
+  return res.render('public/event-register-success', {
+    title: 'Inscrição registrada',
+    event: withAreaMeta(event),
+    result,
+    year: new Date().getFullYear()
+  });
+});
+
+// Inscrição pública combinada (visitante): cria/reutiliza a conta pendente e
+// registra a inscrição no evento. O status fica pendente até a confirmação do
+// e-mail; em eventos automáticos, a aprovação ocorre em /definir-senha.
+function handleAnonymousEventRegistration(req, res, event) {
+  const formData = normalizePublicRegistrationForm(req.body, null);
+  const uploadedFiles = getUploadedRegistrationFiles(req);
+  const registrationWindow = getRegistrationWindow(event);
+
+  const fail = (message, extra = {}) => {
+    removeUploadedRegistrationFiles(uploadedFiles);
+    return renderListenerRegistrationForm(req, res, event, {
+      error: Array.isArray(message) ? message.join(' ') : message,
+      formData,
+      alreadyRegistered: !!extra.alreadyRegistered,
+      registrationType: extra.registrationType || null,
+      registrationStatus: extra.registrationStatus || null,
+      isAuthenticated: false,
+      accountFieldsRequired: true,
+      loginNext: `/evento/${event.id}/inscricao`
+    });
+  };
+
+  if (!registrationWindow.isOpen) return fail(registrationWindow.message);
+  if (req.registrationUploadError) return fail(req.registrationUploadError);
+
+  const existingUser = db.prepare('SELECT id, name, email, approval_status, is_public FROM users WHERE LOWER(email) = ?').get(formData.email);
+  const isApprovedActive = existingUser && existingUser.is_public === 1
+    && (!existingUser.approval_status || existingUser.approval_status === 'approved');
+  if (isApprovedActive) {
+    removeUploadedRegistrationFiles(uploadedFiles);
+    return res.redirect('/login?next=' + encodeURIComponent(`/evento/${event.id}/inscricao`)
+      + '&error=' + encodeURIComponent('Já existe uma conta com este e-mail. Entre para se inscrever.'));
+  }
+  if (existingUser && existingUser.is_public === 0 && existingUser.approval_status !== 'pending') {
+    return fail('Esta conta está inativa. Procure a organização do evento para reativá-la.');
+  }
+
+  const targetUserId = existingUser ? existingUser.id : null;
+  const existingRegistration = db.prepare(`
+    SELECT id, user_id, registration_type, registration_status, requested_activity_ids,
+           academic_history_pdf_path, academic_history_original_name,
+           motivation_letter_pdf_path, motivation_letter_original_name,
+           recommendation_letter_pdf_path, recommendation_letter_original_name
+    FROM event_registrations
+    WHERE event_id = ?
+      AND (user_id = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?)))
+    ORDER BY id
+    LIMIT 1
+  `).get(event.id, targetUserId || -1, formData.email);
+
+  if (existingRegistration && existingRegistration.user_id && existingRegistration.user_id !== targetUserId) {
+    return fail('Já existe uma inscrição neste evento com este e-mail. Entre com a conta correspondente para acessá-la.');
+  }
+
+  const errors = validatePublicAccountFields(formData);
+  errors.push(...validateListenerRegistrationForm(formData, event, existingRegistration, uploadedFiles));
+
+  const previouslyEnrolledForCapacity = existingRegistration ? getRegistrationActivityIds(existingRegistration.id) : [];
+  formData.activity_ids = enforceRequiredActivities(event.id, formData.activity_ids, previouslyEnrolledForCapacity);
+  if (getCapacityBlockedActivityIds(formData.activity_ids.filter((id) => !previouslyEnrolledForCapacity.includes(id)), previouslyEnrolledForCapacity).length > 0) {
+    errors.push('Uma ou mais atividades selecionadas não possui mais vagas disponíveis.');
+  }
+
+  if (errors.length) {
+    return fail(errors, {
+      alreadyRegistered: !!existingRegistration,
+      registrationType: existingRegistration ? existingRegistration.registration_type : null,
+      registrationStatus: existingRegistration ? existingRegistration.registration_status : null
+    });
+  }
+
+  const documentMeta = buildRegistrationDocumentMeta(existingRegistration, uploadedFiles);
+  const pendingReview = event.registration_approval_mode === 'review';
+  const subsidyRequested = event.offers_subsidy && formData.subsidy_requested ? 1 : 0;
+  const subsidyStatus = getSubsidyStatusForRegistration(event, formData);
+  let registrationId = null;
+  let registrationStatus = existingRegistration ? existingRegistration.registration_status : 'pending';
+  let userId = targetUserId;
+  let accountCreated = false;
+
+  try {
+    db.transaction(() => {
+      if (!userId) {
+        const hash = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
+        const info = db.prepare(`
+          INSERT INTO users (name, email, password, cpf, passport, country, institution,
+            is_admin, is_reviewer, is_public, approval_status, approved_at,
+            password_changed, profile_completed, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'pending', NULL, 0, 0,
+            datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+        `).run(
+          formData.name, formData.email, hash,
+          formData.cpf || null, formData.passport || null, formData.country || null,
+          formData.institution || null
+        );
+        userId = info.lastInsertRowid;
+        accountCreated = true;
+      }
+
+      if (existingRegistration && existingRegistration.registration_status === 'pending') {
+        removeReplacedRegistrationFiles(existingRegistration, uploadedFiles);
+        db.prepare(`
+          UPDATE event_registrations
+          SET name = ?, email = ?, institution = ?, user_id = ?,
+              subsidy_requested = ?, student_level = ?, student_course = ?,
+              student_institution_name = ?, student_institution_state = ?, student_lattes_id = ?,
+              subsidy_status = ?, subsidy_review_notes = '', subsidy_reviewed_at = NULL, subsidy_reviewed_by = NULL,
+              academic_history_pdf_path = ?, academic_history_original_name = ?,
+              motivation_letter_pdf_path = ?, motivation_letter_original_name = ?,
+              recommendation_letter_pdf_path = ?, recommendation_letter_original_name = ?,
+              requested_activity_ids = ?, updated_at = datetime('now', '-3 hours')
+          WHERE id = ?
+        `).run(
+          formData.name, formData.email, formData.institution || '', userId,
+          subsidyRequested,
+          subsidyRequested ? formData.student_level : '',
+          subsidyRequested ? formData.student_course : '',
+          subsidyRequested ? formData.student_institution_name : '',
+          subsidyRequested ? formData.student_institution_state : '',
+          subsidyRequested ? formData.student_lattes_id : '',
+          subsidyStatus,
+          subsidyRequested ? documentMeta.academic_history_pdf_path : '',
+          subsidyRequested ? documentMeta.academic_history_original_name : '',
+          subsidyRequested ? documentMeta.motivation_letter_pdf_path : '',
+          subsidyRequested ? documentMeta.motivation_letter_original_name : '',
+          subsidyRequested ? documentMeta.recommendation_letter_pdf_path : '',
+          subsidyRequested ? documentMeta.recommendation_letter_original_name : '',
+          JSON.stringify(formData.activity_ids),
+          existingRegistration.id
+        );
+        registrationId = existingRegistration.id;
+        registrationStatus = 'pending';
+        saveRegistrationJustifications(event.id, registrationId, userId, formData.activity_ids, uploadedFiles);
+        removeJustificationsForDeselectedActivities(event.id, registrationId, formData.activity_ids);
+        recordParticipantAudit({
+          eventId: event.id, registrationId, actorUserId: userId,
+          action: 'public_registration_updated', details: { activity_ids: formData.activity_ids, source: 'event_page' }
+        });
+      } else if (!existingRegistration) {
+        const info = db.prepare(`
+          INSERT INTO event_registrations (
+            event_id, user_id, name, email, institution, registration_type, registration_status,
+            requested_activity_ids, subsidy_requested, student_level, student_course,
+            student_institution_name, student_institution_state, student_lattes_id, subsidy_status,
+            academic_history_pdf_path, academic_history_original_name,
+            motivation_letter_pdf_path, motivation_letter_original_name,
+            recommendation_letter_pdf_path, recommendation_letter_original_name,
+            created_at, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, 'listener', 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            datetime('now', '-3 hours'), datetime('now', '-3 hours'))
+        `).run(
+          event.id, userId, formData.name, formData.email, formData.institution || '',
+          JSON.stringify(formData.activity_ids), subsidyRequested,
+          subsidyRequested ? formData.student_level : '',
+          subsidyRequested ? formData.student_course : '',
+          subsidyRequested ? formData.student_institution_name : '',
+          subsidyRequested ? formData.student_institution_state : '',
+          subsidyRequested ? formData.student_lattes_id : '',
+          subsidyStatus,
+          subsidyRequested ? documentMeta.academic_history_pdf_path : '',
+          subsidyRequested ? documentMeta.academic_history_original_name : '',
+          subsidyRequested ? documentMeta.motivation_letter_pdf_path : '',
+          subsidyRequested ? documentMeta.motivation_letter_original_name : '',
+          subsidyRequested ? documentMeta.recommendation_letter_pdf_path : '',
+          subsidyRequested ? documentMeta.recommendation_letter_original_name : ''
+        );
+        registrationId = info.lastInsertRowid;
+        registrationStatus = 'pending';
+        saveRegistrationJustifications(event.id, registrationId, userId, formData.activity_ids, uploadedFiles);
+        recordParticipantAudit({
+          eventId: event.id, registrationId, actorUserId: userId,
+          action: 'public_registration_created', details: { activity_ids: formData.activity_ids, source: 'event_page' }
+        });
+      } else {
+        // Inscrição já aprovada/rejeitada: preserva o histórico e apenas vincula
+        // a conta se o registro ainda estiver órfão. Os uploads enviados agora
+        // são descartados para não deixar arquivos órfãos.
+        removeUploadedRegistrationFiles(uploadedFiles);
+        registrationId = existingRegistration.id;
+        registrationStatus = existingRegistration.registration_status;
+        if (!existingRegistration.user_id) {
+          db.prepare("UPDATE event_registrations SET user_id=?, updated_at=datetime('now','-3 hours') WHERE id=?")
+            .run(userId, existingRegistration.id);
+        }
+      }
+    })();
+  } catch (error) {
+    console.error('[inscricao] Falha ao criar conta/inscrição pública:', error.message);
+    return fail('Não foi possível concluir a inscrição. Tente novamente.');
+  }
+
+  const userForEmail = { id: userId, name: formData.name, email: formData.email };
+  let verificationSent = false;
+  try {
+    if (accountCreated) {
+      const queued = queueAccountVerification(userForEmail, { event, registrationStatus, pendingReview });
+      verificationSent = Boolean(queued && queued.status === 'queued');
+    } else if (existingUser && existingUser.approval_status === 'pending') {
+      const resent = resendAccountVerification(existingUser, { cooldownMinutes: 5, event, registrationStatus, pendingReview });
+      verificationSent = Boolean(resent && resent.ok && resent.status === 'queued');
+    }
+  } catch (error) {
+    console.error('[inscricao] Falha ao enfileirar confirmação de e-mail:', error.message);
+  }
+
+  try {
+    queuePublicRegistrationSubmission({
+      event,
+      registration: { id: registrationId, user_id: userId, name: formData.name, email: formData.email },
+      pendingReview,
+      awaitingAccountVerification: true
+    });
+  } catch (error) {
+    console.error('[inscricao] Falha ao enfileirar e-mail da inscrição:', error.message);
+  }
+
+  req.session.publicRegistrationResult = {
+    eventId: event.id,
+    eventName: event.name,
+    email: formData.email,
+    registrationStatus,
+    pendingReview,
+    awaitingAccountVerification: true,
+    verificationSent,
+    existingRegistration: Boolean(existingRegistration)
+  };
+  return res.redirect(`/evento/${event.id}/inscricao/sucesso`);
+}
+
+router.post('/evento/:id/inscricao', registrationLimiter, runRegistrationUpload, (req, res, next) => {
   validateAndHandle(req, res, next, v.eventRegistration);
 }, (req, res) => {
   const event = db.prepare("SELECT * FROM events WHERE id = ? AND status = 'published'").bind(req.params.id).get();
   if (!event) return res.status(404).render('error', { title: 'Evento não encontrado' });
 
-  const formData = normalizeListenerRegistrationForm(req.body, req.session);
+  if (!req.session || !req.session.userId) {
+    return handleAnonymousEventRegistration(req, res, event);
+  }
+
+  const formData = normalizePublicRegistrationForm(req.body, req.session);
   const uploadedFiles = getUploadedRegistrationFiles(req);
 
   const existingRegistration = db.prepare(`
@@ -3104,6 +3474,15 @@ router.post('/definir-senha', strictLimiter, (req, res) => {
     }
     db.prepare("UPDATE user_setup_tokens SET used_at=datetime('now','-3 hours') WHERE id=?").run(setup.id);
   })();
+  // Confirmação de e-mail também libera inscrições pendentes em eventos com
+  // inscrição automática. Eventos em análise permanecem pendentes para o admin.
+  if (setup.purpose === 'verify_email') {
+    try {
+      approvePendingAutomaticRegistrations(setup.user_id);
+    } catch (error) {
+      console.error('[inscricao] Falha ao aprovar inscrições automáticas pendentes:', error.message);
+    }
+  }
   return res.render('set-password', {
     title: activated ? 'Conta ativada' : 'Senha definida', token: '', error: null,
     success: activated
@@ -3420,3 +3799,4 @@ router.post('/presenca/:eventId/:activityId', strictLimiter, (req, res) => handl
 router.post('/presenca/:eventId/:activityId/:sessionId', strictLimiter, (req, res) => handleCheckinSubmit(req, res));
 
 module.exports = router;
+module.exports.approvePendingAutomaticRegistrations = approvePendingAutomaticRegistrations;

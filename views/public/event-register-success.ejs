@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Gerência de Eventos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); padding: 0 2rem; height: 64px; display: flex; align-items: center; }
+    .topbar-inner { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .logo-icon { color: var(--accent); }
+    .topbar-nav a { color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+    .topbar-nav a:hover { color: var(--text); background: var(--surface-hover); }
+    .main-content { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem; }
+    .hero { margin-bottom: 1.75rem; text-align: center; }
+    .hero h1 { font-size: 2rem; font-weight: 800; color: var(--text-strong); margin-bottom: 0.75rem; }
+    .hero p { color: var(--text-muted); line-height: 1.7; max-width: 640px; margin: 0 auto; }
+    .card { background:var(--surface-elevated); border: 1px solid var(--border-strong); border-radius: 18px; padding: 2rem; box-shadow: 0 24px 80px rgba(2,6,23,0.35); }
+    .note { margin-bottom: 1.5rem; padding: 1rem 1.1rem; border-radius: 12px; background:var(--surface-selected); border: 1px solid var(--primary-border); color: var(--text); font-size: 0.9rem; line-height: 1.65; }
+    .note:last-of-type { margin-bottom: 0; }
+    .note-warning { background:var(--warn-subtle); border: 1px solid var(--warn-border); color:var(--warn); }
+    .actions { display: flex; justify-content: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.8rem 1.2rem; border-radius: 10px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; }
+    .btn-primary { background: var(--primary); color:var(--on-primary); }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border-strong); }
+    footer { text-align: center; padding: 2rem; color: var(--text-faint); font-size: 0.75rem; }
+  </style>
+  <%- include('../partials/theme') %>
+  <%- include('../partials/mobile-fixes') %>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="logo"><span class="logo-icon">◆</span> Gerência de Eventos</a>
+      <nav class="topbar-nav">
+        <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar ao evento</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="hero">
+      <h1>Inscrição registrada</h1>
+      <p><%= event.name %></p>
+    </div>
+
+    <div class="card">
+      <% if (result.registrationStatus === 'approved') { %>
+        <div class="note">
+          Sua inscrição em <strong><%= event.name %></strong> está confirmada.
+        </div>
+      <% } else if (result.pendingReview) { %>
+        <div class="note">
+          Sua solicitação de inscrição em <strong><%= event.name %></strong> foi registrada e será analisada pela organização. Você receberá uma mensagem com o resultado.
+        </div>
+      <% } else { %>
+        <div class="note">
+          Sua inscrição em <strong><%= event.name %></strong> foi registrada. Ela será confirmada automaticamente depois que você confirmar seu e-mail.
+        </div>
+      <% } %>
+
+      <% if (result.awaitingAccountVerification) { %>
+        <div class="note note-warning">
+          <% if (result.verificationSent) { %>
+            Enviamos um e-mail para <strong><%= result.email %></strong> com o link para confirmar sua conta e definir sua senha. A conta só será ativada depois dessa confirmação. Verifique também a caixa de Lixo Eletrônico ou Spam.
+          <% } else { %>
+            Se você já recebeu o link de confirmação para <strong><%= result.email %></strong>, use-o para ativar a conta. Caso contrário, aguarde alguns instantes e use "Reenviar confirmação"; se o envio de e-mails do sistema estiver desativado, procure a organização.
+          <% } %>
+        </div>
+      <% } %>
+
+      <div class="note">
+        Se não recebeu a mensagem, use a opção abaixo. Se o envio de e-mails do sistema estiver desativado, procure a organização para ativar sua conta.
+      </div>
+    </div>
+
+    <div class="actions">
+      <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar ao evento</a>
+      <a href="/cadastro/reenviar-confirmacao" class="btn btn-primary">Reenviar confirmação</a>
+    </div>
+  </main>
+
+  <footer>&copy; <%= year %> LIGEM.Redes • <%= typeof appVersion !== 'undefined' ? appVersion : 'V0.1' %></footer>
+</body>
+</html>

@@ -82,6 +82,8 @@
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="btn btn-logout">Sair</button>
           </form>
+        <% } else { %>
+          <a href="/login?next=<%= encodeURIComponent(typeof loginNext !== 'undefined' && loginNext ? loginNext : ('/evento/' + event.id + '/inscricao')) %>" class="btn btn-secondary">Já tenho conta? Entrar</a>
         <% } %>
       </nav>
     </div>
@@ -104,6 +106,13 @@
       <% } %>
       <% if (success) { %>
         <div class="alert alert-success"><%= success %></div>
+      <% } %>
+
+      <% if (typeof isAuthenticated !== 'undefined' && !isAuthenticated) { %>
+        <div style="padding:1rem 1.1rem;border-radius:12px;background:var(--surface-selected);border:1px solid var(--primary-border);margin-bottom:1rem;line-height:1.6;">
+          Para se inscrever, informe seus dados. Se ainda não tem conta, ela será criada e você receberá um e-mail para confirmar o endereço e definir a senha.
+          <a href="/login?next=<%= encodeURIComponent(typeof loginNext !== 'undefined' && loginNext ? loginNext : ('/evento/' + event.id + '/inscricao')) %>" style="color:var(--link);">Já tenho conta? Entrar</a>
+        </div>
       <% } %>
 
       <% if (alreadyRegistered) { %>
@@ -132,10 +141,34 @@
           <input type="email" id="email" name="email" required value="<%= formData.email || '' %>">
         </div>
 
+        <% if (typeof accountFieldsRequired !== 'undefined' && accountFieldsRequired) { %>
+        <div class="form-group">
+          <label for="confirmEmail">Confirme E-mail *</label>
+          <input type="email" id="confirmEmail" name="confirm_email" required value="<%= formData.confirm_email || '' %>">
+        </div>
+        <% } %>
+
         <div class="form-group">
           <label for="institution">Instituição</label>
           <input type="text" id="institution" name="institution" value="<%= formData.institution || '' %>">
         </div>
+
+        <% if (typeof accountFieldsRequired !== 'undefined' && accountFieldsRequired) { %>
+        <div class="grid">
+          <div class="form-group">
+            <label for="cpf">CPF</label>
+            <input type="text" id="cpf" name="cpf" value="<%= formData.cpf || '' %>">
+          </div>
+          <div class="form-group">
+            <label for="passport">Passaporte</label>
+            <input type="text" id="passport" name="passport" value="<%= formData.passport || '' %>">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="country">País</label>
+          <%- include('../partials/country-select', { selectId: 'country', selectName: 'country', selectedCountry: formData.country || '' }) %>
+        </div>
+        <% } %>
 
         <div class="form-group">
           <label>Atividades em que deseja se inscrever *</label>
@@ -279,7 +312,7 @@
 
         <div class="actions">
           <a href="/evento/<%= event.id %>" class="btn btn-secondary">Voltar ao evento</a>
-          <button type="submit" class="btn btn-primary" <%= registrationWindow && !registrationWindow.isOpen ? 'disabled' : '' %>><%= alreadyRegistered ? 'Atualizar Inscrição' : 'Confirmar Inscrição' %></button>
+          <button type="submit" class="btn btn-primary" <%= registrationWindow && !registrationWindow.isOpen ? 'disabled' : '' %>><%= alreadyRegistered ? 'Atualizar Inscrição' : ((typeof isAuthenticated !== 'undefined' && !isAuthenticated) ? 'Criar conta e inscrever-se' : 'Confirmar Inscrição') %></button>
         </div>
       </form>
     </div>
@@ -312,6 +345,27 @@
       checkbox.addEventListener('change', syncJustificationField);
       syncJustificationField();
     });
+
+    (function() {
+      var email = document.getElementById('email');
+      var confirm = document.getElementById('confirmEmail');
+      var form = document.querySelector('form[action="/evento/<%= event.id %>/inscricao"]');
+      if (!email || !confirm || !form) return;
+      form.addEventListener('submit', function(event) {
+        if (email.value.trim().toLowerCase() !== confirm.value.trim().toLowerCase()) {
+          event.preventDefault();
+          confirm.setCustomValidity('Os endereços de e-mail não conferem.');
+          confirm.reportValidity();
+        } else {
+          confirm.setCustomValidity('');
+        }
+      });
+      confirm.addEventListener('input', function() {
+        if (email.value.trim().toLowerCase() === confirm.value.trim().toLowerCase()) {
+          confirm.setCustomValidity('');
+        }
+      });
+    })();
   </script>
 </body>
 </html>

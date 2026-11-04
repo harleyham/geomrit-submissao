@@ -257,7 +257,18 @@ function requireAdminOrStaff(req, res, next) {
 
 function safeAfterLoginPath(value) {
   const path = String(value || '');
-  if (!path.startsWith('/presenca/') || path.includes('//') || path.includes('\u0000') || path.length > 200) return null;
+  if (!path || path.includes('//') || path.includes('\u0000') || path.length > 200) return null;
+  if (path.startsWith('/presenca/')) return path;
+  // Retorno pós-login para o formulário de inscrição em evento.
+  if (/^\/evento\/\d+\/inscricao$/.test(path)) return path;
+  return null;
+}
+
+// Lê e limpa o destino pós-login (presença ou inscrição em evento), para ser
+// consumido uma única vez depois do login/onboarding.
+function consumeAfterLoginPath(req) {
+  const path = safeAfterLoginPath(req.session && req.session.afterLoginPath);
+  if (path && req.session) delete req.session.afterLoginPath;
   return path;
 }
 
@@ -380,13 +391,15 @@ router.get('/', (req, res) => {
       return res.render('login', {
         error: req.query.error ? decodeURIComponent(req.query.error) : null,
         notice: { name: req.session.userName, email: req.session.userEmail, destination: authenticatedDestination(req) },
+        next: afterLogin,
         year: new Date().getFullYear()
       });
     }
-    return res.redirect(authenticatedDestination(req));
+    return res.redirect(consumeAfterLoginPath(req) || authenticatedDestination(req));
   }
   res.render('login', {
     error: req.query.error ? decodeURIComponent(req.query.error) : null,
+    next: afterLogin,
     year: new Date().getFullYear()
   });
 });
@@ -421,6 +434,13 @@ router.get('/dashboard', (req, res, next) => {
     return ` AND ${column} IN (${scopedParams.map(() => '?').join(',') || 'NULL'})`;
   };
   const evBind = (params = []) => (dashboardEventIds === null ? params : [...params, ...scopedParams]);
+  // Escopo restrito ao papel admin do evento (staff não analisa inscrições).
+  const adminScopedParams = adminEventIds === null ? [] : adminEventIds;
+  const adminEvIn = (column) => adminEventIds === null
+    ? ''
+    : ` AND ${column} IN (${adminScopedParams.map(() => '?').join(',') || 'NULL'})`;
+  const adminEvBind = (params = []) => adminEventIds === null ? params : [...params, ...adminScopedParams];
+  const canReviewRegistrations = isSuperAdmin || (adminEventIds && adminEventIds.length > 0);
   const brToday = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
 
   const managedEventRows = dashboardEventIds === null
@@ -665,7 +685,32 @@ router.get('/dashboard', (req, res, next) => {
       });
     });
   }
-  
+
+  // Pedidos de inscrição pendentes nos eventos que o usuário administra.
+  // Inclui eventos automáticos (aguardando confirmação de e-mail) e eventos
+  // com análise (aguardando decisão do admin do evento).
+  const pendingEventRegistrationRequests = !canReviewRegistrations ? [] : db.prepare(`
+    SELECT er.id, er.event_id, er.name, er.email, er.created_at,
+           e.name AS event_name, e.registration_approval_mode,
+           u.id AS user_id, u.approval_status, u.is_public
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    LEFT JOIN users u ON u.id = er.user_id
+    WHERE er.registration_status = 'pending'
+      AND e.status != 'encerrado'
+      ${adminEvIn('er.event_id')}
+    ORDER BY er.created_at DESC
+    LIMIT 20
+  `).all(...adminEvBind());
+  const pendingEventRegistrationCount = !canReviewRegistrations ? 0 : db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM event_registrations er
+    JOIN events e ON e.id = er.event_id
+    WHERE er.registration_status = 'pending'
+      AND e.status != 'encerrado'
+      ${adminEvIn('er.event_id')}
+  `).get(...adminEvBind()).count;
+
   res.render('admin/dashboard', {
     title: 'Dashboard',
     isSuperAdmin,
@@ -695,6 +740,9 @@ router.get('/dashboard', (req, res, next) => {
     pendingSubsidyRequests,
     pendingRegistrationRequests,
     pendingActivityEnrollmentRequests,
+    canReviewRegistrations,
+    pendingEventRegistrationRequests,
+    pendingEventRegistrationCount,
     systemEmailSettings: getSystemEmailSettings(),
     pendingEmailCount: getPendingEmailCount(),
     pendingEmails: isSuperAdmin ? getPendingEmails() : [],
@@ -929,11 +977,8 @@ function doLoginAfterRegen(req, res) {
   }
 
   if (!user.profile_completed) return res.redirect('/login/complete-profile');
-  const afterLogin = safeAfterLoginPath(req.session.afterLoginPath);
-  if (afterLogin) {
-    delete req.session.afterLoginPath;
-    return res.redirect(afterLogin);
-  }
+  const afterLogin = consumeAfterLoginPath(req);
+  if (afterLogin) return res.redirect(afterLogin);
   return res.redirect(authenticatedDestination(req));
 }
 
@@ -976,7 +1021,7 @@ router.get('/change-password', (req, res) => {
   const user = db.prepare('SELECT password_changed, profile_completed FROM users WHERE id = ?').bind(req.session.userId).get();
   if (user && user.password_changed) {
     if (!user.profile_completed) return res.redirect('/login/complete-profile');
-    return res.redirect(authenticatedDestination(req));
+    return res.redirect(consumeAfterLoginPath(req) || authenticatedDestination(req));
   }
   res.render('change-password', { 
     title: 'Trocar Senha', 
@@ -1015,7 +1060,7 @@ router.post('/change-password', loginLimiter, (req, res, next) => {
 
   const user = db.prepare('SELECT profile_completed FROM users WHERE id = ?').get(req.session.userId);
   if (user && !user.profile_completed) return res.redirect('/login/complete-profile');
-  return res.redirect(authenticatedDestination(req));
+  return res.redirect(consumeAfterLoginPath(req) || authenticatedDestination(req));
 });
 
 router.get('/complete-profile', (req, res) => {
@@ -1029,7 +1074,7 @@ router.get('/complete-profile', (req, res) => {
 
   if (!user) return res.redirect('/login');
   if (!user.password_changed) return res.redirect('/login/change-password');
-  if (user.profile_completed) return res.redirect(authenticatedDestination(req));
+  if (user.profile_completed) return res.redirect(consumeAfterLoginPath(req) || authenticatedDestination(req));
   return renderCompleteProfile(res, user, user);
 });
 
@@ -1043,7 +1088,7 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
   const user = db.prepare('SELECT id, email, password_changed, profile_completed FROM users WHERE id = ?').get(req.session.userId);
   if (!user) return res.redirect('/login');
   if (!user.password_changed) return res.redirect('/login/change-password');
-  if (user.profile_completed) return res.redirect(authenticatedDestination(req));
+  if (user.profile_completed) return res.redirect(consumeAfterLoginPath(req) || authenticatedDestination(req));
 
   const formData = normalizeProfileForm(req.body);
   const error = validateCompleteProfile(formData);
@@ -1072,7 +1117,7 @@ router.post('/complete-profile', loginLimiter, (req, res, next) => {
 
   req.session.userName = formData.name;
   req.session.userInstitution = formData.institution;
-  return res.redirect(authenticatedDestination(req));
+  return res.redirect(consumeAfterLoginPath(req) || authenticatedDestination(req));
 });
 
 module.exports = { router, requireAuth, requireAdminOrStaff, requireSuperAdminUser, getStaffEventIds, getEventIdsByRole, hasRoleAnyEvent, requireOnboarding, requireActiveAccount,

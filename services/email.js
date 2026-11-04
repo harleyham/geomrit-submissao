@@ -250,7 +250,7 @@ function createSetupToken(userId, purpose = 'setup') {
 
 // Confirmação de posse do e-mail no cadastro público (double opt-in): a conta
 // só é ativada quando o usuário abre o link e define a senha em /definir-senha.
-function queueAccountVerification(user) {
+function queueAccountVerification(user, { event = null, registrationStatus = null, pendingReview = false } = {}) {
   const identity = getGlobalIdentity();
   const token = createSetupToken(user.id, 'verify_email');
   const setupUrl = `${appBaseUrl()}/definir-senha?token=${encodeURIComponent(token.raw)}`;
@@ -259,7 +259,12 @@ function queueAccountVerification(user) {
     messageType: 'account_verification', templateName: 'account-verification',
     subject: 'Confirme seu e-mail para ativar sua conta', identity,
     dedupeKey: `account-verification:${user.id}:${token.id}`,
-    payload: { name: user.name, setupUrl, platformName: identity.platformName }
+    payload: {
+      name: user.name, setupUrl, platformName: identity.platformName,
+      eventName: event ? event.name : null,
+      registrationStatus: registrationStatus || null,
+      pendingReview: Boolean(pendingReview)
+    }
   });
 }
 
@@ -286,7 +291,7 @@ function isWithinCooldown(createdAt, minutes) {
 
 // Reenvia o link de confirmação de cadastro. Cancela e-mails antigos ainda na
 // fila para não entregar um link que será revogado em seguida.
-function resendAccountVerification(user, { cooldownMinutes = VERIFICATION_COOLDOWN_MINUTES } = {}) {
+function resendAccountVerification(user, { cooldownMinutes = VERIFICATION_COOLDOWN_MINUTES, event = null, registrationStatus = null, pendingReview = false } = {}) {
   if (!user || user.approval_status !== 'pending') {
     return { ok: false, reason: 'not_pending' };
   }
@@ -305,7 +310,7 @@ function resendAccountVerification(user, { cooldownMinutes = VERIFICATION_COOLDO
     db.prepare(`UPDATE email_outbox SET status='cancelled', cancelled_at=datetime('now','-3 hours'),
       last_error='Substituído por novo link de confirmação.', updated_at=datetime('now','-3 hours')
       WHERE user_id=? AND message_type='account_verification' AND status IN ('queued','failed')`).run(user.id);
-    result = queueAccountVerification(user);
+    result = queueAccountVerification(user, { event, registrationStatus, pendingReview });
   })();
   return { ok: true, status: result.status, inserted: result.inserted };
 }
@@ -387,16 +392,24 @@ function queueImportedRegistration({ user, event, dedupeKey }) {
   });
 }
 
-function queuePublicRegistrationSubmission({ event, registration, pendingReview = false }) {
+function queuePublicRegistrationSubmission({ event, registration, pendingReview = false, awaitingAccountVerification = false, dedupeKey = null }) {
   if (!registration || !registration.email) return null;
   const identity = getEventIdentity(event);
+  const subject = awaitingAccountVerification
+    ? `Recebemos sua inscrição em ${event.name} — confirme seu e-mail para concluir`
+    : pendingReview
+      ? `Recebemos sua solicitação de inscrição em ${event.name}`
+      : `Sua inscrição em ${event.name} foi confirmada`;
   return enqueueEmail({
     eventId: event.id, userId: registration.user_id || null,
     recipientEmail: registration.email, recipientName: registration.name,
     messageType: 'registration_submitted', templateName: 'registration-submitted',
-    subject: pendingReview ? `Recebemos sua solicitação de inscrição em ${event.name}` : `Sua inscrição em ${event.name} foi confirmada`,
-    identity, dedupeKey: `registration-submission:${registration.id}`,
-    payload: { name: registration.name, eventName: event.name, pendingReview, authorUrl: `${appBaseUrl()}/author`, platformName: identity.platformName }
+    subject, identity,
+    dedupeKey: dedupeKey || `registration-submission:${registration.id}`,
+    payload: {
+      name: registration.name, eventName: event.name, pendingReview,
+      awaitingAccountVerification, authorUrl: `${appBaseUrl()}/author`, platformName: identity.platformName
+    }
   });
 }
 
@@ -705,11 +718,15 @@ async function processEmailQueue() {
         .run(permission.reason, row.id);
       return;
     }
-    // E-mails de solicitação e de confirmação de cadastro precisam sair mesmo
-    // com a conta ainda pendente/inativa; os demais exigem conta aprovada.
-    if (row.user_id && !['account_requested', 'account_verification'].includes(row.message_type)) {
+    // Contas pendentes podem receber os e-mails do próprio cadastro e os da
+    // inscrição no evento; contas inativas continuam bloqueadas. Os demais
+    // tipos exigem conta aprovada e ativa.
+    if (row.user_id) {
       const user = db.prepare('SELECT is_public,approval_status FROM users WHERE id=?').get(row.user_id);
-      if (!user || !user.is_public || user.approval_status !== 'approved') {
+      const pendingSafeTypes = ['account_requested', 'account_verification', 'registration_submitted', 'registration_reviewed', 'activity_request_reviewed'];
+      const approvedActive = user && user.is_public && user.approval_status === 'approved';
+      const pendingAllowed = user && user.approval_status === 'pending' && pendingSafeTypes.includes(row.message_type);
+      if (!approvedActive && !pendingAllowed) {
         if (row.setup_token_id) db.prepare("UPDATE user_setup_tokens SET revoked_at=datetime('now','-3 hours') WHERE id=? AND used_at IS NULL").run(row.setup_token_id);
         db.prepare("UPDATE email_outbox SET status='cancelled',cancelled_at=datetime('now','-3 hours'),last_error='Conta destinatária inativa ou não aprovada.',updated_at=datetime('now','-3 hours') WHERE id=?").run(row.id);
         return;

@@ -1,5 +1,13 @@
 <p style="margin-top:0;">Olá, <strong><%= name %></strong>.</p>
-<% if (pendingReview) { %>
+<% if (typeof awaitingAccountVerification !== 'undefined' && awaitingAccountVerification) { %>
+  <p>Recebemos sua inscrição em <strong><%= eventName %></strong>.</p>
+  <p>Para concluir, confirme seu e-mail e defina sua senha usando o link enviado em outra mensagem. A inscrição só será liberada após essa confirmação.</p>
+  <% if (pendingReview) { %>
+    <p>Depois da confirmação, a organização analisará sua solicitação e você receberá uma nova mensagem com o resultado.</p>
+  <% } else { %>
+    <p>Depois da confirmação, sua inscrição será confirmada automaticamente.</p>
+  <% } %>
+<% } else if (pendingReview) { %>
   <p>Recebemos sua solicitação de inscrição em <strong><%= eventName %></strong>.</p>
   <p>A organização analisará sua solicitação e você receberá uma nova mensagem com o resultado.</p>
 <% } else { %>
