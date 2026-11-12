@@ -39,6 +39,7 @@
     .panel h3 { font-size: 0.95rem; color: var(--text-strong); margin-bottom: 0.8rem; }
     .panel p { color: var(--text); line-height: 1.6; font-size: 0.9rem; }
     .document-links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+    .article-links { display: grid; gap: 0.55rem; }
     .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.55rem 0.95rem; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; text-decoration: none; border: none; cursor: pointer; }
     .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border-strong); }
     .btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
@@ -116,6 +117,19 @@
               </div>
 
               <div class="grid">
+                <section class="panel">
+                  <h3>Artigo(s) submetido(s)</h3>
+                  <% const submittedArticles = String(request.submitted_articles || '').split('\n').filter(Boolean); %>
+                  <% if (submittedArticles.length) { %>
+                    <div class="article-links">
+                      <% submittedArticles.forEach(function(item) { const separator = item.indexOf('|'); const articleId = item.slice(0, separator); const articleTitle = item.slice(separator + 1); %>
+                        <a class="btn btn-ghost" href="/admin/articles/<%= encodeURIComponent(articleId) %>" target="_blank" rel="noopener noreferrer"><%= articleTitle || 'Visualizar artigo' %></a>
+                      <% }); %>
+                    </div>
+                  <% } else { %>
+                    <p>Não foi encontrado artigo submetido associado a esta inscrição.</p>
+                  <% } %>
+                </section>
                 <section class="panel">
                   <h3>Dados Acadêmicos</h3>
                   <p><strong>Nível:</strong> <%= request.student_level || '-' %></p>

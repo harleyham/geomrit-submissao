@@ -1324,7 +1324,13 @@ router.get('/:id/subsidies', (req, res) => {
   const subsidyRequests = db.prepare(`
     SELECT
       er.*,
-      u.name as reviewed_by_name
+      u.name as reviewed_by_name,
+      (SELECT GROUP_CONCAT(a.id || '|' || a.title, char(10))
+       FROM articles a
+       WHERE a.event_id = er.event_id
+         AND a.status != 'draft'
+         AND ((er.user_id IS NOT NULL AND a.submitter_user_id = er.user_id)
+           OR LOWER(TRIM(COALESCE(a.email_submission, ''))) = LOWER(TRIM(er.email)))) AS submitted_articles
     FROM event_registrations er
     LEFT JOIN users u ON u.id = er.subsidy_reviewed_by
     WHERE er.event_id = ?
