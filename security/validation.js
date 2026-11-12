@@ -97,8 +97,8 @@ const validators = {
     body('abstract').trim().notEmpty().withMessage('O resumo é obrigatório.').isLength({ max: 2500 }),
     body('keywords').trim().notEmpty().withMessage('As palavras-chave são obrigatórias.'),
     body('email_submission').customSanitizer(sanitizeEmail).isEmail().withMessage('Informe um e-mail de submissão válido.'),
-    body('ethics_confirmed').isIn(['on', '1']).withMessage('É necessário aceitar a declaração de ética.'),
-    body('publication_authorized').isIn(['on', '1']).withMessage('É necessário autorizar a publicação.')
+    body('ethics_confirmed').optional().isIn(['on', '1']),
+    body('publication_authorized').optional().isIn(['on', '1'])
   ],
   userForm: [
     body('name').trim().notEmpty().withMessage('O nome é obrigatório.').isLength({ max: 200 }),
